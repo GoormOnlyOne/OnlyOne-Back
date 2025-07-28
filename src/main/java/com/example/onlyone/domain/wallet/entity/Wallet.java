@@ -11,7 +11,6 @@ import lombok.Setter;
 @Entity
 @Table(name = "wallet")
 @Getter
-@Setter
 @NoArgsConstructor
 public class Wallet extends BaseTimeEntity {
 
