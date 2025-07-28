@@ -4,6 +4,7 @@ import com.example.onlyone.domain.user.entity.User;
 import com.example.onlyone.global.BaseTimeEntity;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.NotNull;
+import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
@@ -12,7 +13,7 @@ import lombok.Setter;
 @Table(name = "notification")
 @Getter
 @Setter
-@NoArgsConstructor
+@NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class Notification extends BaseTimeEntity {
 
     @Id
@@ -37,5 +38,21 @@ public class Notification extends BaseTimeEntity {
     @JoinColumn(name = "user_id", updatable = false)
     @NotNull
     private User user;
+
+
+    // create 정적 팩토리 메서드, 알림이 만들어질 때(메세지 내용, 타입, 받는 사람)
+    public static Notification create(User user, NotificationType notificationType, String... templateArgs) {
+        Notification n = new Notification();
+        n.user = user;
+        n.notificationType = notificationType;
+        n.content = notificationType.render(templateArgs);
+        n.isRead = false;
+        return n;
+    }
+
+    // 알림 읽음 처리
+    public void markAsRead() {
+        this.isRead = true;
+    }
 
 }
