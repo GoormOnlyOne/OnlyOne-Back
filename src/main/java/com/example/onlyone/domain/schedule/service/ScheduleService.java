@@ -1,8 +1,11 @@
 package com.example.onlyone.domain.schedule.service;
 
+import com.example.onlyone.domain.chat.entity.ChatRole;
 import com.example.onlyone.domain.chat.entity.ChatRoom;
 import com.example.onlyone.domain.chat.entity.Type;
+import com.example.onlyone.domain.chat.entity.UserChatRoom;
 import com.example.onlyone.domain.chat.repository.ChatRoomRepository;
+import com.example.onlyone.domain.chat.repository.UserChatRoomRepository;
 import com.example.onlyone.domain.club.entity.Club;
 import com.example.onlyone.domain.club.repository.ClubRepository;
 import com.example.onlyone.domain.schedule.dto.request.ScheduleRequestDto;
@@ -27,6 +30,7 @@ import org.springframework.stereotype.Service;
 @RequiredArgsConstructor
 public class ScheduleService {
     private final UserScheduleRepository userScheduleRepository;
+    private final UserChatRoomRepository userChatRoomRepository;
     private ScheduleRepository scheduleRepository;
     private ClubRepository clubRepository;
     private ChatRoomRepository chatRoomRepository;
@@ -51,14 +55,60 @@ public class ScheduleService {
                 .type(Type.SCHEDULE)
                 .build();
         chatRoomRepository.save(chatRoom);
+        UserChatRoom userChatRoom = UserChatRoom.builder()
+                .user(user)
+                .chatRoom(chatRoom)
+                .chatRole(ChatRole.LEADER)
+                .build();
+        userChatRoomRepository.save(userChatRoom);
     }
 
     /* 정기 모임 수정 */
     public void updateSchedule(Long clubId, Long scheduleId, @Valid ScheduleRequestDto requestDto) {
-        Club club = clubRepository.findById(clubId)
+        clubRepository.findById(clubId)
                 .orElseThrow(() -> new CustomException(ErrorCode.CLUB_NOT_FOUND));
         Schedule schedule = scheduleRepository.findById(scheduleId)
                 .orElseThrow(() -> new CustomException(ErrorCode.SCHEDULE_NOT_FOUND));
         schedule.update(requestDto.getName(), requestDto.getLocation(), requestDto.getCost(), requestDto.getUserLimit(), requestDto.getScheduleTime());
+    }
+
+    /* 정기 모임 참여 */
+    public void joinSchedule(Long clubId, Long scheduleId) {
+        clubRepository.findById(clubId)
+                .orElseThrow(() -> new CustomException(ErrorCode.CLUB_NOT_FOUND));
+        Schedule schedule = scheduleRepository.findById(scheduleId)
+                .orElseThrow(() -> new CustomException(ErrorCode.SCHEDULE_NOT_FOUND));
+        User user = userService.getCurrentUser();
+        UserSchedule userSchedule = UserSchedule.builder()
+                .user(user)
+                .schedule(schedule)
+                .scheduleRole(ScheduleRole.MEMBER)
+                .build();
+        userScheduleRepository.save(userSchedule);
+        ChatRoom chatRoom = chatRoomRepository.findByTypeAndScheduleId(Type.SCHEDULE, schedule.getScheduleId())
+                .orElseThrow(() -> new CustomException(ErrorCode.CHAT_ROOM_NOT_FOUND));
+        UserChatRoom userChatRoom = UserChatRoom.builder()
+                .user(user)
+                .chatRoom(chatRoom)
+                .chatRole(ChatRole.LEADER)
+                .build();
+        userChatRoomRepository.save(userChatRoom);
+    }
+
+    /* 정기 모임 참여 취소 */
+    public void leaveSchedule(Long clubId, Long scheduleId) {
+        User user = userService.getCurrentUser();
+        clubRepository.findById(clubId)
+                .orElseThrow(() -> new CustomException(ErrorCode.CLUB_NOT_FOUND));
+        Schedule schedule = scheduleRepository.findById(scheduleId)
+                .orElseThrow(() -> new CustomException(ErrorCode.SCHEDULE_NOT_FOUND));
+        UserSchedule userSchedule = userScheduleRepository.findByUserAndSchedule(user, schedule)
+                .orElseThrow(() -> new CustomException(ErrorCode.USER_SCHEDULE_NOT_FOUND));
+        userScheduleRepository.delete(userSchedule);
+        ChatRoom chatRoom = chatRoomRepository.findByTypeAndScheduleId(Type.SCHEDULE, schedule.getScheduleId())
+                .orElseThrow(() -> new CustomException(ErrorCode.CHAT_ROOM_NOT_FOUND));
+        UserChatRoom userChatRoom = userChatRoomRepository.findByUserAndChatRoom(user, chatRoom)
+                .orElseThrow(() -> new CustomException(ErrorCode.USER_CHAT_ROOM_NOT_FOUND));
+        userChatRoomRepository.delete(userChatRoom);
     }
 }

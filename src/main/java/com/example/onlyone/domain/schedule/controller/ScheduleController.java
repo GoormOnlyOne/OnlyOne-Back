@@ -33,4 +33,22 @@ public class ScheduleController {
         scheduleService.updateSchedule(clubId, scheduleId, requestDto);
         return ResponseEntity.ok().build();
     }
+
+    @Operation(summary = "정기 모임 참여", description = "정기 모임에 참여합니다.")
+    @PatchMapping("/{scheduleId}/users")
+    public ResponseEntity<?> joinSchedule(@PathVariable("clubId") final Long clubId,
+                                            @PathVariable("scheduleId") final Long scheduleId) {
+        scheduleService.joinSchedule(clubId, scheduleId);
+        return ResponseEntity.ok().build();
+    }
+
+    @Operation(summary = "정기 모임 참여 취소", description = "정기 모임 참여를 취소합니다.")
+    @DeleteMapping("/{scheduleId}/users")
+    public ResponseEntity<?> leaveSchedule(@PathVariable("clubId") final Long clubId,
+                                          @PathVariable("scheduleId") final Long scheduleId) {
+        scheduleService.leaveSchedule(clubId, scheduleId);
+        return ResponseEntity.noContent().build();
+    }
+
+
 }
