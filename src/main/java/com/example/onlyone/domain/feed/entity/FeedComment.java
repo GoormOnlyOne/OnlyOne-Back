@@ -1,16 +1,11 @@
 package com.example.onlyone.domain.feed.entity;
 
-import com.example.onlyone.domain.schedule.Schedule;
 import com.example.onlyone.domain.user.entity.User;
 import com.example.onlyone.global.BaseTimeEntity;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.NotNull;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
-import lombok.Setter;
-
-import java.util.ArrayList;
-import java.util.List;
 
 @Entity
 @Table(name = "feed_comment")
