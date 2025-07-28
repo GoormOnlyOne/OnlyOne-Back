@@ -31,9 +31,9 @@ import org.springframework.stereotype.Service;
 public class ScheduleService {
     private final UserScheduleRepository userScheduleRepository;
     private final UserChatRoomRepository userChatRoomRepository;
-    private ScheduleRepository scheduleRepository;
-    private ClubRepository clubRepository;
-    private ChatRoomRepository chatRoomRepository;
+    private final ScheduleRepository scheduleRepository;
+    private final ClubRepository clubRepository;
+    private final ChatRoomRepository chatRoomRepository;
     private final UserService userService;
 
     /* 정기 모임 생성*/
@@ -79,6 +79,9 @@ public class ScheduleService {
         Schedule schedule = scheduleRepository.findById(scheduleId)
                 .orElseThrow(() -> new CustomException(ErrorCode.SCHEDULE_NOT_FOUND));
         User user = userService.getCurrentUser();
+        if (userScheduleRepository.findByUserAndSchedule(user, schedule).isPresent()) {
+            throw new CustomException(ErrorCode.ALREADY_JOINED_SCHEDULE);
+        }
         UserSchedule userSchedule = UserSchedule.builder()
                 .user(user)
                 .schedule(schedule)
@@ -104,6 +107,9 @@ public class ScheduleService {
                 .orElseThrow(() -> new CustomException(ErrorCode.SCHEDULE_NOT_FOUND));
         UserSchedule userSchedule = userScheduleRepository.findByUserAndSchedule(user, schedule)
                 .orElseThrow(() -> new CustomException(ErrorCode.USER_SCHEDULE_NOT_FOUND));
+        if (userSchedule.getScheduleRole() == ScheduleRole.LEADER) {
+            throw new CustomException(ErrorCode.LEADER_CANNOT_LEAVE_SCHEDULE);
+        }
         userScheduleRepository.delete(userSchedule);
         ChatRoom chatRoom = chatRoomRepository.findByTypeAndScheduleId(Type.SCHEDULE, schedule.getScheduleId())
                 .orElseThrow(() -> new CustomException(ErrorCode.CHAT_ROOM_NOT_FOUND));
