@@ -4,14 +4,11 @@ import com.example.onlyone.global.BaseTimeEntity;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.NotNull;
-import lombok.Getter;
-import lombok.NoArgsConstructor;
-import lombok.Setter;
+import lombok.*;
 
 @Entity
 @Table(name = "wallet_transaction")
 @Getter
-@Setter
 @NoArgsConstructor
 public class WalletTransaction extends BaseTimeEntity {
 
@@ -42,13 +39,13 @@ public class WalletTransaction extends BaseTimeEntity {
     @NotNull
     private String impUid;
 
-    @ManyToOne(fetch = FetchType.LAZY, cascade = CascadeType.ALL)
+    @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "wallet_id", updatable = false)
     @NotNull
     @JsonIgnore
     private Wallet wallet;
 
-    @ManyToOne(fetch = FetchType.LAZY, cascade = CascadeType.ALL)
+    @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "target_wallet_id", updatable = false)
     @NotNull
     @JsonIgnore

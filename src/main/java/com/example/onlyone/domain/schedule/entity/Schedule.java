@@ -42,9 +42,9 @@ public class Schedule extends BaseTimeEntity {
     @Enumerated(EnumType.STRING)
     private Status status;
 
-    @Column(name = "limit")
+    @Column(name = "schedule_limit")
     @NotNull
-    private int limit;
+    private int scheduleLimit;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "club_id")

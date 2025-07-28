@@ -4,16 +4,16 @@ import com.example.onlyone.domain.user.entity.User;
 import com.example.onlyone.global.BaseTimeEntity;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.NotNull;
-import lombok.Getter;
-import lombok.NoArgsConstructor;
-import lombok.Setter;
+import lombok.*;
+
 import java.time.*;
 
 @Entity
 @Table(name = "user_settlement")
 @Getter
-@Setter
-@NoArgsConstructor
+@NoArgsConstructor(access = AccessLevel.PROTECTED)
+@AllArgsConstructor
+@Builder
 public class UserSettlement extends BaseTimeEntity {
 
     @Id
