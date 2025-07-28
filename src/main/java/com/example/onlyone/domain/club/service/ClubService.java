@@ -1,5 +1,8 @@
 package com.example.onlyone.domain.club.service;
 
+import com.example.onlyone.domain.chat.entity.ChatRoom;
+import com.example.onlyone.domain.chat.entity.Type;
+import com.example.onlyone.domain.chat.repository.ChatRoomRepository;
 import com.example.onlyone.domain.club.dto.request.ClubCreateRequestDto;
 import com.example.onlyone.domain.club.entity.Club;
 import com.example.onlyone.domain.club.entity.ClubRole;
@@ -27,6 +30,7 @@ public class ClubService {
     private final ClubRepository clubRepository;
     private final InterestRepository interestRepository;
     private final UserClubRepository userClubRepository;
+    private final ChatRoomRepository chatRoomRepository;
     private final UserService userService;
 
     /* 모임 생성*/
@@ -35,6 +39,7 @@ public class ClubService {
                 .orElseThrow(() -> new CustomException(ErrorCode.INTEREST_NOT_FOUND));
         Club club = requestDto.toEntity(interest);
         clubRepository.save(club);
+        // 모임장의 UserClub 생성
         User user = userService.getCurrentUser();
         UserClub userClub = UserClub.builder()
                 .user(user)
@@ -42,6 +47,12 @@ public class ClubService {
                 .clubRole(ClubRole.LEADER)
                 .build();
         userClubRepository.save(userClub);
+        // 모임 전체 채팅방 생성
+        ChatRoom chatRoom = ChatRoom.builder()
+                .club(club)
+                .type(Type.CLUB)
+                .build();
+        chatRoomRepository.save(chatRoom);
     }
 
 }
