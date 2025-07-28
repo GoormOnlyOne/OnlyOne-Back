@@ -31,9 +31,6 @@ public class ClubService {
 
     /* 모임 생성*/
     public void createClub(@Valid ClubCreateRequestDto requestDto) {
-        log.info(requestDto.getCategory());
-        log.info(Category.from(requestDto.getCategory()));
-        log.info(interestRepository.findAll());
         Interest interest = interestRepository.findByCategory(Category.from(requestDto.getCategory()))
                 .orElseThrow(() -> new CustomException(ErrorCode.INTEREST_NOT_FOUND));
         Club club = requestDto.toEntity(interest);
