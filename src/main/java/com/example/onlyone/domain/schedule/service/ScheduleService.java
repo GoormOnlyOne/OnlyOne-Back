@@ -4,10 +4,8 @@ import com.example.onlyone.domain.chat.entity.ChatRoom;
 import com.example.onlyone.domain.chat.entity.Type;
 import com.example.onlyone.domain.chat.repository.ChatRoomRepository;
 import com.example.onlyone.domain.club.entity.Club;
-import com.example.onlyone.domain.club.entity.ClubRole;
-import com.example.onlyone.domain.club.entity.UserClub;
 import com.example.onlyone.domain.club.repository.ClubRepository;
-import com.example.onlyone.domain.schedule.dto.request.ScheduleCreateRequestDto;
+import com.example.onlyone.domain.schedule.dto.request.ScheduleRequestDto;
 import com.example.onlyone.domain.schedule.entity.Schedule;
 import com.example.onlyone.domain.schedule.entity.ScheduleRole;
 import com.example.onlyone.domain.schedule.entity.UserSchedule;
@@ -35,7 +33,7 @@ public class ScheduleService {
     private final UserService userService;
 
     /* 정기 모임 생성*/
-    public void createSchedule(Long clubId, @Valid ScheduleCreateRequestDto requestDto) {
+    public void createSchedule(Long clubId, @Valid ScheduleRequestDto requestDto) {
         Club club = clubRepository.findById(clubId)
                 .orElseThrow(() -> new CustomException(ErrorCode.CLUB_NOT_FOUND));
         Schedule schedule = requestDto.toEntity(club);
@@ -53,5 +51,14 @@ public class ScheduleService {
                 .type(Type.SCHEDULE)
                 .build();
         chatRoomRepository.save(chatRoom);
+    }
+
+    /* 정기 모임 수정 */
+    public void updateSchedule(Long clubId, Long scheduleId, @Valid ScheduleRequestDto requestDto) {
+        Club club = clubRepository.findById(clubId)
+                .orElseThrow(() -> new CustomException(ErrorCode.CLUB_NOT_FOUND));
+        Schedule schedule = scheduleRepository.findById(scheduleId)
+                .orElseThrow(() -> new CustomException(ErrorCode.SCHEDULE_NOT_FOUND));
+        schedule.update(requestDto.getName(), requestDto.getLocation(), requestDto.getCost(), requestDto.getUserLimit(), requestDto.getScheduleTime());
     }
 }
