@@ -1,5 +1,8 @@
 package com.example.onlyone.domain.interest.entity;
 
+import com.example.onlyone.global.exception.CustomException;
+import com.example.onlyone.global.exception.ErrorCode;
+
 public enum Category {
     CULTURE,
     EXERCISE,
@@ -8,6 +11,14 @@ public enum Category {
     CRAFT,
     SOCIAL,
     LANGUAGE,
-    FINANCE
+    FINANCE;
+
+    public static Category from(String value) {
+        try {
+            return Category.valueOf(value.toUpperCase());
+        } catch (IllegalArgumentException e) {
+            throw new CustomException(ErrorCode.INVALID_CATEGORY);
+        }
+    }
 }
 
