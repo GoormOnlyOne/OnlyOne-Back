@@ -1,0 +1,36 @@
+package com.example.onlyone.domain.feed.entity;
+
+import com.example.onlyone.domain.club.entity.Club;
+import com.example.onlyone.domain.user.entity.User;
+import com.example.onlyone.global.BaseTimeEntity;
+import jakarta.persistence.*;
+import jakarta.validation.constraints.NotNull;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+import lombok.Setter;
+
+@Entity
+@Table(name = "feed")
+@Getter
+@NoArgsConstructor
+public class Feed extends BaseTimeEntity {
+
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Column(name = "feed_id", updatable = false)
+    private Long feedId;
+
+    @Column(name = "content")
+    private String content;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "club_id")
+    @NotNull
+    private Club club;
+
+    @ManyToOne(fetch = FetchType.LAZY, cascade = CascadeType.ALL)
+    @JoinColumn(name = "user_id", updatable = false)
+    @NotNull
+    private User user;
+
+}
