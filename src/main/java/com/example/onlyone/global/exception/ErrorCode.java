@@ -18,6 +18,8 @@ public enum ErrorCode {
     INVALID_ROLE(400, "CLUB_400_1", "유효하지 않은 모임 역할입니다."),
     CLUB_NOT_FOUND(404, "CLUB_404_1", "모임이 존재하지 않습니다."),
 
+    // Schedule
+    SCHEDULE_NOT_FOUND(404, "SCHEDULE_404_1", "정기 모임을 찾을 수 없습니다."),
 
     ;
 
