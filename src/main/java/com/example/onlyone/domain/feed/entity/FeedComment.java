@@ -36,13 +36,4 @@ public class FeedComment extends BaseTimeEntity {
     @NotNull
     private User user;
 
-    @OneToMany(mappedBy = "feed", cascade = CascadeType.ALL, orphanRemoval = true)
-    private List<FeedComment> feedComments = new ArrayList<>();
-
-    @OneToMany(mappedBy = "feed", cascade = CascadeType.ALL, orphanRemoval = true)
-    private List<FeedLike> feedLikes = new ArrayList<>();
-
-    @OneToMany(mappedBy = "feed", cascade = CascadeType.ALL, orphanRemoval = true)
-    private List<FeedImage> feedImages = new ArrayList<>();
-
 }

@@ -9,6 +9,9 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
+import java.util.ArrayList;
+import java.util.List;
+
 @Entity
 @Table(name = "feed")
 @Getter
@@ -32,5 +35,14 @@ public class Feed extends BaseTimeEntity {
     @JoinColumn(name = "user_id", updatable = false)
     @NotNull
     private User user;
+
+    @OneToMany(mappedBy = "feed", cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<FeedComment> feedComments = new ArrayList<>();
+
+    @OneToMany(mappedBy = "feed", cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<FeedLike> feedLikes = new ArrayList<>();
+
+    @OneToMany(mappedBy = "feed", cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<FeedImage> feedImages = new ArrayList<>();
 
 }
