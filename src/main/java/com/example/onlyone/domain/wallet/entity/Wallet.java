@@ -1,8 +1,7 @@
-package com.example.onlyone.domain.wallet;
+package com.example.onlyone.domain.wallet.entity;
 
 import com.example.onlyone.domain.user.entity.User;
 import com.example.onlyone.global.BaseTimeEntity;
-import com.fasterxml.jackson.databind.ser.Serializers;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.NotNull;
 import lombok.Getter;

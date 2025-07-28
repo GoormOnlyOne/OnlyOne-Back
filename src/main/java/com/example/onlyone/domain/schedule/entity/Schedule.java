@@ -1,4 +1,4 @@
-package com.example.onlyone.domain.schedule;
+package com.example.onlyone.domain.schedule.entity;
 
 import com.example.onlyone.domain.club.entity.Club;
 import com.example.onlyone.global.BaseTimeEntity;

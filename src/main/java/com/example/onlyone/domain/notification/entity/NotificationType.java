@@ -1,4 +1,4 @@
-package com.example.onlyone.domain.notification;
+package com.example.onlyone.domain.notification.entity;
 
 import com.example.onlyone.global.BaseTimeEntity;
 import jakarta.persistence.*;

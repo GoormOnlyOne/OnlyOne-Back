@@ -1,7 +1,6 @@
 package com.example.onlyone.domain.chat.entity;
 
 import com.example.onlyone.domain.club.entity.Club;
-import com.example.onlyone.domain.schedule.Schedule;
 import com.example.onlyone.global.BaseTimeEntity;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;

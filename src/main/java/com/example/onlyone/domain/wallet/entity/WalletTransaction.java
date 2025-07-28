@@ -1,4 +1,4 @@
-package com.example.onlyone.domain.wallet;
+package com.example.onlyone.domain.wallet.entity;
 
 import com.example.onlyone.global.BaseTimeEntity;
 import com.fasterxml.jackson.annotation.JsonIgnore;
