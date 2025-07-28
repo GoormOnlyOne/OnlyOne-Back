@@ -24,6 +24,7 @@ public class GlobalExceptionHandler {
         ErrorDto errorDto = ErrorDto.builder()
                 .timestamp(LocalDateTime.now().toString())
                 .status(e.getErrorCode().getStatus())
+                .code(e.getErrorCode().getCode())
                 .message(e.getErrorCode().getMessage())
                 .path(request.getRequestURI())
                 .build();
