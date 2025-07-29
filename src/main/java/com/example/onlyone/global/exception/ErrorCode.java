@@ -10,8 +10,8 @@ public enum ErrorCode {
     // Global
     INVALID_INPUT_VALUE(400, "GLOBAL_400_1", "입력값이 유효하지 않습니다."),
     METHOD_NOT_ALLOWED(405, "GLOBAL_400_2", "지원하지 않는 HTTP 메서드입니다."),
-    INTERNAL_SERVER_ERROR(500, "GLOBAL_500_1", "서버 내부 오류가 발생했습니다."),
     BAD_REQUEST(400, "GLOBAL_400_3", "필수 파라미터가 누락되었습니다."),
+    INTERNAL_SERVER_ERROR(500, "GLOBAL_500_1", "서버 내부 오류가 발생했습니다."),
 
     // User
     USER_NOT_FOUND(404, "USER_404_1", "유저를 찾을 수 없습니다."),
@@ -27,18 +27,25 @@ public enum ErrorCode {
     // Schedule
     SCHEDULE_NOT_FOUND(404, "SCHEDULE_404_1", "정기 모임을 찾을 수 없습니다."),
     USER_SCHEDULE_NOT_FOUND(404, "SCHEDULE_404_2", "정기 모임 참여자를 찾을 수 없습니다."),
-    ALREADY_JOINED_SCHEDULE(409, "SCHEDULE_409_1", "이미 참여하고 있는 스케줄입니다."),
-    LEADER_CANNOT_LEAVE_SCHEDULE(409, "SCHEDULE_409_2", "리더는 스케줄 참여를 취소할 수 없습니다."),
-    MEMBER_CANNOT_MODIFY_SCHEDULE(403, "SCHEDULE_409_3", "리더만 스케줄을 수정할 수 있습니다,"),
-    ALREADY_ENDED_SCHEDULE(409, "SCHEDULE_409_4", "이미 종료된 스케줄입니다."),
-    BEFORE_SCHEDULE_START(409, "SCHEDULE_409_5", "아직 진행되지 않은 스케줄입니다."),
+    ALREADY_JOINED_SCHEDULE(409, "SCHEDULE_409_1", "이미 참여하고 있는 정기 모임입니다."),
+    LEADER_CANNOT_LEAVE_SCHEDULE(409, "SCHEDULE_409_2", "리더는 정기 모임 참여를 취소할 수 없습니다."),
+    MEMBER_CANNOT_MODIFY_SCHEDULE(403, "SCHEDULE_409_3", "리더만 정기 모임을 수정할 수 있습니다,"),
+    ALREADY_ENDED_SCHEDULE(409, "SCHEDULE_409_4", "이미 종료된 정기 모임입니다."),
+    BEFORE_SCHEDULE_START(409, "SCHEDULE_409_5", "아직 진행되지 않은 정기 모임입니다."),
 
     // Settlement
     MEMBER_CANNOT_CREATE_SETTLEMENT(403, "SETTLEMENT_403_1", "리더만 정산 요청을 할 수 있습니다."),
+    SETTLEMENT_NOT_FOUND(404, "SETTLEMENT_404_1", "정산을 찾을 수 없습니다."),
+    USER_SETTLEMENT_NOT_FOUND(404, "SETTLEMENT_404_2", "정산 참여자를 찾을 수 없습니다."),
+    ALREADY_SETTLED_USER(409, "SETTLEMENT_409_1", "이미 해당 정기 모임에 대해 정산한 유저입니다."),
 
     // Chat
     CHAT_ROOM_NOT_FOUND(404, "CHAT_404_1", "채팅방을 찾을 수 없습니다."),
     USER_CHAT_ROOM_NOT_FOUND(404, "CHAT_404_2", "채팅방 참여자를 찾을 수 없습니다."),
+
+    // Wallet
+    WALLET_NOT_FOUND(404, "WALLET_404_1", "사용자의 지갑을 찾을 수 없습니다."),
+    WALLET_BALANCE_NOT_ENOUGH(409, "WALLET_409_1", "사용자의 잔액이 부족합니다."),
 
     ;
 
