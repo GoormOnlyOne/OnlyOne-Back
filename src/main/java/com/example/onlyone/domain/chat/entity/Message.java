@@ -13,6 +13,7 @@ import java.time.*;
 @Entity
 @Table(name = "message")
 @Getter
+@Setter
 @NoArgsConstructor
 public class Message extends BaseTimeEntity {
 

@@ -40,7 +40,10 @@ dependencies {
     runtimeOnly 'io.jsonwebtoken:jjwt-jackson:0.12.4'
     //redis
     implementation 'org.springframework.boot:spring-boot-starter-data-redis'
-
+    //websocket
+    implementation 'org.springframework.boot:spring-boot-starter-websocket'
+    implementation 'org.springframework.boot:spring-boot-starter-actuator'
+    implementation 'org.springframework.boot:spring-boot-starter'
 }
 
 tasks.named('test') {
