@@ -18,6 +18,11 @@ public class UserService {
                 .orElseThrow(() -> new CustomException(ErrorCode.MEMBER_NOT_FOUND));
     }
 
+    public User getAnotherUser(){
+        return userRepository.findById((long) 2)
+                .orElseThrow(() -> new CustomException(ErrorCode.MEMBER_NOT_FOUND));
+    }
+
     public User getMemberById(Long memberId){
         return userRepository.findById(memberId)
                 .orElseThrow(() -> new CustomException(ErrorCode.MEMBER_NOT_FOUND));
