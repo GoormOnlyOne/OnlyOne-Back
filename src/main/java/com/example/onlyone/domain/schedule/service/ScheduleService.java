@@ -25,10 +25,12 @@ import jakarta.validation.Valid;
 import com.example.onlyone.global.exception.ErrorCode;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.log4j.Log4j2;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.Optional;
@@ -46,6 +48,19 @@ public class ScheduleService {
     private final ChatRoomRepository chatRoomRepository;
     private final UserService userService;
     private final UserRepository userRepository;
+
+    /* 스케줄 Status를 READY -> ENDED로 변경하는 스케줄링 */
+    @Transactional
+    @Scheduled(cron = "0 0 0 * * *")
+    public void updateScheduleStatus() {
+        LocalDateTime now = LocalDateTime.now();
+        List<Schedule> readySchedules = scheduleRepository.findByStatus(Status.READY);
+        for (Schedule schedule : readySchedules) {
+            if (schedule.getScheduleTime().isBefore(now)) {
+                schedule.updateStatus(Status.ENDED);
+            }
+        }
+    }
 
     /* 정기 모임 생성*/
     public void createSchedule(Long clubId, @Valid ScheduleRequestDto requestDto) {
