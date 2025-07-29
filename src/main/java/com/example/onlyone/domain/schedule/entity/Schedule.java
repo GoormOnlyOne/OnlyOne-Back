@@ -64,4 +64,8 @@ public class Schedule extends BaseTimeEntity {
         this.userLimit = userLimit;
         this.scheduleTime = scheduleTime;
     }
+
+    public void updateStatus(Status status) {
+        this.status = status;
+    }
 }
