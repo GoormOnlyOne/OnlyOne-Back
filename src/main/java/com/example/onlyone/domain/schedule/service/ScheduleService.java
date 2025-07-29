@@ -50,7 +50,6 @@ public class ScheduleService {
     private final UserRepository userRepository;
 
     /* 스케줄 Status를 READY -> ENDED로 변경하는 스케줄링 */
-    @Transactional
     @Scheduled(cron = "0 0 0 * * *")
     public void updateScheduleStatus() {
         LocalDateTime now = LocalDateTime.now();

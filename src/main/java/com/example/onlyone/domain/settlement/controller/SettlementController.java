@@ -24,4 +24,12 @@ public class SettlementController {
         settlementService.createSettlement(clubId, scheduleId);
         return ResponseEntity.status(HttpStatus.CREATED).body(CommonResponse.success(null));
     }
+
+    @Operation(summary = "참여자 정산", description = "정기 모임의 참여자가 정산을 진행합니다.")
+    @PostMapping("/{settlementId}")
+    public ResponseEntity<?> updateUserSettlement(@PathVariable("clubId") final Long clubId, @PathVariable("scheduleId") final Long scheduleId,
+                                                  @PathVariable("settlementId") final Long settlementId) {
+        settlementService.updateUserSettlement(clubId, scheduleId, settlementId);
+        return ResponseEntity.ok(CommonResponse.success(null));
+    }
 }

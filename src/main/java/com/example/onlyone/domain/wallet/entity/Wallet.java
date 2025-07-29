@@ -27,4 +27,8 @@ public class Wallet extends BaseTimeEntity {
     @Column(name = "balance")
     @NotNull
     private int balance;
+
+    public void updateBalance(int balance) {
+        this.balance = balance;
+    }
 }

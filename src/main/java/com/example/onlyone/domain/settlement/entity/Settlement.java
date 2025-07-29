@@ -43,4 +43,7 @@ public class Settlement extends BaseTimeEntity {
     @JoinColumn(name = "user_id", updatable = false)
     @NotNull
     private User receiver;
+
+    public void updateStatus(TotalStatus totalStatus) {
+    }
 }
