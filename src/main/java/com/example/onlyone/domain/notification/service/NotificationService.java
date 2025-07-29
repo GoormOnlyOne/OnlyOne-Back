@@ -1,5 +1,7 @@
 package com.example.onlyone.domain.notification.service;
 
+import com.example.onlyone.domain.notification.dto.NotificationRequestDto;
+import com.example.onlyone.domain.notification.dto.NotificationResponseDto;
 import com.example.onlyone.domain.notification.entity.Notification;
 import com.example.onlyone.domain.notification.entity.NotificationCreatedEvent;
 import com.example.onlyone.domain.notification.entity.NotificationType;
@@ -7,6 +9,7 @@ import com.example.onlyone.domain.notification.entity.Type;
 import com.example.onlyone.domain.notification.repository.NotificationRepository;
 import com.example.onlyone.domain.notification.repository.NotificationTypeRepository;
 import com.example.onlyone.domain.user.entity.User;
+import com.example.onlyone.domain.user.repository.UserRepository;
 import com.example.onlyone.global.exception.CustomException;
 import com.example.onlyone.global.exception.ErrorCode;
 import lombok.RequiredArgsConstructor;
@@ -18,40 +21,41 @@ import org.springframework.transaction.annotation.Transactional;
 @RequiredArgsConstructor
 public class NotificationService {
 
+    private final UserRepository userRepo;
     private final NotificationTypeRepository typeRepo;
     private final NotificationRepository notificationRepo;
     private final ApplicationEventPublisher eventPublisher;
 
-    // 알림을 생성하고 저장한다.
+    // 알림 생성
     @Transactional
-    public Notification sendNotification(User to, Type type, String... args){
+    public NotificationResponseDto sendNotification(NotificationRequestDto dto) {
+        // 1) User 조회
+        User toUser = userRepo.findById(dto.getUserId())
+                .orElseThrow(() -> new CustomException(ErrorCode.MEMBER_NOT_FOUND));
 
-        // 알림 유형이 존재하는지 검사
+        // 2) Type 변환
+        Type type = Type.from(dto.getTypeCode());
+
+        // 3) NotificationType 조회
         NotificationType nt = typeRepo.findByType(type)
-                .orElseThrow(() ->
-                        new CustomException(ErrorCode.NOTIFICATION_TYPE_NOT_FOUND));
+                .orElseThrow(() -> new CustomException(ErrorCode.NOTIFICATION_TYPE_NOT_FOUND));
 
-        // 알림 유형이 존재하면 알림 생성
-        Notification notification = Notification.create(to, nt, args);
-
-        // 알림 저장
+        // 4) 알림 생성·저장
+        Notification notification = Notification.create(toUser, nt, dto.getArgs());
         Notification saved = notificationRepo.save(notification);
 
-        // 저장된 알림을 이벤트로 발행
+        // 5) 이벤트 발행
         eventPublisher.publishEvent(new NotificationCreatedEvent(saved));
-        return saved;
+
+        // 6) 엔티티 → DTO 변환 후 반환
+        return NotificationResponseDto.fromEntity(saved);
     }
 
     // 읽음 처리
     @Transactional
     public void markAsRead(Long id) {
-
-        // 알림 존재하는지 확인
         Notification n = notificationRepo.findById(id)
                 .orElseThrow(() -> new CustomException(ErrorCode.NOTIFICATION_NOT_FOUND));
-
-        // 알림이 존재하면 읽음 상태로 변경
         n.markAsRead();
     }
-
 }
