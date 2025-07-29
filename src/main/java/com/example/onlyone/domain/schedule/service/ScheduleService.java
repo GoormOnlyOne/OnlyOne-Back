@@ -78,7 +78,8 @@ public class ScheduleService {
                 .orElseThrow(() -> new CustomException(ErrorCode.CLUB_NOT_FOUND));
         Schedule schedule = scheduleRepository.findById(scheduleId)
                 .orElseThrow(() -> new CustomException(ErrorCode.SCHEDULE_NOT_FOUND));
-        User user = userService.getCurrentUser();
+//        User user = userService.getCurrentUser();
+        User user = userService.getAnotherUser();
         if (userScheduleRepository.findByUserAndSchedule(user, schedule).isPresent()) {
             throw new CustomException(ErrorCode.ALREADY_JOINED_SCHEDULE);
         }
@@ -93,14 +94,15 @@ public class ScheduleService {
         UserChatRoom userChatRoom = UserChatRoom.builder()
                 .user(user)
                 .chatRoom(chatRoom)
-                .chatRole(ChatRole.LEADER)
+                .chatRole(ChatRole.MEMBER)
                 .build();
         userChatRoomRepository.save(userChatRoom);
     }
 
     /* 정기 모임 참여 취소 */
     public void leaveSchedule(Long clubId, Long scheduleId) {
-        User user = userService.getCurrentUser();
+//        User user = userService.getCurrentUser();
+        User user = userService.getAnotherUser();
         clubRepository.findById(clubId)
                 .orElseThrow(() -> new CustomException(ErrorCode.CLUB_NOT_FOUND));
         Schedule schedule = scheduleRepository.findById(scheduleId)
