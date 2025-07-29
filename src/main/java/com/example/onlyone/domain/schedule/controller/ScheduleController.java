@@ -2,6 +2,7 @@ package com.example.onlyone.domain.schedule.controller;
 
 import com.example.onlyone.domain.schedule.dto.request.ScheduleRequestDto;
 import com.example.onlyone.domain.schedule.dto.response.ScheduleResponseDto;
+import com.example.onlyone.domain.schedule.dto.response.ScheduleUserResponseDto;
 import com.example.onlyone.domain.schedule.service.ScheduleService;
 import com.example.onlyone.global.common.CommonResponse;
 import io.swagger.v3.oas.annotations.Operation;
@@ -59,6 +60,13 @@ public class ScheduleController {
     public ResponseEntity<?> getScheduleList(@PathVariable("clubId") final Long clubId) {
         List<ScheduleResponseDto> scheduleList = scheduleService.getScheduleList(clubId);
         return ResponseEntity.ok(CommonResponse.success(scheduleList));
+    }
+
+    @Operation(summary = "스케줄 참여자 목록 조회", description = "스케줄 참여자의 목록을 조회합니다.")
+    @GetMapping("/{scheduleId}/users")
+    public ResponseEntity<?> getScheduleUserList(@PathVariable("clubId") final Long clubId, @PathVariable("scheduleId") final Long scheduleId) {
+        List<ScheduleUserResponseDto> scheduleUserList = scheduleService.getScheduleUserList(clubId, scheduleId);
+        return ResponseEntity.ok(CommonResponse.success(scheduleUserList));
     }
 
 
