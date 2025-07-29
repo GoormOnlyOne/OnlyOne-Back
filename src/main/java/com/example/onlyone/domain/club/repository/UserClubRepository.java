@@ -9,4 +9,6 @@ import java.util.Optional;
 
 public interface UserClubRepository extends JpaRepository<UserClub,Long> {
     Optional<UserClub> findByUserAndClub(User user, Club club);
+
+    int countByClub_ClubId(long clubId);
 }

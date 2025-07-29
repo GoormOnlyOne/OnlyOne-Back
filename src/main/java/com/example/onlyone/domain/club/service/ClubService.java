@@ -7,24 +7,33 @@ import com.example.onlyone.domain.chat.repository.ChatRoomRepository;
 import com.example.onlyone.domain.chat.repository.UserChatRoomRepository;
 
 import com.example.onlyone.domain.club.dto.request.ClubRequestDto;
+import com.example.onlyone.domain.club.dto.response.ClubDetailResponseDto;
 import com.example.onlyone.domain.club.entity.Club;
 import com.example.onlyone.domain.club.entity.ClubRole;
 import com.example.onlyone.domain.club.entity.UserClub;
 import com.example.onlyone.domain.club.repository.ClubRepository;
 import com.example.onlyone.domain.club.repository.UserClubRepository;
+import com.example.onlyone.domain.feed.entity.Feed;
+import com.example.onlyone.domain.feed.repository.FeedRepository;
 import com.example.onlyone.domain.interest.entity.Category;
 import com.example.onlyone.domain.interest.entity.Interest;
 import com.example.onlyone.domain.interest.repository.InterestRepository;
+import com.example.onlyone.domain.schedule.dto.response.ScheduleUserResponseDto;
+import com.example.onlyone.domain.schedule.entity.Schedule;
 import com.example.onlyone.domain.schedule.entity.ScheduleRole;
 import com.example.onlyone.domain.user.entity.User;
 import com.example.onlyone.domain.user.service.UserService;
 import com.example.onlyone.global.exception.CustomException;
 import com.example.onlyone.global.exception.ErrorCode;
-import jakarta.transaction.Transactional;
+import org.springframework.transaction.annotation.Transactional;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.log4j.Log4j2;
 import org.springframework.stereotype.Service;
+
+import java.util.List;
+import java.util.Optional;
+import java.util.stream.Collectors;
 
 @Log4j2
 @Service
@@ -37,6 +46,7 @@ public class ClubService {
     private final ChatRoomRepository chatRoomRepository;
     private final UserService userService;
     private final UserChatRoomRepository userChatRoomRepository;
+    private final FeedRepository feedRepository;
 
     /* 모임 생성*/
     public void createClub(ClubRequestDto requestDto) {
@@ -67,6 +77,7 @@ public class ClubService {
         userChatRoomRepository.save(userChatRoom);
     }
 
+    /* 모임 수정*/
     public void updateClub(long clubId, ClubRequestDto requestDto) {
         Club club = clubRepository.findById(clubId)
                 .orElseThrow(() -> new CustomException(ErrorCode.CLUB_NOT_FOUND));
@@ -87,5 +98,48 @@ public class ClubService {
                 requestDto.getDistrict(),
                 interest
         );
+    }
+
+    /* 모임 상세 조회*/
+    @Transactional(readOnly = true)
+    public ClubDetailResponseDto getClubDetail(Long clubId) {
+        Club club = clubRepository.findById(clubId)
+                .orElseThrow(() -> new CustomException(ErrorCode.CLUB_NOT_FOUND));
+        User user = userService.getAnotherUser();
+        Optional<UserClub> userClub = userClubRepository.findByUserAndClub(user,club);
+        int userCount = userClubRepository.countByClub_ClubId(club.getClubId());
+        if (userClub.isEmpty()) {
+            return ClubDetailResponseDto.from(club,userCount,ClubRole.GUEST);
+        }
+        return ClubDetailResponseDto.from(club,userCount,userClub.get().getClubRole());
+    }
+
+    /* 모임 가입*/
+    public void joinClub(Long clubId) {
+        Club club = clubRepository.findById(clubId)
+                .orElseThrow(() -> new CustomException(ErrorCode.CLUB_NOT_FOUND));
+        User user = userService.getAnotherUser();
+        if (userClubRepository.findByUserAndClub(user, club).isPresent()) {
+            throw new CustomException(ErrorCode.ALREADY_JOINED_CLUB);
+        }
+        UserClub userClub = UserClub.builder()
+                .user(user)
+                .club(club)
+                .clubRole(ClubRole.MEMBER)
+                .build();
+        userClubRepository.save(userClub);
+    }
+
+    /* 모임 탈퇴*/
+    public void leaveClub(Long clubId) {
+        User user = userService.getAnotherUser();
+        Club club = clubRepository.findById(clubId)
+                .orElseThrow(() -> new CustomException(ErrorCode.CLUB_NOT_FOUND));
+        UserClub userClub = userClubRepository.findByUserAndClub(user,club)
+                .orElseThrow(() -> new CustomException(ErrorCode.USER_CLUB_NOT_FOUND));
+        if(userClub.getClubRole() == ClubRole.GUEST){
+            throw new CustomException(ErrorCode.CLUB_NOT_LEAVE);
+        }
+        userClubRepository.delete(userClub);
     }
 }
