@@ -4,15 +4,14 @@ import com.example.onlyone.domain.user.entity.User;
 import com.example.onlyone.global.BaseTimeEntity;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.NotNull;
-import lombok.Getter;
-import lombok.NoArgsConstructor;
-import lombok.Setter;
+import lombok.*;
 
 @Entity
 @Table(name = "user_schedule")
 @Getter
-@Setter
-@NoArgsConstructor
+@Builder
+@NoArgsConstructor(access = AccessLevel.PROTECTED)
+@AllArgsConstructor
 public class UserSchedule extends BaseTimeEntity {
 
     @Id
@@ -33,6 +32,6 @@ public class UserSchedule extends BaseTimeEntity {
     @Column(name = "role")
     @NotNull
     @Enumerated(EnumType.STRING)
-    private Role role;
+    private ScheduleRole scheduleRole;
 
 }
