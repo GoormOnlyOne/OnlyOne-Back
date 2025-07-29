@@ -7,82 +7,94 @@ import com.example.onlyone.domain.user.entity.User;
 import com.example.onlyone.domain.user.service.UserService;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-import org.mockito.ArgumentMatchers;
+import org.mockito.Mockito;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.security.servlet.SecurityAutoConfiguration;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
-import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.boot.test.context.TestConfiguration;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 
 import java.time.LocalDateTime;
 
-import static org.mockito.BDDMockito.*;
+import static org.mockito.BDDMockito.given;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 @WebMvcTest(
         controllers = NotificationController.class,
-        // SecurityAutoConfiguration 을 제외하면 필터가 전혀 걸리지 않습니다.
-        excludeAutoConfiguration = { SecurityAutoConfiguration.class }
+        excludeAutoConfiguration = SecurityAutoConfiguration.class
 )
+@Import(NotificationControllerTest.TestConfig.class)
 class NotificationControllerTest {
+
+    @TestConfiguration
+    static class TestConfig {
+        @Bean
+        public UserService userService() {
+            return Mockito.mock(UserService.class);
+        }
+        @Bean
+        public NotificationService notificationService() {
+            return Mockito.mock(NotificationService.class);
+        }
+    }
 
     @Autowired
     private MockMvc mockMvc;
 
-    @MockBean
+    @Autowired
     private UserService userService;
 
-    @MockBean
+    @Autowired
     private NotificationService notificationService;
 
     @Test
     @DisplayName("POST /notifications - 201 Created + Body 검증")
     void sendNotification_success() throws Exception {
-        //---given---
-        String requestJson = """
+        String jsonRequest = """
             {
               "user_id": 1,
               "type_code": "COMMENT",
-              "content": "홍길동님이 회원님의 게시글에 댓글을 남겼습니다"
+              "content": "댓글 내용"
             }
             """;
 
-        // 1) userService stub
+        // --- stub ---
         User fakeUser = new User();
-        given(userService.getMemberById(1L)).willReturn(fakeUser);
+        given(userService.getMemberById(1L))
+                .willReturn(fakeUser);
 
-        // 2) notificationService stub
-        Notification fakeNotification = mock(Notification.class);
-        given(fakeNotification.getNotificationId()).willReturn(10001L);
-        given(fakeNotification.getContent())
-                .willReturn("홍길동님이 회원님의 게시글에 댓글을 남겼습니다");
-        given(fakeNotification.getFcmSent()).willReturn(true);
+        Notification fakeNoti = Mockito.mock(Notification.class);
+        given(fakeNoti.getNotificationId()).willReturn(10001L);
+        given(fakeNoti.getContent()).willReturn("댓글 내용");
+        given(fakeNoti.getFcmSent()).willReturn(true);
         LocalDateTime ts = LocalDateTime.of(
                 2024,1,15,10,30,0,0);
-        given(fakeNotification.getCreatedAt()).willReturn(ts);
+        given(fakeNoti.getCreatedAt()).willReturn(ts);
 
+        // eq() 대신 실제 값 그대로 전달
         given(notificationService.sendNotification(
-                eq(fakeUser),
-                eq(Type.COMMENT),
-                ArgumentMatchers.eq("홍길동님이 회원님의 게시글에 댓글을 남겼습니다")
-        )).willReturn(fakeNotification);
+                fakeUser,
+                Type.COMMENT,
+                "댓글 내용"
+        )).willReturn(fakeNoti);
 
-        //---when & then---
+        // --- perform & expect ---
         mockMvc.perform(post("/notifications")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(requestJson)
+                        .content(jsonRequest)
                 )
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.success").value(true))
                 .andExpect(jsonPath("$.data.notification_id").value(10001))
-                .andExpect(jsonPath("$.data.content")
-                        .value("홍길동님이 회원님의 게시글에 댓글을 남겼습니다"))
+                .andExpect(jsonPath("$.data.content").value("댓글 내용"))
                 .andExpect(jsonPath("$.data.fcm_sent").value(true))
                 .andExpect(jsonPath("$.data.created_at")
                         .value("2024-01-15T10:30:00"))
-        ;
+                ;
     }
 
     @Test
