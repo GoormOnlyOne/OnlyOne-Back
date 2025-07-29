@@ -1,6 +1,5 @@
 package com.example.onlyone.domain.club.entity;
 
-import com.example.onlyone.domain.chat.entity.ChatRoom;
 import com.example.onlyone.domain.feed.entity.Feed;
 import com.example.onlyone.domain.interest.entity.Interest;
 import com.example.onlyone.domain.schedule.entity.Schedule;
