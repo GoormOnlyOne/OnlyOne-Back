@@ -82,5 +82,6 @@ public class SettlementService {
                         .build())
                 .toList();
         userSettlementRepository.saveAll(userSettlements);
+        // [TODO] Notification 생성 및 유저에게 알림 전송
     }
 }
