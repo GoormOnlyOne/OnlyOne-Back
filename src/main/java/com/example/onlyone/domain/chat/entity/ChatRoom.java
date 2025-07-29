@@ -31,7 +31,6 @@ public class ChatRoom extends BaseTimeEntity {
 
     // 논리적 FK로 설정
     @Column(name = "schedule_id", updatable = false)
-    @NotNull
     private Long scheduleId;
 
     @Column(name = "type")

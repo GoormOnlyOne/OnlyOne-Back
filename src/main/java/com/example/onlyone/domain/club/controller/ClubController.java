@@ -4,6 +4,7 @@ import com.example.onlyone.domain.club.dto.request.ClubCreateRequestDto;
 import com.example.onlyone.domain.club.entity.Club;
 import com.example.onlyone.domain.club.repository.ClubRepository;
 import com.example.onlyone.domain.club.service.ClubService;
+import com.example.onlyone.global.common.CommonResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
@@ -27,8 +28,7 @@ public class ClubController {
     @PostMapping
     public ResponseEntity<?> createClub(@RequestBody @Valid ClubCreateRequestDto requestDto) {
         clubService.createClub(requestDto);
-        return ResponseEntity.status(HttpStatus.CREATED).build();
+        return ResponseEntity.status(HttpStatus.CREATED).body(CommonResponse.success(null));
     }
-
 
 }
