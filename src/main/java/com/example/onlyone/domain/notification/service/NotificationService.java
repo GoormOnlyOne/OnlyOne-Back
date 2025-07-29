@@ -31,7 +31,7 @@ public class NotificationService {
     public NotificationResponseDto sendNotification(NotificationRequestDto dto) {
         // 1) User 조회
         User toUser = userRepo.findById(dto.getUserId())
-                .orElseThrow(() -> new CustomException(ErrorCode.MEMBER_NOT_FOUND));
+                .orElseThrow(() -> new CustomException(ErrorCode.USER_NOT_FOUND));
 
         // 2) Type 변환
         Type type = Type.from(dto.getTypeCode());
