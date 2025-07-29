@@ -39,6 +39,8 @@ public class Notification extends BaseTimeEntity {
     @NotNull
     private User user;
 
+    @Column(name = "fcm_sent", nullable = false)
+    private Boolean fcmSent = false;
 
     // create 정적 팩토리 메서드, 알림이 만들어질 때(메세지 내용, 타입, 받는 사람)
     public static Notification create(User user, NotificationType notificationType, String... templateArgs) {
@@ -53,6 +55,11 @@ public class Notification extends BaseTimeEntity {
     // 알림 읽음 처리
     public void markAsRead() {
         this.isRead = true;
+    }
+
+    // fcm 전송 실패 여부
+    public void markFcmSent(boolean sent) {
+        this.fcmSent = sent;
     }
 
 }
