@@ -13,6 +13,7 @@ import java.util.List;
 @Entity
 @Table(name = "chat_room")
 @Getter
+@Setter
 @Builder
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 @AllArgsConstructor
@@ -30,7 +31,7 @@ public class ChatRoom extends BaseTimeEntity {
     private Club club;
 
     // 논리적 FK로 설정
-    @Column(name = "schedule_id", updatable = false)
+    @Column(name = "schedule_id", nullable = true, updatable = false)
     private Long scheduleId;
 
     @Column(name = "type")

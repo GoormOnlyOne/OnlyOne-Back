@@ -8,5 +8,6 @@ import javax.swing.text.html.Option;
 import java.util.Optional;
 
 public interface ChatRoomRepository extends JpaRepository<ChatRoom,Long> {
-    Optional<ChatRoom> findByTypeAndScheduleId(Type type, Long scheduleId);
+    // 방ID + 모임ID 로 단건 조회
+    Optional<ChatRoom> findByChatRoomIdAndClubClubId(Long chatRoomId, Long clubId);
 }
