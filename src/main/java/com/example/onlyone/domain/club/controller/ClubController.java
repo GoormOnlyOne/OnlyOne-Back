@@ -1,8 +1,6 @@
 package com.example.onlyone.domain.club.controller;
 
-import com.example.onlyone.domain.club.dto.request.ClubCreateRequestDto;
-import com.example.onlyone.domain.club.entity.Club;
-import com.example.onlyone.domain.club.repository.ClubRepository;
+import com.example.onlyone.domain.club.dto.request.ClubRequestDto;
 import com.example.onlyone.domain.club.service.ClubService;
 import com.example.onlyone.global.common.CommonResponse;
 import io.swagger.v3.oas.annotations.Operation;
@@ -11,10 +9,7 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
 @RestController
 @Tag(name = "Club")
@@ -26,9 +21,15 @@ public class ClubController {
 
     @Operation(summary = "모임 생성", description = "모임을 생성합니다.")
     @PostMapping
-    public ResponseEntity<?> createClub(@RequestBody @Valid ClubCreateRequestDto requestDto) {
+    public ResponseEntity<?> createClub(@RequestBody @Valid ClubRequestDto requestDto) {
         clubService.createClub(requestDto);
         return ResponseEntity.status(HttpStatus.CREATED).body(CommonResponse.success(null));
     }
 
+    @Operation(summary = "모임 수정", description = "모임을 수정합니다.")
+    @PostMapping("/{clubId}")
+    public ResponseEntity<?> updateClub(@PathVariable Long clubId, @RequestBody @Valid ClubRequestDto requestDto) {
+        clubService.updateClub(clubId,requestDto);
+        return ResponseEntity.status(HttpStatus.OK).build();
+    }
 }
