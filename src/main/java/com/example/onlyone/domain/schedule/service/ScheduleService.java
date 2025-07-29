@@ -112,8 +112,13 @@ public class ScheduleService {
                 .orElseThrow(() -> new CustomException(ErrorCode.SCHEDULE_NOT_FOUND));
 //        User user = userService.getCurrentUser();
         User user = userService.getAnotherUser();
+        // 이미 참여한 스케줄인 경우
         if (userScheduleRepository.findByUserAndSchedule(user, schedule).isPresent()) {
             throw new CustomException(ErrorCode.ALREADY_JOINED_SCHEDULE);
+        }
+        // 이미 종료된 스케줄인 경우
+        if (schedule.getStatus() != Status.READY || schedule.getScheduleTime().isBefore(LocalDateTime.now())) {
+            throw new CustomException(ErrorCode.ALREADY_ENDED_SCHEDULE);
         }
         UserSchedule userSchedule = UserSchedule.builder()
                 .user(user)
@@ -139,8 +144,13 @@ public class ScheduleService {
                 .orElseThrow(() -> new CustomException(ErrorCode.CLUB_NOT_FOUND));
         Schedule schedule = scheduleRepository.findById(scheduleId)
                 .orElseThrow(() -> new CustomException(ErrorCode.SCHEDULE_NOT_FOUND));
+        // 이미 종료된 스케줄인 경우
+        if (schedule.getStatus() != Status.READY || schedule.getScheduleTime().isBefore(LocalDateTime.now())) {
+            throw new CustomException(ErrorCode.ALREADY_ENDED_SCHEDULE);
+        }
         UserSchedule userSchedule = userScheduleRepository.findByUserAndSchedule(user, schedule)
                 .orElseThrow(() -> new CustomException(ErrorCode.USER_SCHEDULE_NOT_FOUND));
+        // 리더는 참여 취소 불가능
         if (userSchedule.getScheduleRole() == ScheduleRole.LEADER) {
             throw new CustomException(ErrorCode.LEADER_CANNOT_LEAVE_SCHEDULE);
         }
