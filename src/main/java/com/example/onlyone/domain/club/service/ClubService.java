@@ -1,8 +1,11 @@
 package com.example.onlyone.domain.club.service;
 
+import com.example.onlyone.domain.chat.entity.ChatRole;
 import com.example.onlyone.domain.chat.entity.ChatRoom;
 import com.example.onlyone.domain.chat.entity.Type;
+import com.example.onlyone.domain.chat.entity.UserChatRoom;
 import com.example.onlyone.domain.chat.repository.ChatRoomRepository;
+import com.example.onlyone.domain.chat.repository.UserChatRoomRepository;
 import com.example.onlyone.domain.club.dto.request.ClubCreateRequestDto;
 import com.example.onlyone.domain.club.entity.Club;
 import com.example.onlyone.domain.club.entity.ClubRole;
@@ -32,6 +35,7 @@ public class ClubService {
     private final UserClubRepository userClubRepository;
     private final ChatRoomRepository chatRoomRepository;
     private final UserService userService;
+    private final UserChatRoomRepository userChatRoomRepository;
 
     /* 모임 생성*/
     public void createClub(@Valid ClubCreateRequestDto requestDto) {
@@ -53,6 +57,13 @@ public class ClubService {
                 .type(Type.CLUB)
                 .build();
         chatRoomRepository.save(chatRoom);
+        // 모임장의 UserChatRoom 생성
+        UserChatRoom userChatRoom = UserChatRoom.builder()
+                .chatRoom(chatRoom)
+                .user(user)
+                .chatRole(ChatRole.LEADER)
+                .build();
+        userChatRoomRepository.save(userChatRoom);
     }
 
 }
