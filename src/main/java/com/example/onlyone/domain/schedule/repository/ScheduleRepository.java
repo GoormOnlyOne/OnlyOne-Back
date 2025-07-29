@@ -10,6 +10,4 @@ import java.util.List;
 
 public interface ScheduleRepository extends JpaRepository<Schedule,Long> {
     List<Schedule> findByClubAndStatusNot(Club club, Status status);
-
-    int countByClub(Club club);
 }

@@ -23,7 +23,7 @@ public class ScheduleResponseDto {
     private boolean isLeader;
     private String dDay;
 
-    public static ScheduleResponseDto from(Schedule schedule, int userCount, boolean isJoined, boolean isLeader, String dDay) {
+    public static ScheduleResponseDto from(Schedule schedule, int userCount, boolean isJoined, boolean isLeader, long dDay) {
         return ScheduleResponseDto.builder()
                 .scheduleId(schedule.getScheduleId())
                 .name(schedule.getName())
@@ -31,7 +31,13 @@ public class ScheduleResponseDto {
                 .scheduleTime(schedule.getScheduleTime())
                 .cost(schedule.getCost())
                 .userLimit(schedule.getUserLimit())
-                .dDay(dDay)
+                .dDay(formatDDay(dDay))
                 .build();
+    }
+
+    private static String formatDDay(long dDay) {
+        if (dDay == 0) return "D-DAY";
+        if (dDay > 0) return "D-" + dDay;
+        return "D+" + Math.abs(dDay);
     }
 }
