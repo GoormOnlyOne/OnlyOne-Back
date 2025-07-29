@@ -7,8 +7,8 @@ import lombok.Getter;
 @AllArgsConstructor
 public enum ErrorCode {
 
-    // Member
-    MEMBER_NOT_FOUND(404, "MEMBER_404_1", "멤버를 찾을 수 없습니다."),
+    // User
+    USER_NOT_FOUND(404, "USER_404_1", "유저를 찾을 수 없습니다."),
 
     // Interest
     INVALID_CATEGORY(400, "INTEREST_400_1", "유효하지 않은 카데고리입니다."),
@@ -23,6 +23,7 @@ public enum ErrorCode {
     USER_SCHEDULE_NOT_FOUND(404, "SCHEDULE_404_2", "정기 모임 참여자를 찾을 수 없습니다."),
     ALREADY_JOINED_SCHEDULE(409, "SCHEDULE_409_1", "이미 참여하고 있는 스케줄입니다."),
     LEADER_CANNOT_LEAVE_SCHEDULE(409, "SCHEDULE_409_2", "리더는 스케줄 참여를 취소할 수 없습니다."),
+    MEMBER_CANNOT_MODIFY_SCHEDULE(403, "SCHEDULE_409_3", "리더만 스케줄을 수정할 수 있습니다"),
 
     // Chat
     CHAT_ROOM_NOT_FOUND(404, "CHAT_404_1", "채팅방을 찾을 수 없습니다."),

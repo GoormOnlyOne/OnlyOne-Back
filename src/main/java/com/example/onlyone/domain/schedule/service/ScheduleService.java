@@ -69,6 +69,12 @@ public class ScheduleService {
                 .orElseThrow(() -> new CustomException(ErrorCode.CLUB_NOT_FOUND));
         Schedule schedule = scheduleRepository.findById(scheduleId)
                 .orElseThrow(() -> new CustomException(ErrorCode.SCHEDULE_NOT_FOUND));
+        User user = userService.getCurrentUser();
+        UserSchedule userSchedule = userScheduleRepository.findByUserAndSchedule(user, schedule)
+                .orElseThrow(() -> new CustomException(ErrorCode.USER_SCHEDULE_NOT_FOUND));
+        if (userSchedule.getScheduleRole() != ScheduleRole.LEADER) {
+            throw new CustomException(ErrorCode.MEMBER_CANNOT_MODIFY_SCHEDULE);
+        }
         schedule.update(requestDto.getName(), requestDto.getLocation(), requestDto.getCost(), requestDto.getUserLimit(), requestDto.getScheduleTime());
     }
 
