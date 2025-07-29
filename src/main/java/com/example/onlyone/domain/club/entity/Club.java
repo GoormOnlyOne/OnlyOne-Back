@@ -6,8 +6,7 @@ import com.example.onlyone.domain.schedule.entity.Schedule;
 import com.example.onlyone.global.BaseTimeEntity;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.NotNull;
-import lombok.Getter;
-import lombok.NoArgsConstructor;
+import lombok.*;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -15,7 +14,9 @@ import java.util.List;
 @Entity
 @Table(name = "club")
 @Getter
-@NoArgsConstructor
+@Builder
+@NoArgsConstructor(access = AccessLevel.PROTECTED)
+@AllArgsConstructor
 public class Club extends BaseTimeEntity {
 
     @Id
