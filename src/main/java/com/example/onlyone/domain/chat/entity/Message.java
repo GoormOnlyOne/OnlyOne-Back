@@ -46,4 +46,7 @@ public class Message extends BaseTimeEntity {
     @NotNull
     private Boolean deleted;
 
+    public boolean isDeleted() {
+        return deleted;
+    }
 }

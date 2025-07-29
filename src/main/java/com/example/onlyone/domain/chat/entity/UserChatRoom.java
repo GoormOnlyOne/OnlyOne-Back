@@ -9,8 +9,9 @@ import lombok.*;
 @Entity
 @Table(name = "user_chat_room")
 @Getter
+@Setter
 @Builder
-@NoArgsConstructor(access = AccessLevel.PROTECTED)
+@NoArgsConstructor(access = AccessLevel.PUBLIC)
 @AllArgsConstructor
 public class UserChatRoom extends BaseTimeEntity {
 

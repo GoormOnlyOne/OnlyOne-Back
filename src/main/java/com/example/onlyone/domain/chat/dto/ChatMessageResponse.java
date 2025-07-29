@@ -1,53 +1,42 @@
 package com.example.onlyone.domain.chat.dto;
 
+import com.example.onlyone.domain.chat.entity.Message;
 import com.fasterxml.jackson.annotation.JsonProperty;
-import lombok.Getter;
-import lombok.Setter;
+import lombok.*;
 
 import java.time.Instant;
+import java.time.LocalDateTime;
 
 // ‘서버 → 클라이언트’ STOMP Subscribe 응답 페이로드
-@Setter
-@Getter
+@Data
+@Builder
+@AllArgsConstructor
+@NoArgsConstructor
 public class ChatMessageResponse {
-
     @JsonProperty("message_id")
     private Long messageId;
 
     @JsonProperty("chat_id")
-    private Long chatId;
+    private Long chatRoomId;
 
     @JsonProperty("user_id")
-    private String userId;
+    private Long userId;
 
-    @JsonProperty("text")
     private String text;
 
-    /** ISO-8601 UTC 타임스탬프 예: "2025-07-25T10:10:00Z" */
     @JsonProperty("sendAt")
-    private Instant sendAt;
+    private LocalDateTime sentAt;
 
-    @JsonProperty("deleted")
-    private Boolean deleted;
+    private boolean deleted;
 
-    public ChatMessageResponse() {}
-
-    public ChatMessageResponse(
-            Long messageId,
-            Long chatId,
-            String userId,
-            String text,
-            Instant sendAt,
-            Boolean deleted
-    ) {
-        this.messageId = messageId;
-        this.chatId    = chatId;
-        this.userId    = userId;
-        this.text      = text;
-        this.sendAt    = sendAt;
-        this.deleted   = deleted;
+    public static ChatMessageResponse from(Message message) {
+        return ChatMessageResponse.builder()
+                .messageId(message.getMessageId())
+                .chatRoomId(message.getChatRoom().getChatRoomId())
+                .userId(message.getUser().getUserId())
+                .text(message.getText())
+                .sentAt(message.getSentAt())
+                .deleted(message.isDeleted())
+                .build();
     }
-
-    // == getters / setters ==
-
 }

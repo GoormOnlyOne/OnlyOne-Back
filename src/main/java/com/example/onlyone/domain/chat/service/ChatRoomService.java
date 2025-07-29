@@ -1,5 +1,8 @@
 package com.example.onlyone.domain.chat.service;
 
+import com.example.onlyone.domain.chat.entity.ChatRoom;
+import com.example.onlyone.domain.chat.entity.UserChatRoom;
+import com.example.onlyone.domain.chat.repository.ChatRoomRepository;
 import com.example.onlyone.domain.chat.repository.UserChatRoomRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;

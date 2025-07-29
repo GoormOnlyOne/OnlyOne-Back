@@ -1,6 +1,8 @@
 package com.example.onlyone.domain.chat.service;
 
+import com.example.onlyone.domain.chat.entity.ChatRoom;
 import com.example.onlyone.domain.chat.entity.Message;
+import com.example.onlyone.domain.chat.repository.ChatRoomRepository;
 import com.example.onlyone.domain.chat.repository.MessageRepository;
 import com.example.onlyone.domain.user.entity.User;
 import com.example.onlyone.domain.user.repository.UserRepository;
@@ -66,4 +68,5 @@ public class MessageService {
     public List<Message> getMessages(Long chatRoomId) {
         return messageRepository.findByChatRoomChatRoomIdAndDeletedFalseOrderBySentAtAsc(chatRoomId);
     }
+
 }

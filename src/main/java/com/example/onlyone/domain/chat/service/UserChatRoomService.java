@@ -1,5 +1,9 @@
 package com.example.onlyone.domain.chat.service;
 
+import com.example.onlyone.domain.chat.entity.ChatRole;
+import com.example.onlyone.domain.chat.entity.ChatRoom;
+import com.example.onlyone.domain.chat.entity.UserChatRoom;
+import com.example.onlyone.domain.chat.repository.ChatRoomRepository;
 import com.example.onlyone.domain.chat.repository.UserChatRoomRepository;
 import com.example.onlyone.domain.user.entity.User;
 import com.example.onlyone.domain.user.repository.UserRepository;
@@ -18,7 +22,7 @@ public class UserChatRoomService {
 
     // 채팅방 참여
     @Transactional
-    public UserChatRoom joinChatRoom(Long userId, Long chatRoomId, Role role) {
+    public UserChatRoom joinChatRoom(Long userId, Long chatRoomId, ChatRole chatRole) {
         ChatRoom chatRoom = chatRoomRepository.findById(chatRoomId)
                 .orElseThrow(() -> new IllegalArgumentException("채팅방을 찾을 수 없습니다. ID: " + chatRoomId));
 
@@ -33,7 +37,7 @@ public class UserChatRoomService {
         UserChatRoom userChatRoom = new UserChatRoom();
         userChatRoom.setUser(user);
         userChatRoom.setChatRoom(chatRoom);
-        userChatRoom.setRole(role);
+        userChatRoom.setChatRole(chatRole);
 
         return userChatRoomRepository.save(userChatRoom);
     }
