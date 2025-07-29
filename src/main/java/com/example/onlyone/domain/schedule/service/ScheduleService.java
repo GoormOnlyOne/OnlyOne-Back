@@ -10,6 +10,7 @@ import com.example.onlyone.domain.club.entity.Club;
 import com.example.onlyone.domain.club.repository.ClubRepository;
 import com.example.onlyone.domain.schedule.dto.request.ScheduleRequestDto;
 import com.example.onlyone.domain.schedule.dto.response.ScheduleResponseDto;
+import com.example.onlyone.domain.schedule.dto.response.ScheduleUserResponseDto;
 import com.example.onlyone.domain.schedule.entity.Schedule;
 import com.example.onlyone.domain.schedule.entity.ScheduleRole;
 import com.example.onlyone.domain.schedule.entity.Status;
@@ -17,6 +18,7 @@ import com.example.onlyone.domain.schedule.entity.UserSchedule;
 import com.example.onlyone.domain.schedule.repository.ScheduleRepository;
 import com.example.onlyone.domain.schedule.repository.UserScheduleRepository;
 import com.example.onlyone.domain.user.entity.User;
+import com.example.onlyone.domain.user.repository.UserRepository;
 import com.example.onlyone.domain.user.service.UserService;
 import com.example.onlyone.global.exception.CustomException;
 import jakarta.validation.Valid;
@@ -43,6 +45,7 @@ public class ScheduleService {
     private final ClubRepository clubRepository;
     private final ChatRoomRepository chatRoomRepository;
     private final UserService userService;
+    private final UserRepository userRepository;
 
     /* 정기 모임 생성*/
     public void createSchedule(Long clubId, @Valid ScheduleRequestDto requestDto) {
@@ -155,4 +158,16 @@ public class ScheduleService {
                 })
                 .collect(Collectors.toList());
     }
+
+    /* 모임 스케줄 참여자 목록 조회 */
+    public List<ScheduleUserResponseDto> getScheduleUserList(Long clubId, Long scheduleId) {
+        clubRepository.findById(clubId)
+                .orElseThrow(() -> new CustomException(ErrorCode.CLUB_NOT_FOUND));
+        Schedule schedule = scheduleRepository.findById(scheduleId)
+                .orElseThrow(() -> new CustomException(ErrorCode.SCHEDULE_NOT_FOUND));
+        return userScheduleRepository.findUsersBySchedule(schedule).stream()
+                .map(ScheduleUserResponseDto::from)
+                .collect(Collectors.toList());
+    }
+
 }
