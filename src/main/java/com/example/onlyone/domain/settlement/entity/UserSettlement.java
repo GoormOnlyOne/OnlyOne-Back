@@ -11,9 +11,9 @@ import java.time.*;
 @Entity
 @Table(name = "user_settlement")
 @Getter
+@Builder
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 @AllArgsConstructor
-@Builder
 public class UserSettlement extends BaseTimeEntity {
 
     @Id
@@ -24,7 +24,7 @@ public class UserSettlement extends BaseTimeEntity {
     @Column(name = "status")
     @NotNull
     @Enumerated(EnumType.STRING)
-    private Status status;
+    private SettlementStatus settlementStatus;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "settlement_id")
