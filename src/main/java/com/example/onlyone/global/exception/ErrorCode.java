@@ -15,7 +15,11 @@ public enum ErrorCode {
     INTEREST_NOT_FOUND(404, "INTEREST_404_1", "관심사를 찾을 수 없습니다."),
 
     // Club
-    INVALID_ROLE(400, "CLUB_400_1", "유효하지 않은 모임 역할입니다.");
+    INVALID_ROLE(400, "CLUB_400_1", "유효하지 않은 모임 역할입니다."),
+
+    // Notification
+    NOTIFICATION_TYPE_NOT_FOUND(404, "NOTIFY_404_1", "알림 타입을 찾을 수 없습니다."),
+    NOTIFICATION_NOT_FOUND(404, "NOTIFY_404_2", "알림이 존재하지 않습니다.");
 
     private final int status;
     private final String code;
