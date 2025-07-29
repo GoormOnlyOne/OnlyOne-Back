@@ -13,6 +13,7 @@ import java.util.Optional;
 public interface UserScheduleRepository extends JpaRepository<UserSchedule,Long> {
     Optional<UserSchedule> findByUserAndSchedule(User user, Schedule schedule);
     int countBySchedule(Schedule schedule);
+    List<UserSchedule> findUserSchedulesBySchedule(Schedule schedule);
 
     @Query("SELECT us.user FROM UserSchedule us WHERE us.schedule = :schedule")
     List<User> findUsersBySchedule(@Param("schedule") Schedule schedule);

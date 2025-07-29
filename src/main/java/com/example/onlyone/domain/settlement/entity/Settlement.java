@@ -5,16 +5,16 @@ import com.example.onlyone.domain.user.entity.User;
 import com.example.onlyone.global.BaseTimeEntity;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.NotNull;
-import lombok.Getter;
-import lombok.NoArgsConstructor;
-import lombok.Setter;
+import lombok.*;
+
 import java.time.*;
 
 @Entity
 @Table(name = "settlement")
 @Getter
-@Setter
-@NoArgsConstructor
+@Builder
+@NoArgsConstructor(access = AccessLevel.PROTECTED)
+@AllArgsConstructor
 public class Settlement extends BaseTimeEntity {
 
     @Id
@@ -37,7 +37,6 @@ public class Settlement extends BaseTimeEntity {
     private TotalStatus totalStatus;
 
     @Column(name = "completed_time")
-    @NotNull
     private LocalDateTime completedTime;
 
     @ManyToOne(fetch = FetchType.LAZY, cascade = CascadeType.ALL)

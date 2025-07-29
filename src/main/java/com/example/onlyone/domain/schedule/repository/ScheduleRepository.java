@@ -8,6 +8,6 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import java.util.List;
 
 public interface ScheduleRepository extends JpaRepository<Schedule,Long> {
-    List<Schedule> findByClubAndStatusNot(Club club, ScheduleStatus scheduleStatus);
-    List<Schedule> findByStatus(ScheduleStatus scheduleStatus);
+    List<Schedule> findByClubAndScheduleStatusNot(Club club, ScheduleStatus scheduleStatus);
+    List<Schedule> findByScheduleStatus(ScheduleStatus scheduleStatus);
 }

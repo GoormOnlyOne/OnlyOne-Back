@@ -13,7 +13,7 @@ import com.example.onlyone.domain.schedule.dto.response.ScheduleResponseDto;
 import com.example.onlyone.domain.schedule.dto.response.ScheduleUserResponseDto;
 import com.example.onlyone.domain.schedule.entity.Schedule;
 import com.example.onlyone.domain.schedule.entity.ScheduleRole;
-import com.example.onlyone.domain.schedule.entity.Status;
+import com.example.onlyone.domain.schedule.entity.ScheduleStatus;
 import com.example.onlyone.domain.schedule.entity.UserSchedule;
 import com.example.onlyone.domain.schedule.repository.ScheduleRepository;
 import com.example.onlyone.domain.schedule.repository.UserScheduleRepository;
@@ -54,10 +54,10 @@ public class ScheduleService {
     @Scheduled(cron = "0 0 0 * * *")
     public void updateScheduleStatus() {
         LocalDateTime now = LocalDateTime.now();
-        List<Schedule> readySchedules = scheduleRepository.findByStatus(Status.READY);
+        List<Schedule> readySchedules = scheduleRepository.findByScheduleStatus(ScheduleStatus.READY);
         for (Schedule schedule : readySchedules) {
             if (schedule.getScheduleTime().isBefore(now)) {
-                schedule.updateStatus(Status.ENDED);
+                schedule.updateStatus(ScheduleStatus.ENDED);
             }
         }
     }
@@ -117,7 +117,7 @@ public class ScheduleService {
             throw new CustomException(ErrorCode.ALREADY_JOINED_SCHEDULE);
         }
         // 이미 종료된 스케줄인 경우
-        if (schedule.getStatus() != Status.READY || schedule.getScheduleTime().isBefore(LocalDateTime.now())) {
+        if (schedule.getScheduleStatus() != ScheduleStatus.READY || schedule.getScheduleTime().isBefore(LocalDateTime.now())) {
             throw new CustomException(ErrorCode.ALREADY_ENDED_SCHEDULE);
         }
         UserSchedule userSchedule = UserSchedule.builder()
@@ -145,7 +145,7 @@ public class ScheduleService {
         Schedule schedule = scheduleRepository.findById(scheduleId)
                 .orElseThrow(() -> new CustomException(ErrorCode.SCHEDULE_NOT_FOUND));
         // 이미 종료된 스케줄인 경우
-        if (schedule.getStatus() != Status.READY || schedule.getScheduleTime().isBefore(LocalDateTime.now())) {
+        if (schedule.getScheduleStatus() != ScheduleStatus.READY || schedule.getScheduleTime().isBefore(LocalDateTime.now())) {
             throw new CustomException(ErrorCode.ALREADY_ENDED_SCHEDULE);
         }
         UserSchedule userSchedule = userScheduleRepository.findByUserAndSchedule(user, schedule)
@@ -168,7 +168,7 @@ public class ScheduleService {
         Club club = clubRepository.findById(clubId)
                 .orElseThrow(() -> new CustomException(ErrorCode.CLUB_NOT_FOUND));
         User currentUser = userService.getCurrentUser();
-        return scheduleRepository.findByClubAndStatusNot(club, Status.CLOSED).stream()
+        return scheduleRepository.findByClubAndScheduleStatusNot(club, ScheduleStatus.CLOSED).stream()
                 .map(schedule -> {
                     int userCount = userScheduleRepository.countBySchedule(schedule);
                     Optional<UserSchedule> userScheduleOpt = userScheduleRepository
