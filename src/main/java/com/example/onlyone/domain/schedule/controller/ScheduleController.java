@@ -50,5 +50,11 @@ public class ScheduleController {
         return ResponseEntity.noContent().build();
     }
 
+    @Operation(summary = "모임 스케줄 목록 조회", description = "모임의 스케줄 목록을 전체 조회합니다.")
+    @GetMapping
+    public ResponseEntity<?> getScheduleList(@PathVariable("clubId") final Long clubId) {
+        return ResponseEntity.ok(scheduleService.getScheduleList(clubId));
+    }
+
 
 }

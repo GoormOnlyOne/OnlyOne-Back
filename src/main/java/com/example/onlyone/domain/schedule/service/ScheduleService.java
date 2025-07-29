@@ -9,20 +9,28 @@ import com.example.onlyone.domain.chat.repository.UserChatRoomRepository;
 import com.example.onlyone.domain.club.entity.Club;
 import com.example.onlyone.domain.club.repository.ClubRepository;
 import com.example.onlyone.domain.schedule.dto.request.ScheduleRequestDto;
+import com.example.onlyone.domain.schedule.dto.response.ScheduleResponseDto;
 import com.example.onlyone.domain.schedule.entity.Schedule;
 import com.example.onlyone.domain.schedule.entity.ScheduleRole;
+import com.example.onlyone.domain.schedule.entity.Status;
 import com.example.onlyone.domain.schedule.entity.UserSchedule;
 import com.example.onlyone.domain.schedule.repository.ScheduleRepository;
 import com.example.onlyone.domain.schedule.repository.UserScheduleRepository;
 import com.example.onlyone.domain.user.entity.User;
 import com.example.onlyone.domain.user.service.UserService;
 import com.example.onlyone.global.exception.CustomException;
-import jakarta.transaction.Transactional;
 import jakarta.validation.Valid;
 import com.example.onlyone.global.exception.ErrorCode;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.log4j.Log4j2;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.time.LocalDate;
+import java.time.temporal.ChronoUnit;
+import java.util.List;
+import java.util.Optional;
+import java.util.stream.Collectors;
 
 @Log4j2
 @Service
@@ -124,5 +132,48 @@ public class ScheduleService {
         UserChatRoom userChatRoom = userChatRoomRepository.findByUserAndChatRoom(user, chatRoom)
                 .orElseThrow(() -> new CustomException(ErrorCode.USER_CHAT_ROOM_NOT_FOUND));
         userChatRoomRepository.delete(userChatRoom);
+    }
+
+    /* 모임 스케줄 목록 조회 */
+    @Transactional(readOnly = true)
+    public List<ScheduleResponseDto> getScheduleList(Long clubId) {
+        Club club = clubRepository.findById(clubId)
+                .orElseThrow(() -> new CustomException(ErrorCode.CLUB_NOT_FOUND));
+        User currentUser = userService.getCurrentUser();
+        return scheduleRepository.findByClubAndStatusNot(club, Status.CLOSED).stream()
+                .map(schedule -> {
+                    int userCount = scheduleRepository.countByClub(club);
+                    Optional<UserSchedule> userScheduleOpt = userScheduleRepository
+                            .findByUserAndSchedule(currentUser, schedule);
+                    boolean isJoined = userScheduleOpt.isPresent();
+                    boolean isLeader = userScheduleOpt
+                            .map(userSchedule -> userSchedule.getScheduleRole() == ScheduleRole.LEADER)
+                            .orElse(false);
+                    long dDay = ChronoUnit.DAYS.between(LocalDate.now(),
+                            schedule.getScheduleTime().toLocalDate());
+                    return ScheduleResponseDto.from(schedule, userCount, isJoined, isLeader, dDay);
+                })
+                .collect(Collectors.toList());
+    }
+
+    @Transactional(readOnly = true)
+    public List<ScheduleResponseDto> getScheduleList(Long clubId) {
+        Club club = clubRepository.findById(clubId)
+                .orElseThrow(() -> new CustomException(ErrorCode.CLUB_NOT_FOUND));
+        User currentUser = userService.getCurrentUser();
+        return scheduleRepository.findByClubAndStatusNot(club, Status.CLOSED).stream()
+                .map(schedule -> {
+                    int userCount = scheduleRepository.countByClub(club);
+                    Optional<UserSchedule> userScheduleOpt = userScheduleRepository
+                            .findByUserAndSchedule(currentUser, schedule);
+                    boolean isJoined = userScheduleOpt.isPresent();
+                    boolean isLeader = userScheduleOpt
+                            .map(userSchedule -> userSchedule.getScheduleRole() == ScheduleRole.LEADER)
+                            .orElse(false);
+                    long dDay = ChronoUnit.DAYS.between(LocalDate.now(),
+                            schedule.getScheduleTime().toLocalDate());
+                    return ScheduleResponseDto.from(schedule, userCount, isJoined, isLeader, dDay);
+                })
+                .collect(Collectors.toList());
     }
 }
