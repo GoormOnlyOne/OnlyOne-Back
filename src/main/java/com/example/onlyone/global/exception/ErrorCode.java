@@ -24,6 +24,10 @@ public enum ErrorCode {
     INVALID_ROLE(400, "CLUB_400_1", "유효하지 않은 모임 역할입니다."),
     CLUB_NOT_FOUND(404, "CLUB_404_1", "모임이 존재하지 않습니다."),
 
+    // Notification
+    NOTIFICATION_TYPE_NOT_FOUND(404, "NOTIFY_404_1", "알림 타입을 찾을 수 없습니다."),
+    NOTIFICATION_NOT_FOUND(404, "NOTIFY_404_2", "알림이 존재하지 않습니다."),
+
     // Schedule
     SCHEDULE_NOT_FOUND(404, "SCHEDULE_404_1", "정기 모임을 찾을 수 없습니다."),
     USER_SCHEDULE_NOT_FOUND(404, "SCHEDULE_404_2", "정기 모임 참여자를 찾을 수 없습니다."),
@@ -33,9 +37,7 @@ public enum ErrorCode {
 
     // Chat
     CHAT_ROOM_NOT_FOUND(404, "CHAT_404_1", "채팅방을 찾을 수 없습니다."),
-    USER_CHAT_ROOM_NOT_FOUND(404, "CHAT_404_2", "채팅방 참여자를 찾을 수 없습니다."),
-
-    ;
+    USER_CHAT_ROOM_NOT_FOUND(404, "CHAT_404_2", "채팅방 참여자를 찾을 수 없습니다.");
 
     private final int status;
     private final String code;
