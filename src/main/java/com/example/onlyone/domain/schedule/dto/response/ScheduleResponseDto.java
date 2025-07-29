@@ -31,6 +31,9 @@ public class ScheduleResponseDto {
                 .scheduleTime(schedule.getScheduleTime())
                 .cost(schedule.getCost())
                 .userLimit(schedule.getUserLimit())
+                .userCount(userCount)
+                .isJoined(isJoined)
+                .isLeader(isLeader)
                 .dDay(formatDDay(dDay))
                 .build();
     }
