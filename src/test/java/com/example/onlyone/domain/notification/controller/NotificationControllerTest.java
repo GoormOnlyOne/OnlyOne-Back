@@ -1,10 +1,8 @@
 package com.example.onlyone.domain.notification.controller;
 
-import com.example.onlyone.domain.notification.entity.Notification;
-import com.example.onlyone.domain.notification.entity.Type;
+import com.example.onlyone.domain.notification.dto.NotificationRequestDto;
+import com.example.onlyone.domain.notification.dto.NotificationResponseDto;
 import com.example.onlyone.domain.notification.service.NotificationService;
-import com.example.onlyone.domain.user.entity.User;
-import com.example.onlyone.domain.user.service.UserService;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
@@ -13,12 +11,12 @@ import org.springframework.boot.autoconfigure.security.servlet.SecurityAutoConfi
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 
 import java.time.LocalDateTime;
 
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
@@ -27,15 +25,11 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
         controllers = NotificationController.class,
         excludeAutoConfiguration = SecurityAutoConfiguration.class
 )
-@Import(NotificationControllerTest.TestConfig.class)
 class NotificationControllerTest {
 
     @TestConfiguration
-    static class TestConfig {
-        @Bean
-        public UserService userService() {
-            return Mockito.mock(UserService.class);
-        }
+    static class Config {
+        // NotificationService 만 Mock Bean 으로 등록
         @Bean
         public NotificationService notificationService() {
             return Mockito.mock(NotificationService.class);
@@ -46,71 +40,58 @@ class NotificationControllerTest {
     private MockMvc mockMvc;
 
     @Autowired
-    private UserService userService;
-
-    @Autowired
     private NotificationService notificationService;
 
     @Test
-    @DisplayName("POST /notifications - 201 Created + Body 검증")
+    @DisplayName("POST /notifications – 201 Created + NotificationResponseDto 반환")
     void sendNotification_success() throws Exception {
         String jsonRequest = """
             {
               "user_id": 1,
               "type_code": "COMMENT",
-              "content": "댓글 내용"
+              "args": ["Alice","Bob"]
             }
             """;
 
-        // --- stub ---
-        User fakeUser = new User();
-        given(userService.getMemberById(1L))
-                .willReturn(fakeUser);
+        // 테스트용 반환 DTO 준비
+        LocalDateTime ts = LocalDateTime.of(2024, 1, 15, 10, 30);
+        NotificationResponseDto fakeResponse =
+                new NotificationResponseDto(
+                        10001L,
+                        "회원 Alice님이 회원 Bob님의 글을 좋아합니다.",
+                        true,
+                        ts
+                );
 
-        Notification fakeNoti = Mockito.mock(Notification.class);
-        given(fakeNoti.getNotificationId()).willReturn(10001L);
-        given(fakeNoti.getContent()).willReturn("댓글 내용");
-        given(fakeNoti.getFcmSent()).willReturn(true);
-        LocalDateTime ts = LocalDateTime.of(
-                2024,1,15,10,30,0,0);
-        given(fakeNoti.getCreatedAt()).willReturn(ts);
+        // any(NotificationRequestDto.class) 로 stub
+        given(notificationService.sendNotification(any(NotificationRequestDto.class)))
+                .willReturn(fakeResponse);
 
-        // eq() 대신 실제 값 그대로 전달
-        given(notificationService.sendNotification(
-                fakeUser,
-                Type.COMMENT,
-                "댓글 내용"
-        )).willReturn(fakeNoti);
-
-        // --- perform & expect ---
         mockMvc.perform(post("/notifications")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(jsonRequest)
                 )
                 .andExpect(status().isCreated())
-                .andExpect(jsonPath("$.success").value(true))
-                .andExpect(jsonPath("$.data.notification_id").value(10001))
-                .andExpect(jsonPath("$.data.content").value("댓글 내용"))
-                .andExpect(jsonPath("$.data.fcm_sent").value(true))
-                .andExpect(jsonPath("$.data.created_at")
-                        .value("2024-01-15T10:30:00"))
-                ;
+                .andExpect(jsonPath("$.notification_id").value(10001))
+                .andExpect(jsonPath("$.content").value("회원 Alice님이 회원 Bob님의 글을 좋아합니다."))
+                .andExpect(jsonPath("$.fcm_sent").value(true))
+                .andExpect(jsonPath("$.created_at").value("2024-01-15T10:30:00"))
+        ;
     }
 
     @Test
-    @DisplayName("POST /notifications - Validation 오류 (content blank)")
+    @DisplayName("POST /notifications – Validation 오류 (args 누락)")
     void sendNotification_validationFail() throws Exception {
-        String requestJson = """
+        String badRequest = """
             {
               "user_id": 1,
-              "type_code": "COMMENT",
-              "content": ""
+              "type_code": "COMMENT"
             }
             """;
 
         mockMvc.perform(post("/notifications")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(requestJson)
+                        .content(badRequest)
                 )
                 .andExpect(status().isBadRequest());
     }
