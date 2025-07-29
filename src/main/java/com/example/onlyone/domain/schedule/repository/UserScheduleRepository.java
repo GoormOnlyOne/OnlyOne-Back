@@ -9,4 +9,6 @@ import java.util.Optional;
 
 public interface UserScheduleRepository extends JpaRepository<UserSchedule,Long> {
     Optional<UserSchedule> findByUserAndSchedule(User user, Schedule schedule);
+
+    int countBySchedule(Schedule schedule);
 }

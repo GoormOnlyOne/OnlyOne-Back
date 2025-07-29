@@ -1,7 +1,9 @@
 package com.example.onlyone.domain.schedule.controller;
 
 import com.example.onlyone.domain.schedule.dto.request.ScheduleRequestDto;
+import com.example.onlyone.domain.schedule.dto.response.ScheduleResponseDto;
 import com.example.onlyone.domain.schedule.service.ScheduleService;
+import com.example.onlyone.global.common.CommonResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
@@ -9,6 +11,8 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
 
 @RestController
 @Tag(name = "Schedule")
@@ -22,7 +26,7 @@ public class ScheduleController {
     public ResponseEntity<?> createSchedule(@PathVariable("clubId") final Long clubId,
                                             @RequestBody @Valid ScheduleRequestDto requestDto) {
         scheduleService.createSchedule(clubId, requestDto);
-        return ResponseEntity.status(HttpStatus.CREATED).build();
+        return ResponseEntity.status(HttpStatus.CREATED).body(CommonResponse.success(null));
     }
 
     @Operation(summary = "정기 모임 수정", description = "정기 모임을 수정합니다.")
@@ -31,7 +35,7 @@ public class ScheduleController {
                                             @PathVariable("scheduleId") final Long scheduleId,
                                             @RequestBody @Valid ScheduleRequestDto requestDto) {
         scheduleService.updateSchedule(clubId, scheduleId, requestDto);
-        return ResponseEntity.ok().build();
+        return ResponseEntity.ok(CommonResponse.success(null));
     }
 
     @Operation(summary = "정기 모임 참여", description = "정기 모임에 참여합니다.")
@@ -39,7 +43,7 @@ public class ScheduleController {
     public ResponseEntity<?> joinSchedule(@PathVariable("clubId") final Long clubId,
                                             @PathVariable("scheduleId") final Long scheduleId) {
         scheduleService.joinSchedule(clubId, scheduleId);
-        return ResponseEntity.ok().build();
+        return ResponseEntity.ok(CommonResponse.success(null));
     }
 
     @Operation(summary = "정기 모임 참여 취소", description = "정기 모임 참여를 취소합니다.")
@@ -47,13 +51,14 @@ public class ScheduleController {
     public ResponseEntity<?> leaveSchedule(@PathVariable("clubId") final Long clubId,
                                           @PathVariable("scheduleId") final Long scheduleId) {
         scheduleService.leaveSchedule(clubId, scheduleId);
-        return ResponseEntity.noContent().build();
+        return ResponseEntity.ok(CommonResponse.success(null));
     }
 
     @Operation(summary = "모임 스케줄 목록 조회", description = "모임의 스케줄 목록을 전체 조회합니다.")
     @GetMapping
     public ResponseEntity<?> getScheduleList(@PathVariable("clubId") final Long clubId) {
-        return ResponseEntity.ok(scheduleService.getScheduleList(clubId));
+        List<ScheduleResponseDto> scheduleList = scheduleService.getScheduleList(clubId);
+        return ResponseEntity.ok(CommonResponse.success(scheduleList));
     }
 
 
