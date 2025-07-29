@@ -4,7 +4,6 @@ import com.example.onlyone.domain.club.entity.Club;
 import com.example.onlyone.global.BaseTimeEntity;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.NotNull;
-import jakarta.validation.constraints.Size;
 import lombok.*;
 
 import java.time.*;
@@ -46,7 +45,7 @@ public class Schedule extends BaseTimeEntity {
     @Column(name = "status")
     @NotNull
     @Enumerated(EnumType.STRING)
-    private Status status;
+    private ScheduleStatus scheduleStatus;
 
     @Column(name = "schedule_limit")
     @NotNull
@@ -65,7 +64,7 @@ public class Schedule extends BaseTimeEntity {
         this.scheduleTime = scheduleTime;
     }
 
-    public void updateStatus(Status status) {
-        this.status = status;
+    public void updateStatus(ScheduleStatus scheduleStatus) {
+        this.scheduleStatus = scheduleStatus;
     }
 }
