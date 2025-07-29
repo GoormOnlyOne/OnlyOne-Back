@@ -142,28 +142,7 @@ public class ScheduleService {
         User currentUser = userService.getCurrentUser();
         return scheduleRepository.findByClubAndStatusNot(club, Status.CLOSED).stream()
                 .map(schedule -> {
-                    int userCount = scheduleRepository.countByClub(club);
-                    Optional<UserSchedule> userScheduleOpt = userScheduleRepository
-                            .findByUserAndSchedule(currentUser, schedule);
-                    boolean isJoined = userScheduleOpt.isPresent();
-                    boolean isLeader = userScheduleOpt
-                            .map(userSchedule -> userSchedule.getScheduleRole() == ScheduleRole.LEADER)
-                            .orElse(false);
-                    long dDay = ChronoUnit.DAYS.between(LocalDate.now(),
-                            schedule.getScheduleTime().toLocalDate());
-                    return ScheduleResponseDto.from(schedule, userCount, isJoined, isLeader, dDay);
-                })
-                .collect(Collectors.toList());
-    }
-
-    @Transactional(readOnly = true)
-    public List<ScheduleResponseDto> getScheduleList(Long clubId) {
-        Club club = clubRepository.findById(clubId)
-                .orElseThrow(() -> new CustomException(ErrorCode.CLUB_NOT_FOUND));
-        User currentUser = userService.getCurrentUser();
-        return scheduleRepository.findByClubAndStatusNot(club, Status.CLOSED).stream()
-                .map(schedule -> {
-                    int userCount = scheduleRepository.countByClub(club);
+                    int userCount = userScheduleRepository.countBySchedule(schedule);
                     Optional<UserSchedule> userScheduleOpt = userScheduleRepository
                             .findByUserAndSchedule(currentUser, schedule);
                     boolean isJoined = userScheduleOpt.isPresent();
