@@ -1,11 +1,11 @@
 package com.example.onlyone.domain.notification.service;
 
+import com.example.onlyone.domain.notification.dto.NotificationListRequestDto;
 import com.example.onlyone.domain.notification.dto.NotificationRequestDto;
 import com.example.onlyone.domain.notification.dto.NotificationResponseDto;
 import com.example.onlyone.domain.notification.entity.Notification;
-import com.example.onlyone.domain.notification.entity.NotificationCreatedEvent;
+import com.example.onlyone.domain.notification.event.NotificationCreatedEvent;
 import com.example.onlyone.domain.notification.entity.NotificationType;
-import com.example.onlyone.domain.notification.entity.Type;
 import com.example.onlyone.domain.notification.repository.NotificationRepository;
 import com.example.onlyone.domain.notification.repository.NotificationTypeRepository;
 import com.example.onlyone.domain.user.entity.User;
@@ -33,29 +33,28 @@ public class NotificationService {
         User toUser = userRepo.findById(dto.getUserId())
                 .orElseThrow(() -> new CustomException(ErrorCode.USER_NOT_FOUND));
 
-        // 2) Type 변환
-        Type type = Type.from(dto.getTypeCode());
-
-        // 3) NotificationType 조회
-        NotificationType nt = typeRepo.findByType(type)
+        // (2) NotificationType 조회
+        NotificationType nt = typeRepo.findByType(dto.getType())
                 .orElseThrow(() -> new CustomException(ErrorCode.NOTIFICATION_TYPE_NOT_FOUND));
 
-        // 4) 알림 생성·저장
+        // 3) 알림 생성·저장
         Notification notification = Notification.create(toUser, nt, dto.getArgs());
         Notification saved = notificationRepo.save(notification);
 
-        // 5) 이벤트 발행
+        // 4) 이벤트 발행
         eventPublisher.publishEvent(new NotificationCreatedEvent(saved));
 
-        // 6) 엔티티 → DTO 변환 후 반환
+        // 5) 엔티티 → DTO 변환 후 반환
         return NotificationResponseDto.fromEntity(saved);
     }
 
     // 읽음 처리
     @Transactional
-    public void markAsRead(Long id) {
-        Notification n = notificationRepo.findById(id)
-                .orElseThrow(() -> new CustomException(ErrorCode.NOTIFICATION_NOT_FOUND));
-        n.markAsRead();
+    public void markAllAsRead(NotificationListRequestDto dto) {
+        int updated = notificationRepo.markAllAsReadByUserId(dto.getUserId());
+        if (updated == 0) {
+            // 미읽음 알림이 아예 없었다면 Exception 처리
+            throw new CustomException(ErrorCode.NOTIFICATION_NOT_FOUND);
+        }
     }
 }
