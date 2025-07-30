@@ -11,8 +11,6 @@ import com.example.onlyone.domain.notification.repository.NotificationRepository
 import com.example.onlyone.domain.notification.repository.NotificationTypeRepository;
 import com.example.onlyone.domain.user.entity.User;
 import com.example.onlyone.domain.user.repository.UserRepository;
-import com.example.onlyone.global.exception.CustomException;
-import com.example.onlyone.global.exception.ErrorCode;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -21,6 +19,8 @@ import org.mockito.*;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.context.ApplicationEventPublisher;
 
+import java.util.Collections;
+import java.util.List;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.*;
@@ -84,31 +84,41 @@ class NotificationServiceTest {
         }
     }
 
-    @Nested @DisplayName("markAllAsRead")
-    class MarkAllAsReadTests {
-        @Test @DisplayName("성공: updatedCount > 0")
-        void success() {
-            NotificationListRequestDto dto = NotificationListRequestDto.builder()
-                    .userId(10L).build();
-            given(notificationRepo.markAllAsReadByUserId(10L)).willReturn(5);
+    @Test
+    @DisplayName("미읽음 알림이 있으면 모두 markAsRead() 호출")
+    void whenUnreadExists_markAll() {
+        // given
+        Notification n1 = mock(Notification.class);
+        Notification n2 = mock(Notification.class);
+        given(notificationRepo.findByUser_UserIdAndIsReadFalse(1L))
+                .willReturn(List.of(n1, n2));
 
-            service.markAllAsRead(dto);
+        NotificationListRequestDto dto =
+                NotificationListRequestDto.builder().userId(1L).build();
 
-            then(notificationRepo).should().markAllAsReadByUserId(10L);
-        }
+        // when
+        service.markAllAsRead(dto);
 
-        @Test @DisplayName("실패: updatedCount == 0 → NOTIFICATION_NOT_FOUND")
-        void notFound() {
-            NotificationListRequestDto dto = NotificationListRequestDto.builder()
-                    .userId(20L).build();
-            given(notificationRepo.markAllAsReadByUserId(20L)).willReturn(0);
+        // then
+        then(notificationRepo).should().findByUser_UserIdAndIsReadFalse(1L);
+        then(n1).should().markAsRead();
+        then(n2).should().markAsRead();
+    }
 
-            CustomException ex = assertThrows(CustomException.class,
-                    () -> service.markAllAsRead(dto)
-            );
-            assertThat(ex.getErrorCode()).isEqualTo(ErrorCode.NOTIFICATION_NOT_FOUND);
+    @Test
+    @DisplayName("미읽음 알림이 없으면 예외 없이 no-op")
+    void whenNoUnread_doNothing() {
+        // given
+        given(notificationRepo.findByUser_UserIdAndIsReadFalse(2L))
+                .willReturn(Collections.emptyList());
 
-            then(notificationRepo).should().markAllAsReadByUserId(20L);
-        }
+        NotificationListRequestDto dto =
+                NotificationListRequestDto.builder().userId(2L).build();
+
+        // when/then (예외 없이 그냥 끝)
+        assertDoesNotThrow(() -> service.markAllAsRead(dto));
+
+        // 그리고 markAsRead() 자체가 불리지 않음
+        then(notificationRepo).should().findByUser_UserIdAndIsReadFalse(2L);
     }
 }
