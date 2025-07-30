@@ -12,13 +12,13 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
     @Override
     public void configureMessageBroker(MessageBrokerRegistry config) {
         config.enableSimpleBroker("/sub", "/queue");
-        config.setApplicationDestinationPrefixes("/pub"); // 반드시 이게 있어야 해
+        config.setApplicationDestinationPrefixes("/pub");
     }
 
     @Override
     public void registerStompEndpoints(StompEndpointRegistry registry) {
         registry.addEndpoint("/ws")
-                .setAllowedOriginPatterns("*") // ✅ SockJS handshake 안전하게 처리
+                .setAllowedOriginPatterns("*")
                 .withSockJS();
     }
 }

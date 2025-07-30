@@ -29,19 +29,18 @@ public class MessageService {
     @Transactional
     public Message saveMessage(Long chatRoomId, Long userId, String text) {
         ChatRoom chatRoom = chatRoomRepository.findById(chatRoomId)
-                .orElseThrow(() ->
-                        new IllegalArgumentException("채팅방을 찾을 수 없습니다. ID: " + chatRoomId));
+                .orElseThrow(() -> new IllegalArgumentException("채팅방을 찾을 수 없습니다. ID: " + chatRoomId));
 
         User user = userRepository.findById(userId)
-                .orElseThrow(() ->
-                        new IllegalArgumentException("유저를 찾을 수 없습니다. ID: " + userId));
+                .orElseThrow(() -> new IllegalArgumentException("사용자를 찾을 수 없습니다. ID: " + userId));
 
-        Message message = new Message();
-        message.setChatRoom(chatRoom);
-        message.setUser(user);
-        message.setText(text);
-        message.setSentAt(LocalDateTime.now());  // 자동 설정
-        message.setDeleted(false);
+        Message message = Message.builder()
+                .chatRoom(chatRoom)
+                .user(user)
+                .text(text)
+                .sentAt(LocalDateTime.now())
+                .deleted(false)
+                .build();
 
         return messageRepository.save(message);
     }

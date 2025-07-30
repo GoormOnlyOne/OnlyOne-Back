@@ -4,9 +4,7 @@ import com.example.onlyone.domain.user.entity.User;
 import com.example.onlyone.global.BaseTimeEntity;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.NotNull;
-import lombok.Getter;
-import lombok.NoArgsConstructor;
-import lombok.Setter;
+import lombok.*;
 
 import java.time.LocalDateTime;
 
@@ -15,6 +13,8 @@ import java.time.LocalDateTime;
 @Getter
 @Setter
 @NoArgsConstructor
+@AllArgsConstructor
+@Builder
 public class Message extends BaseTimeEntity {
 
     @Id
@@ -25,12 +25,12 @@ public class Message extends BaseTimeEntity {
     @ManyToOne(fetch = FetchType.LAZY, cascade = CascadeType.ALL)
     @JoinColumn(name = "chat_room_id", updatable = false)
     @NotNull
-    private ChatRoom chatRoom;  // ❌ @JsonIgnore 제거됨
+    private ChatRoom chatRoom;
 
     @ManyToOne(fetch = FetchType.LAZY, cascade = CascadeType.ALL)
     @JoinColumn(name = "user_id", updatable = false)
     @NotNull
-    private User user;  // ❌ @JsonIgnore 제거됨
+    private User user;
 
     @Column(name = "text")
     @NotNull
