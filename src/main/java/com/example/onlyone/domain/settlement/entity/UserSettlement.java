@@ -32,7 +32,6 @@ public class UserSettlement extends BaseTimeEntity {
     private Settlement settlement;
 
     @Column(name = "completed_time")
-    @NotNull
     private LocalDateTime completedTime;
 
     @ManyToOne(fetch = FetchType.LAZY)

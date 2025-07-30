@@ -14,7 +14,7 @@ import org.springframework.web.bind.annotation.*;
 @RestController
 @Tag(name = "Settlement")
 @RequiredArgsConstructor
-@RequestMapping("/clubs/{clubId}/schedules/{scheduleId}/settlement")
+@RequestMapping("/clubs/{clubId}/schedules/{scheduleId}/settlements")
 public class SettlementController {
     private final SettlementService settlementService;
 
