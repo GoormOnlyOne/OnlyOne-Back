@@ -5,7 +5,8 @@ import com.example.onlyone.global.exception.ErrorCode;
 
 public enum ClubRole {
     LEADER,
-    MEMBER;
+    MEMBER,
+    GUEST;
 
     public static ClubRole from(String value) {
         try {

@@ -48,7 +48,7 @@ public class Club extends BaseTimeEntity {
     @NotNull
     private String district;
 
-    @OneToOne(fetch = FetchType.LAZY, cascade = CascadeType.ALL)
+    @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "interest_id")
     @NotNull
     private Interest interest;
@@ -62,4 +62,19 @@ public class Club extends BaseTimeEntity {
     @OneToMany(mappedBy = "club", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<Schedule> schedules = new ArrayList<>();
 
+    public void update(String name,
+                       int userLimit,
+                       String description,
+                       String clubImage,
+                       String city,
+                       String district,
+                       Interest interest) {
+        this.name = name;
+        this.userLimit = userLimit;
+        this.description = description;
+        this.clubImage = clubImage;
+        this.city = city;
+        this.district = district;
+        this.interest = interest;
+    }
 }
