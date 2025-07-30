@@ -11,8 +11,7 @@ public enum Category {
     CRAFT,
     SOCIAL,
     LANGUAGE,
-    FINANCE,
-    ASDF;
+    FINANCE;
 
     public static Category from(String value) {
         try {
