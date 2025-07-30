@@ -41,7 +41,6 @@ public class Schedule extends BaseTimeEntity {
     @NotNull
     private int userLimit;
 
-
     @Column(name = "status")
     @NotNull
     @Enumerated(EnumType.STRING)

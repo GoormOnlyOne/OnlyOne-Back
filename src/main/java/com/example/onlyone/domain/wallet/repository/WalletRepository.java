@@ -10,5 +10,5 @@ import java.util.Optional;
 
 public interface WalletRepository extends JpaRepository<Wallet,Long> {
     @Lock(LockModeType.PESSIMISTIC_WRITE)
-    Optional<Wallet> findByUserWithLock(User user);
+    Optional<Wallet> findByUser(User user);
 }

@@ -45,5 +45,6 @@ public class Settlement extends BaseTimeEntity {
     private User receiver;
 
     public void updateStatus(TotalStatus totalStatus) {
+        this.totalStatus = totalStatus;
     }
 }
