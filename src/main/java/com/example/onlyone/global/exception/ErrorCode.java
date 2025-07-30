@@ -32,6 +32,7 @@ public enum ErrorCode {
     MEMBER_CANNOT_MODIFY_SCHEDULE(403, "SCHEDULE_409_3", "리더만 정기 모임을 수정할 수 있습니다,"),
     ALREADY_ENDED_SCHEDULE(409, "SCHEDULE_409_4", "이미 종료된 정기 모임입니다."),
     BEFORE_SCHEDULE_START(409, "SCHEDULE_409_5", "아직 진행되지 않은 정기 모임입니다."),
+    ALREADY_EXCEEDED_SCHEDULE(409, "SCHEDULE_409_6", "이미 정원이 마감된 정기 모임입니다."),
 
     // Settlement
     MEMBER_CANNOT_CREATE_SETTLEMENT(403, "SETTLEMENT_403_1", "리더만 정산 요청을 할 수 있습니다."),

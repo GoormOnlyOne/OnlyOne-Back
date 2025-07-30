@@ -111,6 +111,10 @@ public class ScheduleService {
                 .orElseThrow(() -> new CustomException(ErrorCode.SCHEDULE_NOT_FOUND));
 //        User user = userService.getCurrentUser();
         User user = userService.getAnotherUser();
+        int userCount = userScheduleRepository.countBySchedule(schedule);
+        if (userCount >= schedule.getUserLimit()) {
+            throw new CustomException(ErrorCode.ALREADY_EXCEEDED_SCHEDULE);
+        }
         // 이미 참여한 스케줄인 경우
         if (userScheduleRepository.findByUserAndSchedule(user, schedule).isPresent()) {
             throw new CustomException(ErrorCode.ALREADY_JOINED_SCHEDULE);
