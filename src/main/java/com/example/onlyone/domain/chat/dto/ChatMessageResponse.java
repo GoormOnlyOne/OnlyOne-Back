@@ -2,47 +2,43 @@ package com.example.onlyone.domain.chat.dto;
 
 import com.example.onlyone.domain.chat.entity.Message;
 import com.fasterxml.jackson.annotation.JsonFormat;
-import com.fasterxml.jackson.annotation.JsonProperty;
+import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.*;
-
-import java.time.Instant;
 import java.time.LocalDateTime;
 
 // ‘서버 → 클라이언트’ STOMP Subscribe 응답 페이로드
-import com.fasterxml.jackson.annotation.JsonFormat;
-import com.fasterxml.jackson.annotation.JsonProperty;
-import lombok.*;
 
-import java.time.LocalDateTime;
-
-@Data
+@Getter
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
+@Schema(description = "채팅 메시지 응답 DTO")
 public class ChatMessageResponse {
 
-    @JsonProperty("message_id")
-    private Long message_id;
+    @Schema(description = "메시지 ID", example = "101")
+    private Long messageId;
 
-    @JsonProperty("chat_id")
-    private Long chat_id;
+    @Schema(description = "채팅방 ID", example = "6")
+    private Long chatRoomId;
 
-    @JsonProperty("user_id")
-    private Long user_id;
+    @Schema(description = "보낸 사용자 ID", example = "1")
+    private Long userId;
 
+    @Schema(description = "메시지 내용", example = "안녕하세요!")
     private String text;
 
-    @JsonProperty("sendAt")
+    @Schema(description = "전송 시각", example = "2025-07-29T11:00:00")
     @JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm:ss")
     private LocalDateTime sentAt;
 
+    @Schema(description = "삭제 여부", example = "false")
     private boolean deleted;
 
     public static ChatMessageResponse from(Message message) {
         return ChatMessageResponse.builder()
-                .message_id(message.getMessageId())
-                .chat_id(message.getChatRoom().getChatRoomId())
-                .message_id(message.getUser().getUserId())
+                .messageId(message.getMessageId())
+                .chatRoomId(message.getChatRoom().getChatRoomId())
+                .userId(message.getUser().getUserId())
                 .text(message.getText())
                 .sentAt(message.getSentAt())
                 .deleted(message.isDeleted())

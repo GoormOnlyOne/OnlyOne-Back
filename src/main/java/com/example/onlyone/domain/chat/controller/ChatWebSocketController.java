@@ -28,11 +28,11 @@ public class ChatWebSocketController {
             @DestinationVariable Long chatRoomId,
             @Payload ChatMessageRequest request) {
 
-        System.out.println("🔥 sendMessage 진입: userId=" + request.getUser_id() + ", text=" + request.getText());
+        System.out.println("🔥 sendMessage 진입: userId=" + request.getUserId() + ", text=" + request.getText());
 
         try {
             // 1. 저장
-            Message saved = messageService.saveMessage(chatRoomId, request.getUser_id(), request.getText());
+            Message saved = messageService.saveMessage(chatRoomId, request.getUserId(), request.getText());
             System.out.println("✅ 저장 완료");
 
             // 2. 응답 생성

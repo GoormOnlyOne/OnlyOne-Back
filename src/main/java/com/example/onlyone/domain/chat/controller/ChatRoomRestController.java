@@ -1,5 +1,6 @@
 package com.example.onlyone.domain.chat.controller;
 
+import com.example.onlyone.domain.chat.dto.ChatRoomDetailResponse;
 import com.example.onlyone.domain.chat.dto.ChatRoomResponse;
 import com.example.onlyone.domain.chat.entity.ChatRoom;
 import com.example.onlyone.domain.chat.service.ChatRoomService;
@@ -43,6 +44,17 @@ public class ChatRoomRestController {
                 .map(ChatRoomResponse::from)
                 .collect(toList());
 
+        return ResponseEntity.ok(CommonResponse.success(response));
+    }
+
+    @Operation(summary = "채팅방 단건 상세 조회")
+    @GetMapping("/{chatRoomId}")
+    public ResponseEntity<CommonResponse<ChatRoomDetailResponse>> getChatRoomDetail(
+            @Parameter(description = "채팅방 ID", example = "1")
+            @PathVariable Long chatRoomId
+    ) {
+        ChatRoom chatRoom = chatRoomService.getById(chatRoomId);  // 존재하지 않으면 예외 발생
+        ChatRoomDetailResponse response = ChatRoomDetailResponse.from(chatRoom);
         return ResponseEntity.ok(CommonResponse.success(response));
     }
 }

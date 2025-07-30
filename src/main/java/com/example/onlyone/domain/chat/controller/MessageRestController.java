@@ -1,8 +1,12 @@
 package com.example.onlyone.domain.chat.controller;
 
+import com.example.onlyone.domain.chat.dto.ChatMessageRequest;
 import com.example.onlyone.domain.chat.dto.ChatMessageResponse;
 import com.example.onlyone.domain.chat.entity.Message;
 import com.example.onlyone.domain.chat.service.MessageService;
+import com.example.onlyone.global.common.CommonResponse;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -11,30 +15,40 @@ import java.util.List;
 
 @RestController
 @RequiredArgsConstructor
-@RequestMapping("/clubs/{clubId}/chatrooms/{chatRoomId}/messages")
+@RequestMapping("/chatrooms")
 public class MessageRestController {
 
     private final MessageService messageService;
 
-    // 메시지 목록 조회
-    @GetMapping
-    public ResponseEntity<List<ChatMessageResponse>> getMessages(@PathVariable Long chatRoomId) {
+    @Operation(summary = "채팅방 메시지 목록 조회")
+    @GetMapping("/{chatRoomId}/messages")
+    public ResponseEntity<CommonResponse<List<ChatMessageResponse>>> getMessages(
+            @Parameter(description = "채팅방 ID", example = "1")
+            @PathVariable Long chatRoomId
+    ) {
         List<Message> messages = messageService.getMessages(chatRoomId);
-        List<ChatMessageResponse> responses = messages.stream()
+
+        List<ChatMessageResponse> response = messages.stream()
                 .map(ChatMessageResponse::from)
                 .toList();
 
-        return ResponseEntity.ok(responses);
+        return ResponseEntity.ok(CommonResponse.success(response));
     }
 
-    // 메시지 삭제 (본인만 가능)
-    @DeleteMapping("/{messageId}")
-    public ResponseEntity<Void> deleteMessage(
+    @Operation(summary = "채팅 메시지 저장 (전송)")
+    @PostMapping("/{chatRoomId}/messages")
+    public ResponseEntity<CommonResponse<ChatMessageResponse>> sendMessage(
+            @Parameter(description = "채팅방 ID", example = "1")
             @PathVariable Long chatRoomId,
-            @PathVariable Long messageId,
-            @RequestParam Long userId
+            @RequestBody ChatMessageRequest request
     ) {
-        messageService.deleteMessage(messageId, userId);
-        return ResponseEntity.noContent().build();
+        Message saved = messageService.saveMessage(
+                chatRoomId,
+                request.getUserId(),
+                request.getText()
+        );
+        ChatMessageResponse response = ChatMessageResponse.from(saved);
+        return ResponseEntity.ok(CommonResponse.success(response));
     }
+
 }
