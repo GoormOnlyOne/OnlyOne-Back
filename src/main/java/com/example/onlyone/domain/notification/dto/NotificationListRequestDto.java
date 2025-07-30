@@ -7,7 +7,7 @@ import lombok.Getter;
 @Builder
 public class NotificationListRequestDto {
 
-    private final long userId;
-    private final long isRead;
+    private final Long userId;
+    private final Boolean isRead;
 
 }
