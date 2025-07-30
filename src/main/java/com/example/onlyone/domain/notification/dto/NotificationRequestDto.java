@@ -1,6 +1,6 @@
 package com.example.onlyone.domain.notification.dto;
 
-import com.fasterxml.jackson.annotation.JsonProperty;
+import com.example.onlyone.domain.notification.entity.Type;
 import jakarta.validation.constraints.NotNull;
 import lombok.Builder;
 import lombok.Getter;
@@ -10,14 +10,12 @@ import lombok.Getter;
 public class NotificationRequestDto {
 
     @NotNull
-    @JsonProperty("user_id")
-    private Long userId;
+    private final Long userId;
 
     @NotNull
-    @JsonProperty("type_code")
-    private String typeCode;
+    private final Type type;
 
     @NotNull
-    private String[] args;
+    private final String[] args;
 
 }
