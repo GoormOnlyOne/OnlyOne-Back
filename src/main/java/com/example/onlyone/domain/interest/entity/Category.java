@@ -13,6 +13,7 @@ public enum Category {
     LANGUAGE,
     FINANCE;
 
+
     public static Category from(String value) {
         try {
             return Category.valueOf(value.toUpperCase());
