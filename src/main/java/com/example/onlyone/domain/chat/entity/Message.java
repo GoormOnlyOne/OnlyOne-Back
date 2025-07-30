@@ -2,13 +2,13 @@ package com.example.onlyone.domain.chat.entity;
 
 import com.example.onlyone.domain.user.entity.User;
 import com.example.onlyone.global.BaseTimeEntity;
-import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.NotNull;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
-import java.time.*;
+
+import java.time.LocalDateTime;
 
 @Entity
 @Table(name = "message")
@@ -25,14 +25,12 @@ public class Message extends BaseTimeEntity {
     @ManyToOne(fetch = FetchType.LAZY, cascade = CascadeType.ALL)
     @JoinColumn(name = "chat_room_id", updatable = false)
     @NotNull
-    @JsonIgnore
-    private ChatRoom chatRoom;
+    private ChatRoom chatRoom;  // ❌ @JsonIgnore 제거됨
 
     @ManyToOne(fetch = FetchType.LAZY, cascade = CascadeType.ALL)
     @JoinColumn(name = "user_id", updatable = false)
     @NotNull
-    @JsonIgnore
-    private User user;
+    private User user;  // ❌ @JsonIgnore 제거됨
 
     @Column(name = "text")
     @NotNull
