@@ -48,4 +48,7 @@ public class Feed extends BaseTimeEntity {
     @OneToMany(mappedBy = "feed", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<FeedImage> feedImages = new ArrayList<>();
 
+    public void update(String content) {
+        this.content = content;
+    }
 }

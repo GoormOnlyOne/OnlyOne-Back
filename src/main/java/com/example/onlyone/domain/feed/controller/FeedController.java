@@ -2,7 +2,6 @@ package com.example.onlyone.domain.feed.controller;
 
 import com.example.onlyone.domain.feed.dto.request.FeedRequestDto;
 import com.example.onlyone.domain.feed.service.FeedService;
-import com.example.onlyone.domain.schedule.dto.request.ScheduleRequestDto;
 import com.example.onlyone.global.common.CommonResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -21,8 +20,17 @@ public class FeedController {
 
     @Operation(summary = "피드 생성", description = "피드를 생성합니다.")
     @PostMapping
-    public ResponseEntity<?> createSchedule(@PathVariable("clubId") Long clubId, @RequestBody @Valid FeedRequestDto requestDto) {
+    public ResponseEntity<?> createFeed(@PathVariable("clubId") Long clubId, @RequestBody @Valid FeedRequestDto requestDto) {
         feedService.createFeed(clubId, requestDto);
         return ResponseEntity.status(HttpStatus.CREATED).body(CommonResponse.success(null));
+    }
+
+    @Operation(summary = "피드 수정", description = "피드를 수정합니다.")
+    @PatchMapping("/{feedId}")
+    public ResponseEntity<?> updateFeed(@PathVariable("clubId") Long clubId,
+                                        @PathVariable("feedId") Long feedId,
+                                        @RequestBody @Valid FeedRequestDto requestDto) {
+        feedService.updateFeed(clubId, feedId, requestDto);
+        return ResponseEntity.status(HttpStatus.OK).body(CommonResponse.success(null));
     }
 }

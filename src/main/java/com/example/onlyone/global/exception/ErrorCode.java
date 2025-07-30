@@ -42,7 +42,11 @@ public enum ErrorCode {
 
     // Chat
     CHAT_ROOM_NOT_FOUND(404, "CHAT_404_1", "채팅방을 찾을 수 없습니다."),
-    USER_CHAT_ROOM_NOT_FOUND(404, "CHAT_404_2", "채팅방 참여자를 찾을 수 없습니다.");
+    USER_CHAT_ROOM_NOT_FOUND(404, "CHAT_404_2", "채팅방 참여자를 찾을 수 없습니다."),
+
+    // Feed
+    FEED_NOT_FOUND(404, "FEED_404_1","피드를 찾을 수 없습니다."),
+    UNAUTHORIZED_FEED_ACCESS(403, "FEED_403_1", "이 피드에 대한 권한이 없습니다.");
 
     private final int status;
     private final String code;
