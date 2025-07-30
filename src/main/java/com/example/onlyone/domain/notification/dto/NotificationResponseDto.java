@@ -11,33 +11,24 @@
     @Builder
     public class NotificationResponseDto {
 
-        @JsonProperty("notification_id")
         private final Long notificationId;
 
         private final String content;
 
-        @JsonProperty("fcm_sent")
+        @JsonProperty("isRead")
+        private final boolean isRead;
+
         private final boolean fcmSent;
 
-        @JsonProperty("created_at")
         private final LocalDateTime createdAt;
 
-        public NotificationResponseDto(Long notificationId,
-                                  String content,
-                                  boolean fcmSent,
-                                  LocalDateTime createdAt) {
-            this.notificationId = notificationId;
-            this.content        = content;
-            this.fcmSent        = fcmSent;
-            this.createdAt      = createdAt;
-        }
-
         public static NotificationResponseDto fromEntity(Notification n) {
-            return new NotificationResponseDto(
-                    n.getNotificationId(),
-                    n.getContent(),
-                    n.getFcmSent(),
-                    n.getCreatedAt()
-            );
+            return NotificationResponseDto.builder()
+                    .notificationId(n.getNotificationId())
+                    .content(n.getContent())
+                    .isRead(n.getIsRead())
+                    .fcmSent(n.getFcmSent())
+                    .createdAt(n.getCreatedAt())
+                    .build();
         }
     }
