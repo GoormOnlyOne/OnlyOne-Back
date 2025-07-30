@@ -17,6 +17,8 @@ import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.List;
+
 @Service
 @RequiredArgsConstructor
 public class NotificationService {
@@ -51,10 +53,11 @@ public class NotificationService {
     // 읽음 처리
     @Transactional
     public void markAllAsRead(NotificationListRequestDto dto) {
-        int updated = notificationRepo.markAllAsReadByUserId(dto.getUserId());
-        if (updated == 0) {
-            // 미읽음 알림이 아예 없었다면 Exception 처리
-            throw new CustomException(ErrorCode.NOTIFICATION_NOT_FOUND);
-        }
+        // 1) 미읽음 알림 조회
+        List<Notification> unreadList =
+                notificationRepo.findByUser_UserIdAndIsReadFalse(dto.getUserId());
+
+        // 2) 순회하면서 markAsRead 호출 (dirty‐checking)
+        unreadList.forEach(Notification::markAsRead);
     }
 }
