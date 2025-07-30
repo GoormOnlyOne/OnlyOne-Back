@@ -7,6 +7,8 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.web.PageableDefault;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -25,11 +27,16 @@ public class SettlementController {
         return ResponseEntity.status(HttpStatus.CREATED).body(CommonResponse.success(null));
     }
 
-    @Operation(summary = "참여자 정산", description = "정기 모임의 참여자가 정산을 진행합니다.")
-    @PostMapping("/{settlementId}")
-    public ResponseEntity<?> updateUserSettlement(@PathVariable("clubId") final Long clubId, @PathVariable("scheduleId") final Long scheduleId,
-                                                  @PathVariable("settlementId") final Long settlementId) {
-        settlementService.updateUserSettlement(clubId, scheduleId, settlementId);
+    @Operation(summary = "스케줄 참여자 정산", description = "정기 모임의 참여자가 정산을 진행합니다.")
+    @PostMapping("/user")
+    public ResponseEntity<?> updateUserSettlement(@PathVariable("clubId") final Long clubId, @PathVariable("scheduleId") final Long scheduleId) {
+        settlementService.updateUserSettlement(clubId, scheduleId);
         return ResponseEntity.ok(CommonResponse.success(null));
+    }
+
+    @Operation(summary = "스케줄 참여자 정산 조회", description = "정기 모임 모든 참여자의 정산 상태를 조회합니다.")
+    @GetMapping
+    public ResponseEntity<?> getSettlementList(@PathVariable("clubId") final Long clubId, @PathVariable("scheduleId") final Long scheduleId, @PageableDefault(size = 20) final Pageable pageable) {
+        return ResponseEntity.ok(CommonResponse.success(settlementService.getSettlementList(clubId, scheduleId,  pageable)));
     }
 }

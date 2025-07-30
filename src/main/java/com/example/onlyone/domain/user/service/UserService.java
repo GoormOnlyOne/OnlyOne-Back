@@ -19,7 +19,7 @@ public class UserService {
     }
 
     public User getAnotherUser(){
-        return userRepository.findById((long) 2)
+        return userRepository.findById((long) 4)
                 .orElseThrow(() -> new CustomException(ErrorCode.USER_NOT_FOUND));
     }
 
