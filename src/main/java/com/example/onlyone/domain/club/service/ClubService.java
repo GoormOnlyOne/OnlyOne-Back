@@ -105,7 +105,7 @@ public class ClubService {
     public ClubDetailResponseDto getClubDetail(Long clubId) {
         Club club = clubRepository.findById(clubId)
                 .orElseThrow(() -> new CustomException(ErrorCode.CLUB_NOT_FOUND));
-        User user = userService.getAnotherUser();
+        User user = userService.getCurrentUser();
         Optional<UserClub> userClub = userClubRepository.findByUserAndClub(user,club);
         int userCount = userClubRepository.countByClub_ClubId(club.getClubId());
         if (userClub.isEmpty()) {
@@ -118,7 +118,11 @@ public class ClubService {
     public void joinClub(Long clubId) {
         Club club = clubRepository.findById(clubId)
                 .orElseThrow(() -> new CustomException(ErrorCode.CLUB_NOT_FOUND));
-        User user = userService.getAnotherUser();
+        int userCount =  userClubRepository.countByClub_ClubId(club.getClubId());
+        if (userCount >= club.getUserLimit()) {
+            throw new CustomException(ErrorCode.CLUB_NOT_ENTER);
+        }
+        User user = userService.getCurrentUser();
         if (userClubRepository.findByUserAndClub(user, club).isPresent()) {
             throw new CustomException(ErrorCode.ALREADY_JOINED_CLUB);
         }
@@ -132,13 +136,16 @@ public class ClubService {
 
     /* 모임 탈퇴*/
     public void leaveClub(Long clubId) {
-        User user = userService.getAnotherUser();
+        User user = userService.getCurrentUser();
         Club club = clubRepository.findById(clubId)
                 .orElseThrow(() -> new CustomException(ErrorCode.CLUB_NOT_FOUND));
         UserClub userClub = userClubRepository.findByUserAndClub(user,club)
                 .orElseThrow(() -> new CustomException(ErrorCode.USER_CLUB_NOT_FOUND));
         if(userClub.getClubRole() == ClubRole.GUEST){
             throw new CustomException(ErrorCode.CLUB_NOT_LEAVE);
+        }
+        if(userClub.getClubRole() == ClubRole.LEADER){
+            throw new CustomException(ErrorCode.CLUB_LEADER_NOT_LEAVE);
         }
         userClubRepository.delete(userClub);
     }
