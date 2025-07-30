@@ -14,10 +14,9 @@ public interface NotificationRepository extends JpaRepository<Notification, Long
     List<Notification> findByUserOrderByCreatedAtDesc(User user);
 
 
-    //알림 조회시 전체 읽음 처리
-    @Modifying(clearAutomatically = true)
-    @Query("update Notification n set n.isRead = true where n.user.userId = :userId and n.isRead = false")
-    int markAllAsReadByUserId(Long userId);
+    // 사용자의 읽지 않은 알림 조회
+    List<Notification> findByUser_UserIdAndIsReadFalse(Long userId);
+
 
     // 첫 페이지
     @Query("""
