@@ -56,6 +56,7 @@ public class SettlementService {
             long completedCount = userSettlementRepository.countBySettlementAndSettlementStatus(settlement, SettlementStatus.COMPLETED);
             if (totalCount > 0 && totalCount == completedCount) {
                 settlement.updateStatus(TotalStatus.COMPLETED);
+                settlementRepository.save(settlement);
             }
         }
     }
@@ -68,7 +69,7 @@ public class SettlementService {
         Schedule schedule = scheduleRepository.findById(scheduleId)
                 .orElseThrow(() -> new CustomException(ErrorCode.SCHEDULE_NOT_FOUND));
         // 종료된 스케줄인지 확인
-        if (schedule.getScheduleStatus() == ScheduleStatus.ENDED || schedule.getScheduleTime().isBefore(LocalDateTime.now())) {
+        if (!(schedule.getScheduleStatus() == ScheduleStatus.ENDED || schedule.getScheduleTime().isBefore(LocalDateTime.now()))) {
             throw new CustomException(ErrorCode.BEFORE_SCHEDULE_START);
         }
         // 정산 금액이 0원이면 즉시 스케줄 종료
@@ -109,7 +110,8 @@ public class SettlementService {
 
     @Transactional
     public void updateUserSettlement(Long clubId, Long scheduleId, Long settlementId) {
-        User user = userService.getCurrentUser();
+        User user = userService.getAnotherUser();
+//        User user = userService.getCurrentUser();
         // 유효성 검증
         clubRepository.findById(clubId)
                 .orElseThrow(() -> new CustomException(ErrorCode.CLUB_NOT_FOUND));
@@ -127,9 +129,9 @@ public class SettlementService {
         }
         User leader = userScheduleRepository.findLeaderByScheduleAndScheduleRole(schedule, ScheduleRole.LEADER);
         // Wallet 조회 (비관적 락 적용)
-        Wallet wallet = walletRepository.findByUserWithLock(user)
+        Wallet wallet = walletRepository.findByUser(user)
                 .orElseThrow(() -> new CustomException(ErrorCode.WALLET_NOT_FOUND));
-        Wallet leaderWallet = walletRepository.findByUserWithLock(leader)
+        Wallet leaderWallet = walletRepository.findByUser(leader)
                 .orElseThrow(() -> new CustomException(ErrorCode.WALLET_NOT_FOUND));
 
         int amount = schedule.getCost();
@@ -162,7 +164,6 @@ public class SettlementService {
             // 정산 상태 변경
             userSettlement.updateSettlementStatus(SettlementStatus.COMPLETED);
             userSettlementRepository.save(userSettlement);
-
         } catch (Exception e) {
             // 실패 트랜잭션 기록
             walletTransactionRepository.save(WalletTransaction.builder()
