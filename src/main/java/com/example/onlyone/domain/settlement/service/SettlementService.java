@@ -7,6 +7,8 @@ import com.example.onlyone.domain.schedule.entity.ScheduleStatus;
 import com.example.onlyone.domain.schedule.entity.UserSchedule;
 import com.example.onlyone.domain.schedule.repository.ScheduleRepository;
 import com.example.onlyone.domain.schedule.repository.UserScheduleRepository;
+import com.example.onlyone.domain.settlement.dto.response.SettlementResponseDto;
+import com.example.onlyone.domain.settlement.dto.response.UserSettlementDto;
 import com.example.onlyone.domain.settlement.entity.Settlement;
 import com.example.onlyone.domain.settlement.entity.SettlementStatus;
 import com.example.onlyone.domain.settlement.entity.TotalStatus;
@@ -25,6 +27,8 @@ import com.example.onlyone.global.exception.CustomException;
 import com.example.onlyone.global.exception.ErrorCode;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.log4j.Log4j2;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -109,7 +113,7 @@ public class SettlementService {
     }
 
     @Transactional
-    public void updateUserSettlement(Long clubId, Long scheduleId, Long settlementId) {
+    public void updateUserSettlement(Long clubId, Long scheduleId) {
         User user = userService.getAnotherUser();
 //        User user = userService.getCurrentUser();
         // 유효성 검증
@@ -117,13 +121,11 @@ public class SettlementService {
                 .orElseThrow(() -> new CustomException(ErrorCode.CLUB_NOT_FOUND));
         Schedule schedule = scheduleRepository.findById(scheduleId)
                 .orElseThrow(() -> new CustomException(ErrorCode.SCHEDULE_NOT_FOUND));
-        Settlement settlement = settlementRepository.findById(settlementId)
-                .orElseThrow(() -> new CustomException(ErrorCode.SETTLEMENT_NOT_FOUND));
-        UserSettlement userSettlement = userSettlementRepository.findByUserAndSettlement(user, settlement)
+        UserSettlement userSettlement = userSettlementRepository.findByUserAndSchedule(user, schedule)
                 .orElseThrow(() -> new CustomException(ErrorCode.USER_SETTLEMENT_NOT_FOUND));
         userScheduleRepository.findByUserAndSchedule(user, schedule)
                 .orElseThrow(() -> new CustomException(ErrorCode.USER_SCHEDULE_NOT_FOUND));
-        if (settlement.getTotalStatus() != TotalStatus.REQUESTED ||
+        if (userSettlement.getSettlement().getTotalStatus() != TotalStatus.REQUESTED ||
                 userSettlement.getSettlementStatus() != SettlementStatus.REQUESTED) {
             throw new CustomException(ErrorCode.ALREADY_SETTLED_USER);
         }
@@ -185,5 +187,19 @@ public class SettlementService {
             throw e;
         }
         // [TODO] Notification 생성 및 유저에게 알림 전송
+    }
+
+    /* 스케줄 참여자 정산 목록 조회 */
+    @Transactional(readOnly = true)
+    public SettlementResponseDto getSettlementList(Long clubId, Long scheduleId, Pageable pageable) {
+        clubRepository.findById(clubId)
+                .orElseThrow(() -> new CustomException(ErrorCode.CLUB_NOT_FOUND));
+        Schedule schedule = scheduleRepository.findById(scheduleId)
+                .orElseThrow(() -> new CustomException(ErrorCode.SCHEDULE_NOT_FOUND));
+        Settlement settlement = settlementRepository.findBySchedule(schedule)
+                .orElseThrow(() -> new CustomException(ErrorCode.SETTLEMENT_NOT_FOUND));
+        Page<UserSettlementDto> userSettlementList = userSettlementRepository
+                .findAllDtoBySettlement(settlement, pageable);
+        return SettlementResponseDto.from(userSettlementList);
     }
 }

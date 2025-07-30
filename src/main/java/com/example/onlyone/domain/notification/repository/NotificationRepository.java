@@ -3,6 +3,7 @@ package com.example.onlyone.domain.notification.repository;
 import com.example.onlyone.domain.notification.dto.NotificationListItem;
 import com.example.onlyone.domain.notification.entity.Notification;
 import com.example.onlyone.domain.user.entity.User;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
