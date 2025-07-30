@@ -9,23 +9,16 @@ import org.springframework.web.socket.config.annotation.WebSocketMessageBrokerCo
 @Configuration
 @EnableWebSocketMessageBroker
 public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
-
     @Override
-    public void configureMessageBroker(MessageBrokerRegistry registry) {
-        // → 클라이언트가 subscribe 할 때 prefix
-        registry.enableSimpleBroker("/sub");
-        // → @MessageMapping 메서드를 호출하기 위한 prefix
-        //    (클라이언트는 이 prefix를 붙여서 메시지 전송)
-        registry.setApplicationDestinationPrefixes("/pub");
-        // → @SendToUser 로 보낼 때 쓰는 user prefix
-        registry.setUserDestinationPrefix("/user");
+    public void configureMessageBroker(MessageBrokerRegistry config) {
+        config.enableSimpleBroker("/sub", "/queue");
+        config.setApplicationDestinationPrefixes("/pub"); // 반드시 이게 있어야 해
     }
 
     @Override
     public void registerStompEndpoints(StompEndpointRegistry registry) {
-        // SockJS fallback 포함, CORS 는 프로덕션 환경에 맞게 조정
-        registry.addEndpoint("/ws-chat")
-                .setAllowedOriginPatterns("*")
+        registry.addEndpoint("/ws")
+                .setAllowedOriginPatterns("*") // ✅ SockJS handshake 안전하게 처리
                 .withSockJS();
     }
 }
