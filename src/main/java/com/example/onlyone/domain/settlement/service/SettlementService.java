@@ -9,18 +9,13 @@ import com.example.onlyone.domain.schedule.repository.ScheduleRepository;
 import com.example.onlyone.domain.schedule.repository.UserScheduleRepository;
 import com.example.onlyone.domain.settlement.dto.response.SettlementResponseDto;
 import com.example.onlyone.domain.settlement.dto.response.UserSettlementDto;
-import com.example.onlyone.domain.settlement.entity.Settlement;
-import com.example.onlyone.domain.settlement.entity.SettlementStatus;
-import com.example.onlyone.domain.settlement.entity.TotalStatus;
-import com.example.onlyone.domain.settlement.entity.UserSettlement;
+import com.example.onlyone.domain.settlement.entity.*;
 import com.example.onlyone.domain.settlement.repository.SettlementRepository;
+import com.example.onlyone.domain.settlement.repository.TransferRepository;
 import com.example.onlyone.domain.settlement.repository.UserSettlementRepository;
 import com.example.onlyone.domain.user.entity.User;
 import com.example.onlyone.domain.user.service.UserService;
-import com.example.onlyone.domain.wallet.entity.Type;
-import com.example.onlyone.domain.wallet.entity.Wallet;
-import com.example.onlyone.domain.wallet.entity.WalletTransactionStatus;
-import com.example.onlyone.domain.wallet.entity.WalletTransaction;
+import com.example.onlyone.domain.wallet.entity.*;
 import com.example.onlyone.domain.wallet.repository.WalletRepository;
 import com.example.onlyone.domain.wallet.repository.WalletTransactionRepository;
 import com.example.onlyone.global.exception.CustomException;
@@ -49,6 +44,7 @@ public class SettlementService {
     private final UserSettlementRepository userSettlementRepository;
     private final WalletRepository walletRepository;
     private final WalletTransactionRepository walletTransactionRepository;
+    private final TransferRepository transferRepository;
 
 
     /* 정산 Status를 REQUESTED -> COMPLETED로 스케줄링 (낙관적 락 적용)*/
@@ -147,42 +143,63 @@ public class SettlementService {
             leaderWallet.updateBalance(leaderWallet.getBalance() + amount);
 
             // 트랜잭션 저장
-            walletTransactionRepository.save(WalletTransaction.builder()
+            WalletTransaction walletTransaction = WalletTransaction.builder()
                     .type(Type.OUTGOING)
                     .amount(amount)
                     .balance(wallet.getBalance())
                     .walletTransactionStatus(WalletTransactionStatus.COMPLETED)
                     .wallet(wallet)
                     .targetWallet(leaderWallet)
-                    .build());
-            walletTransactionRepository.save(WalletTransaction.builder()
+                    .build();
+            walletTransactionRepository.save(walletTransaction);
+            WalletTransaction leaderWalletTransaction = WalletTransaction.builder()
                     .type(Type.INCOMING)
                     .amount(amount)
                     .balance(leaderWallet.getBalance())
                     .walletTransactionStatus(WalletTransactionStatus.COMPLETED)
                     .wallet(leaderWallet)
                     .targetWallet(wallet)
+                    .build();
+            walletTransactionRepository.save(leaderWalletTransaction);
+            // 이체 내역 저장
+            transferRepository.save(Transfer.builder()
+                    .userSettlement(userSettlement)
+                    .walletTransaction(walletTransaction)
+                    .build());
+            transferRepository.save(Transfer.builder()
+                    .userSettlement(userSettlement)
+                    .walletTransaction(leaderWalletTransaction)
                     .build());
             // 정산 상태 변경
-            userSettlement.updateSettlementStatus(SettlementStatus.COMPLETED);
+            userSettlement.updateSettlement(SettlementStatus.COMPLETED, LocalDateTime.now());
             userSettlementRepository.save(userSettlement);
         } catch (Exception e) {
             // 실패 트랜잭션 기록
-            walletTransactionRepository.save(WalletTransaction.builder()
+            WalletTransaction walletTransaction = WalletTransaction.builder()
                     .type(Type.OUTGOING)
                     .amount(amount)
                     .balance(wallet.getBalance())
                     .walletTransactionStatus(WalletTransactionStatus.FAILED)
                     .wallet(wallet)
                     .targetWallet(leaderWallet)
-                    .build());
-            walletTransactionRepository.save(WalletTransaction.builder()
+                    .build();
+            walletTransactionRepository.save(walletTransaction);
+            WalletTransaction leaderWalletTransaction = WalletTransaction.builder()
                     .type(Type.INCOMING)
                     .amount(amount)
                     .balance(leaderWallet.getBalance())
                     .walletTransactionStatus(WalletTransactionStatus.FAILED)
                     .wallet(leaderWallet)
                     .targetWallet(wallet)
+                    .build();
+            walletTransactionRepository.save(leaderWalletTransaction);
+            transferRepository.save(Transfer.builder()
+                    .userSettlement(userSettlement)
+                    .walletTransaction(walletTransaction)
+                    .build());
+            transferRepository.save(Transfer.builder()
+                    .userSettlement(userSettlement)
+                    .walletTransaction(leaderWalletTransaction)
                     .build());
             throw e;
         }
