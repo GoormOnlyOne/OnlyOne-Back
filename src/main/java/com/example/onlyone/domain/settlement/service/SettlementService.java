@@ -125,7 +125,8 @@ public class SettlementService {
                 userSettlement.getSettlementStatus() != SettlementStatus.REQUESTED) {
             throw new CustomException(ErrorCode.ALREADY_SETTLED_USER);
         }
-        User leader = userScheduleRepository.findLeaderByScheduleAndScheduleRole(schedule, ScheduleRole.LEADER);
+        User leader = userScheduleRepository.findLeaderByScheduleAndScheduleRole(schedule, ScheduleRole.LEADER)
+                .orElseThrow(() -> new CustomException(ErrorCode.LEADER_NOT_FOUND));
         // Wallet 조회 (비관적 락 적용)
         Wallet wallet = walletRepository.findByUser(user)
                 .orElseThrow(() -> new CustomException(ErrorCode.WALLET_NOT_FOUND));
