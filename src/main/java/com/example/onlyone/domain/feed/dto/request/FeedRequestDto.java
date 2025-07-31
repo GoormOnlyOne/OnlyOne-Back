@@ -13,6 +13,7 @@ import java.util.List;
 public class FeedRequestDto {
 
     @NotNull
+    @Size(min = 1, message = "이미지는 최소 1개 이상 등록해야 합니다.")
     private List<String> feedUrls;
 
     @Size(max = 50, message = "피드 설명은 {max}자 이내여야 합니다.")

@@ -3,6 +3,7 @@ package com.example.onlyone.domain.feed.service;
 import com.example.onlyone.domain.club.entity.Club;
 import com.example.onlyone.domain.club.repository.ClubRepository;
 import com.example.onlyone.domain.feed.dto.request.FeedRequestDto;
+import com.example.onlyone.domain.feed.dto.response.FeedSummaryResponseDto;
 import com.example.onlyone.domain.feed.entity.Feed;
 import com.example.onlyone.domain.feed.entity.FeedImage;
 import com.example.onlyone.domain.feed.repository.FeedRepository;
@@ -15,7 +16,9 @@ import lombok.extern.log4j.Log4j2;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.List;
 import java.util.Objects;
+import java.util.stream.Collectors;
 
 @Log4j2
 @Service
@@ -62,5 +65,25 @@ public class FeedService {
                         .feed(feed)
                         .build())
                 .forEach(feed.getFeedImages()::add);
+    }
+
+    @Transactional(readOnly = true)
+    public List<FeedSummaryResponseDto> getFeedList(Long clubId) {
+        Club club = clubRepository.findById(clubId)
+                .orElseThrow(() -> new CustomException(ErrorCode.CLUB_NOT_FOUND));
+
+        List<Feed> feeds = feedRepository.findAllByClub(club);
+
+        return feeds.stream()
+                .map(feed -> {
+                    String thumbnailUrl = feed.getFeedImages().get(0).getFeedImage();
+
+                    return new FeedSummaryResponseDto(
+                            feed.getFeedId(),
+                            thumbnailUrl,
+                            feed.getFeedLikes().size()
+                    );
+                })
+                .collect(Collectors.toList());
     }
 }
