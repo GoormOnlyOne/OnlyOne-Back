@@ -30,7 +30,7 @@ public class ChatRoom extends BaseTimeEntity {
     private Club club;
 
     // 논리적 FK로 설정
-    @Column(name = "schedule_id", updatable = false)
+    @Column(name = "schedule_id", nullable = true, updatable = false)
     private Long scheduleId;
 
     @Column(name = "type")
@@ -41,4 +41,6 @@ public class ChatRoom extends BaseTimeEntity {
     @OneToMany(mappedBy = "chatRoom", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<Message> messages = new ArrayList<>();
 
+    @OneToMany(mappedBy = "chatRoom", cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<UserChatRoom> userChatRooms = new ArrayList<>();
 }
