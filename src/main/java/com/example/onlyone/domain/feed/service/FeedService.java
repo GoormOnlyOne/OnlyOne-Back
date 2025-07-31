@@ -49,7 +49,7 @@ public class FeedService {
         Club club = clubRepository.findById(clubId)
                 .orElseThrow(() -> new CustomException(ErrorCode.CLUB_NOT_FOUND));
         User user = userService.getCurrentUser();
-        Feed feed = feedRepository.findById(feedId)
+        Feed feed = feedRepository.findByFeedIdAndClub(feedId, club)
                 .orElseThrow(() -> new CustomException(ErrorCode.FEED_NOT_FOUND));
         if (!Objects.equals(user.getUserId(), feed.getUser().getUserId())) {
             throw new CustomException(ErrorCode.UNAUTHORIZED_FEED_ACCESS);
