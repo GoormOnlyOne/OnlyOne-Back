@@ -2,7 +2,8 @@ package com.example.onlyone.domain.schedule.dto.request;
 
 import com.example.onlyone.domain.club.entity.Club;
 import com.example.onlyone.domain.schedule.entity.Schedule;
-import com.example.onlyone.domain.schedule.entity.Status;
+import com.example.onlyone.domain.schedule.entity.ScheduleStatus;
+import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
@@ -17,6 +18,7 @@ public class ScheduleRequestDto {
     private String name;
     private String location;
     @NotNull
+    @Min(value = 0)
     private int cost;
     @NotNull
     private int userLimit;
@@ -31,7 +33,7 @@ public class ScheduleRequestDto {
                 .cost(cost)
                 .userLimit(userLimit)
                 .scheduleTime(scheduleTime)
-                .status(Status.READY)
+                .scheduleStatus(ScheduleStatus.READY)
                 .build();
     }
 }

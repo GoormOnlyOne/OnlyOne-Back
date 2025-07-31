@@ -33,12 +33,16 @@ public class User extends BaseTimeEntity {
     private LocalDate birth;
 
     @Column(name = "status")
+    @NotNull
+    @Enumerated(EnumType.STRING)
     private Status status;
 
     @Column(name = "profile_image")
     private String profileImage;
 
     @Column(name = "gender")
+    @NotNull
+    @Enumerated(EnumType.STRING)
     private Gender gender;
 
     @Column(name = "city")
