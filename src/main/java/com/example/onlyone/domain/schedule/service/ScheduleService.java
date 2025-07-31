@@ -130,7 +130,7 @@ public class ScheduleService {
                 .scheduleRole(ScheduleRole.MEMBER)
                 .build();
         userScheduleRepository.save(userSchedule);
-        ChatRoom chatRoom = chatRoomRepository.findByTypeAndScheduleId(Type.SCHEDULE, schedule.getScheduleId())
+        ChatRoom chatRoom = chatRoomRepository.findByChatRoomIdAndClubClubId(schedule.getScheduleId(), clubId)
                 .orElseThrow(() -> new CustomException(ErrorCode.CHAT_ROOM_NOT_FOUND));
         UserChatRoom userChatRoom = UserChatRoom.builder()
                 .user(user)
@@ -161,7 +161,7 @@ public class ScheduleService {
         userScheduleRepository.delete(userSchedule);
         ChatRoom chatRoom = chatRoomRepository.findByTypeAndScheduleId(Type.SCHEDULE, schedule.getScheduleId())
                 .orElseThrow(() -> new CustomException(ErrorCode.CHAT_ROOM_NOT_FOUND));
-        UserChatRoom userChatRoom = userChatRoomRepository.findByUserAndChatRoom(user, chatRoom)
+        UserChatRoom userChatRoom = userChatRoomRepository.findByUserUserIdAndChatRoomChatRoomId(user.getUserId(), chatRoom.getChatRoomId())
                 .orElseThrow(() -> new CustomException(ErrorCode.USER_CHAT_ROOM_NOT_FOUND));
         userChatRoomRepository.delete(userChatRoom);
     }

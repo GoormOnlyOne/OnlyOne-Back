@@ -53,6 +53,10 @@ dependencies {
     implementation 'org.springframework.boot:spring-boot-starter-data-redis'
     // OpenFeign
     implementation 'org.springframework.cloud:spring-cloud-starter-openfeign'
+    //websocket
+    implementation 'org.springframework.boot:spring-boot-starter-websocket'
+    implementation 'org.springframework.boot:spring-boot-starter-actuator'
+    implementation 'org.springframework.boot:spring-boot-starter'
 }
 
 tasks.named('test') {

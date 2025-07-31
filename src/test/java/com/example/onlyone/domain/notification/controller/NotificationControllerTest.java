@@ -3,7 +3,6 @@ package com.example.onlyone.domain.notification.controller;
 import com.example.onlyone.domain.notification.dto.NotificationListRequestDto;
 import com.example.onlyone.domain.notification.dto.NotificationRequestDto;
 import com.example.onlyone.domain.notification.dto.NotificationResponseDto;
-import com.example.onlyone.domain.notification.service.NotificationService;
 import com.example.onlyone.global.exception.CustomException;
 import com.example.onlyone.global.exception.ErrorCode;
 import org.junit.jupiter.api.DisplayName;
