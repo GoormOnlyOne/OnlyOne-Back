@@ -1,5 +1,6 @@
 package com.example.onlyone.domain.wallet.entity;
 
+import com.example.onlyone.domain.payment.entity.Payment;
 import com.example.onlyone.global.BaseTimeEntity;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
@@ -9,7 +10,9 @@ import lombok.*;
 @Entity
 @Table(name = "wallet_transaction")
 @Getter
-@NoArgsConstructor
+@Builder
+@NoArgsConstructor(access = AccessLevel.PROTECTED)
+@AllArgsConstructor
 public class WalletTransaction extends BaseTimeEntity {
 
     @Id
@@ -33,11 +36,10 @@ public class WalletTransaction extends BaseTimeEntity {
     @Column(name = "status")
     @NotNull
     @Enumerated(EnumType.STRING)
-    private Status status;
+    private WalletTransactionStatus walletTransactionStatus;
 
-    @Column(name = "imp_uid",  updatable = false, unique = true)
-    @NotNull
-    private String impUid;
+//    @Column(name = "imp_uid",  updatable = false, unique = true)
+//    private String impUid;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "wallet_id", updatable = false)
@@ -50,5 +52,12 @@ public class WalletTransaction extends BaseTimeEntity {
     @NotNull
     @JsonIgnore
     private Wallet targetWallet;
+
+    @OneToOne(mappedBy = "walletTransaction", cascade = CascadeType.ALL, orphanRemoval = true)
+    private Payment payment;
+
+    @OneToOne(mappedBy = "walletTransaction", cascade = CascadeType.ALL, orphanRemoval = true)
+    private Transfer transfer;
+
 
 }
