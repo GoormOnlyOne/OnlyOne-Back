@@ -51,14 +51,15 @@ public class ScheduleService {
 
     /* 스케줄 Status를 READY -> ENDED로 변경하는 스케줄링 */
     @Scheduled(cron = "0 0 0 * * *")
+    @Transactional
     public void updateScheduleStatus() {
         LocalDateTime now = LocalDateTime.now();
-        List<Schedule> readySchedules = scheduleRepository.findByScheduleStatus(ScheduleStatus.READY);
-        for (Schedule schedule : readySchedules) {
-            if (schedule.getScheduleTime().isBefore(now)) {
-                schedule.updateStatus(ScheduleStatus.ENDED);
-            }
-        }
+        int updatedCount = scheduleRepository.updateExpiredSchedules(
+                ScheduleStatus.ENDED,
+                ScheduleStatus.READY,
+                now
+        );
+        log.info("✅ {}개의 스케줄 상태가 READY → ENDED로 변경되었습니다.", updatedCount);
     }
 
     /* 정기 모임 생성*/
