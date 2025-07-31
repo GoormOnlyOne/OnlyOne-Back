@@ -4,8 +4,8 @@ import com.example.onlyone.domain.chat.entity.ChatRoom;
 import com.example.onlyone.domain.chat.entity.Type;
 import com.example.onlyone.domain.chat.entity.UserChatRoom;
 import com.example.onlyone.domain.chat.repository.ChatRoomRepository;
-import com.example.onlyone.domain.chat.repository.UserChatRoomRepository;
 
+import com.example.onlyone.domain.chat.repository.UserChatRoomRepository;
 import com.example.onlyone.domain.club.dto.request.ClubRequestDto;
 import com.example.onlyone.domain.club.dto.response.ClubDetailResponseDto;
 import com.example.onlyone.domain.club.entity.Club;
@@ -13,27 +13,20 @@ import com.example.onlyone.domain.club.entity.ClubRole;
 import com.example.onlyone.domain.club.entity.UserClub;
 import com.example.onlyone.domain.club.repository.ClubRepository;
 import com.example.onlyone.domain.club.repository.UserClubRepository;
-import com.example.onlyone.domain.feed.entity.Feed;
 import com.example.onlyone.domain.feed.repository.FeedRepository;
 import com.example.onlyone.domain.interest.entity.Category;
 import com.example.onlyone.domain.interest.entity.Interest;
 import com.example.onlyone.domain.interest.repository.InterestRepository;
-import com.example.onlyone.domain.schedule.dto.response.ScheduleUserResponseDto;
-import com.example.onlyone.domain.schedule.entity.Schedule;
-import com.example.onlyone.domain.schedule.entity.ScheduleRole;
 import com.example.onlyone.domain.user.entity.User;
 import com.example.onlyone.domain.user.service.UserService;
 import com.example.onlyone.global.exception.CustomException;
 import com.example.onlyone.global.exception.ErrorCode;
 import org.springframework.transaction.annotation.Transactional;
-import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.log4j.Log4j2;
 import org.springframework.stereotype.Service;
 
-import java.util.List;
 import java.util.Optional;
-import java.util.stream.Collectors;
 
 @Log4j2
 @Service

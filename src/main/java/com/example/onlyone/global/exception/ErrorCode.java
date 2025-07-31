@@ -61,9 +61,24 @@ public enum ErrorCode {
 
     // Payment
     INVALID_PAYMENT_INFO(400, "PAYMENT_400_1", "결제 금액 정보가 유효하지 않습니다."),
+  
+    // Chat - 채팅방 목록 조회
+    UNAUTHORIZED_CHAT_ACCESS(401, "CHAT_401_1", "채팅방 접근 권한이 없습니다."),
+    INTERNAL_CHAT_SERVER_ERROR(500, "CHAT_500_1", "채팅 서버 오류가 발생했습니다."),
 
+    // Chat - 채팅방 생성
+    INVALID_CHAT_REQUEST(400, "CHAT_400_1", "유효하지 않은 채팅 요청입니다."),
+    DUPLICATE_CHAT_ROOM(409, "CHAT_409_1", "이미 존재하는 채팅방입니다."),
 
-    ;
+    // Chat - 채팅 메시지 목록 조회
+    FORBIDDEN_CHAT_ROOM(403, "CHAT_403_1", "해당 채팅방 접근이 거부되었습니다."),
+    MESSAGE_BAD_REQUEST(400, "CHAT_400_2", "채팅 메시지 요청이 유효하지 않습니다."),
+    MESSAGE_SERVER_ERROR(500, "CHAT_500_2", "메시지 조회 중 오류가 발생했습니다."),
+
+    // Chat - 메시지 삭제
+    MESSAGE_FORBIDDEN(403, "CHAT_403_2", "해당 메시지 삭제 권한이 없습니다."),
+    MESSAGE_CONFLICT(409, "CHAT_409_1", "메시지 삭제 중 충돌이 발생했습니다."),
+    MESSAGE_DELETE_ERROR(500, "CHAT_500_3", "메시지 삭제 중 서버 오류가 발생했습니다.");
 
     private final int status;
     private final String code;
