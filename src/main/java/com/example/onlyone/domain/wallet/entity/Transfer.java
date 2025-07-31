@@ -19,8 +19,7 @@ public class Transfer {
     @Column(name = "transfer_id", updatable = false)
     private Long transferId;
 
-    @OneToOne(fetch = FetchType.LAZY, cascade = CascadeType.ALL)
-    @JoinColumn(name = "wallet_transaction_id")
+    @OneToOne(mappedBy = "payment", fetch = FetchType.LAZY)
     @NotNull
     private WalletTransaction walletTransaction;
 
