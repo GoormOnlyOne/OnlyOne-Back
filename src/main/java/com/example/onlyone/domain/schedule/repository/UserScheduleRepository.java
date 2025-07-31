@@ -20,5 +20,5 @@ public interface UserScheduleRepository extends JpaRepository<UserSchedule,Long>
     List<User> findUsersBySchedule(@Param("schedule") Schedule schedule);
 
     @Query("SELECT us.user FROM UserSchedule us WHERE us.schedule = :schedule AND us.scheduleRole = :role")
-    User findLeaderByScheduleAndScheduleRole(@Param("schedule") Schedule schedule, @Param("scheduleRole") ScheduleRole role);
+    Optional<User> findLeaderByScheduleAndScheduleRole(@Param("schedule") Schedule schedule, @Param("scheduleRole") ScheduleRole role);
 }
