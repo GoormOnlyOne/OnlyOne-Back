@@ -25,7 +25,8 @@ public class ChatRoomService {
 
     // 채팅방 삭제
     @Transactional
-    public void deleteChatRoom(Long chatRoomId, Long clubId) {
+    public void deleteChatRoom(Long chatRoomId, Long clubId)
+    {
         ChatRoom chatRoom = chatRoomRepository.findByChatRoomIdAndClubClubId(chatRoomId, clubId)
                 .orElseThrow(() -> new MyChatException("Chat room not found in club: " + chatRoomId));
         chatRoomRepository.delete(chatRoom);
