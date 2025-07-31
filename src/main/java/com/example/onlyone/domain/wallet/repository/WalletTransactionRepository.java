@@ -11,7 +11,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import java.util.List;
 
 public interface WalletTransactionRepository extends JpaRepository<WalletTransaction,Long> {
-    List<WalletTransaction> findByWalletAndType(Wallet wallet, Type type, Pageable pageable);
-    List<WalletTransaction> findByWalletAndTypeNot(Wallet wallet, Type type, Pageable pageable);
-    List<WalletTransaction> findByWallet(Wallet wallet, Pageable pageable);
+    Page<WalletTransaction> findByWalletAndType(Wallet wallet, Type type, Pageable pageable);
+    Page<WalletTransaction> findByWalletAndTypeNot(Wallet wallet, Type type, Pageable pageable);
+    Page<WalletTransaction> findByWallet(Wallet wallet, Pageable pageable);
 }

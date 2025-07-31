@@ -1,6 +1,5 @@
 package com.example.onlyone.domain.wallet.service;
 
-import com.example.onlyone.domain.club.entity.Club;
 import com.example.onlyone.domain.club.repository.ClubRepository;
 import com.example.onlyone.domain.payment.entity.Payment;
 import com.example.onlyone.domain.schedule.entity.Schedule;
@@ -29,14 +28,15 @@ import java.util.List;
 @Transactional
 @RequiredArgsConstructor
 public class WalletService {
+
     private final WalletRepository walletRepository;
     private final WalletTransactionRepository walletTransactionRepository;
     private final TransferRepository transferRepository;
     private final UserService userService;
     private final ClubRepository clubRepository;
 
-
     /* 사용자 정산/거래 내역 목록 조회 */
+    @Transactional(readOnly = true)
     public WalletTransactionResponseDto getWalletTransactionList(Filter filter, Pageable pageable) {
         if (filter == null) {
             filter = Filter.ALL; // 기본값 처리
@@ -44,28 +44,28 @@ public class WalletService {
         User user = userService.getCurrentUser();
         Wallet wallet = walletRepository.findByUser(user)
                 .orElseThrow(() -> new CustomException(ErrorCode.WALLET_NOT_FOUND));
-        List<WalletTransaction> walletTransactionList;
-        switch (filter) {
-            case ALL -> walletTransactionList = walletTransactionRepository.findByWallet(wallet, pageable);
-            case CHARGE -> walletTransactionList = walletTransactionRepository.findByWalletAndType(wallet, Type.CHARGE, pageable);
-            case TRANSACTION -> walletTransactionList = walletTransactionRepository.findByWalletAndTypeNot(wallet, Type.CHARGE, pageable);
+        Page<WalletTransaction> transactionPageList = switch (filter) {
+            case ALL -> walletTransactionRepository.findByWallet(wallet, pageable);
+            case CHARGE -> walletTransactionRepository.findByWalletAndType(wallet, Type.CHARGE, pageable);
+            case TRANSACTION -> walletTransactionRepository.findByWalletAndTypeNot(wallet, Type.CHARGE, pageable);
             default -> throw new CustomException(ErrorCode.INVALID_FILTER);
-        }
-        List<UserWalletTransactionDto> dtoList = walletTransactionList.stream()
-                .map(walletTransaction -> convertToWalletTransactionDto(walletTransaction, walletTransaction.getType()))
+        };
+        List<UserWalletTransactionDto> dtoList = transactionPageList.getContent().stream()
+                .map(tx -> convertToDto(tx, tx.getType()))
                 .toList();
-        Page<UserWalletTransactionDto> dtoPage = new PageImpl<>(dtoList, pageable, dtoList.size());
+        Page<UserWalletTransactionDto> dtoPage = new PageImpl<>(dtoList, pageable, transactionPageList.getTotalElements());
         return WalletTransactionResponseDto.from(dtoPage);
     }
 
     @Transactional(readOnly = true)
-    public UserWalletTransactionDto convertToWalletTransactionDto(WalletTransaction walletTransaction, Type type) {
+    public UserWalletTransactionDto convertToDto(WalletTransaction walletTransaction, Type type) {
         if (type == Type.CHARGE) {
-            // 추후 구현 예정
+            // 충전 거래의 경우
             Payment payment = walletTransaction.getPayment();
-            String title = String.valueOf(payment.getTotalAmount()) + "원";
+            String title = payment.getTotalAmount() + "원";
             return UserWalletTransactionDto.from(walletTransaction, title, null);
         } else {
+            // 정산 거래의 경우
             Transfer transfer = walletTransaction.getTransfer();
             Schedule schedule = transfer.getUserSettlement().getSettlement().getSchedule();
             String title = schedule.getClub().getName() + ": " + schedule.getName();
@@ -73,6 +73,4 @@ public class WalletService {
             return UserWalletTransactionDto.from(walletTransaction, title, mainImage);
         }
     }
-
-
 }
