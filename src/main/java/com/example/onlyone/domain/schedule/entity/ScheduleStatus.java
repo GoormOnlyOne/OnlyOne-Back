@@ -1,6 +1,6 @@
 package com.example.onlyone.domain.schedule.entity;
 
-public enum Status {
+public enum ScheduleStatus {
     READY,
     ENDED,
     WAITING,
