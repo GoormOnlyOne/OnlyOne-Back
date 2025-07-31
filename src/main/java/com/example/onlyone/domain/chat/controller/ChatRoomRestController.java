@@ -1,6 +1,7 @@
 package com.example.onlyone.domain.chat.controller;
 
 import com.example.onlyone.domain.chat.dto.ChatRoomResponse;
+import com.example.onlyone.domain.chat.entity.ChatRoom;
 import com.example.onlyone.domain.chat.service.ChatRoomService;
 import com.example.onlyone.global.common.CommonResponse;
 import io.swagger.v3.oas.annotations.Operation;
@@ -20,8 +21,9 @@ public class ChatRoomRestController {
 
     // 채팅방 삭제
     @DeleteMapping("/{chatRoomId}")
-    public ResponseEntity<Void> deleteChatRoom(@PathVariable Long clubId, @PathVariable Long chatRoomId) {
-        chatRoomService.deleteChatRoom(chatRoomId, clubId);
+    public ResponseEntity<Void> deleteChatRoom(@PathVariable Long chatRoomId) {
+        ChatRoomResponse chatRoom = chatRoomService.getById(chatRoomId);
+        chatRoomService.deleteChatRoom(chatRoomId, chatRoom.getClubId());
         return ResponseEntity.noContent().build();
     }
 
