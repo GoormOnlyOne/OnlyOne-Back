@@ -49,6 +49,7 @@ public class SettlementService {
 
     /* 정산 Status를 REQUESTED -> COMPLETED로 스케줄링 (낙관적 락 적용)*/
     @Scheduled(cron = "0 0 0 * * *")
+    @Transactional
     public void updateTotalStatusIfAllCompleted() {
         List<Settlement> settlements = settlementRepository.findAllByTotalStatus(TotalStatus.REQUESTED);
         for (Settlement settlement : settlements) {
@@ -108,7 +109,6 @@ public class SettlementService {
         // [TODO] Notification 생성 및 유저에게 알림 전송
     }
 
-    @Transactional
     public void updateUserSettlement(Long clubId, Long scheduleId) {
         User user = userService.getAnotherUser();
 //        User user = userService.getCurrentUser();
@@ -142,69 +142,50 @@ public class SettlementService {
             // 포인트 이동
             wallet.updateBalance(wallet.getBalance() - amount);
             leaderWallet.updateBalance(leaderWallet.getBalance() + amount);
-
-            // 트랜잭션 저장
-            WalletTransaction walletTransaction = WalletTransaction.builder()
-                    .type(Type.OUTGOING)
-                    .amount(amount)
-                    .balance(wallet.getBalance())
-                    .walletTransactionStatus(WalletTransactionStatus.COMPLETED)
-                    .wallet(wallet)
-                    .targetWallet(leaderWallet)
-                    .build();
-            walletTransactionRepository.save(walletTransaction);
-            WalletTransaction leaderWalletTransaction = WalletTransaction.builder()
-                    .type(Type.INCOMING)
-                    .amount(amount)
-                    .balance(leaderWallet.getBalance())
-                    .walletTransactionStatus(WalletTransactionStatus.COMPLETED)
-                    .wallet(leaderWallet)
-                    .targetWallet(wallet)
-                    .build();
-            walletTransactionRepository.save(leaderWalletTransaction);
-            // 이체 내역 저장
-            transferRepository.save(Transfer.builder()
-                    .userSettlement(userSettlement)
-                    .walletTransaction(walletTransaction)
-                    .build());
-            transferRepository.save(Transfer.builder()
-                    .userSettlement(userSettlement)
-                    .walletTransaction(leaderWalletTransaction)
-                    .build());
+            // 리더-멤버의 WalletTransaction, Transfer 기록
+            saveWalletTransactions(wallet, leaderWallet, amount, WalletTransactionStatus.COMPLETED, userSettlement);
             // 정산 상태 변경
             userSettlement.updateSettlement(SettlementStatus.COMPLETED, LocalDateTime.now());
             userSettlementRepository.save(userSettlement);
         } catch (Exception e) {
-            // 실패 트랜잭션 기록
-            WalletTransaction walletTransaction = WalletTransaction.builder()
-                    .type(Type.OUTGOING)
-                    .amount(amount)
-                    .balance(wallet.getBalance())
-                    .walletTransactionStatus(WalletTransactionStatus.FAILED)
-                    .wallet(wallet)
-                    .targetWallet(leaderWallet)
-                    .build();
-            walletTransactionRepository.save(walletTransaction);
-            WalletTransaction leaderWalletTransaction = WalletTransaction.builder()
-                    .type(Type.INCOMING)
-                    .amount(amount)
-                    .balance(leaderWallet.getBalance())
-                    .walletTransactionStatus(WalletTransactionStatus.FAILED)
-                    .wallet(leaderWallet)
-                    .targetWallet(wallet)
-                    .build();
-            walletTransactionRepository.save(leaderWalletTransaction);
-            transferRepository.save(Transfer.builder()
-                    .userSettlement(userSettlement)
-                    .walletTransaction(walletTransaction)
-                    .build());
-            transferRepository.save(Transfer.builder()
-                    .userSettlement(userSettlement)
-                    .walletTransaction(leaderWalletTransaction)
-                    .build());
+            // 리더-멤버의 WalletTransaction 기록
+            saveWalletTransactions(wallet, leaderWallet, amount, WalletTransactionStatus.FAILED, userSettlement);
             throw e;
         }
         // [TODO] Notification 생성 및 유저에게 알림 전송
+    }
+
+    /* WalletTransaction 저장 로직 */
+    private void saveWalletTransactions(Wallet wallet, Wallet leaderWallet, int amount,
+                                        WalletTransactionStatus status, UserSettlement userSettlement) {
+        // WalletTransaction 저장
+        WalletTransaction walletTransaction = WalletTransaction.builder()
+                .type(Type.OUTGOING)
+                .amount(amount)
+                .balance(wallet.getBalance())
+                .walletTransactionStatus(status)
+                .wallet(wallet)
+                .targetWallet(leaderWallet)
+                .build();
+        walletTransactionRepository.save(walletTransaction);
+        WalletTransaction leaderWalletTransaction = WalletTransaction.builder()
+                .type(Type.INCOMING)
+                .amount(amount)
+                .balance(leaderWallet.getBalance())
+                .walletTransactionStatus(status)
+                .wallet(leaderWallet)
+                .targetWallet(wallet)
+                .build();
+        walletTransactionRepository.save(leaderWalletTransaction);
+        // Transfer 저장
+        transferRepository.save(Transfer.builder()
+                .userSettlement(userSettlement)
+                .walletTransaction(walletTransaction)
+                .build());
+        transferRepository.save(Transfer.builder()
+                .userSettlement(userSettlement)
+                .walletTransaction(leaderWalletTransaction)
+                .build());
     }
 
     /* 스케줄 참여자 정산 목록 조회 */
@@ -220,4 +201,6 @@ public class SettlementService {
                 .findAllDtoBySettlement(settlement, pageable);
         return SettlementResponseDto.from(userSettlementList);
     }
+
+
 }
