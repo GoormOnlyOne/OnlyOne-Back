@@ -20,8 +20,7 @@ public class Transfer extends BaseTimeEntity {
     @Column(name = "transfer_id", updatable = false)
     private Long transferId;
 
-    @OneToOne(mappedBy = "payment", fetch = FetchType.LAZY)
-    @NotNull
+    @OneToOne(mappedBy = "transfer", fetch = FetchType.LAZY)
     private WalletTransaction walletTransaction;
 
     @ManyToOne(fetch = FetchType.LAZY)

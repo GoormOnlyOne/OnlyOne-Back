@@ -36,6 +36,6 @@ public class Payment {
     private Status status;
 
     @OneToOne(mappedBy = "payment", fetch = FetchType.LAZY)
-    @NotNull
     private WalletTransaction walletTransaction;
+
 }

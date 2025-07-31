@@ -53,11 +53,11 @@ public class WalletTransaction extends BaseTimeEntity {
     @JsonIgnore
     private Wallet targetWallet;
 
-    @OneToOne(mappedBy = "walletTransaction", cascade = CascadeType.ALL, orphanRemoval = true)
+    @OneToOne(cascade = CascadeType.ALL, orphanRemoval = true)
+    @JoinColumn(name = "payment_id")
     private Payment payment;
 
-    @OneToOne(mappedBy = "walletTransaction", cascade = CascadeType.ALL, orphanRemoval = true)
+    @OneToOne(cascade = CascadeType.ALL, orphanRemoval = true)
+    @JoinColumn(name = "transfer_id")
     private Transfer transfer;
-
-
 }
