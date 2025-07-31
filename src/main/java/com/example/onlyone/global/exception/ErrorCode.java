@@ -54,8 +54,13 @@ public enum ErrorCode {
     USER_CHAT_ROOM_NOT_FOUND(404, "CHAT_404_2", "채팅방 참여자를 찾을 수 없습니다."),
 
     // Wallet
+    INVALID_FILTER(400, "WALLET_400_1", "유효하지 않은 필터입니다."),
     WALLET_NOT_FOUND(404, "WALLET_404_1", "사용자의 지갑을 찾을 수 없습니다."),
     WALLET_BALANCE_NOT_ENOUGH(409, "WALLET_409_1", "사용자의 잔액이 부족합니다."),
+
+    // Payment
+    INVALID_PAYMENT_INFO(400, "PAYMENT_400_1", "결제 금액 정보가 유효하지 않습니다.")
+
 
     ;
 

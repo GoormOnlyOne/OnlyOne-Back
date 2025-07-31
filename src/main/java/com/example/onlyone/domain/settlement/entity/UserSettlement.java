@@ -39,7 +39,8 @@ public class UserSettlement extends BaseTimeEntity {
     @NotNull
     private User user;
 
-    public void updateSettlementStatus(SettlementStatus settlementStatus) {
+    public void updateSettlement(SettlementStatus settlementStatus, LocalDateTime completedTime) {
         this.settlementStatus = settlementStatus;
+        this.completedTime = completedTime;
     }
 }
