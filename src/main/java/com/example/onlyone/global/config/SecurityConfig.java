@@ -89,10 +89,10 @@ public class SecurityConfig {
                 .headers(header -> header
                         .frameOptions(HeadersConfigurer.FrameOptionsConfig::sameOrigin)) // X-Frame-Options 설정
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
-                        .requestMatchers(AUTH_WHITELIST).permitAll()
-                        .requestMatchers("/auth/**").permitAll()
-                        .anyRequest().permitAll()
+                                .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
+                                .requestMatchers(AUTH_WHITELIST).permitAll()
+                                .requestMatchers("/auth/**").permitAll()
+                                .anyRequest().permitAll()
 //                        .anyRequest().authenticated()
                 );
 //                .addFilterBefore(new JwtAuthenticationFilter(tokenProvider), UsernamePasswordAuthenticationFilter.class)

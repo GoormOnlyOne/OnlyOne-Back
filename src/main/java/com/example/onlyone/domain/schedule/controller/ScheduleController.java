@@ -68,6 +68,4 @@ public class ScheduleController {
         List<ScheduleUserResponseDto> scheduleUserList = scheduleService.getScheduleUserList(clubId, scheduleId);
         return ResponseEntity.ok(CommonResponse.success(scheduleUserList));
     }
-
-
 }

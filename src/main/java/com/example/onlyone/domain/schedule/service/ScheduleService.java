@@ -13,7 +13,7 @@ import com.example.onlyone.domain.schedule.dto.response.ScheduleResponseDto;
 import com.example.onlyone.domain.schedule.dto.response.ScheduleUserResponseDto;
 import com.example.onlyone.domain.schedule.entity.Schedule;
 import com.example.onlyone.domain.schedule.entity.ScheduleRole;
-import com.example.onlyone.domain.schedule.entity.Status;
+import com.example.onlyone.domain.schedule.entity.ScheduleStatus;
 import com.example.onlyone.domain.schedule.entity.UserSchedule;
 import com.example.onlyone.domain.schedule.repository.ScheduleRepository;
 import com.example.onlyone.domain.schedule.repository.UserScheduleRepository;
@@ -25,10 +25,12 @@ import jakarta.validation.Valid;
 import com.example.onlyone.global.exception.ErrorCode;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.log4j.Log4j2;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.Optional;
@@ -46,6 +48,19 @@ public class ScheduleService {
     private final ChatRoomRepository chatRoomRepository;
     private final UserService userService;
     private final UserRepository userRepository;
+
+    /* 스케줄 Status를 READY -> ENDED로 변경하는 스케줄링 */
+    @Scheduled(cron = "0 0 0 * * *")
+    @Transactional
+    public void updateScheduleStatus() {
+        LocalDateTime now = LocalDateTime.now();
+        int updatedCount = scheduleRepository.updateExpiredSchedules(
+                ScheduleStatus.ENDED,
+                ScheduleStatus.READY,
+                now
+        );
+        log.info("✅ {}개의 스케줄 상태가 READY → ENDED로 변경되었습니다.", updatedCount);
+    }
 
     /* 정기 모임 생성*/
     public void createSchedule(Long clubId, @Valid ScheduleRequestDto requestDto) {
@@ -97,8 +112,17 @@ public class ScheduleService {
                 .orElseThrow(() -> new CustomException(ErrorCode.SCHEDULE_NOT_FOUND));
 //        User user = userService.getCurrentUser();
         User user = userService.getAnotherUser();
+        int userCount = userScheduleRepository.countBySchedule(schedule);
+        if (userCount >= schedule.getUserLimit()) {
+            throw new CustomException(ErrorCode.ALREADY_EXCEEDED_SCHEDULE);
+        }
+        // 이미 참여한 스케줄인 경우
         if (userScheduleRepository.findByUserAndSchedule(user, schedule).isPresent()) {
             throw new CustomException(ErrorCode.ALREADY_JOINED_SCHEDULE);
+        }
+        // 이미 종료된 스케줄인 경우
+        if (schedule.getScheduleStatus() != ScheduleStatus.READY || schedule.getScheduleTime().isBefore(LocalDateTime.now())) {
+            throw new CustomException(ErrorCode.ALREADY_ENDED_SCHEDULE);
         }
         UserSchedule userSchedule = UserSchedule.builder()
                 .user(user)
@@ -106,7 +130,7 @@ public class ScheduleService {
                 .scheduleRole(ScheduleRole.MEMBER)
                 .build();
         userScheduleRepository.save(userSchedule);
-        ChatRoom chatRoom = chatRoomRepository.findByTypeAndScheduleId(Type.SCHEDULE, schedule.getScheduleId())
+        ChatRoom chatRoom = chatRoomRepository.findByChatRoomIdAndClubClubId(schedule.getScheduleId(), clubId)
                 .orElseThrow(() -> new CustomException(ErrorCode.CHAT_ROOM_NOT_FOUND));
         UserChatRoom userChatRoom = UserChatRoom.builder()
                 .user(user)
@@ -124,15 +148,20 @@ public class ScheduleService {
                 .orElseThrow(() -> new CustomException(ErrorCode.CLUB_NOT_FOUND));
         Schedule schedule = scheduleRepository.findById(scheduleId)
                 .orElseThrow(() -> new CustomException(ErrorCode.SCHEDULE_NOT_FOUND));
+        // 이미 종료된 스케줄인 경우
+        if (schedule.getScheduleStatus() != ScheduleStatus.READY || schedule.getScheduleTime().isBefore(LocalDateTime.now())) {
+            throw new CustomException(ErrorCode.ALREADY_ENDED_SCHEDULE);
+        }
         UserSchedule userSchedule = userScheduleRepository.findByUserAndSchedule(user, schedule)
                 .orElseThrow(() -> new CustomException(ErrorCode.USER_SCHEDULE_NOT_FOUND));
+        // 리더는 참여 취소 불가능
         if (userSchedule.getScheduleRole() == ScheduleRole.LEADER) {
             throw new CustomException(ErrorCode.LEADER_CANNOT_LEAVE_SCHEDULE);
         }
         userScheduleRepository.delete(userSchedule);
         ChatRoom chatRoom = chatRoomRepository.findByTypeAndScheduleId(Type.SCHEDULE, schedule.getScheduleId())
                 .orElseThrow(() -> new CustomException(ErrorCode.CHAT_ROOM_NOT_FOUND));
-        UserChatRoom userChatRoom = userChatRoomRepository.findByUserAndChatRoom(user, chatRoom)
+        UserChatRoom userChatRoom = userChatRoomRepository.findByUserUserIdAndChatRoomChatRoomId(user.getUserId(), chatRoom.getChatRoomId())
                 .orElseThrow(() -> new CustomException(ErrorCode.USER_CHAT_ROOM_NOT_FOUND));
         userChatRoomRepository.delete(userChatRoom);
     }
@@ -143,7 +172,7 @@ public class ScheduleService {
         Club club = clubRepository.findById(clubId)
                 .orElseThrow(() -> new CustomException(ErrorCode.CLUB_NOT_FOUND));
         User currentUser = userService.getCurrentUser();
-        return scheduleRepository.findByClubAndStatusNot(club, Status.CLOSED).stream()
+        return scheduleRepository.findByClubAndScheduleStatusNot(club, ScheduleStatus.CLOSED).stream()
                 .map(schedule -> {
                     int userCount = userScheduleRepository.countBySchedule(schedule);
                     Optional<UserSchedule> userScheduleOpt = userScheduleRepository
