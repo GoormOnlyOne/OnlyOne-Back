@@ -1,7 +1,6 @@
 package com.example.onlyone.domain.settlement.entity;
 
 public enum Status {
-    REQUESTED,
-    COMPLETED,
+    SUCCESS,
     FAILED
 }
