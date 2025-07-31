@@ -3,13 +3,13 @@ package com.example.onlyone.domain.chat.service;
 import com.example.onlyone.domain.chat.dto.ChatMessageResponse;
 import com.example.onlyone.domain.chat.entity.ChatRoom;
 import com.example.onlyone.domain.chat.entity.Message;
-import com.example.onlyone.domain.chat.exception.MyChatException;
 import com.example.onlyone.domain.chat.repository.ChatRoomRepository;
 import com.example.onlyone.domain.chat.repository.MessageRepository;
 import com.example.onlyone.domain.user.entity.User;
 import com.example.onlyone.domain.user.repository.UserRepository;
+import com.example.onlyone.global.exception.CustomException;
+import com.example.onlyone.global.exception.ErrorCode;
 import lombok.RequiredArgsConstructor;
-import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -32,9 +32,9 @@ public class MessageService {
     @Transactional
     public ChatMessageResponse saveMessage(Long chatRoomId, Long userId, String text) {
         ChatRoom chatRoom = chatRoomRepository.findById(chatRoomId)
-                .orElseThrow(() -> new MyChatException("채팅방을 찾을 수 없습니다. ID: " + chatRoomId));
+                .orElseThrow(() -> new CustomException(ErrorCode.CHAT_ROOM_NOT_FOUND));
         User user = userRepository.findById(userId)
-                .orElseThrow(() -> new MyChatException("사용자를 찾을 수 없습니다. ID: " + userId));
+                .orElseThrow(() -> new CustomException(ErrorCode.UNAUTHORIZED_CHAT_ACCESS));
 
         Message message = Message.builder()
                 .chatRoom(chatRoom)
@@ -54,7 +54,7 @@ public class MessageService {
     public void deleteMessage(Long messageId, Long userId) {
         int updated = messageRepository.softDeleteByUser(messageId, userId);
         if (updated == 0) {
-            throw new MyChatException("삭제 권한이 없거나 메시지가 존재하지 않습니다.");
+            throw new CustomException(ErrorCode.MESSAGE_DELETE_ERROR);
         }
     }
 
@@ -62,8 +62,12 @@ public class MessageService {
      * 삭제되지 않은 모든 메시지 목록 조회
      */
     public List<ChatMessageResponse> getMessages(Long chatRoomId) {
-        return messageRepository.findByChatRoomChatRoomIdAndDeletedFalseOrderBySentAtAsc(chatRoomId).stream()
-                .map(ChatMessageResponse::from)
-                .collect(Collectors.toList());
+        try {
+            return messageRepository.findByChatRoomChatRoomIdAndDeletedFalseOrderBySentAtAsc(chatRoomId).stream()
+                    .map(ChatMessageResponse::from)
+                    .collect(Collectors.toList());
+        } catch (Exception e) {
+            throw new CustomException(ErrorCode.MESSAGE_SERVER_ERROR);
+        }
     }
 }
