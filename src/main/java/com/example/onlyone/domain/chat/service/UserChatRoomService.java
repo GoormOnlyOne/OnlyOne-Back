@@ -14,6 +14,6 @@ public class UserChatRoomService {
 
     // 유저가 해당 채팅방에 참여 중인지 확인
     public boolean isUserInChatRoom(Long userId, Long chatRoomId) {
-        return userChatRoomRepository.findByUserUserIdAndChatRoomChatRoomId(userId, chatRoomId).isPresent();
+        return userChatRoomRepository.existsByUserUserIdAndChatRoomChatRoomId(userId, chatRoomId);
     }
 }

@@ -11,8 +11,7 @@ import java.time.LocalDateTime;
 @Entity
 @Table(name = "message")
 @Getter
-@Setter
-@NoArgsConstructor
+@NoArgsConstructor(access = AccessLevel.PROTECTED)
 @AllArgsConstructor
 @Builder
 public class Message extends BaseTimeEntity {
@@ -42,9 +41,5 @@ public class Message extends BaseTimeEntity {
 
     @Column(name = "deleted")
     @NotNull
-    private Boolean deleted;
-
-    public boolean isDeleted() {
-        return deleted;
-    }
+    private boolean deleted;
 }

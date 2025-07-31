@@ -15,14 +15,17 @@ import java.time.LocalDateTime;
 @Schema(description = "채팅 메시지 응답 DTO")
 public class ChatMessageResponse {
 
-    @Schema(description = "메시지 ID", example = "101")
+    @Schema(description = "메시지 ID", example = "1")
     private Long messageId;
 
-    @Schema(description = "채팅방 ID", example = "6")
+    @Schema(description = "채팅방 ID", example = "1")
     private Long chatRoomId;
 
     @Schema(description = "보낸 사용자 ID", example = "1")
     private Long userId;
+
+    @Schema(description = "보낸 사용자 프로필 이미지 URL", example = "https://example.com/image.jpg")
+    private String profileImage;
 
     @Schema(description = "메시지 내용", example = "안녕하세요!")
     private String text;
@@ -39,6 +42,7 @@ public class ChatMessageResponse {
                 .messageId(message.getMessageId())
                 .chatRoomId(message.getChatRoom().getChatRoomId())
                 .userId(message.getUser().getUserId())
+                .profileImage(message.getUser().getProfileImage())
                 .text(message.getText())
                 .sentAt(message.getSentAt())
                 .deleted(message.isDeleted())

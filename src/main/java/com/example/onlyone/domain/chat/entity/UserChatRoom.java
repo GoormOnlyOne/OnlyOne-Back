@@ -9,9 +9,8 @@ import lombok.*;
 @Entity
 @Table(name = "user_chat_room")
 @Getter
-@Setter
 @Builder
-@NoArgsConstructor(access = AccessLevel.PUBLIC)
+@NoArgsConstructor(access = AccessLevel.PROTECTED)
 @AllArgsConstructor
 public class UserChatRoom extends BaseTimeEntity {
 
@@ -21,8 +20,7 @@ public class UserChatRoom extends BaseTimeEntity {
     private Long userChatRoomId;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "chat_room_id")
-    @NotNull
+    @JoinColumn(name = "chat_room_id", updatable = false)
     private ChatRoom chatRoom;
 
     @ManyToOne(fetch = FetchType.LAZY)
