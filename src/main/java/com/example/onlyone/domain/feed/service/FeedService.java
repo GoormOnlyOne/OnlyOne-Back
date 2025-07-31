@@ -51,7 +51,7 @@ public class FeedService {
         User user = userService.getCurrentUser();
         Feed feed = feedRepository.findByFeedIdAndClub(feedId, club)
                 .orElseThrow(() -> new CustomException(ErrorCode.FEED_NOT_FOUND));
-        if (!Objects.equals(user.getUserId(), feed.getUser().getUserId())) {
+        if (!(user.getUserId().equals(feed.getUser().getUserId()))) {
             throw new CustomException(ErrorCode.UNAUTHORIZED_FEED_ACCESS);
         }
         updateFeedImage(feed, requestDto);
@@ -73,7 +73,7 @@ public class FeedService {
         Club club = clubRepository.findById(clubId)
                 .orElseThrow(() -> new CustomException(ErrorCode.CLUB_NOT_FOUND));
 
-        List<Feed> feeds = feedRepository.findAllByClub(club);
+        List<Feed> feeds = feedRepository.findAllByClubOrderByCreatedAtDesc(club);
 
         return feeds.stream()
                 .map(feed -> {
@@ -94,15 +94,27 @@ public class FeedService {
                 .orElseThrow(() -> new CustomException(ErrorCode.CLUB_NOT_FOUND));
         Feed feed = feedRepository.findByFeedIdAndClub(feedId, club)
                 .orElseThrow(() -> new CustomException(ErrorCode.FEED_NOT_FOUND));
+        Long currentUserId = userService.getCurrentUser().getUserId();
 
         List<String> imageUrls = feed.getFeedImages().stream()
                 .map(FeedImage::getFeedImage)
                 .collect(Collectors.toList());
 
-        return new FeedDetailResponseDto(
-                feed.getContent(),
-                imageUrls,
-                feed.getFeedLikes().size()
-        );
+        boolean isLiked = feed.getFeedLikes().stream()
+                .anyMatch(like -> like.getUser().getUserId().equals(currentUserId));
+
+        boolean isMine = feed.getUser().getUserId().equals(currentUserId);
+
+        return FeedDetailResponseDto.builder()
+                .content(feed.getContent())
+                .imageUrls(imageUrls)
+                .likeCount(feed.getFeedLikes().size())
+                .userId(feed.getUser().getUserId())
+                .nickname(feed.getUser().getNickname())
+                .profileImage(feed.getUser().getProfileImage())
+                .updatedAt(feed.getModifiedAt())
+                .isLiked(isLiked)
+                .isMine(isMine)
+                .build();
     }
 }

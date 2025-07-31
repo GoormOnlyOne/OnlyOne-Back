@@ -39,10 +39,9 @@ public class User extends BaseTimeEntity {
     private String profileImage;
 
     @Column(name = "gender")
+    @NotNull
+    @Enumerated(EnumType.STRING)
     private Gender gender;
-
-    @Column(name = "city")
-    private String city;
 
     @Column(name = "district")
     private String district;

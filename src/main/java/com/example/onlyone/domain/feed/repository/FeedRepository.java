@@ -11,4 +11,6 @@ public interface FeedRepository extends JpaRepository<Feed,Long> {
     List<Feed> findAllByClub(Club club);
 
     Optional<Feed> findByFeedIdAndClub(Long feedId, Club club);
+
+    List<Feed> findAllByClubOrderByCreatedAtDesc(Club club);
 }
