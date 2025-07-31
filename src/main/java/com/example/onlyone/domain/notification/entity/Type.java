@@ -1,8 +1,8 @@
 package com.example.onlyone.domain.notification.entity;
 
 public enum Type {
-    CHAT,
-    SETTLEMENT,
-    LIKE,
-    COMMENT;
+  CHAT,
+  SETTLEMENT,
+  LIKE,
+  COMMENT;
 }
