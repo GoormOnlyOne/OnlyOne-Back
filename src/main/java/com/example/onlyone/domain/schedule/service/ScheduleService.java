@@ -130,7 +130,7 @@ public class ScheduleService {
             throw new CustomException(ErrorCode.LEADER_CANNOT_LEAVE_SCHEDULE);
         }
         userScheduleRepository.delete(userSchedule);
-        ChatRoom chatRoom = chatRoomRepository.findByChatRoomIdAndClubClubId(schedule.getScheduleId(), clubId)
+        ChatRoom chatRoom = chatRoomRepository.findByTypeAndScheduleId(Type.SCHEDULE, schedule.getScheduleId())
                 .orElseThrow(() -> new CustomException(ErrorCode.CHAT_ROOM_NOT_FOUND));
         UserChatRoom userChatRoom = userChatRoomRepository.findByUserUserIdAndChatRoomChatRoomId(user.getUserId(), chatRoom.getChatRoomId())
                 .orElseThrow(() -> new CustomException(ErrorCode.USER_CHAT_ROOM_NOT_FOUND));
