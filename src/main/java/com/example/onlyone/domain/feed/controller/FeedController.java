@@ -4,7 +4,6 @@ import com.example.onlyone.domain.feed.dto.request.FeedRequestDto;
 import com.example.onlyone.domain.feed.dto.response.FeedDetailResponseDto;
 import com.example.onlyone.domain.feed.dto.response.FeedSummaryResponseDto;
 import com.example.onlyone.domain.feed.service.FeedService;
-import com.example.onlyone.domain.schedule.dto.response.ScheduleResponseDto;
 import com.example.onlyone.global.common.CommonResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
