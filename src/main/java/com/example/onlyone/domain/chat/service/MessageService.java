@@ -1,7 +1,9 @@
 package com.example.onlyone.domain.chat.service;
 
+import com.example.onlyone.domain.chat.dto.ChatMessageResponse;
 import com.example.onlyone.domain.chat.entity.ChatRoom;
 import com.example.onlyone.domain.chat.entity.Message;
+import com.example.onlyone.domain.chat.exception.MyChatException;
 import com.example.onlyone.domain.chat.repository.ChatRoomRepository;
 import com.example.onlyone.domain.chat.repository.MessageRepository;
 import com.example.onlyone.domain.user.entity.User;
@@ -13,6 +15,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -27,12 +30,11 @@ public class MessageService {
      * 메시지 저장
      */
     @Transactional
-    public Message saveMessage(Long chatRoomId, Long userId, String text) {
+    public ChatMessageResponse saveMessage(Long chatRoomId, Long userId, String text) {
         ChatRoom chatRoom = chatRoomRepository.findById(chatRoomId)
-                .orElseThrow(() -> new IllegalArgumentException("채팅방을 찾을 수 없습니다. ID: " + chatRoomId));
-
+                .orElseThrow(() -> new MyChatException("채팅방을 찾을 수 없습니다. ID: " + chatRoomId));
         User user = userRepository.findById(userId)
-                .orElseThrow(() -> new IllegalArgumentException("사용자를 찾을 수 없습니다. ID: " + userId));
+                .orElseThrow(() -> new MyChatException("사용자를 찾을 수 없습니다. ID: " + userId));
 
         Message message = Message.builder()
                 .chatRoom(chatRoom)
@@ -42,7 +44,7 @@ public class MessageService {
                 .deleted(false)
                 .build();
 
-        return messageRepository.save(message);
+        return ChatMessageResponse.from(messageRepository.save(message));
     }
 
     /**
@@ -50,22 +52,18 @@ public class MessageService {
      */
     @Transactional
     public void deleteMessage(Long messageId, Long userId) {
-        Message message = messageRepository.findById(messageId)
-                .orElseThrow(() ->
-                        new IllegalArgumentException("메시지를 찾을 수 없습니다. ID: " + messageId));
-
-        if (!message.getUser().getUserId().equals(userId)) {
-            throw new AccessDeniedException("본인이 작성한 메시지만 삭제할 수 있습니다.");
+        int updated = messageRepository.softDeleteByUser(messageId, userId);
+        if (updated == 0) {
+            throw new MyChatException("삭제 권한이 없거나 메시지가 존재하지 않습니다.");
         }
-
-        message.setDeleted(true);
     }
 
     /**
      * 삭제되지 않은 모든 메시지 목록 조회
      */
-    public List<Message> getMessages(Long chatRoomId) {
-        return messageRepository.findByChatRoomChatRoomIdAndDeletedFalseOrderBySentAtAsc(chatRoomId);
+    public List<ChatMessageResponse> getMessages(Long chatRoomId) {
+        return messageRepository.findByChatRoomChatRoomIdAndDeletedFalseOrderBySentAtAsc(chatRoomId).stream()
+                .map(ChatMessageResponse::from)
+                .collect(Collectors.toList());
     }
-
 }

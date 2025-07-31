@@ -15,39 +15,25 @@ import java.util.List;
 
 @RestController
 @RequiredArgsConstructor
-@RequestMapping("/chatrooms")
+@RequestMapping("/chat")
 public class MessageRestController {
 
     private final MessageService messageService;
 
     @Operation(summary = "채팅방 메시지 목록 조회")
     @GetMapping("/{chatRoomId}/messages")
-    public ResponseEntity<CommonResponse<List<ChatMessageResponse>>> getMessages(
-            @Parameter(description = "채팅방 ID", example = "1")
-            @PathVariable Long chatRoomId
-    ) {
-        List<Message> messages = messageService.getMessages(chatRoomId);
-
-        List<ChatMessageResponse> response = messages.stream()
-                .map(ChatMessageResponse::from)
-                .toList();
-
+    public ResponseEntity<CommonResponse<List<ChatMessageResponse>>> getMessages(@PathVariable Long chatRoomId) {
+        List<ChatMessageResponse> response = messageService.getMessages(chatRoomId);
         return ResponseEntity.ok(CommonResponse.success(response));
     }
 
     @Operation(summary = "채팅 메시지 저장 (전송)")
     @PostMapping("/{chatRoomId}/messages")
     public ResponseEntity<CommonResponse<ChatMessageResponse>> sendMessage(
-            @Parameter(description = "채팅방 ID", example = "1")
             @PathVariable Long chatRoomId,
             @RequestBody ChatMessageRequest request
     ) {
-        Message saved = messageService.saveMessage(
-                chatRoomId,
-                request.getUserId(),
-                request.getText()
-        );
-        ChatMessageResponse response = ChatMessageResponse.from(saved);
+        ChatMessageResponse response = messageService.saveMessage(chatRoomId, request.getUserId(), request.getText());
         return ResponseEntity.ok(CommonResponse.success(response));
     }
 

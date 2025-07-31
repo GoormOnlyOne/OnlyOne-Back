@@ -30,6 +30,7 @@ public class ChatWebSocketController {
 
         System.out.println("🔥 sendMessage 진입: userId=" + request.getUserId() + ", text=" + request.getText());
 
+        /*
         try {
             // 1. 저장
             Message saved = messageService.saveMessage(chatRoomId, request.getUserId(), request.getText());
@@ -48,6 +49,7 @@ public class ChatWebSocketController {
             System.out.println("❌ 예외 발생: " + e.getMessage());
             e.printStackTrace();
         }
+        */
     }
 
     /**
