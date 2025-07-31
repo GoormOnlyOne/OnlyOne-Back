@@ -1,7 +1,7 @@
 package com.example.onlyone.domain.schedule.dto.response;
 
 import com.example.onlyone.domain.schedule.entity.Schedule;
-import com.example.onlyone.domain.schedule.entity.Status;
+import com.example.onlyone.domain.schedule.entity.ScheduleStatus;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
@@ -14,7 +14,7 @@ import java.time.LocalDateTime;
 public class ScheduleResponseDto {
     private Long scheduleId;
     private String name;
-    private Status status;
+    private ScheduleStatus scheduleStatus;
     private LocalDateTime scheduleTime;
     private int cost;
     private int userLimit;
@@ -27,7 +27,7 @@ public class ScheduleResponseDto {
         return ScheduleResponseDto.builder()
                 .scheduleId(schedule.getScheduleId())
                 .name(schedule.getName())
-                .status(schedule.getStatus())
+                .scheduleStatus(schedule.getScheduleStatus())
                 .scheduleTime(schedule.getScheduleTime())
                 .cost(schedule.getCost())
                 .userLimit(schedule.getUserLimit())
