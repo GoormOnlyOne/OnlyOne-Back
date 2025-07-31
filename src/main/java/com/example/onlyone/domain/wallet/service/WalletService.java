@@ -36,7 +36,6 @@ public class WalletService {
     private final ClubRepository clubRepository;
 
     /* 사용자 정산/거래 내역 목록 조회 */
-    @Transactional(readOnly = true)
     public WalletTransactionResponseDto getWalletTransactionList(Filter filter, Pageable pageable) {
         if (filter == null) {
             filter = Filter.ALL; // 기본값 처리
