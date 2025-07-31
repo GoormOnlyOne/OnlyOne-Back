@@ -12,27 +12,30 @@ import lombok.*;
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 @AllArgsConstructor
 public class Payment {
+
     @Id
-    byte[] paymentId;
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Column(name = "payment_id")
+    private Long paymentId;
 
-    @Column(nullable = false, unique = true)
-    String tossPaymentKey;
+    @Column(name = "toss_payment_key", nullable = false, unique = true)
+    private String tossPaymentKey;
 
-    @Column(nullable = false)
-    String tossOrderId;
+    @Column(name = "toss_order_id", nullable = false)
+    private String tossOrderId;
 
-    long totalAmount;
+    @Column(name = "total_amount", nullable = false)
+    private Long totalAmount;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "method", nullable = false)
+    private Method method;
 
     @Enumerated(value = EnumType.STRING)
     @Column(nullable = false)
-    Method method;
+    private Status status;
 
-    @Enumerated(value = EnumType.STRING)
-    @Column(nullable = false)
-    Status status;
-
-    @OneToOne(fetch = FetchType.LAZY, cascade = CascadeType.ALL)
-    @JoinColumn(name = "wallet_transaction_id")
+    @OneToOne(mappedBy = "payment", fetch = FetchType.LAZY)
     @NotNull
     private WalletTransaction walletTransaction;
 }
