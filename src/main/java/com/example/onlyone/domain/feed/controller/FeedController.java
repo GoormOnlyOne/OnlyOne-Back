@@ -1,6 +1,7 @@
 package com.example.onlyone.domain.feed.controller;
 
 import com.example.onlyone.domain.feed.dto.request.FeedRequestDto;
+import com.example.onlyone.domain.feed.dto.response.FeedDetailResponseDto;
 import com.example.onlyone.domain.feed.dto.response.FeedSummaryResponseDto;
 import com.example.onlyone.domain.feed.service.FeedService;
 import com.example.onlyone.domain.schedule.dto.response.ScheduleResponseDto;
@@ -44,4 +45,12 @@ public class FeedController {
         List<FeedSummaryResponseDto> feedList = feedService.getFeedList(clubId);
         return ResponseEntity.status(HttpStatus.OK).body(CommonResponse.success(feedList));
     }
+
+    @Operation(summary = "피드 상세 조회", description = "피드를 상세 조회합니다.")
+    @GetMapping("/{feedId}")
+    public ResponseEntity<?> getFeedDetail(@PathVariable("feedId") Long feedId, @PathVariable("clubId") Long clubId) {
+        FeedDetailResponseDto feedDetailResponseDto = feedService.getFeedDetail(clubId, feedId);
+        return ResponseEntity.status(HttpStatus.OK).body(CommonResponse.success(feedDetailResponseDto));
+    }
+
 }

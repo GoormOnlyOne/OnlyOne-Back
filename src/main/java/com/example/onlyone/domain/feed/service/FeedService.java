@@ -3,6 +3,7 @@ package com.example.onlyone.domain.feed.service;
 import com.example.onlyone.domain.club.entity.Club;
 import com.example.onlyone.domain.club.repository.ClubRepository;
 import com.example.onlyone.domain.feed.dto.request.FeedRequestDto;
+import com.example.onlyone.domain.feed.dto.response.FeedDetailResponseDto;
 import com.example.onlyone.domain.feed.dto.response.FeedSummaryResponseDto;
 import com.example.onlyone.domain.feed.entity.Feed;
 import com.example.onlyone.domain.feed.entity.FeedImage;
@@ -85,5 +86,23 @@ public class FeedService {
                     );
                 })
                 .collect(Collectors.toList());
+    }
+
+    @Transactional(readOnly = true)
+    public FeedDetailResponseDto getFeedDetail(Long clubId, Long feedId) {
+        Club club = clubRepository.findById(clubId)
+                .orElseThrow(() -> new CustomException(ErrorCode.CLUB_NOT_FOUND));
+        Feed feed = feedRepository.findByFeedIdAndClub(feedId, club)
+                .orElseThrow(() -> new CustomException(ErrorCode.FEED_NOT_FOUND));
+
+        List<String> imageUrls = feed.getFeedImages().stream()
+                .map(FeedImage::getFeedImage)
+                .collect(Collectors.toList());
+
+        return new FeedDetailResponseDto(
+                feed.getContent(),
+                imageUrls,
+                feed.getFeedLikes().size()
+        );
     }
 }
