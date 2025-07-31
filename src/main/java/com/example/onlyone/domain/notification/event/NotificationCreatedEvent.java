@@ -6,9 +6,9 @@ import lombok.Getter;
 @Getter
 public class NotificationCreatedEvent {
 
-    private final Notification notification;
+  private final Notification notification;
 
-    public NotificationCreatedEvent(Notification notification) {
-        this.notification = notification;
-    }
+  public NotificationCreatedEvent(Notification notification) {
+    this.notification = notification;
+  }
 }
