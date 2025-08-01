@@ -27,15 +27,18 @@ public class ImageService {
 
     @Value("${aws.cloudfront.domain}")
     private String cloudfrontDomain;
-    
-    private static final long MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
 
-    public String generatePresignedUrl(String imageFolderTypeStr, String originalFileName, String contentType) {
+    private static final long MAX_IMAGE_SIZE = 5 * 1024 * 1024; // 5MB
+
+    public String generatePresignedUrl(String imageFolderTypeStr, String originalFileName, String contentType, Long imageSize) {
         // 이미지 타입 검증
         ImageFolderType imageFolderType = validateImageFolderType(imageFolderTypeStr);
 
         // 컨텐츠 타입 검증
         validateImageContentType(contentType);
+
+        // 이미지 크기 검증
+        validateImageSize(imageSize);
 
         String fileName = generateFileName(originalFileName);
         String key = imageFolderType.getFolder() + "/" + fileName;
@@ -44,7 +47,6 @@ public class ImageService {
                 .bucket(bucketName)
                 .key(key)
                 .contentType(contentType)
-                .contentLength(MAX_FILE_SIZE)
                 .build();
 
         PutObjectPresignRequest presignRequest = PutObjectPresignRequest.builder()
@@ -102,5 +104,15 @@ public class ImageService {
         return contentType != null && (
                 contentType.equals("image/jpeg") || contentType.equals("image/png")
         );
+    }
+
+    private void validateImageSize(Long imageSize) {
+        if (imageSize == null || imageSize <= 0) {
+            throw new CustomException(ErrorCode.INVALID_IMAGE_SIZE);
+        }
+
+        if (imageSize > MAX_IMAGE_SIZE) {
+            throw new CustomException(ErrorCode.IMAGE_SIZE_EXCEEDED);
+        }
     }
 }
