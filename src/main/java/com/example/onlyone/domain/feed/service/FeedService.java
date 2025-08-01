@@ -2,12 +2,15 @@ package com.example.onlyone.domain.feed.service;
 
 import com.example.onlyone.domain.club.entity.Club;
 import com.example.onlyone.domain.club.repository.ClubRepository;
+import com.example.onlyone.domain.feed.dto.request.FeedCommentRequestDto;
 import com.example.onlyone.domain.feed.dto.request.FeedRequestDto;
 import com.example.onlyone.domain.feed.dto.response.FeedDetailResponseDto;
 import com.example.onlyone.domain.feed.dto.response.FeedSummaryResponseDto;
 import com.example.onlyone.domain.feed.entity.Feed;
+import com.example.onlyone.domain.feed.entity.FeedComment;
 import com.example.onlyone.domain.feed.entity.FeedImage;
 import com.example.onlyone.domain.feed.entity.FeedLike;
+import com.example.onlyone.domain.feed.repository.FeedCommentRepository;
 import com.example.onlyone.domain.feed.repository.FeedLikeRepository;
 import com.example.onlyone.domain.feed.repository.FeedRepository;
 import com.example.onlyone.domain.user.entity.User;
@@ -33,6 +36,7 @@ public class FeedService {
     private final FeedRepository feedRepository;
     private final UserService userService;
     private final FeedLikeRepository feedLikeRepository;
+    private final FeedCommentRepository feedCommentRepository;
 
 
     public void createFeed(Long clubId, FeedRequestDto requestDto) {
@@ -141,7 +145,16 @@ public class FeedService {
                     .build();
             feedLikeRepository.save(feedLike);
         }
+    }
 
+    public void createComment(Long clubId, Long feedId, FeedCommentRequestDto requestDto) {
+        Club club = clubRepository.findById(clubId)
+                .orElseThrow(() -> new CustomException(ErrorCode.CLUB_NOT_FOUND));
+        Feed feed = feedRepository.findByFeedIdAndClub(feedId, club)
+                .orElseThrow(() -> new CustomException(ErrorCode.FEED_NOT_FOUND));
+        User currentUser = userService.getCurrentUser();
 
+        FeedComment feedComment = requestDto.toEntity(feed, currentUser);
+        feedCommentRepository.save(feedComment);
     }
 }
