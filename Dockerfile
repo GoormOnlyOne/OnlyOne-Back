@@ -1,5 +1,5 @@
 # 사용할 base 이미지 선택
-FROM arm64v8/eclipse-temurin:17:jdk-focal
+FROM openjdk:17
 
 # build/libs/ 에 있는 jar 파일을 JAR_FILE 변수에 저장
 ARG JAR_FILE=build/libs/*.jar
