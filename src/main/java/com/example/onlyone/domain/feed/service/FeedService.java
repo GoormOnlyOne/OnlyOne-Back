@@ -114,34 +114,12 @@ public class FeedService {
 
         boolean isMine = feed.getUser().getUserId().equals(currentUserId);
 
-        List<FeedCommentResponseDto> commentResponseDtos = feed.getFeedComments().stream()
-                .map(comment -> FeedCommentResponseDto.builder()
-                        .commentId(comment.getFeedCommentId())
-                        .userId(comment.getUser().getUserId())
-                        .nickname(comment.getUser().getNickname())
-                        .profileImage(comment.getUser().getProfileImage())
-                        .content(comment.getContent())
-                        .createdAt(comment.getCreatedAt())
-                        .isCommentMine(comment.getUser().getUserId().equals(currentUserId))
-                        .build())
-                .collect(Collectors.toList());
+        List<FeedCommentResponseDto> commentResponseDtos = FeedCommentResponseDto.from(feed, currentUserId);
 
-        return FeedDetailResponseDto.builder()
-                .content(feed.getContent())
-                .imageUrls(imageUrls)
-                .likeCount(feed.getFeedLikes().size())
-                .commentCount(feed.getFeedComments().size())
-                .userId(feed.getUser().getUserId())
-                .nickname(feed.getUser().getNickname())
-                .profileImage(feed.getUser().getProfileImage())
-                .updatedAt(feed.getModifiedAt())
-                .isLiked(isLiked)
-                .isFeedMine(isMine)
-                .comments(commentResponseDtos)
-                .build();
+        return FeedDetailResponseDto.from(feed, imageUrls, isLiked, isMine, commentResponseDtos);
     }
 
-    public void toggleLike(Long clubId, Long feedId) {
+    public boolean toggleLike(Long clubId, Long feedId) {
         Club club = clubRepository.findById(clubId)
                 .orElseThrow(() -> new CustomException(ErrorCode.CLUB_NOT_FOUND));
         Feed feed = feedRepository.findByFeedIdAndClub(feedId, club)
@@ -152,12 +130,14 @@ public class FeedService {
 
         if(checkLike.isPresent()) {
             feedLikeRepository.delete(checkLike.get());
+            return false;
         } else {
             FeedLike feedLike = FeedLike.builder()
                     .feed(feed)
                     .user(currentUser)
                     .build();
             feedLikeRepository.save(feedLike);
+            return true;
         }
     }
 
@@ -179,6 +159,10 @@ public class FeedService {
                 .orElseThrow(() -> new CustomException(ErrorCode.FEED_NOT_FOUND));
         FeedComment feedComment = feedCommentRepository.findById(commentId)
                 .orElseThrow(() -> new CustomException(ErrorCode.COMMENT_NOT_FOUND));
+
+        if (!feedComment.getFeed().getFeedId().equals(feedId)) {
+            throw new CustomException(ErrorCode.FEED_NOT_FOUND);
+        }
         User user = userService.getCurrentUser();
         Long userId = user.getUserId();
         if (!(userId.equals(feedComment.getUser().getUserId()) ||

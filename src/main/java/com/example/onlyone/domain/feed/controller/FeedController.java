@@ -54,10 +54,15 @@ public class FeedController {
     }
 
     @Operation(summary = "좋아요 토글", description = "좋아요를 추가하거나 취소합니다.")
-    @GetMapping("/{feedId}/likes")
+    @PutMapping("/{feedId}/likes")
     public ResponseEntity<?> toggleLike(@PathVariable("clubId") Long clubId, @PathVariable("feedId") Long feedId) {
-        feedService.toggleLike(clubId, feedId);
-        return ResponseEntity.status(HttpStatus.OK).body(CommonResponse.success(null));
+        boolean liked = feedService.toggleLike(clubId, feedId);
+
+        if (liked) {
+            return ResponseEntity.status(HttpStatus.OK).body(CommonResponse.success(null));
+        } else {
+            return ResponseEntity.status(HttpStatus.NO_CONTENT).body(null);
+        }
     }
 
     @Operation(summary = "댓글 생성", description = "댓글을 생성합니다.")
