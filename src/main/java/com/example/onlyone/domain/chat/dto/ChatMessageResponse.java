@@ -22,7 +22,10 @@ public class ChatMessageResponse {
     private Long chatRoomId;
 
     @Schema(description = "보낸 사용자 ID", example = "1")
-    private Long userId;
+    private Long senderId;
+
+    @Schema(description = "보낸 사용자 닉네임", example = "닉네임")
+    private String senderNickname;
 
     @Schema(description = "보낸 사용자 프로필 이미지 URL", example = "https://example.com/image.jpg")
     private String profileImage;
@@ -41,7 +44,8 @@ public class ChatMessageResponse {
         return ChatMessageResponse.builder()
                 .messageId(message.getMessageId())
                 .chatRoomId(message.getChatRoom().getChatRoomId())
-                .userId(message.getUser().getUserId())
+                .senderId(message.getUser().getUserId())
+                .senderNickname(message.getUser().getNickname())
                 .profileImage(message.getUser().getProfileImage())
                 .text(message.getText())
                 .sentAt(message.getSentAt())
