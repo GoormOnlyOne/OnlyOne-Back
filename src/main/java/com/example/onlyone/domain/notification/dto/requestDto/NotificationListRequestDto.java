@@ -1,4 +1,4 @@
-package com.example.onlyone.domain.notification.dto;
+package com.example.onlyone.domain.notification.dto.requestDto;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
 import jakarta.validation.constraints.Min;

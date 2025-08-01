@@ -1,4 +1,4 @@
-package com.example.onlyone.domain.notification.dto;
+package com.example.onlyone.domain.notification.dto.responseDto;
 
 import java.util.List;
 import lombok.Builder;

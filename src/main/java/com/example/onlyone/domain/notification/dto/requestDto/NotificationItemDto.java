@@ -1,4 +1,4 @@
-package com.example.onlyone.domain.notification.dto;
+package com.example.onlyone.domain.notification.dto.requestDto;
 
 import com.example.onlyone.domain.notification.entity.Notification;
 import com.example.onlyone.domain.notification.entity.Type;

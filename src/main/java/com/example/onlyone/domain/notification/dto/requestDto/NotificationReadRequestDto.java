@@ -1,4 +1,4 @@
-package com.example.onlyone.domain.notification.dto;
+package com.example.onlyone.domain.notification.dto.requestDto;
 
 import jakarta.validation.constraints.NotEmpty;
 import java.util.List;
