@@ -8,6 +8,5 @@ import lombok.Getter;
 public class PresignedUrlResponseDto {
     
     private String presignedUrl;
-    private String fileName;
     private String imageUrl;
 }
