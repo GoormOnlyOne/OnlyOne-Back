@@ -19,10 +19,6 @@ import lombok.Setter;
  * - String.format을 활용한 동적 메시지 생성
  * - 알림 타입별 고유한 처리 로직 구분
  *
- * 예시 템플릿:
- * - CHAT: "%s님이 메시지를 보냈습니다."
- * - LIKE: "%s님이 회원님의 게시글을 좋아합니다."
- * - COMMENT: "%s님이 댓글을 남겼습니다: %s"
  */
 @Entity
 @Table(name = "notification_type")
@@ -79,7 +75,6 @@ public class NotificationType extends BaseTimeEntity {
    * 알림 메시지 렌더링
    *
    * 템플릿과 동적 파라미터를 조합하여 최종 사용자에게 표시될 메시지를 생성합니다.
-   * String.format을 사용하여 타입 안전성을 보장하고 다양한 데이터 타입을 지원합니다.
    *
    * 사용 예시:
    * - template: "%s님이 메시지를 보냈습니다."
@@ -89,10 +84,6 @@ public class NotificationType extends BaseTimeEntity {
    * @param args 템플릿에 적용할 파라미터들 (가변 인자)
    * @return 렌더링된 최종 메시지
    *
-   * 주의사항:
-   * - 파라미터 개수와 템플릿의 플레이스홀더 개수가 일치해야 함
-   * - 파라미터 타입이 템플릿 형식과 호환되어야 함
-   * - null 파라미터 처리에 주의 필요
    */
   public String render(String... args) {
     return String.format(this.template, (Object[]) args);
