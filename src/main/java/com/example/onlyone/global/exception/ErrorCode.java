@@ -33,6 +33,11 @@ public enum ErrorCode {
     NOTIFICATION_TYPE_NOT_FOUND(404, "NOTIFY_404_1", "알림 타입을 찾을 수 없습니다."),
     NOTIFICATION_NOT_FOUND(404, "NOTIFY_404_2", "알림이 존재하지 않습니다."),
     SSE_CONNECTION_FAILED(503, "NOTIFY_503_1", "SSE 연결에 실패했습니다."),
+    SSE_SEND_FAILED(503, "NOTIFY_503_2", "SSE 메시지 전송에 실패했습니다."),
+    UNREAD_COUNT_UPDATE_FAILED    (500, "NOTIFY_500_1", "읽지 않은 알림 개수 업데이트에 실패했습니다."),
+    FCM_TOKEN_NOT_FOUND           (404, "NOTIFY_404_3", "FCM 토큰을 찾을 수 없습니다."),
+    FCM_INITIALIZATION_FAILED     (500, "NOTIFY_500_2", "Firebase 초기화에 실패했습니다."),
+    FCM_MESSAGE_SEND_FAILED       (502, "NOTIFY_502_1", "FCM 메시지 전송에 실패했습니다."),
 
     // Schedule
     SCHEDULE_NOT_FOUND(404, "SCHEDULE_404_1", "정기 모임을 찾을 수 없습니다."),
