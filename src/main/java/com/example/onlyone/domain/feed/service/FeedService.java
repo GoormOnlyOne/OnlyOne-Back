@@ -4,6 +4,7 @@ import com.example.onlyone.domain.club.entity.Club;
 import com.example.onlyone.domain.club.repository.ClubRepository;
 import com.example.onlyone.domain.feed.dto.request.FeedCommentRequestDto;
 import com.example.onlyone.domain.feed.dto.request.FeedRequestDto;
+import com.example.onlyone.domain.feed.dto.response.FeedCommentResponseDto;
 import com.example.onlyone.domain.feed.dto.response.FeedDetailResponseDto;
 import com.example.onlyone.domain.feed.dto.response.FeedSummaryResponseDto;
 import com.example.onlyone.domain.feed.entity.Feed;
@@ -113,16 +114,30 @@ public class FeedService {
 
         boolean isMine = feed.getUser().getUserId().equals(currentUserId);
 
+        List<FeedCommentResponseDto> commentResponseDtos = feed.getFeedComments().stream()
+                .map(comment -> FeedCommentResponseDto.builder()
+                        .commentId(comment.getFeedCommentId())
+                        .userId(comment.getUser().getUserId())
+                        .nickname(comment.getUser().getNickname())
+                        .profileImage(comment.getUser().getProfileImage())
+                        .content(comment.getContent())
+                        .createdAt(comment.getCreatedAt())
+                        .isCommentMine(comment.getUser().getUserId().equals(currentUserId))
+                        .build())
+                .collect(Collectors.toList());
+
         return FeedDetailResponseDto.builder()
                 .content(feed.getContent())
                 .imageUrls(imageUrls)
                 .likeCount(feed.getFeedLikes().size())
+                .commentCount(feed.getFeedComments().size())
                 .userId(feed.getUser().getUserId())
                 .nickname(feed.getUser().getNickname())
                 .profileImage(feed.getUser().getProfileImage())
                 .updatedAt(feed.getModifiedAt())
                 .isLiked(isLiked)
-                .isMine(isMine)
+                .isFeedMine(isMine)
+                .comments(commentResponseDtos)
                 .build();
     }
 

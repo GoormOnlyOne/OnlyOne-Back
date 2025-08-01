@@ -14,6 +14,7 @@ public class FeedDetailResponseDto {
     private String content;
     private List<String> imageUrls;
     private int likeCount;
+    private int commentCount;
 
     private Long userId;
     private String nickname;
@@ -22,5 +23,7 @@ public class FeedDetailResponseDto {
     private LocalDateTime updatedAt;
 
     private boolean isLiked;
-    private boolean isMine;
+    private boolean isFeedMine;
+
+    private List<FeedCommentResponseDto> comments;
 }
