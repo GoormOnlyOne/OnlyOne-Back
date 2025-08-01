@@ -5,9 +5,7 @@ import com.example.onlyone.domain.user.entity.User;
 import com.example.onlyone.global.BaseTimeEntity;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.NotNull;
-import lombok.Getter;
-import lombok.NoArgsConstructor;
-import lombok.Setter;
+import lombok.*;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -15,6 +13,8 @@ import java.util.List;
 @Entity
 @Table(name = "feed")
 @Getter
+@Builder
+@AllArgsConstructor
 @NoArgsConstructor
 public class Feed extends BaseTimeEntity {
 
@@ -36,13 +36,19 @@ public class Feed extends BaseTimeEntity {
     @NotNull
     private User user;
 
+    @Builder.Default
     @OneToMany(mappedBy = "feed", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<FeedComment> feedComments = new ArrayList<>();
 
+    @Builder.Default
     @OneToMany(mappedBy = "feed", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<FeedLike> feedLikes = new ArrayList<>();
 
+    @Builder.Default
     @OneToMany(mappedBy = "feed", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<FeedImage> feedImages = new ArrayList<>();
 
+    public void update(String content) {
+        this.content = content;
+    }
 }

@@ -60,4 +60,8 @@ public class WalletTransaction extends BaseTimeEntity {
     @OneToOne(cascade = CascadeType.ALL, orphanRemoval = true)
     @JoinColumn(name = "transfer_id")
     private Transfer transfer;
+
+    public void updateTransfer(Transfer transfer) {
+        this.transfer = transfer;
+    }
 }

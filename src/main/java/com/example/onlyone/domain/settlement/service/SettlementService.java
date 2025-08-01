@@ -178,14 +178,18 @@ public class SettlementService {
                 .build();
         walletTransactionRepository.save(leaderWalletTransaction);
         // Transfer 저장
-        transferRepository.save(Transfer.builder()
+        Transfer transfer = Transfer.builder()
                 .userSettlement(userSettlement)
                 .walletTransaction(walletTransaction)
-                .build());
-        transferRepository.save(Transfer.builder()
+                .build();
+        transferRepository.save(transfer);
+        walletTransaction.updateTransfer(transfer);
+        Transfer leaderTransfer = Transfer.builder()
                 .userSettlement(userSettlement)
                 .walletTransaction(leaderWalletTransaction)
-                .build());
+                .build();
+        transferRepository.save(leaderTransfer);
+        leaderWalletTransaction.updateTransfer(leaderTransfer);
     }
 
     /* 스케줄 참여자 정산 목록 조회 */
