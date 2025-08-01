@@ -23,7 +23,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
-import java.util.Objects;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
@@ -156,5 +155,22 @@ public class FeedService {
 
         FeedComment feedComment = requestDto.toEntity(feed, currentUser);
         feedCommentRepository.save(feedComment);
+    }
+
+    public void deleteComment(Long clubId, Long feedId, Long commentId) {
+        Club club = clubRepository.findById(clubId)
+                .orElseThrow(() -> new CustomException(ErrorCode.CLUB_NOT_FOUND));
+        Feed feed = feedRepository.findByFeedIdAndClub(feedId, club)
+                .orElseThrow(() -> new CustomException(ErrorCode.FEED_NOT_FOUND));
+        FeedComment feedComment = feedCommentRepository.findById(commentId)
+                .orElseThrow(() -> new CustomException(ErrorCode.COMMENT_NOT_FOUND));
+        User user = userService.getCurrentUser();
+        Long userId = user.getUserId();
+        if (!(userId.equals(feedComment.getUser().getUserId()) ||
+                userId.equals(feed.getUser().getUserId()))) {
+            throw new CustomException(ErrorCode.UNAUTHORIZED_COMMENT_ACCESS);
+        }
+
+        feedCommentRepository.delete(feedComment);
     }
 }

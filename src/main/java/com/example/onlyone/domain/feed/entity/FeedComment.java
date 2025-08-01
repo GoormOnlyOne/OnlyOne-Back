@@ -30,7 +30,7 @@ public class FeedComment extends BaseTimeEntity {
     @NotNull
     private Feed feed;
 
-    @ManyToOne(fetch = FetchType.LAZY, cascade = CascadeType.ALL)
+    @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "user_id", updatable = false)
     @NotNull
     private User user;

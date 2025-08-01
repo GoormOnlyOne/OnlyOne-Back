@@ -68,4 +68,13 @@ public class FeedController {
         feedService.createComment(clubId, feedId, requestDto);
         return ResponseEntity.status(HttpStatus.CREATED).body(CommonResponse.success(null));
     }
+
+    @Operation(summary = "댓글 삭제", description = "댓글을 삭제합니다.")
+    @DeleteMapping("/{feedId}/comments/{commentId}")
+    public ResponseEntity<?> deleteComment(@PathVariable("clubId") Long clubId,
+                                           @PathVariable("feedId") Long feedId,
+                                           @PathVariable("commentId") Long commentId) {
+        feedService.deleteComment(clubId, feedId, commentId);
+        return ResponseEntity.status(HttpStatus.OK).body(CommonResponse.success(null));
+    }
 }
