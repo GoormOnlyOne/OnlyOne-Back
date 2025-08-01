@@ -52,10 +52,14 @@ public class MessageService {
      */
     @Transactional
     public void deleteMessage(Long messageId, Long userId) {
-        int updated = messageRepository.softDeleteByUser(messageId, userId);
-        if (updated == 0) {
+        Message message = messageRepository.findById(messageId)
+                .orElseThrow(() -> new CustomException(ErrorCode.MESSAGE_NOT_FOUND));
+
+        if (!message.isOwnedBy(userId)) {
             throw new CustomException(ErrorCode.MESSAGE_DELETE_ERROR);
         }
+
+        message.markAsDeleted();
     }
 
     /**

@@ -2,7 +2,7 @@ package com.example.onlyone.domain.chat.controller;
 
 import com.example.onlyone.domain.chat.dto.ChatMessageRequest;
 import com.example.onlyone.domain.chat.dto.ChatMessageResponse;
-import com.example.onlyone.domain.chat.entity.Message;
+import lombok.extern.slf4j.Slf4j;
 import com.example.onlyone.domain.chat.service.MessageService;
 import com.example.onlyone.global.exception.CustomException;
 import com.example.onlyone.global.exception.ErrorCode;
@@ -12,6 +12,7 @@ import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.messaging.simp.annotation.SendToUser;
 import org.springframework.stereotype.Controller;
 
+@Slf4j
 @Controller
 @RequiredArgsConstructor
 public class ChatWebSocketController {
@@ -29,22 +30,22 @@ public class ChatWebSocketController {
             @DestinationVariable Long chatRoomId,
             @Payload ChatMessageRequest request) {
 
-        System.out.println("🔥 WebSocket 메시지 수신: userId=" + request.getUserId() + ", text=" + request.getText());
+        log.info("🔥 WebSocket 메시지 수신: userId={}, text={}", request.getUserId(), request.getText());
 
         try {
             // 1. 메시지 저장
             ChatMessageResponse response = messageService.saveMessage(chatRoomId, request.getUserId(), request.getText());
-            System.out.println("✅ 메시지 저장 완료, 전송 준비: " + response.getText());
+            log.info("✅ 메시지 저장 완료, 전송 준비: {}", response.getText());
 
             // 2. 대상 경로 구성 및 전송
             String destination = "/sub/chat/" + chatRoomId + "/messages";
             messagingTemplate.convertAndSend(destination, response);
 
         } catch (CustomException e) {
-            System.out.println("❌ CustomException: " + e.getMessage());
+            log.error("❌ CustomException: {}", e.getMessage());
             throw e; // -> @MessageExceptionHandler 로 위임
         } catch (Exception e) {
-            System.out.println("❌ 처리 중 알 수 없는 예외 발생: " + e.getMessage());
+            log.error("❌ 처리 중 알 수 없는 예외 발생: {}", e.getMessage(), e);
             throw new CustomException(ErrorCode.MESSAGE_SERVER_ERROR);
         }
     }
@@ -53,7 +54,7 @@ public class ChatWebSocketController {
      * WebSocket 메시지 처리 중 예외 발생 시 클라이언트에게 전송
      */
     @MessageExceptionHandler(CustomException.class)
-    @SendToUser("/queue/errors")
+    @SendToUser("/sub/errors")
     public String handleCustomException(CustomException ex) {
         return ex.getErrorCode().getMessage();
     }
