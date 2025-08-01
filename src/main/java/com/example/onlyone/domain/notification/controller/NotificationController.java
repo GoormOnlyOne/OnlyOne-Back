@@ -50,22 +50,9 @@ public class NotificationController {
     @Operation(summary = "알림 실시간 스트림", description = "Server-Sent Events를 통한 실시간 알림 수신")
     @GetMapping(value = "/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     public SseEmitter streamNotifications(@RequestParam Long userId) {
-
-        log.info("SSE 스트림 연결 요청 - Authorization: {}", userId);
-
-        try {
-
-            log.info("SSE 연결 생성 시작 - 사용자 ID: {}", userId);
-
-            SseEmitter emitter = notificationService.createSseConnection(userId);
-            log.info("SSE 연결 생성 완료 - 사용자 ID: {}", userId);
-
-            return emitter;
-        } catch (Exception e) {
-            log.error("SSE 연결 생성 실패 - Authorization: {}, 오류: {}",
-                userId, e.getMessage(), e);
-            throw e;
-        }
+        log.info("SSE 스트림 연결 요청 - 사용자 ID: {}", userId);
+        // 서비스에서 실패 시 CustomException을 던지고, GlobalExceptionHandler가 처리해 줍니다.
+        return notificationService.createSseConnection(userId);
     }
 
     /**
@@ -100,27 +87,15 @@ public class NotificationController {
     public ResponseEntity<?> createNotification(
         @Valid @RequestBody NotificationCreateRequestDto requestDto) {
 
-        log.info("알림 생성 요청 - 사용자 ID: {}, 타입: {}, 파라미터 수: {}",
-            requestDto.getUserId(), requestDto.getType(),
-            requestDto.getArgs() != null ? requestDto.getArgs().length : 0);
-        log.debug("알림 생성 요청 상세 - 요청 데이터: {}", requestDto);
+        log.info("알림 생성 요청 - 사용자 ID: {}, 타입: {}",
+            requestDto.getUserId(), requestDto.getType());
 
-        try {
-            NotificationCreateResponseDto responseDto =
-                notificationService.createNotification(requestDto);
+        NotificationCreateResponseDto responseDto =
+            notificationService.createNotification(requestDto);
 
-            log.info("알림 생성 성공 - 알림 ID: {}, 사용자 ID: {}",
-                responseDto.getNotificationId(), requestDto.getUserId());
-
-            return ResponseEntity
-                .status(HttpStatus.CREATED)
-                .body(CommonResponse.success(responseDto));
-
-        } catch (Exception e) {
-            log.error("알림 생성 실패 - 사용자 ID: {}, 타입: {}, 오류: {}",
-                requestDto.getUserId(), requestDto.getType(), e.getMessage(), e);
-            throw e;
-        }
+        return ResponseEntity
+            .status(HttpStatus.CREATED)
+            .body(CommonResponse.success(responseDto));
     }
 
     /**
@@ -139,32 +114,20 @@ public class NotificationController {
      */
     @Operation(summary = "알림 목록 조회", description = "커서 기반 페이징으로 알림 목록을 조회합니다")
     @GetMapping
-    public ResponseEntity<?> getNotifications(
+    public ResponseEntity<CommonResponse<NotificationListResponseDto>> getNotifications(
         @RequestParam Long userId,
         @RequestParam(required = false) Long cursor,
         @RequestParam(defaultValue = "20") int size) {
 
-        log.info("알림 목록 조회 요청 - 사용자 ID: {}, 커서: {}, 크기: {}", userId, cursor, size);
-
-        // 페이지 크기 제한
         if (size > 100) {
             size = 100;
             log.warn("요청된 페이지 크기가 최대값을 초과하여 100으로 조정됨");
         }
 
-        try {
-            NotificationListResponseDto responseDto =
-                notificationService.getNotifications(userId, cursor, size);
+        NotificationListResponseDto dto =
+            notificationService.getNotifications(userId, cursor, size);
 
-            log.info("알림 목록 조회 성공 - 사용자 ID: {}, 조회된 알림 수: {}, 미읽음 개수: {}",
-                userId, responseDto.getNotifications().size(), responseDto.getUnreadCount());
-
-            return ResponseEntity.ok(CommonResponse.success(responseDto));
-
-        } catch (Exception e) {
-            log.error("알림 목록 조회 실패 - 사용자 ID: {}, 오류: {}", userId, e.getMessage(), e);
-            throw e;
-        }
+        return ResponseEntity.ok(CommonResponse.success(dto));
     }
 
     /**
@@ -177,25 +140,12 @@ public class NotificationController {
      */
     @Operation(summary = "모든 알림 읽음 처리", description = "모든 읽지 않은 알림을 읽음 처리합니다")
     @PatchMapping("/read-all")
-    public ResponseEntity<?> markAllNotificationsAsRead(
+    public ResponseEntity<CommonResponse<Void>> markAllNotificationsAsRead(
         @RequestParam Long userId) {
 
-        log.info("모든 알림 읽음 처리 요청 - 사용자 ID: {}", userId);
-
-        try {
-            // userId를 직접 전달
-            notificationService.markAllAsRead(userId);
-
-            log.info("모든 알림 읽음 처리 성공 - 사용자 ID: {}", userId);
-
-            return ResponseEntity.ok(CommonResponse.success(null));
-
-        } catch (Exception e) {
-            log.error("모든 알림 읽음 처리 실패 - 사용자 ID: {}, 오류: {}", userId, e.getMessage(), e);
-            throw e;
-        }
+        notificationService.markAllAsRead(userId);
+        return ResponseEntity.ok(CommonResponse.success(null));
     }
-
     /**
      * 알림 삭제
      *
@@ -209,28 +159,13 @@ public class NotificationController {
      */
     @Operation(summary = "알림 삭제", description = "특정 알림을 삭제합니다")
     @DeleteMapping("/{notificationId}")
-    public ResponseEntity<?> deleteNotification(
+    public ResponseEntity<Void> deleteNotification(
         @RequestParam Long userId,
         @PathVariable Long notificationId) {
 
-        log.info("알림 삭제 요청 - 알림 ID: {}", notificationId);
-
-        try {
-
-            log.debug("알림 삭제 - 사용자 ID: {}, 알림 ID: {}", userId, notificationId);
-
-            notificationService.deleteNotification(userId, notificationId);
-
-            log.info("알림 삭제 성공 - 사용자 ID: {}, 알림 ID: {}", userId, notificationId);
-
-            return ResponseEntity.noContent().build();
-
-        } catch (Exception e) {
-            log.error("알림 삭제 실패 - 알림 ID: {}, 오류: {}", notificationId, e.getMessage(), e);
-            throw e;
-        }
+        notificationService.deleteNotification(userId, notificationId);
+        return ResponseEntity.noContent().build();
     }
-
     // ================================
     // 유틸리티 메서드들
     // ================================
