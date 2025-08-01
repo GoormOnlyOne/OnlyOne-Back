@@ -4,6 +4,8 @@ import com.example.onlyone.domain.user.entity.User;
 import com.example.onlyone.global.BaseTimeEntity;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.NotNull;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
@@ -11,6 +13,8 @@ import lombok.NoArgsConstructor;
 @Table(name = "feed_comment")
 @Getter
 @NoArgsConstructor
+@Builder
+@AllArgsConstructor
 public class FeedComment extends BaseTimeEntity {
 
     @Id

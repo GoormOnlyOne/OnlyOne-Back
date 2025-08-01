@@ -1,5 +1,6 @@
 package com.example.onlyone.domain.feed.controller;
 
+import com.example.onlyone.domain.feed.dto.request.FeedCommentRequestDto;
 import com.example.onlyone.domain.feed.dto.request.FeedRequestDto;
 import com.example.onlyone.domain.feed.dto.response.FeedDetailResponseDto;
 import com.example.onlyone.domain.feed.dto.response.FeedSummaryResponseDto;
@@ -56,6 +57,15 @@ public class FeedController {
     @GetMapping("/{feedId}/likes")
     public ResponseEntity<?> toggleLike(@PathVariable("clubId") Long clubId, @PathVariable("feedId") Long feedId) {
         feedService.toggleLike(clubId, feedId);
+        return ResponseEntity.status(HttpStatus.OK).body(CommonResponse.success(null));
+    }
+
+    @Operation(summary = "댓글 생성", description = "댓글을 생성합니다.")
+    @PostMapping("/{feedId}/comments")
+    public ResponseEntity<?> createComment(@PathVariable("clubId") Long clubId,
+                                           @PathVariable("feedId") Long feedId,
+                                           @RequestBody @Valid FeedCommentRequestDto requestDto) {
+        feedService.createComment(clubId, feedId, requestDto);
         return ResponseEntity.status(HttpStatus.CREATED).body(CommonResponse.success(null));
     }
 }
