@@ -34,7 +34,7 @@ public class MessageService {
         ChatRoom chatRoom = chatRoomRepository.findById(chatRoomId)
                 .orElseThrow(() -> new CustomException(ErrorCode.CHAT_ROOM_NOT_FOUND));
         User user = userRepository.findById(userId)
-                .orElseThrow(() -> new CustomException(ErrorCode.UNAUTHORIZED_CHAT_ACCESS));
+                .orElseThrow(() -> new CustomException(ErrorCode.USER_NOT_FOUND));
 
         Message message = Message.builder()
                 .chatRoom(chatRoom)
@@ -62,12 +62,8 @@ public class MessageService {
      * 삭제되지 않은 모든 메시지 목록 조회
      */
     public List<ChatMessageResponse> getMessages(Long chatRoomId) {
-        try {
-            return messageRepository.findByChatRoomChatRoomIdAndDeletedFalseOrderBySentAtAsc(chatRoomId).stream()
-                    .map(ChatMessageResponse::from)
-                    .collect(Collectors.toList());
-        } catch (Exception e) {
-            throw new CustomException(ErrorCode.MESSAGE_SERVER_ERROR);
-        }
+        return messageRepository.findByChatRoomChatRoomIdAndDeletedFalseOrderBySentAtAsc(chatRoomId).stream()
+                .map(ChatMessageResponse::from)
+                .collect(Collectors.toList());
     }
 }

@@ -13,23 +13,23 @@ import java.util.List;
 
 @RestController
 @RequiredArgsConstructor
-//@RequestMapping("/clubs/{clubId}/chat")
+@RequestMapping("/clubs/{clubId}/chat")
 public class ChatRoomRestController {
 
     private final ChatRoomService chatRoomService;
 
-    // 유저가 해당 클럽에서 참여 중인 채팅방 목록 조회
     @Operation(summary = "클럽 내 사용자의 채팅방 목록 조회")
-    @GetMapping("/clubs/{clubId}/chat")
+    @GetMapping
     public ResponseEntity<CommonResponse<List<ChatRoomResponse>>> getUserChatRooms(@PathVariable Long clubId) {
         List<ChatRoomResponse> response = chatRoomService.getChatRoomsUserJoinedInClub(clubId);
         return ResponseEntity.ok(CommonResponse.success(response));
     }
 
     @Operation(summary = "채팅방 단건 상세 조회")
-    @GetMapping("/{chatRoomId}")
-    public ResponseEntity<CommonResponse<ChatRoomResponse>> getChatRoom(@PathVariable Long chatRoomId) {
-        ChatRoomResponse response = chatRoomService.getById(chatRoomId);
+    @GetMapping("/rooms/{chatRoomId}")
+    public ResponseEntity<CommonResponse<ChatRoomResponse>> getChatRoom(@PathVariable Long clubId, @PathVariable Long chatRoomId) {
+        ChatRoomResponse response = chatRoomService.getById(chatRoomId, clubId); // clubId 포함 검증
         return ResponseEntity.ok(CommonResponse.success(response));
     }
 }
+
