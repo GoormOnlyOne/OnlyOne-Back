@@ -18,15 +18,6 @@ public class ChatRoomRestController {
 
     private final ChatRoomService chatRoomService;
 
-
-    // 채팅방 삭제
-    @DeleteMapping("/{chatRoomId}")
-    public ResponseEntity<Void> deleteChatRoom(@PathVariable Long chatRoomId) {
-        ChatRoomResponse chatRoom = chatRoomService.getById(chatRoomId);
-        chatRoomService.deleteChatRoom(chatRoomId, chatRoom.getClubId());
-        return ResponseEntity.noContent().build();
-    }
-
     // 유저가 해당 클럽에서 참여 중인 채팅방 목록 조회
     @Operation(summary = "클럽 내 사용자의 채팅방 목록 조회")
     @GetMapping("/clubs/{clubId}/chat")

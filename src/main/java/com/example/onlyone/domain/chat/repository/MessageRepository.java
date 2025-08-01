@@ -16,6 +16,8 @@ public interface MessageRepository extends JpaRepository<Message,Long> {
     List<Message> findByChatRoomChatRoomIdAndDeletedFalseOrderBySentAtAsc(Long chatRoomId);
 
     @Modifying
-    @Query("UPDATE Message m SET m.deleted = true WHERE m.messageId = :messageId AND m.user.userId = :userId")
+    @Query("UPDATE Message m " +
+            "SET m.text = '삭제된 메시지입니다.', m.deleted = true " +
+            "WHERE m.messageId = :messageId AND m.user.userId = :userId")
     int softDeleteByUser(@Param("messageId") Long messageId, @Param("userId") Long userId);
 }
