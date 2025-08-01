@@ -37,4 +37,14 @@ public class MessageRestController {
         return ResponseEntity.ok(CommonResponse.success(response));
     }
 
+    @Operation(summary = "채팅 메시지 삭제")
+    @DeleteMapping("/messages/{messageId}/delete")
+    public ResponseEntity<Void> deleteMessage(
+            @PathVariable Long messageId,
+            @RequestHeader("X-USER-ID") Long userId
+    ) {
+        messageService.deleteMessage(messageId, userId);
+        return ResponseEntity.noContent().build();
+    }
+
 }
