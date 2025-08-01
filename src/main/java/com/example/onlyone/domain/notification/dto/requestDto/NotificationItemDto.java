@@ -17,7 +17,7 @@ import java.time.LocalDateTime;
 @Builder
 public class NotificationItemDto {
 
-    private final long notificationId;
+    private final Long notificationId;
 
     private final String content;
 
