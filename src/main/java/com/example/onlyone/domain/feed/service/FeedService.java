@@ -7,6 +7,8 @@ import com.example.onlyone.domain.feed.dto.response.FeedDetailResponseDto;
 import com.example.onlyone.domain.feed.dto.response.FeedSummaryResponseDto;
 import com.example.onlyone.domain.feed.entity.Feed;
 import com.example.onlyone.domain.feed.entity.FeedImage;
+import com.example.onlyone.domain.feed.entity.FeedLike;
+import com.example.onlyone.domain.feed.repository.FeedLikeRepository;
 import com.example.onlyone.domain.feed.repository.FeedRepository;
 import com.example.onlyone.domain.user.entity.User;
 import com.example.onlyone.domain.user.service.UserService;
@@ -19,6 +21,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 @Log4j2
@@ -29,6 +32,8 @@ public class FeedService {
     private final ClubRepository clubRepository;
     private final FeedRepository feedRepository;
     private final UserService userService;
+    private final FeedLikeRepository feedLikeRepository;
+
 
     public void createFeed(Long clubId, FeedRequestDto requestDto) {
         Club club = clubRepository.findById(clubId)
@@ -116,5 +121,27 @@ public class FeedService {
                 .isLiked(isLiked)
                 .isMine(isMine)
                 .build();
+    }
+
+    public void toggleLike(Long clubId, Long feedId) {
+        Club club = clubRepository.findById(clubId)
+                .orElseThrow(() -> new CustomException(ErrorCode.CLUB_NOT_FOUND));
+        Feed feed = feedRepository.findByFeedIdAndClub(feedId, club)
+                .orElseThrow(() -> new CustomException(ErrorCode.FEED_NOT_FOUND));
+        User currentUser = userService.getCurrentUser();
+
+        Optional<FeedLike> checkLike = feedLikeRepository.findByFeedAndUser(feed, currentUser);
+
+        if(checkLike.isPresent()) {
+            feedLikeRepository.delete(checkLike.get());
+        } else {
+            FeedLike feedLike = FeedLike.builder()
+                    .feed(feed)
+                    .user(currentUser)
+                    .build();
+            feedLikeRepository.save(feedLike);
+        }
+
+
     }
 }

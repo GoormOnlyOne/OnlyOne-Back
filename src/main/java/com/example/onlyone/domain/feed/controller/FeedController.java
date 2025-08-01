@@ -47,9 +47,15 @@ public class FeedController {
 
     @Operation(summary = "피드 상세 조회", description = "피드를 상세 조회합니다.")
     @GetMapping("/{feedId}")
-    public ResponseEntity<?> getFeedDetail(@PathVariable("feedId") Long feedId, @PathVariable("clubId") Long clubId) {
+    public ResponseEntity<?> getFeedDetail(@PathVariable("clubId") Long clubId, @PathVariable("feedId") Long feedId) {
         FeedDetailResponseDto feedDetailResponseDto = feedService.getFeedDetail(clubId, feedId);
         return ResponseEntity.status(HttpStatus.OK).body(CommonResponse.success(feedDetailResponseDto));
     }
 
+    @Operation(summary = "좋아요 토글", description = "좋아요를 추가하거나 취소합니다.")
+    @GetMapping("/{feedId}/likes")
+    public ResponseEntity<?> toggleLike(@PathVariable("clubId") Long clubId, @PathVariable("feedId") Long feedId) {
+        feedService.toggleLike(clubId, feedId);
+        return ResponseEntity.status(HttpStatus.CREATED).body(CommonResponse.success(null));
+    }
 }
