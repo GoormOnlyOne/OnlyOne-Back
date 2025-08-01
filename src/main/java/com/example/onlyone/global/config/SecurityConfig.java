@@ -24,22 +24,22 @@ import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
 import java.util.Arrays;
+import java.util.List;
 
 @Configuration
 @EnableWebSecurity
 @AllArgsConstructor
 public class SecurityConfig {
 
-    @Bean
-    public WebSecurityCustomizer webSecurityCustomizer() {
-        return web -> web.ignoring()
-                .requestMatchers("/error", "/favicon.ico",
-                        "/swagger-ui/**", "/swagger-ui.html", "/v3/api-docs", "/v3/api-docs/**", "/swagger.html")
-                .requestMatchers(PathRequest.toStaticResources().atCommonLocations());
-    }
-
     private static final String[] AUTH_WHITELIST = {
-            "/signup/**", "/login/**", "/token", "/center", "/email/**"
+            "/signup/**",
+            "/login/**",
+            "/token",
+            "/center",
+            "/email/**",
+            "/ws/**",          // WebSocket STOMP 엔드포인트 허용
+            "/ws/chat/**",      // SockJS는 /info, /websocket, /xhr 등 내부 경로 씀
+            "/subscribe/**"    // SSE 구독 엔드포인트 허용
     };
 
     // CORS 설정
@@ -47,8 +47,7 @@ public class SecurityConfig {
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
 
-        configuration.setAllowedOrigins(Arrays.asList(
-                "http://localhost:8080"));
+        configuration.setAllowedOriginPatterns(List.of("*"));
         configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"));
         configuration.addAllowedHeader("*");
         configuration.setExposedHeaders(Arrays.asList("Set-Cookie", "Location"));
@@ -76,30 +75,36 @@ public class SecurityConfig {
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
         http
-                .csrf(AbstractHttpConfigurer::disable) // CSRF 보호 비활성화
-                .cors(cors -> cors.configurationSource(corsConfigurationSource())) // CORS 설정
+                .csrf(AbstractHttpConfigurer::disable)
+                .cors(cors -> cors.configurationSource(corsConfigurationSource()))
                 .formLogin(AbstractHttpConfigurer::disable)
                 .logout(logout -> logout
                         .logoutUrl("/logout")
                         .deleteCookies("refreshToken")
-                        .logoutSuccessHandler(new HttpStatusReturningLogoutSuccessHandler(HttpStatus.OK))
-                )
-                .httpBasic(AbstractHttpConfigurer::disable) // 기본 httpBasic 비활성화
-                .sessionManagement(config -> config.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-                .headers(header -> header
-                        .frameOptions(HeadersConfigurer.FrameOptionsConfig::sameOrigin)) // X-Frame-Options 설정
+                        .logoutSuccessHandler(new HttpStatusReturningLogoutSuccessHandler(HttpStatus.OK)))
+                .httpBasic(AbstractHttpConfigurer::disable)
+                .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+                .headers(header -> header.frameOptions(frame -> frame.sameOrigin()))
                 .authorizeHttpRequests(auth -> auth
-                                .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
-                                .requestMatchers(AUTH_WHITELIST).permitAll()
-                                .requestMatchers("/auth/**").permitAll()
-                                .anyRequest().permitAll()
-//                        .anyRequest().authenticated()
+                        .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
+                        .requestMatchers(AUTH_WHITELIST).permitAll()
+
+                        .requestMatchers("/ws/**").permitAll()
+                        // Swagger 및 정적 자원 허용
+                        .requestMatchers(
+                                "/error", "/favicon.ico",
+                                "/swagger-ui/**", "/swagger-ui.html",
+                                "/v3/api-docs", "/v3/api-docs/**", "/swagger.html"
+                        ).permitAll()
+                        .requestMatchers(PathRequest.toStaticResources().atCommonLocations()).permitAll()
+
+                        // 그 외는 인증 필요 시 authenticated(), 아니면 permitAll()
+                        .anyRequest().permitAll()
                 );
-//                .addFilterBefore(new JwtAuthenticationFilter(tokenProvider), UsernamePasswordAuthenticationFilter.class)
-//                // OAuth2 로그인 설정
-//                .oauth2Login(oauth2 -> oauth2
-//                        .userInfoEndpoint(userInfo -> userInfo.userService(customOAuth2UserService))
-//                        .successHandler(oAuth2AuthenticationSuccessHandler));
+
+        // 필요 시 JWT 필터 삽입
+        // .addFilterBefore(new JwtAuthenticationFilter(tokenProvider), UsernamePasswordAuthenticationFilter.class)
+
         return http.build();
     }
 }
