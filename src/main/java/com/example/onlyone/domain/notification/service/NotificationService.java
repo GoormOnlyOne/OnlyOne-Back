@@ -9,7 +9,6 @@ import com.example.onlyone.domain.user.entity.User;
 import com.example.onlyone.domain.user.repository.UserRepository;
 import com.example.onlyone.global.exception.CustomException;
 import com.example.onlyone.global.exception.ErrorCode;
-import java.util.concurrent.atomic.AtomicInteger;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationEventPublisher;
@@ -42,14 +41,8 @@ import java.util.stream.Collectors;
  * 아키텍처 특징:
  * - 이벤트 기반 아키텍처 (ApplicationEventPublisher 활용)
  * - 메모리 기반 SSE 연결 관리 (ConcurrentHashMap)
- * - 트랜잭션 분리 (읽기 전용 트랜잭션 최적화)
- * - 프로젝션 패턴을 통한 성능 최적화
- *
- * 확장성 고려사항:
- * - 다중 서버 환경에서는 Redis 기반 SSE 관리 필요
- * - FCM, 웹 푸시 등 다중 채널 알림 지원
- * - 알림 템플릿 다국어 지원
- * - 알림 스케줄링 및 배치 처리
+
+
  */
 @Service
 @RequiredArgsConstructor
@@ -67,17 +60,10 @@ public class NotificationService {
      * 메모리 기반으로 사용자별 SSE 연결을 관리합니다.
      * Key: 사용자 ID, Value: SSE Emitter 객체
      *
-     * ConcurrentHashMap 사용 이유:
-     * - 멀티스레드 환경에서 안전한 동시 접근
-     * - 높은 성능의 읽기/쓰기 작업
      *
      * 제한사항:
      * - 단일 서버 환경에서만 동작
      * - 서버 재시작 시 모든 연결 끊어짐
-     *
-     * 다중 서버 환경 대안:
-     * - Redis를 활용한 분산 SSE 관리
-     * - WebSocket + Message Broker (RabbitMQ, Kafka)
      */
     private final Map<Long, SseEmitter> sseEmitters = new ConcurrentHashMap<>();
 
@@ -89,16 +75,6 @@ public class NotificationService {
      *
      * @param userId 연결을 요청한 사용자 ID
      * @return 생성된 SSE Emitter 객체
-     *
-     * 연결 관리 전략:
-     * - 무제한 타임아웃 (0L) 설정으로 장기간 연결 유지
-     * - 연결 종료/오류 시 자동 정리를 통한 메모리 누수 방지
-     * - 하트비트를 통한 연결 상태 확인
-     *
-     * 모니터링 포인트:
-     * - 동시 연결 수 모니터링
-     * - 연결 해제 빈도 및 원인 분석
-     * - 하트비트 실패율 추적
      */
     public SseEmitter createSseConnection(Long userId) {
         log.info("SSE 연결 생성 시작 - 사용자 ID: {}", userId);
@@ -166,16 +142,8 @@ public class NotificationService {
      * 2. 템플릿 기반 알림 메시지 생성
      * 3. 데이터베이스 저장 (트랜잭션)
      * 4. SSE를 통한 실시간 전송
-     * 5. FCM 전송 (향후 구현)
+     * 5. FCM 전송
      *
-     * 오류 처리:
-     * - 사용자 미존재: USER_NOT_FOUND
-     * - 알림 타입 미존재: NOTIFICATION_TYPE_NOT_FOUND
-     * - SSE 전송 실패: 로그 기록 (알림 저장은 유지)
-     *
-     * 성능 고려사항:
-     * - 알림 생성과 SSE 전송의 독립성 보장
-     * - 대량 알림 생성 시 배치 처리 고려
      */
     @Transactional
     public NotificationCreateResponseDto createNotification(NotificationCreateRequestDto requestDto) {
@@ -239,7 +207,6 @@ public class NotificationService {
      * 알림 목록 조회 (커서 기반 페이징)
      *
      * 사용자의 알림 목록을 커서 기반 페이징으로 조회합니다.
-     * 성능 최적화를 위해 프로젝션을 사용하고,
      * 읽지 않은 알림 개수도 함께 반환합니다.
      *
      * @param userId 사용자 ID
@@ -248,7 +215,6 @@ public class NotificationService {
      * @return 알림 목록과 페이징 정보
      *
      * 페이징 전략:
-     * - 커서 기반 페이징으로 일관된 성능 보장
      * - 최신 알림부터 내림차순 정렬
      * - hasMore 플래그로 추가 데이터 존재 여부 확인
      *
@@ -257,7 +223,7 @@ public class NotificationService {
     public NotificationListResponseDto getNotifications(Long userId, Long cursor, int size) {
         log.info("알림 목록 조회 시작 - 사용자 ID: {}, 커서: {}, 크기: {}", userId, cursor, size);
 
-        // 페이지 크기 제한 (DoS 공격 방지)
+        // 페이지 크기 제한
         if (size > 100) {
             size = 100;
             log.warn("페이지 크기 제한 적용 - 요청: {}, 적용: 100", size);
@@ -313,69 +279,6 @@ public class NotificationService {
             .build();
     }
 
-    /**
-     * 개별 알림 읽음 처리
-     *
-     * 사용자가 선택한 특정 알림들을 읽음 상태로 변경합니다.
-     * 권한 검증을 통해 본인의 알림만 처리하며,
-     * 처리 후 SSE를 통해 실시간으로 읽지 않은 개수를 업데이트합니다.
-     *
-     * @param userId 사용자 ID (권한 검증용)
-     * @param requestDto 읽음 처리할 알림 ID 목록
-     * @return 처리 결과 정보
-     *
-     * 보안 고려사항:
-     * - 다른 사용자의 알림은 처리되지 않음
-     * - 이미 읽은 알림은 중복 처리하지 않음
-     *
-     * 성능 최적화:
-     * - 벌크 업데이트로 한 번에 처리
-     * - 실제 변경된 개수만 반환
-     *
-     * 실시간 업데이트:
-     * - SSE를 통한 읽지 않은 개수 실시간 전송
-     */
-    @Transactional
-    public NotificationReadResponseDto markAsRead(Long userId, NotificationReadRequestDto requestDto) {
-        List<Long> notificationIds = requestDto.getNotificationIds();
-        log.info("알림 읽음 처리 시작 - 사용자 ID: {}, 대상 알림 수: {}", userId, notificationIds.size());
-        log.debug("읽음 처리 대상 알림 ID 목록: {}", notificationIds);
-
-        // 해당 사용자의 알림만 조회하여 권한 검증
-        List<Notification> notifications = notificationRepository.findByUserIdAndIds(userId, notificationIds);
-        log.debug("권한 검증 완료 - 처리 가능한 알림 수: {}", notifications.size());
-
-        if (notifications.size() != notificationIds.size()) {
-            log.warn("일부 알림 접근 불가 - 요청: {}, 처리 가능: {}", notificationIds.size(), notifications.size());
-        }
-
-        // 읽지 않은 알림만 처리
-        int updatedCount = 0;
-        for (Notification notification : notifications) {
-            if (!notification.getIsRead()) {
-                notification.markAsRead();
-                updatedCount++;
-                log.debug("알림 읽음 처리 - 알림 ID: {}", notification.getNotificationId());
-            }
-        }
-
-        log.info("알림 읽음 처리 완료 - 사용자 ID: {}, 실제 처리 수: {}", userId, updatedCount);
-
-        // 읽지 않은 개수 실시간 업데이트
-        if (updatedCount > 0) {
-            try {
-                sendUnreadCountUpdate(userId);
-                log.debug("읽지 않은 개수 실시간 업데이트 전송 완료");
-            } catch (Exception e) {
-                log.error("읽지 않은 개수 실시간 업데이트 실패 - 사용자 ID: {}, 오류: {}", userId, e.getMessage(), e);
-            }
-        }
-
-        return NotificationReadResponseDto.builder()
-            .updatedCount(updatedCount)
-            .notificationIds(notificationIds)
-            .build();
-    }
 
     /**
      * 알림 전체 읽음 처리
@@ -383,16 +286,10 @@ public class NotificationService {
      * 사용자의 모든 읽지 않은 알림을 한 번에 읽음 처리합니다.
      * "모든 알림 읽음" 기능을 위한 메서드입니다.
      *
-     * @param dto 전체 읽음 처리 요청 정보
-     *
-     * 성능 주의사항:
-     * - 대량의 알림이 있는 경우 처리 시간이 오래 걸릴 수 있음
-     * - 향후 배치 처리나 비동기 처리 고려 필요
-     *
      */
     @Transactional
-    public void markAllAsRead(NotificationListRequestDto dto) {
-        Long userId = dto.getUserId();
+    public void markAllAsRead(Long userId) {
+
         log.info("전체 알림 읽음 처리 시작 - 사용자 ID: {}", userId);
 
         // 읽지 않은 알림 목록 조회
@@ -425,14 +322,9 @@ public class NotificationService {
      * 알림 삭제
      *
      * 사용자의 특정 알림을 삭제합니다.
-     * 권한 검증을 통해 본인의 알림만 삭제할 수 있습니다.
      *
      * @param userId 사용자 ID (권한 검증용)
      * @param notificationId 삭제할 알림 ID
-     *
-     * 보안 고려사항:
-     * - 다른 사용자의 알림은 삭제할 수 없음
-     * - 존재하지 않는 알림 ID는 오류 처리
      *
      * 데이터 정합성:
      * - 삭제 후 읽지 않은 개수 자동 업데이트
@@ -586,36 +478,6 @@ public class NotificationService {
     }
 
     /**
-     * 하트비트 전송 (연결 유지)
-     *
-     * 모든 활성 SSE 연결에 하트비트를 전송하여 연결 상태를 확인합니다.
-     * 스케줄러에 의해 주기적으로 호출되어야 합니다.
-     *
-     */
-    public void sendHeartbeat() {
-        log.debug("하트비트 전송 시작 - 대상 연결 수: {}", sseEmitters.size());
-
-        AtomicInteger successCount = new AtomicInteger();
-        AtomicInteger failureCount = new AtomicInteger();
-
-        sseEmitters.forEach((userId, emitter) -> {
-            try {
-                emitter.send(SseEmitter.event()
-                    .comment("heartbeat"));
-                log.trace("하트비트 전송 성공 - 사용자 ID: {}", userId);
-                successCount.getAndIncrement();
-            } catch (IOException e) {
-                log.warn("하트비트 전송 실패 - 사용자 ID: {}, 연결 정리", userId);
-                sseEmitters.remove(userId);
-                failureCount.getAndIncrement();
-            }
-        });
-
-        log.info("하트비트 전송 완료 - 성공: {}, 실패: {}, 남은 연결: {}",
-            successCount, failureCount, sseEmitters.size());
-    }
-
-    /**
      * NotificationListItem을 NotificationItemDto로 변환
      *
      * 프로젝션 객체를 API 응답용 DTO로 변환합니다.
@@ -632,25 +494,6 @@ public class NotificationService {
             .isRead(item.getIsRead())
             .createdAt(item.getCreatedAt())
             .build();
-    }
-
-    /**
-     * 활성 SSE 연결 수 조회 (모니터링용)
-     *
-     * 현재 활성 상태인 SSE 연결의 개수를 반환합니다.
-     * 시스템 모니터링이나 관리자 대시보드에서 활용할 수 있습니다.
-     *
-     * @return 현재 활성 연결 수
-     *
-     * 모니터링 활용:
-     * - 서버별 동시 연결 수 추적
-     * - 피크 시간대 연결 패턴 분석
-     * - 메모리 사용량 예측
-     */
-    public int getActiveConnectionCount() {
-        int count = sseEmitters.size();
-        log.debug("현재 활성 SSE 연결 수 조회: {}", count);
-        return count;
     }
 
     // ================================
@@ -678,15 +521,5 @@ public class NotificationService {
     //     // 재전송 로직 구현
     // }
 
-    /**
-     * 사용자별 알림 설정 확인 (향후 구현)
-     *
-     * @param userId 사용자 ID
-     * @param type 알림 타입
-     * @return 알림 수신 허용 여부
-     */
-    // private boolean isNotificationEnabled(Long userId, Type type) {
-    //     // 사용자 알림 설정 확인 로직
-    //     return true;
-    // }
+
 }
