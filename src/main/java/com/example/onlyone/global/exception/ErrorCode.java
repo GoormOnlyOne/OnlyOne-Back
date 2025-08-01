@@ -53,6 +53,7 @@ public enum ErrorCode {
     // Chat
     CHAT_ROOM_NOT_FOUND(404, "CHAT_404_1", "채팅방을 찾을 수 없습니다."),
     USER_CHAT_ROOM_NOT_FOUND(404, "CHAT_404_2", "채팅방 참여자를 찾을 수 없습니다."),
+    CHAT_ROOM_DELETE_FAILED(409, "CHAT_409_1", "채팅방 삭제에 실패했습니다."),
 
     // Wallet
     INVALID_FILTER(400, "WALLET_400_1", "유효하지 않은 필터입니다."),

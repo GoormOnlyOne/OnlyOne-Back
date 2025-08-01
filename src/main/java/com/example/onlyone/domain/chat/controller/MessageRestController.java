@@ -41,7 +41,7 @@ public class MessageRestController {
     @DeleteMapping("/messages/{messageId}/delete")
     public ResponseEntity<Void> deleteMessage(
             @PathVariable Long messageId,
-            @RequestHeader("X-USER-ID") Long userId
+            @RequestHeader("X-USER-ID") Long userId //로그인 구현되면 추후 수정
     ) {
         messageService.deleteMessage(messageId, userId);
         return ResponseEntity.noContent().build();
