@@ -114,7 +114,9 @@ public class FeedService {
 
         boolean isMine = feed.getUser().getUserId().equals(currentUserId);
 
-        List<FeedCommentResponseDto> commentResponseDtos = FeedCommentResponseDto.from(feed, currentUserId);
+        List<FeedCommentResponseDto> commentResponseDtos = feed.getFeedComments().stream()
+                .map(comment -> FeedCommentResponseDto.from(comment, currentUserId))
+                .collect(Collectors.toList());
 
         return FeedDetailResponseDto.from(feed, imageUrls, isLiked, isMine, commentResponseDtos);
     }
