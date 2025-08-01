@@ -44,7 +44,7 @@ public interface NotificationRepository extends JpaRepository<Notification, Long
      * 사용 시나리오: - 앱 실행 시 최신 알림 목록 로드 - 알림 화면 진입 시 초기 데이터 표시
      */
     @Query("""
-        SELECT new com.example.onlyone.domain.notification.dto.NotificationListItem(
+        SELECT new com.example.onlyone.domain.notification.dto.requestDto.NotificationListItem(
             n.notificationId, 
             n.content, 
             n.notificationType.type, 
@@ -72,7 +72,7 @@ public interface NotificationRepository extends JpaRepository<Notification, Long
      * 사용 시나리오: - 무한 스크롤 구현 - "더보기" 버튼 클릭 시 추가 데이터 로드
      */
     @Query("""
-        SELECT new com.example.onlyone.domain.notification.dto.NotificationListItem(
+        SELECT new com.example.onlyone.domain.notification.dto.requestDto.NotificationListItem(
             n.notificationId, 
             n.content, 
             n.notificationType.type, 
