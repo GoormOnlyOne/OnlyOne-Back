@@ -78,7 +78,11 @@ public enum ErrorCode {
     // Chat - 메시지 삭제
     MESSAGE_FORBIDDEN(403, "CHAT_403_2", "해당 메시지 삭제 권한이 없습니다."),
     MESSAGE_CONFLICT(409, "CHAT_409_1", "메시지 삭제 중 충돌이 발생했습니다."),
-    MESSAGE_DELETE_ERROR(500, "CHAT_500_3", "메시지 삭제 중 서버 오류가 발생했습니다.");
+    MESSAGE_DELETE_ERROR(500, "CHAT_500_3", "메시지 삭제 중 서버 오류가 발생했습니다."),
+
+    // Feed
+    FEED_NOT_FOUND(404, "FEED_404_1","피드를 찾을 수 없습니다."),
+    UNAUTHORIZED_FEED_ACCESS(403, "FEED_403_1", "이 피드에 대한 권한이 없습니다.");
 
     private final int status;
     private final String code;
