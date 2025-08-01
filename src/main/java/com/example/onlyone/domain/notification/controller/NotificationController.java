@@ -1,6 +1,8 @@
 package com.example.onlyone.domain.notification.controller;
 
-import com.example.onlyone.domain.notification.dto.*;
+import com.example.onlyone.domain.notification.dto.requestDto.NotificationCreateRequestDto;
+import com.example.onlyone.domain.notification.dto.responseDto.NotificationCreateResponseDto;
+import com.example.onlyone.domain.notification.dto.responseDto.NotificationListResponseDto;
 import com.example.onlyone.domain.notification.service.NotificationService;
 import com.example.onlyone.global.common.CommonResponse;
 import io.swagger.v3.oas.annotations.Operation;
