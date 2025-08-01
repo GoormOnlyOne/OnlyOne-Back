@@ -3,14 +3,14 @@ package com.example.onlyone.domain.feed.entity;
 import com.example.onlyone.global.BaseTimeEntity;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.NotNull;
-import lombok.Getter;
-import lombok.NoArgsConstructor;
-import lombok.Setter;
+import lombok.*;
 
 @Entity
 @Table(name = "feed_image")
 @Getter
 @NoArgsConstructor
+@Builder
+@AllArgsConstructor
 public class FeedImage extends BaseTimeEntity {
 
     @Id
