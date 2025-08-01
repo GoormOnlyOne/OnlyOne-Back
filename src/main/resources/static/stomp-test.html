@@ -72,7 +72,7 @@
         if (!text) return;
 
         const payload = {
-            user_id: userId,
+            userId: userId,  // ✅ camelCase로 수정
             text: text
         };
 
@@ -81,11 +81,11 @@
     }
 
     function deleteMessage(messageId) {
-        fetch(`http://localhost:8080/chat/messages/${messageId}/delete`, {
+        fetch(`http://localhost:8080/chat/messages/${messageId}`, { // ✅ RESTful URI
             method: 'DELETE',
             headers: {
                 'Content-Type': 'application/json',
-                'X-USER-ID': userId  // 필수: 서버가 헤더에서 userId를 요구함
+                'X-USER-ID': userId
             }
         })
             .then(response => {
@@ -104,7 +104,6 @@
             });
     }
 
-    // 메시지 클릭 시 삭제 확인
     function setupMessageClickHandler() {
         document.getElementById('messages').addEventListener('click', function (e) {
             if (e.target.classList.contains('message')) {

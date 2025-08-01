@@ -38,7 +38,7 @@ public class MessageRestController {
     }
 
     @Operation(summary = "채팅 메시지 삭제")
-    @DeleteMapping("/messages/{messageId}/delete")
+    @DeleteMapping("/messages/{messageId}")
     public ResponseEntity<Void> deleteMessage(
             @PathVariable Long messageId,
             @RequestHeader("X-USER-ID") Long userId //로그인 구현되면 추후 수정
@@ -46,5 +46,17 @@ public class MessageRestController {
         messageService.deleteMessage(messageId, userId);
         return ResponseEntity.noContent().build();
     }
+
+    /* 로그인 구현 후 수정 예정
+    @DeleteMapping("/messages/{messageId}")
+    public ResponseEntity<Void> deleteMessage(
+            @PathVariable Long messageId,
+            @AuthenticationPrincipal UserDetails userDetails // 인증 구현 시
+    ) {
+        Long userId = getUserId(userDetails);
+        messageService.deleteMessage(messageId, userId);
+        return ResponseEntity.noContent().build();
+    }
+    * */
 
 }
