@@ -1,6 +1,7 @@
 package com.example.onlyone.domain.feed.dto.response;
 
 import com.example.onlyone.domain.feed.entity.Feed;
+import com.example.onlyone.domain.feed.entity.FeedComment;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
@@ -21,17 +22,15 @@ public class FeedCommentResponseDto {
     private LocalDateTime createdAt;
     private boolean isCommentMine;
 
-    public static List<FeedCommentResponseDto> from(Feed feed, Long userId) {
-        return feed.getFeedComments().stream()
-                .map(comment -> FeedCommentResponseDto.builder()
-                        .commentId(comment.getFeedCommentId())
-                        .userId(comment.getUser().getUserId())
-                        .nickname(comment.getUser().getNickname())
-                        .profileImage(comment.getUser().getProfileImage())
-                        .content(comment.getContent())
-                        .createdAt(comment.getCreatedAt())
-                        .isCommentMine(comment.getUser().getUserId().equals(userId))
-                        .build())
-                .collect(Collectors.toList());
+    public static FeedCommentResponseDto from(FeedComment comment, Long userId) {
+        return FeedCommentResponseDto.builder()
+                .commentId(comment.getFeedCommentId())
+                .userId(comment.getUser().getUserId())
+                .nickname(comment.getUser().getNickname())
+                .profileImage(comment.getUser().getProfileImage())
+                .content(comment.getContent())
+                .createdAt(comment.getCreatedAt())
+                .isCommentMine(comment.getUser().getUserId().equals(userId))
+                .build();
     }
 }
