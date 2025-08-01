@@ -19,6 +19,6 @@ public class OnlyoneApplication {
 
     public static void main(String[] args) {
         SpringApplication.run(OnlyoneApplication.class, args);
-    }
 
+    }
 }

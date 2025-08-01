@@ -7,6 +7,7 @@ import com.example.onlyone.domain.user.service.UserService;
 import com.example.onlyone.global.exception.CustomException;
 import com.example.onlyone.global.exception.ErrorCode;
 import lombok.RequiredArgsConstructor;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -26,26 +27,29 @@ public class ChatRoomService {
     public void deleteChatRoom(Long chatRoomId, Long clubId) {
         ChatRoom chatRoom = chatRoomRepository.findByChatRoomIdAndClubClubId(chatRoomId, clubId)
                 .orElseThrow(() -> new CustomException(ErrorCode.CHAT_ROOM_NOT_FOUND));
-        chatRoomRepository.delete(chatRoom);
+        try {
+            chatRoomRepository.delete(chatRoom);
+        } catch (DataIntegrityViolationException e) {
+            throw new CustomException(ErrorCode.CHAT_ROOM_DELETE_FAILED);
+        }
     }
 
 
     // 유저가 특정 모임(club)의 어떤 채팅방들에 참여하고 있는지 조회
     public List<ChatRoomResponse> getChatRoomsUserJoinedInClub(Long clubId) {
-        try {
-            Long userId = userService.getCurrentUser().getUserId();
-            return chatRoomRepository.findChatRoomsByUserIdAndClubId(userId, clubId).stream()
-                    .map(ChatRoomResponse::from)
-                    .collect(Collectors.toList());
-        } catch (Exception e) {
-            throw new CustomException(ErrorCode.INTERNAL_CHAT_SERVER_ERROR);
-        }
+        Long userId = userService.getCurrentUser().getUserId();
+        return chatRoomRepository.findChatRoomsByUserIdAndClubId(userId, clubId).stream()
+                .map(ChatRoomResponse::from)
+                .collect(Collectors.toList());
     }
 
+
     //채팅방 단건 조회
-    public ChatRoomResponse getById(Long chatRoomId) {
-        ChatRoom chatRoom = chatRoomRepository.findById(chatRoomId)
+    // 채팅방 단건 조회 (클럽 ID 검증 포함)
+    public ChatRoomResponse getById(Long chatRoomId, Long clubId) {
+        ChatRoom chatRoom = chatRoomRepository.findByChatRoomIdAndClubClubId(chatRoomId, clubId)
                 .orElseThrow(() -> new CustomException(ErrorCode.CHAT_ROOM_NOT_FOUND));
         return ChatRoomResponse.from(chatRoom);
     }
+
 }
