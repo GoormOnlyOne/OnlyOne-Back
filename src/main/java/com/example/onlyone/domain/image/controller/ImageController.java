@@ -28,7 +28,8 @@ public class ImageController {
         String presignedUrl = imageService.generatePresignedUrl(
                 imageFolderType,
                 request.getFileName(),
-                request.getContentType()
+                request.getContentType(),
+                request.getImageSize()
         );
 
         ImageFolderType type = imageService.validateImageFolderType(imageFolderType);
@@ -37,7 +38,6 @@ public class ImageController {
 
         PresignedUrlResponseDto response = new PresignedUrlResponseDto(
                 presignedUrl,
-                fileName,
                 imageUrl
         );
 
