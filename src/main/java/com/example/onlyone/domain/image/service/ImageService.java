@@ -1,5 +1,6 @@
 package com.example.onlyone.domain.image.service;
 
+import com.example.onlyone.domain.image.dto.response.PresignedUrlResponseDto;
 import com.example.onlyone.domain.image.entity.ImageFolderType;
 import com.example.onlyone.global.exception.CustomException;
 import com.example.onlyone.global.exception.ErrorCode;
@@ -30,7 +31,7 @@ public class ImageService {
 
     private static final long MAX_IMAGE_SIZE = 5 * 1024 * 1024; // 5MB
 
-    public String generatePresignedUrl(String imageFolderTypeStr, String originalFileName, String contentType, Long imageSize) {
+    public PresignedUrlResponseDto generatePresignedUrlWithImageUrl(String imageFolderTypeStr, String originalFileName, String contentType, Long imageSize) {
         // 이미지 타입 검증
         ImageFolderType imageFolderType = validateImageFolderType(imageFolderTypeStr);
 
@@ -54,14 +55,13 @@ public class ImageService {
                 .putObjectRequest(putObjectRequest)
                 .build();
 
-        try {
-            PresignedPutObjectRequest presignedRequest = s3Presigner.presignPutObject(presignRequest);
-            log.info("Generated presigned URL for file: {}", key);
-            return presignedRequest.url().toString();
-        } catch (Exception e) {
-            log.error("Failed to generate presigned URL for file: {}", key, e);
-            throw new CustomException(ErrorCode.IMAGE_UPLOAD_FAILED);
-        }
+        PresignedPutObjectRequest presignedRequest = s3Presigner.presignPutObject(presignRequest);
+        log.info("Generated presigned URL for file: {}", key);
+        
+        String presignedUrl = presignedRequest.url().toString();
+        String imageUrl = getImageUrl(imageFolderType, fileName);
+        
+        return new PresignedUrlResponseDto(presignedUrl, imageUrl);
     }
 
     public String getImageUrl(ImageFolderType imageFolderType, String fileName) {
@@ -69,10 +69,6 @@ public class ImageService {
                 cloudfrontDomain, imageFolderType.getFolder(), fileName);
     }
 
-    public String extractFileNameFromPresignedUrl(String presignedUrl) {
-        String[] parts = presignedUrl.split("\\?")[0].split("/");
-        return parts[parts.length - 1];
-    }
 
     private String generateFileName(String originalFileName) {
         String extension = getFileExtension(originalFileName);

@@ -25,20 +25,11 @@ public class ImageController {
             @PathVariable String imageFolderType,
             @Valid @RequestBody PresignedUrlRequestDto request) {
 
-        String presignedUrl = imageService.generatePresignedUrl(
+        PresignedUrlResponseDto response = imageService.generatePresignedUrlWithImageUrl(
                 imageFolderType,
                 request.getFileName(),
                 request.getContentType(),
                 request.getImageSize()
-        );
-
-        ImageFolderType type = imageService.validateImageFolderType(imageFolderType);
-        String fileName = imageService.extractFileNameFromPresignedUrl(presignedUrl);
-        String imageUrl = imageService.getImageUrl(type, fileName);
-
-        PresignedUrlResponseDto response = new PresignedUrlResponseDto(
-                presignedUrl,
-                imageUrl
         );
 
         return ResponseEntity.ok(CommonResponse.success(response));
