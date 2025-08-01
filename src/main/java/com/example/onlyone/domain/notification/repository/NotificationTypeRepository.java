@@ -14,8 +14,6 @@ public interface NotificationTypeRepository extends JpaRepository<NotificationTy
    * 알림 타입으로 NotificationType 조회
    *
    * 알림 생성 시 타입에 해당하는 템플릿 정보를 조회하는 핵심 메서드입니다.
-   * 각 알림 타입별로 고유한 템플릿이 존재하므로 반드시 존재해야 하지만,
-   * 데이터 정합성을 위해 Optional로 반환합니다.
    *
    * 사용 시나리오:
    * 1. 채팅 메시지 알림 생성 시 CHAT 타입 조회
