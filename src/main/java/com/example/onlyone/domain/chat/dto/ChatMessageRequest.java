@@ -20,4 +20,7 @@ public class ChatMessageRequest {
 
     @Schema(description = "메시지 내용", example = "안녕하세요!")
     private String text;
+
+    @Schema(description = "메시지 이미지")
+    private String imageUrl;
 }
