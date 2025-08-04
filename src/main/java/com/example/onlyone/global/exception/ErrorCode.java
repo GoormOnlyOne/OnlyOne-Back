@@ -60,8 +60,9 @@ public enum ErrorCode {
     WALLET_BALANCE_NOT_ENOUGH(409, "WALLET_409_1", "사용자의 잔액이 부족합니다."),
 
     // Payment
-    INVALID_PAYMENT_INFO(400, "PAYMENT_400_1", "결제 금액 정보가 유효하지 않습니다."),
-  
+    INVALID_PAYMENT_INFO(400, "PAYMENT_400_1", "결제 정보가 유효하지 않습니다."),
+    TOSS_PAYMENT_FAILED(502, "PAYMENT_502_1", "토스페이먼츠 결제 승인에 실패했습니다."),
+
     // Chat - 채팅방 목록 조회
     UNAUTHORIZED_CHAT_ACCESS(401, "CHAT_401_1", "채팅방 접근 권한이 없습니다."),
     INTERNAL_CHAT_SERVER_ERROR(500, "CHAT_500_1", "채팅 서버 오류가 발생했습니다."),
@@ -82,7 +83,9 @@ public enum ErrorCode {
 
     // Feed
     FEED_NOT_FOUND(404, "FEED_404_1","피드를 찾을 수 없습니다."),
-    UNAUTHORIZED_FEED_ACCESS(403, "FEED_403_1", "이 피드에 대한 권한이 없습니다.");
+    UNAUTHORIZED_FEED_ACCESS(403, "FEED_403_1", "이 피드에 대한 권한이 없습니다.")
+
+    ;
 
     private final int status;
     private final String code;

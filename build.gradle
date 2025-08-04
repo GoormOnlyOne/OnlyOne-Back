@@ -49,10 +49,9 @@ dependencies {
     implementation 'io.jsonwebtoken:jjwt-api:0.12.4'
     runtimeOnly 'io.jsonwebtoken:jjwt-impl:0.12.4'
     runtimeOnly 'io.jsonwebtoken:jjwt-jackson:0.12.4'
-    //redis
-    implementation 'org.springframework.boot:spring-boot-starter-data-redis'
     // OpenFeign
     implementation 'org.springframework.cloud:spring-cloud-starter-openfeign'
+    implementation 'io.github.openfeign:feign-jackson'
     //websocket
     implementation 'org.springframework.boot:spring-boot-starter-websocket'
     implementation 'org.springframework.boot:spring-boot-starter-actuator'
