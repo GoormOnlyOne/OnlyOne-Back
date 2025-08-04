@@ -16,7 +16,6 @@ import lombok.Setter;
 public class ChatMessageRequest {
 
     @Schema(description = "보내는 사용자 ID", example = "1")
-    @JsonProperty("user_id")
     private Long userId;
 
     @Schema(description = "메시지 내용", example = "안녕하세요!")
