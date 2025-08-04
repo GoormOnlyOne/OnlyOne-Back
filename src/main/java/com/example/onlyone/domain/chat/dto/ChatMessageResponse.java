@@ -5,8 +5,7 @@ import com.fasterxml.jackson.annotation.JsonFormat;
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.*;
 import java.time.LocalDateTime;
-
-// ‘서버 → 클라이언트’ STOMP Subscribe 응답 페이로드
+import com.example.onlyone.global.common.util.MessageUtils;
 
 @Getter
 @Builder
@@ -44,13 +43,13 @@ public class ChatMessageResponse {
     private boolean deleted;
 
     public static ChatMessageResponse from(Message message) {
-        String text = message.getText();
+        String rawText = message.getText();
+        String text = rawText;
         String imageUrl = null;
 
-        // 메시지가 "[IMAGE]..." 형태라면 이미지 URL 추출
-        if (text != null && text.startsWith("[IMAGE]")) {
-            imageUrl = text.substring(7); // "[IMAGE]" 이후가 실제 URL
-            text = null; // 텍스트는 없음
+        if (MessageUtils.isImageMessage(rawText)) {
+            imageUrl = rawText.substring(MessageUtils.IMAGE_PREFIX.length());
+            text = null; // 텍스트 메시지 없음
         }
 
         return ChatMessageResponse.builder()
@@ -65,5 +64,4 @@ public class ChatMessageResponse {
                 .deleted(message.isDeleted())
                 .build();
     }
-
 }
