@@ -24,12 +24,5 @@ public class ChatRoomRestController {
         List<ChatRoomResponse> response = chatRoomService.getChatRoomsUserJoinedInClub(clubId);
         return ResponseEntity.ok(CommonResponse.success(response));
     }
-
-    @Operation(summary = "채팅방 단건 상세 조회")
-    @GetMapping("/{chatRoomId}")
-    public ResponseEntity<CommonResponse<ChatRoomResponse>> getChatRoom(@PathVariable Long clubId, @PathVariable Long chatRoomId) {
-        ChatRoomResponse response = chatRoomService.getById(chatRoomId, clubId); // clubId 포함 검증
-        return ResponseEntity.ok(CommonResponse.success(response));
-    }
 }
 
