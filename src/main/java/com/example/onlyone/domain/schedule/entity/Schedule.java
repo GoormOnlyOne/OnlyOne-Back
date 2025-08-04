@@ -4,16 +4,16 @@ import com.example.onlyone.domain.club.entity.Club;
 import com.example.onlyone.global.BaseTimeEntity;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.NotNull;
-import lombok.Getter;
-import lombok.NoArgsConstructor;
-import lombok.Setter;
+import lombok.*;
+
 import java.time.*;
 
 @Entity
 @Table(name = "schedule")
 @Getter
-@Setter
-@NoArgsConstructor
+@Builder
+@NoArgsConstructor(access = AccessLevel.PROTECTED)
+@AllArgsConstructor
 public class Schedule extends BaseTimeEntity {
 
     @Id
@@ -37,10 +37,14 @@ public class Schedule extends BaseTimeEntity {
     @NotNull
     private int cost;
 
+    @Column(name = "user_limit")
+    @NotNull
+    private int userLimit;
+
     @Column(name = "status")
     @NotNull
     @Enumerated(EnumType.STRING)
-    private Status status;
+    private ScheduleStatus scheduleStatus;
 
     @Column(name = "schedule_limit")
     @NotNull
@@ -50,4 +54,16 @@ public class Schedule extends BaseTimeEntity {
     @JoinColumn(name = "club_id")
     @NotNull
     private Club club;
+
+    public void update(String name, String location, int cost, int userLimit, LocalDateTime scheduleTime) {
+        this.name = name;
+        this.location = location;
+        this.cost = cost;
+        this.userLimit = userLimit;
+        this.scheduleTime = scheduleTime;
+    }
+
+    public void updateStatus(ScheduleStatus scheduleStatus) {
+        this.scheduleStatus = scheduleStatus;
+    }
 }
