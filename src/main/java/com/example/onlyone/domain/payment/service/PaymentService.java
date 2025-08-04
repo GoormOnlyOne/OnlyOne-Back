@@ -18,6 +18,7 @@ import com.example.onlyone.domain.wallet.repository.WalletTransactionRepository;
 import com.example.onlyone.global.exception.CustomException;
 import com.example.onlyone.global.exception.ErrorCode;
 import com.example.onlyone.global.feign.*;
+import feign.FeignException;
 import jakarta.servlet.http.HttpSession;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -65,8 +66,12 @@ public class PaymentService {
         try {
             // tossPaymentClient를 통해 호출
             response = tossPaymentClient.confirmPayment(req);
-        } catch (Exception e) {
+        } catch (FeignException.BadRequest e) {
+            throw new CustomException(ErrorCode.INVALID_PAYMENT_INFO);
+        } catch (FeignException e) {
             throw new CustomException(ErrorCode.TOSS_PAYMENT_FAILED);
+        } catch (Exception e) {
+            throw new CustomException(ErrorCode.INTERNAL_SERVER_ERROR);
         }
         User user = userService.getCurrentUser();
         Wallet wallet = walletRepository.findByUser(user)
