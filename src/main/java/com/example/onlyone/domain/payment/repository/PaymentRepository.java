@@ -4,5 +4,9 @@ import com.example.onlyone.domain.payment.entity.Payment;
 import com.example.onlyone.domain.schedule.entity.UserSchedule;
 import org.springframework.data.jpa.repository.JpaRepository;
 
-public interface PaymentRepository extends JpaRepository<Payment,Long> {
+import java.util.Optional;
+
+public interface PaymentRepository extends JpaRepository<Payment, Long> {
+    Optional<Payment> findByTossOrderId(String tossOrderId);
+    Optional<Payment> findByTossPaymentKey(String tossPaymentKey);
 }
