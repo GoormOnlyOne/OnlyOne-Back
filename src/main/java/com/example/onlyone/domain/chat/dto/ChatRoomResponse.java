@@ -7,8 +7,8 @@ import com.fasterxml.jackson.annotation.JsonFormat;
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.Builder;
 import lombok.Getter;
-
 import java.time.LocalDateTime;
+import com.example.onlyone.global.common.util.MessageUtils;
 
 @Getter
 @Builder
@@ -38,10 +38,7 @@ public class ChatRoomResponse {
         String messageText = null;
 
         if (lastMessage != null && !lastMessage.isDeleted()) {
-            String rawText = lastMessage.getText();
-            if (rawText != null) {
-                messageText = rawText.startsWith("[IMAGE]") ? "사진을 보냈습니다." : rawText;
-            }
+            messageText = MessageUtils.getDisplayText(lastMessage.getText());
         }
 
         return ChatRoomResponse.builder()

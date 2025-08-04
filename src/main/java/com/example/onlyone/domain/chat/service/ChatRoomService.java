@@ -12,9 +12,9 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-
-import java.util.Collections;
 import java.util.List;
+import java.util.Map;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 @Service
@@ -41,24 +41,24 @@ public class ChatRoomService {
 
     // 유저가 특정 모임(club)의 어떤 채팅방들에 참여하고 있는지 조회
     public List<ChatRoomResponse> getChatRoomsUserJoinedInClub(Long clubId) {
-        if (clubId == null) {
-            throw new CustomException(ErrorCode.CLUB_NOT_FOUND);
-        }
-
         Long userId = userService.getCurrentUser().getUserId();
 
         List<ChatRoom> chatRooms = chatRoomRepository.findChatRoomsByUserIdAndClubId(userId, clubId);
+        List<Long> chatRoomIds = chatRooms.stream()
+                .map(ChatRoom::getChatRoomId)
+                .toList();
 
-        if (chatRooms == null || chatRooms.isEmpty()) {
-            return Collections.emptyList();
-        }
+        // 마지막 메시지를 한 번에 조회
+        List<Message> lastMessages = messageRepository.findLastMessagesByChatRoomIds(chatRoomIds);
+        Map<Long, Message> lastMessageMap = lastMessages.stream()
+                .collect(Collectors.toMap(
+                        m -> m.getChatRoom().getChatRoomId(),
+                        Function.identity()
+                ));
 
         return chatRooms.stream()
                 .map(chatRoom -> {
-                    Message lastMessage = messageRepository
-                            .findTopByChatRoomChatRoomIdAndDeletedFalseOrderBySentAtDesc(chatRoom.getChatRoomId())
-                            .orElse(null);
-
+                    Message lastMessage = lastMessageMap.get(chatRoom.getChatRoomId());
                     return ChatRoomResponse.from(chatRoom, lastMessage);
                 })
                 .collect(Collectors.toList());
