@@ -36,6 +36,9 @@ public class MessageService {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new CustomException(ErrorCode.USER_NOT_FOUND));
 
+        // 이미지 메시지 여부 체크 (예: "[IMAGE]https://...")
+        boolean isImage = text != null && text.startsWith("[IMAGE]");
+
         Message message = Message.builder()
                 .chatRoom(chatRoom)
                 .user(user)

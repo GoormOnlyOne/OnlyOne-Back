@@ -33,6 +33,9 @@ public class ChatMessageResponse {
     @Schema(description = "메시지 내용", example = "안녕하세요!")
     private String text;
 
+    @Schema(description = "메시지 첨부 이미지")
+    private String imageUrl;
+
     @Schema(description = "전송 시각", example = "2025-07-29T11:00:00")
     @JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm:ss")
     private LocalDateTime sentAt;
@@ -41,15 +44,26 @@ public class ChatMessageResponse {
     private boolean deleted;
 
     public static ChatMessageResponse from(Message message) {
+        String text = message.getText();
+        String imageUrl = null;
+
+        // 메시지가 "[IMAGE]..." 형태라면 이미지 URL 추출
+        if (text != null && text.startsWith("[IMAGE]")) {
+            imageUrl = text.substring(7); // "[IMAGE]" 이후가 실제 URL
+            text = null; // 텍스트는 없음
+        }
+
         return ChatMessageResponse.builder()
                 .messageId(message.getMessageId())
                 .chatRoomId(message.getChatRoom().getChatRoomId())
                 .senderId(message.getUser().getUserId())
                 .senderNickname(message.getUser().getNickname())
                 .profileImage(message.getUser().getProfileImage())
-                .text(message.getText())
+                .text(text)
+                .imageUrl(imageUrl)
                 .sentAt(message.getSentAt())
                 .deleted(message.isDeleted())
                 .build();
     }
+
 }
