@@ -26,6 +26,7 @@ import lombok.extern.log4j.Log4j2;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
@@ -36,7 +37,6 @@ import java.util.concurrent.ConcurrentHashMap;
 @RequiredArgsConstructor
 public class PaymentService {
     private final TossPaymentClient tossPaymentClient;
-    private final Set<String> processingPayments = ConcurrentHashMap.newKeySet();
     private final WalletTransactionRepository walletTransactionRepository;
     private final UserService userService;
     private final WalletRepository walletRepository;
@@ -62,6 +62,11 @@ public class PaymentService {
 
     /* 토스페이먼츠 결제 승인 */
     public ConfirmTossPayResponse confirm(ConfirmTossPayRequest req) {
+        // 멱등성 체크: 이미 처리된 주문인지 확인
+        Optional<Payment> existingPayment = paymentRepository.findByTossOrderId(req.getOrderId());
+        if (existingPayment.isPresent()) {
+            throw new CustomException(ErrorCode. ALREADY_COMPLETED_PAYMENT);
+        }
         ConfirmTossPayResponse response;
         try {
             // tossPaymentClient를 통해 호출
