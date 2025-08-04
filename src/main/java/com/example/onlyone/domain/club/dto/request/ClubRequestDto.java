@@ -8,7 +8,7 @@ import jakarta.validation.constraints.Size;
 import lombok.Getter;
 
 @Getter
-public class ClubCreateRequestDto {
+public class ClubRequestDto {
     @NotBlank
     @Size(max = 20, message = "모임명은 20자 이내여야 합니다.")
     private String name;

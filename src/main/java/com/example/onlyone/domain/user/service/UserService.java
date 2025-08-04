@@ -15,11 +15,16 @@ public class UserService {
     // 개발 진행을 위한 임시 메서드
     public User getCurrentUser(){
         return userRepository.findById((long) 1)
-                .orElseThrow(() -> new CustomException(ErrorCode.MEMBER_NOT_FOUND));
+                .orElseThrow(() -> new CustomException(ErrorCode.USER_NOT_FOUND));
+    }
+
+    public User getAnotherUser(){
+        return userRepository.findById((long) 4)
+                .orElseThrow(() -> new CustomException(ErrorCode.USER_NOT_FOUND));
     }
 
     public User getMemberById(Long memberId){
         return userRepository.findById(memberId)
-                .orElseThrow(() -> new CustomException(ErrorCode.MEMBER_NOT_FOUND));
+                .orElseThrow(() -> new CustomException(ErrorCode.USER_NOT_FOUND));
     }
 }

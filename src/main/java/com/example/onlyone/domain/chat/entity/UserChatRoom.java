@@ -4,15 +4,14 @@ import com.example.onlyone.domain.user.entity.User;
 import com.example.onlyone.global.BaseTimeEntity;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.NotNull;
-import lombok.Getter;
-import lombok.NoArgsConstructor;
-import lombok.Setter;
+import lombok.*;
 
 @Entity
 @Table(name = "user_chat_room")
 @Getter
-@Setter
-@NoArgsConstructor
+@Builder
+@NoArgsConstructor(access = AccessLevel.PROTECTED)
+@AllArgsConstructor
 public class UserChatRoom extends BaseTimeEntity {
 
     @Id
@@ -21,8 +20,7 @@ public class UserChatRoom extends BaseTimeEntity {
     private Long userChatRoomId;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "chat_room_id")
-    @NotNull
+    @JoinColumn(name = "chat_room_id", updatable = false)
     private ChatRoom chatRoom;
 
     @ManyToOne(fetch = FetchType.LAZY)
@@ -33,5 +31,5 @@ public class UserChatRoom extends BaseTimeEntity {
     @Column(name = "role")
     @NotNull
     @Enumerated(EnumType.STRING)
-    private Role role;
+    private ChatRole chatRole;
 }
