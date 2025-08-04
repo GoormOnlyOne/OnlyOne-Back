@@ -1,13 +1,9 @@
 package com.example.onlyone.global.feign;
 
-import com.example.onlyone.domain.payment.dto.request.CancelTossPayRequest;
-import com.example.onlyone.domain.payment.dto.response.CancelTossPayResponse;
 import com.example.onlyone.domain.payment.dto.request.ConfirmTossPayRequest;
 import com.example.onlyone.domain.payment.dto.response.ConfirmTossPayResponse;
-import feign.FeignException;
 import org.springframework.cloud.openfeign.FeignClient;
 import org.springframework.http.MediaType;
-import org.springframework.retry.annotation.Retryable;
 import org.springframework.web.bind.annotation.*;
 import com.example.onlyone.global.config.TossFeignConfig;
 

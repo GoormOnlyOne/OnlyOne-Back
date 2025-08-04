@@ -1,7 +1,5 @@
 package com.example.onlyone.domain.payment.service;
 
-import com.example.onlyone.domain.payment.dto.request.CancelTossPayRequest;
-import com.example.onlyone.domain.payment.dto.response.CancelTossPayResponse;
 import com.example.onlyone.domain.payment.dto.request.ConfirmTossPayRequest;
 import com.example.onlyone.domain.payment.dto.response.ConfirmTossPayResponse;
 import com.example.onlyone.domain.payment.dto.request.SavePaymentRequestDto;
