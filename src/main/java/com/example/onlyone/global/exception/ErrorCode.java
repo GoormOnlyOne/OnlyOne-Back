@@ -85,7 +85,10 @@ public enum ErrorCode {
 
     // Feed
     FEED_NOT_FOUND(404, "FEED_404_1","피드를 찾을 수 없습니다."),
-    UNAUTHORIZED_FEED_ACCESS(403, "FEED_403_1", "이 피드에 대한 권한이 없습니다."),
+
+    UNAUTHORIZED_FEED_ACCESS(403, "FEED_403_1", "해당 피드에 대한 권한이 없습니다."),
+    COMMENT_NOT_FOUND(404, "FEED_404_2", "댓글을 찾을 수 없습니다."),
+    UNAUTHORIZED_COMMENT_ACCESS(403, "FEED_403_2", "해당 댓글에 대한 권한이 없습니다."),
 
     // Image
     INVALID_IMAGE_FOLDER_TYPE(400, "IMAGE_400_1", "유효하지 않은 이미지 폴더 타입입니다."),
