@@ -78,7 +78,7 @@ public class PaymentService {
         WalletTransaction walletTransaction = WalletTransaction.builder()
                 .type(Type.CHARGE)
                 .amount(amount)
-                .balance(wallet.getBalance() + amount)
+                .balance(wallet.getBalance())
                 .walletTransactionStatus(WalletTransactionStatus.COMPLETED)
                 .wallet(wallet)
                 .targetWallet(wallet)
