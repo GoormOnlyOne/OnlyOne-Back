@@ -32,6 +32,7 @@ public enum ErrorCode {
     // Notification
     NOTIFICATION_TYPE_NOT_FOUND(404, "NOTIFY_404_1", "알림 타입을 찾을 수 없습니다."),
     NOTIFICATION_NOT_FOUND(404, "NOTIFY_404_2", "알림이 존재하지 않습니다."),
+    SSE_CONNECTION_FAILED(503, "NOTIFY_503_1", "SSE 연결에 실패했습니다."),
 
     // Schedule
     SCHEDULE_NOT_FOUND(404, "SCHEDULE_404_1", "정기 모임을 찾을 수 없습니다."),
@@ -75,17 +76,23 @@ public enum ErrorCode {
     FORBIDDEN_CHAT_ROOM(403, "CHAT_403_1", "해당 채팅방 접근이 거부되었습니다."),
     MESSAGE_BAD_REQUEST(400, "CHAT_400_2", "채팅 메시지 요청이 유효하지 않습니다."),
     MESSAGE_SERVER_ERROR(500, "CHAT_500_2", "메시지 조회 중 오류가 발생했습니다."),
+    MESSAGE_NOT_FOUND(404, "CHAT_404_3", "메시지를 찾을 수 없습니다."),
 
     // Chat - 메시지 삭제
     MESSAGE_FORBIDDEN(403, "CHAT_403_2", "해당 메시지 삭제 권한이 없습니다."),
-    MESSAGE_CONFLICT(409, "CHAT_409_1", "메시지 삭제 중 충돌이 발생했습니다."),
+    MESSAGE_CONFLICT(409, "CHAT_409_3", "메시지 삭제 중 충돌이 발생했습니다."),
     MESSAGE_DELETE_ERROR(500, "CHAT_500_3", "메시지 삭제 중 서버 오류가 발생했습니다."),
 
     // Feed
     FEED_NOT_FOUND(404, "FEED_404_1","피드를 찾을 수 없습니다."),
-    UNAUTHORIZED_FEED_ACCESS(403, "FEED_403_1", "이 피드에 대한 권한이 없습니다.")
+    UNAUTHORIZED_FEED_ACCESS(403, "FEED_403_1", "이 피드에 대한 권한이 없습니다."),
 
-    ;
+    // Image
+    INVALID_IMAGE_FOLDER_TYPE(400, "IMAGE_400_1", "유효하지 않은 이미지 폴더 타입입니다."),
+    INVALID_IMAGE_CONTENT_TYPE(400, "IMAGE_400_2", "유효하지 않은 이미지 컨텐츠 타입입니다."),
+    INVALID_IMAGE_SIZE(400, "IMAGE_400_3", "유효하지 않은 이미지 크기입니다."),
+    IMAGE_SIZE_EXCEEDED(413, "IMAGE_413_1", "이미지 크기가 허용된 최대 크기(5MB) 크기를 초과했니다."),
+    IMAGE_UPLOAD_FAILED(500, "IMAGE_500_1", "이미지 업로드 중 오류가 발생했습니다.");
 
     private final int status;
     private final String code;

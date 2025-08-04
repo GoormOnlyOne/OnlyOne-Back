@@ -18,6 +18,7 @@ public interface ChatRoomRepository extends JpaRepository<ChatRoom,Long> {
     SELECT ucr.chatRoom
     FROM UserChatRoom ucr
     WHERE ucr.user.userId = :userId AND ucr.chatRoom.club.clubId = :clubId
+    ORDER BY ucr.chatRoom.createdAt DESC
     """)
     List<ChatRoom> findChatRoomsByUserIdAndClubId(@Param("userId") Long userId, @Param("clubId") Long clubId);
 
