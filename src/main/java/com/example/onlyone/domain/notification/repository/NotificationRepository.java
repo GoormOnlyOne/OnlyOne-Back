@@ -55,7 +55,7 @@ public interface NotificationRepository extends JpaRepository<Notification, Long
         WHERE n.user.userId = :userId
         ORDER BY n.notificationId DESC
         """)
-    List<NotificationListItem> findTopByUser(
+    List<NotificationListItem> findByUserIdOrderByNotificationIdDesc(
         @Param("userId") Long userId,
         Pageable pageable);
 
@@ -88,6 +88,8 @@ public interface NotificationRepository extends JpaRepository<Notification, Long
         @Param("userId") Long userId,
         @Param("cursor") Long cursor,
         Pageable pageable);
+
+  List<Notification> findByUser_UserIdAndFcmSentFalse(Long userId);
 }
 
 
