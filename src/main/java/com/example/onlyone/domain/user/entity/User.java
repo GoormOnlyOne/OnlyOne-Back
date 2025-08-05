@@ -4,15 +4,16 @@ import com.example.onlyone.global.BaseTimeEntity;
 import com.fasterxml.jackson.databind.ser.Serializers;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.NotNull;
-import lombok.Getter;
-import lombok.NoArgsConstructor;
-import lombok.Setter;
+import lombok.*;
+
 import java.time.*;
 
 @Entity
 @Table(name = "user")
 @Getter
+@Builder
 @NoArgsConstructor
+@AllArgsConstructor
 public class User extends BaseTimeEntity {
 
     @Id
@@ -25,11 +26,9 @@ public class User extends BaseTimeEntity {
     private Long kakaoId;
 
     @Column(name = "nickname")
-    @NotNull
     private String nickname;
 
     @Column(name = "birth")
-    @NotNull
     private LocalDate birth;
 
     @Column(name = "status")
@@ -41,7 +40,6 @@ public class User extends BaseTimeEntity {
     private String profileImage;
 
     @Column(name = "gender")
-    @NotNull
     @Enumerated(EnumType.STRING)
     private Gender gender;
 
@@ -50,4 +48,7 @@ public class User extends BaseTimeEntity {
 
     @Column(name = "fcm_token")
     private String fcmToken;
+
+//    @Column(name = "registration_completed")
+//    private Boolean registrationCompleted = false;
 }
