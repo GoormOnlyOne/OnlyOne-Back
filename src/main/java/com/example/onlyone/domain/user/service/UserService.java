@@ -74,18 +74,10 @@ public class UserService {
                     .status(Status.ACTIVE)
                     .gender(Gender.MALE)
                     .build();
-            userRepository.save(newUser);
-            
-            // 카카오 프로필 정보 설정 (있는 경우)
-            Map<String, Object> properties = (Map<String, Object>) kakaoUserInfo.get("properties");
-            if (properties != null) {
-                String nickname = (String) properties.get("nickname");
-                String profileImage = (String) properties.get("profile_image");
-            }
-            
+
             // 필수 필드들은 회원가입 시 입력받을 예정이므로 임시값 설정
             // birth, gender는 @NotNull이므로 기본값 필요 없음 (nullable로 변경 예정)
-            
+
             return userRepository.save(newUser);
         }
     }
