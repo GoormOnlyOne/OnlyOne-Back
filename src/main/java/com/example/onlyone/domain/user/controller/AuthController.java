@@ -3,6 +3,8 @@ package com.example.onlyone.domain.user.controller;
 import com.example.onlyone.domain.user.entity.User;
 import com.example.onlyone.domain.user.service.KakaoService;
 import com.example.onlyone.domain.user.service.UserService;
+import com.example.onlyone.global.exception.CustomException;
+import com.example.onlyone.global.exception.ErrorCode;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
 import java.util.HashMap;
@@ -39,10 +41,7 @@ public class AuthController {
 
             return response;
         } catch (Exception e) {
-            Map<String, Object> errorResponse = new HashMap<>();
-            errorResponse.put("success", false);
-            errorResponse.put("error", "카카오 로그인 처리 중 오류가 발생했습니다: " + e.getMessage());
-            return errorResponse;
+            throw new CustomException(ErrorCode.KAKAO_LOGIN_FAILED);
         }
     }
 }
