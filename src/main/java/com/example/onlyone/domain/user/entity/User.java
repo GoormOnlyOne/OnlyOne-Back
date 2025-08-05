@@ -48,7 +48,4 @@ public class User extends BaseTimeEntity {
 
     @Column(name = "fcm_token")
     private String fcmToken;
-
-//    @Column(name = "registration_completed")
-//    private Boolean registrationCompleted = false;
 }
