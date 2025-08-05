@@ -15,6 +15,7 @@ public enum ErrorCode {
 
     // User
     USER_NOT_FOUND(404, "USER_404_1", "유저를 찾을 수 없습니다."),
+    KAKAO_LOGIN_FAILED(502, "USER_502_1", "카카오 로그인 처리 중 오류가 발생했습니다."),
 
     // Interest
     INVALID_CATEGORY(400, "INTEREST_400_1", "유효하지 않은 카데고리입니다."),
