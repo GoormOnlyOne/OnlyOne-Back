@@ -64,8 +64,13 @@ public class SecurityConfig {
                 baseUrl
         ));
         configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"));
-        configuration.addAllowedHeader("*");
-        configuration.setExposedHeaders(Arrays.asList("Set-Cookie", "Location"));
+        configuration.setAllowedHeaders(Arrays.asList("*"));
+        configuration.setExposedHeaders(Arrays.asList(
+                "Set-Cookie",
+                "Location",
+                "Access-Control-Allow-Origin",
+                "Access-Control-Allow-Credentials"
+        ));
         configuration.setAllowCredentials(true);
 
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
@@ -114,7 +119,6 @@ public class SecurityConfig {
                                 "/v3/api-docs", "/v3/api-docs/**", "/swagger.html"
                         ).permitAll()
                         .requestMatchers(PathRequest.toStaticResources().atCommonLocations()).permitAll()
-
                         // 그 외는 인증 필요 시 authenticated(), 아니면 permitAll()
                         .anyRequest().permitAll()
                 );
