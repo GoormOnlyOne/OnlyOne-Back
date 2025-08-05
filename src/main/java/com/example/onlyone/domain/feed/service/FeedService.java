@@ -2,11 +2,17 @@ package com.example.onlyone.domain.feed.service;
 
 import com.example.onlyone.domain.club.entity.Club;
 import com.example.onlyone.domain.club.repository.ClubRepository;
+import com.example.onlyone.domain.feed.dto.request.FeedCommentRequestDto;
 import com.example.onlyone.domain.feed.dto.request.FeedRequestDto;
+import com.example.onlyone.domain.feed.dto.response.FeedCommentResponseDto;
 import com.example.onlyone.domain.feed.dto.response.FeedDetailResponseDto;
 import com.example.onlyone.domain.feed.dto.response.FeedSummaryResponseDto;
 import com.example.onlyone.domain.feed.entity.Feed;
+import com.example.onlyone.domain.feed.entity.FeedComment;
 import com.example.onlyone.domain.feed.entity.FeedImage;
+import com.example.onlyone.domain.feed.entity.FeedLike;
+import com.example.onlyone.domain.feed.repository.FeedCommentRepository;
+import com.example.onlyone.domain.feed.repository.FeedLikeRepository;
 import com.example.onlyone.domain.feed.repository.FeedRepository;
 import com.example.onlyone.domain.user.entity.User;
 import com.example.onlyone.domain.user.service.UserService;
@@ -18,7 +24,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
-import java.util.Objects;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 @Log4j2
@@ -29,6 +35,9 @@ public class FeedService {
     private final ClubRepository clubRepository;
     private final FeedRepository feedRepository;
     private final UserService userService;
+    private final FeedLikeRepository feedLikeRepository;
+    private final FeedCommentRepository feedCommentRepository;
+
 
     public void createFeed(Long clubId, FeedRequestDto requestDto) {
         Club club = clubRepository.findById(clubId)
@@ -105,16 +114,64 @@ public class FeedService {
 
         boolean isMine = feed.getUser().getUserId().equals(currentUserId);
 
-        return FeedDetailResponseDto.builder()
-                .content(feed.getContent())
-                .imageUrls(imageUrls)
-                .likeCount(feed.getFeedLikes().size())
-                .userId(feed.getUser().getUserId())
-                .nickname(feed.getUser().getNickname())
-                .profileImage(feed.getUser().getProfileImage())
-                .updatedAt(feed.getModifiedAt())
-                .isLiked(isLiked)
-                .isMine(isMine)
-                .build();
+        List<FeedCommentResponseDto> commentResponseDtos = feed.getFeedComments().stream()
+                .map(comment -> FeedCommentResponseDto.from(comment, currentUserId))
+                .collect(Collectors.toList());
+
+        return FeedDetailResponseDto.from(feed, imageUrls, isLiked, isMine, commentResponseDtos);
+    }
+
+    public boolean toggleLike(Long clubId, Long feedId) {
+        Club club = clubRepository.findById(clubId)
+                .orElseThrow(() -> new CustomException(ErrorCode.CLUB_NOT_FOUND));
+        Feed feed = feedRepository.findByFeedIdAndClub(feedId, club)
+                .orElseThrow(() -> new CustomException(ErrorCode.FEED_NOT_FOUND));
+        User currentUser = userService.getCurrentUser();
+
+        Optional<FeedLike> checkLike = feedLikeRepository.findByFeedAndUser(feed, currentUser);
+
+        if(checkLike.isPresent()) {
+            feedLikeRepository.delete(checkLike.get());
+            return false;
+        } else {
+            FeedLike feedLike = FeedLike.builder()
+                    .feed(feed)
+                    .user(currentUser)
+                    .build();
+            feedLikeRepository.save(feedLike);
+            return true;
+        }
+    }
+
+    public void createComment(Long clubId, Long feedId, FeedCommentRequestDto requestDto) {
+        Club club = clubRepository.findById(clubId)
+                .orElseThrow(() -> new CustomException(ErrorCode.CLUB_NOT_FOUND));
+        Feed feed = feedRepository.findByFeedIdAndClub(feedId, club)
+                .orElseThrow(() -> new CustomException(ErrorCode.FEED_NOT_FOUND));
+        User currentUser = userService.getCurrentUser();
+
+        FeedComment feedComment = requestDto.toEntity(feed, currentUser);
+        feedCommentRepository.save(feedComment);
+    }
+
+    public void deleteComment(Long clubId, Long feedId, Long commentId) {
+        Club club = clubRepository.findById(clubId)
+                .orElseThrow(() -> new CustomException(ErrorCode.CLUB_NOT_FOUND));
+        Feed feed = feedRepository.findByFeedIdAndClub(feedId, club)
+                .orElseThrow(() -> new CustomException(ErrorCode.FEED_NOT_FOUND));
+        FeedComment feedComment = feedCommentRepository.findById(commentId)
+                .orElseThrow(() -> new CustomException(ErrorCode.COMMENT_NOT_FOUND));
+
+        if (!feedComment.getFeed().getFeedId().equals(feedId)) {
+            throw new CustomException(ErrorCode.FEED_NOT_FOUND);
+        }
+        User user = userService.getCurrentUser();
+        Long userId = user.getUserId();
+        if (!(userId.equals(feedComment.getUser().getUserId()) ||
+                userId.equals(feed.getUser().getUserId()))) {
+            throw new CustomException(ErrorCode.UNAUTHORIZED_COMMENT_ACCESS);
+        }
+
+        feedCommentRepository.delete(feedComment);
     }
 }

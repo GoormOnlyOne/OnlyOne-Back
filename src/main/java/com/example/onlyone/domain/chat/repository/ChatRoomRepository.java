@@ -1,10 +1,11 @@
 package com.example.onlyone.domain.chat.repository;
 
 import com.example.onlyone.domain.chat.entity.ChatRoom;
-import io.lettuce.core.dynamic.annotation.Param;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import com.example.onlyone.domain.chat.entity.Type;
+import org.springframework.data.repository.query.Param;
+
 import java.util.List;
 import java.util.Optional;
 
@@ -17,6 +18,7 @@ public interface ChatRoomRepository extends JpaRepository<ChatRoom,Long> {
     SELECT ucr.chatRoom
     FROM UserChatRoom ucr
     WHERE ucr.user.userId = :userId AND ucr.chatRoom.club.clubId = :clubId
+    ORDER BY ucr.chatRoom.createdAt DESC
     """)
     List<ChatRoom> findChatRoomsByUserIdAndClubId(@Param("userId") Long userId, @Param("clubId") Long clubId);
 
