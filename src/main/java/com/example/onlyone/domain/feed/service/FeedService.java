@@ -20,6 +20,8 @@ import com.example.onlyone.global.exception.CustomException;
 import com.example.onlyone.global.exception.ErrorCode;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.log4j.Log4j2;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -78,23 +80,23 @@ public class FeedService {
     }
 
     @Transactional(readOnly = true)
-    public List<FeedSummaryResponseDto> getFeedList(Long clubId) {
+    public Page<FeedSummaryResponseDto> getFeedList(Long clubId, Pageable pageable) {
         Club club = clubRepository.findById(clubId)
                 .orElseThrow(() -> new CustomException(ErrorCode.CLUB_NOT_FOUND));
 
-        List<Feed> feeds = feedRepository.findAllByClubOrderByCreatedAtDesc(club);
+        Page<Feed> feeds = feedRepository.findByClub(club, pageable);
 
-        return feeds.stream()
-                .map(feed -> {
+        return feeds.map(feed -> {
                     String thumbnailUrl = feed.getFeedImages().get(0).getFeedImage();
 
                     return new FeedSummaryResponseDto(
                             feed.getFeedId(),
                             thumbnailUrl,
-                            feed.getFeedLikes().size()
+                            feed.getFeedLikes().size(),
+                            feed.getFeedComments().size()
                     );
-                })
-                .collect(Collectors.toList());
+                });
+
     }
 
     @Transactional(readOnly = true)
