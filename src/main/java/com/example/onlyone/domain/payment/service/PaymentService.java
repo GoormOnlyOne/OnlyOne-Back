@@ -65,7 +65,7 @@ public class PaymentService {
         // 멱등성 체크: 이미 처리된 주문인지 확인
         Optional<Payment> existingPayment = paymentRepository.findByTossOrderId(req.getOrderId());
         if (existingPayment.isPresent()) {
-            throw new CustomException(ErrorCode. ALREADY_COMPLETED_PAYMENT);
+            throw new CustomException(ErrorCode.ALREADY_COMPLETED_PAYMENT);
         }
         ConfirmTossPayResponse response;
         try {
