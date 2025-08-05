@@ -37,7 +37,8 @@ public class SecurityConfig {
     public SecurityConfig(@Value("${app.base-url}") String baseUrl) {
         this.baseUrl = baseUrl;
     }
-    
+
+
     @Bean
     public WebSecurityCustomizer webSecurityCustomizer() {
         return web -> web.ignoring()
@@ -122,6 +123,7 @@ public class SecurityConfig {
                                 "/v3/api-docs", "/v3/api-docs/**", "/swagger.html"
                         ).permitAll()
                         .requestMatchers(PathRequest.toStaticResources().atCommonLocations()).permitAll()
+
                         // 그 외는 인증 필요 시 authenticated(), 아니면 permitAll()
                         .anyRequest().permitAll()
                 );
