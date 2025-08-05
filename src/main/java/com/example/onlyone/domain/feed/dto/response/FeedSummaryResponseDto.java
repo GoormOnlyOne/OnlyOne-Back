@@ -13,4 +13,5 @@ public class FeedSummaryResponseDto {
     private Long feedId;
     private String thumbnailUrl;
     private int likeCount;
+    private int commentCount;
 }
