@@ -29,12 +29,15 @@ import java.util.List;
 
 @Configuration
 @EnableWebSecurity
-@AllArgsConstructor
 public class SecurityConfig {
 
     @Value("${app.base-url}")
     private String baseUrl;
 
+    public SecurityConfig(@Value("${app.base-url}") String baseUrl) {
+        this.baseUrl = baseUrl;
+    }
+    
     @Bean
     public WebSecurityCustomizer webSecurityCustomizer() {
         return web -> web.ignoring()
