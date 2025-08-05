@@ -10,21 +10,22 @@
         #messages { border: 1px solid #ccc; padding: 10px; height: 300px; overflow-y: scroll; margin-bottom: 10px; }
         .message { margin-bottom: 5px; cursor: pointer; }
         .deleted { color: gray; font-style: italic; }
-        input { width: 80%; padding: 8px; }
-        button { padding: 8px 12px; }
+        input, button { padding: 8px; margin-right: 5px; }
     </style>
 </head>
 <body>
-<h2>채팅 테스트</h2>
+<h2>채팅 테스트 (로컬)</h2>
 
 <div id="messages"></div>
 
 <input type="text" id="messageInput" placeholder="메시지를 입력하세요" />
-<button onclick="send()">전송</button>
+<input type="file" id="imageInput" accept="image/png, image/jpeg"/>
+<button onclick="sendMessage()">전송</button>
 
 <script>
     const chatRoomId = 1;
-    const userId = 1; // 로그인된 사용자 ID로 바꿔줘야 함
+    const userId = 1;
+    const serverBaseUrl = 'http://localhost:8080';
 
     let stompClient = null;
 
@@ -33,32 +34,38 @@
         const div = document.createElement('div');
         div.className = 'message';
         div.dataset.id = message.messageId;
-        div.textContent = message.deleted
-            ? "(삭제된 메시지입니다.)"
-            : `[${message.senderNickname}] ${message.text}`;
+
         if (message.deleted) {
+            div.textContent = "(삭제된 메시지입니다.)";
             div.classList.add("deleted");
+        } else if (message.imageUrl) {
+            const img = document.createElement('img');
+            img.src = message.imageUrl;
+            img.style.maxWidth = '200px';
+            div.appendChild(document.createTextNode(`[${message.senderNickname}] `));
+            div.appendChild(img);
+        } else {
+            div.textContent = `[${message.senderNickname}] ${message.text}`;
         }
+
         msgBox.appendChild(div);
         msgBox.scrollTop = msgBox.scrollHeight;
     }
 
     function loadPreviousMessages() {
-        fetch(`http://localhost:8080/chat/${chatRoomId}/messages`)
+        fetch(`${serverBaseUrl}/chat/${chatRoomId}/messages`)
             .then(res => res.json())
             .then(data => {
-                const messages = data.data;
-                messages.forEach(msg => appendMessage(msg));
+                data.data.forEach(msg => appendMessage(msg));
             })
             .catch(err => console.error("❌ 이전 메시지 로딩 실패:", err));
     }
 
     function connect() {
-        const socket = new SockJS('http://localhost:8080/ws');
+        const socket = new SockJS(`${serverBaseUrl}/ws`);
         stompClient = Stomp.over(socket);
-        stompClient.connect({}, function (frame) {
-            console.log("✅ 연결됨:", frame);
-
+        stompClient.connect({}, function () {
+            console.log("✅ WebSocket 연결됨");
             stompClient.subscribe(`/sub/chat/${chatRoomId}/messages`, function (message) {
                 const msg = JSON.parse(message.body);
                 appendMessage(msg);
@@ -66,57 +73,93 @@
         });
     }
 
-    function send() {
-        const input = document.getElementById('messageInput');
-        const text = input.value.trim();
-        if (!text) return;
+    async function sendMessage() {
+        const textInput = document.getElementById('messageInput');
+        const imageInput = document.getElementById('imageInput');
+        const file = imageInput.files[0];
 
-        const payload = {
-            userId: userId,  // ✅ camelCase로 수정
-            text: text
-        };
+        if (file) {
+            // 이미지 전송
+            const requestBody = {
+                fileName: file.name,
+                contentType: file.type,
+                imageSize: file.size
+            };
 
-        stompClient.send(`/pub/chat/${chatRoomId}/messages`, {}, JSON.stringify(payload));
-        input.value = '';
+            const res = await fetch(`${serverBaseUrl}/chat/presigned-url`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(requestBody)
+            });
+
+            if (!res.ok) return alert("❌ Presigned URL 요청 실패");
+            const { data } = await res.json();
+            const { presignedUrl, imageUrl } = data;
+
+            const uploadRes = await fetch(presignedUrl, {
+                method: 'PUT',
+                headers: { 'Content-Type': file.type },
+                body: file
+            });
+
+            if (!uploadRes.ok) return alert("❌ 이미지 업로드 실패");
+
+            const payload = {
+                userId: userId,
+                text: `[IMAGE]${imageUrl}`
+            };
+
+            stompClient.send(`/pub/chat/${chatRoomId}/messages`, {}, JSON.stringify(payload));
+            imageInput.value = '';
+        } else {
+            // 텍스트 전송
+            const text = textInput.value.trim();
+            if (!text) return;
+
+            const payload = {
+                userId: userId,
+                text: text
+            };
+
+            stompClient.send(`/pub/chat/${chatRoomId}/messages`, {}, JSON.stringify(payload));
+            textInput.value = '';
+        }
+    }
+
+    function setupMessageClickHandler() {
+        document.getElementById('messages').addEventListener('click', function (e) {
+            const div = e.target.closest('.message');
+            if (!div) return;
+            const messageId = div.dataset.id;
+            if (!messageId) return;
+            const confirmDelete = confirm("이 메시지를 삭제할까요?");
+            if (confirmDelete) {
+                deleteMessage(messageId);
+            }
+        });
     }
 
     function deleteMessage(messageId) {
-        fetch(`http://localhost:8080/chat/messages/${messageId}`, { // ✅ RESTful URI
+        fetch(`${serverBaseUrl}/chat/messages/${messageId}`, {
             method: 'DELETE',
             headers: {
                 'Content-Type': 'application/json',
                 'X-USER-ID': userId
             }
-        })
-            .then(response => {
-                if (response.ok) {
-                    const el = document.querySelector(`[data-id='${messageId}']`);
-                    if (el) {
-                        el.textContent = "(삭제된 메시지입니다.)";
-                        el.classList.add("deleted");
-                    }
-                } else {
-                    alert("❌ 삭제 실패: 권한이 없거나 서버 오류");
+        }).then(res => {
+            if (res.ok) {
+                const el = document.querySelector(`[data-id='${messageId}']`);
+                if (el) {
+                    el.textContent = "(삭제된 메시지입니다.)";
+                    el.classList.add("deleted");
                 }
-            })
-            .catch(err => {
-                console.error("❌ 삭제 요청 실패:", err);
-            });
-    }
-
-    function setupMessageClickHandler() {
-        document.getElementById('messages').addEventListener('click', function (e) {
-            if (e.target.classList.contains('message')) {
-                const messageId = e.target.dataset.id;
-                const confirmDelete = confirm("이 메시지를 삭제할까요?");
-                if (confirmDelete) {
-                    deleteMessage(messageId);
-                }
+            } else {
+                alert("❌ 삭제 실패");
             }
-        });
+        }).catch(err => console.error("❌ 삭제 요청 실패:", err));
     }
 
-    // 초기 실행
+    // 자동 실행
     loadPreviousMessages();
     connect();
     setupMessageClickHandler();

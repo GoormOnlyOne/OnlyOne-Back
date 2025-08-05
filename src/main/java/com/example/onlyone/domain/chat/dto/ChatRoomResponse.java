@@ -1,10 +1,14 @@
 package com.example.onlyone.domain.chat.dto;
 
 import com.example.onlyone.domain.chat.entity.ChatRoom;
+import com.example.onlyone.domain.chat.entity.Message;
 import com.example.onlyone.domain.chat.entity.Type;
+import com.fasterxml.jackson.annotation.JsonFormat;
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.Builder;
 import lombok.Getter;
+import java.time.LocalDateTime;
+import com.example.onlyone.global.common.util.MessageUtils;
 
 @Getter
 @Builder
@@ -23,12 +27,27 @@ public class ChatRoomResponse {
     @Schema(description = "채팅방 타입 (CLUB, SCHEDULE)", example = "CLUB")
     private Type type;
 
-    public static ChatRoomResponse from(ChatRoom chatRoom) {
+    @Schema(description = "최근 메시지 내용", example = "안녕하세요!")
+    private String lastMessageText;
+
+    @Schema(description = "최근 메시지 시간", example = "2025-08-03T20:10:00")
+    @JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm:ss")
+    private LocalDateTime lastMessageTime;
+
+    public static ChatRoomResponse from(ChatRoom chatRoom, Message lastMessage) {
+        String messageText = null;
+
+        if (lastMessage != null && !lastMessage.isDeleted()) {
+            messageText = MessageUtils.getDisplayText(lastMessage.getText());
+        }
+
         return ChatRoomResponse.builder()
                 .chatRoomId(chatRoom.getChatRoomId())
                 .clubId(chatRoom.getClub().getClubId())
                 .scheduleId(chatRoom.getScheduleId())
                 .type(chatRoom.getType())
+                .lastMessageText(messageText)
+                .lastMessageTime(lastMessage != null ? lastMessage.getSentAt() : null)
                 .build();
     }
 }
