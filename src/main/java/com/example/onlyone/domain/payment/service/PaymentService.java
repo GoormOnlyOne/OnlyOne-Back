@@ -23,6 +23,7 @@ import jakarta.servlet.http.HttpSession;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.log4j.Log4j2;
+import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -30,6 +31,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.TimeUnit;
 
 @Log4j2
 @Service
@@ -41,15 +43,23 @@ public class PaymentService {
     private final UserService userService;
     private final WalletRepository walletRepository;
     private final PaymentRepository paymentRepository;
+    private final RedisTemplate<String, Object> redisTemplate;
+    private static final String REDIS_PAYMENT_KEY_PREFIX = "payment:";
+    private static final long PAYMENT_INFO_TTL_SECONDS = 30 * 60;
 
     /* 세션에 결제 정보 임시 저장 */
     public void savePaymentInfo(SavePaymentRequestDto dto, HttpSession session) {
-        session.setAttribute(dto.getOrderId(), dto.getAmount());
+//        session.setAttribute(dto.getOrderId(), dto.getAmount());
+        String redisKey = REDIS_PAYMENT_KEY_PREFIX + dto.getOrderId();
+        // 값과 함께 TTL 설정
+        redisTemplate.opsForValue()
+                .set(redisKey, dto.getAmount(), PAYMENT_INFO_TTL_SECONDS, TimeUnit.SECONDS);
     }
 
     /* 세션에 저장한 결제 정보와 일치 여부 확인 */
     public void confirmPayment(@Valid SavePaymentRequestDto dto, HttpSession session) {
-        Object saved = session.getAttribute(dto.getOrderId());
+        String redisKey = REDIS_PAYMENT_KEY_PREFIX + dto.getOrderId();
+        Object saved = redisTemplate.opsForValue().get(redisKey);
         if (saved == null) {
             throw new CustomException(ErrorCode.INVALID_PAYMENT_INFO);
         }
@@ -57,7 +67,17 @@ public class PaymentService {
         if (!savedAmount.equals(String.valueOf(dto.getAmount()))) {
             throw new CustomException(ErrorCode.INVALID_PAYMENT_INFO);
         }
-        session.removeAttribute(dto.getOrderId());
+        // 검증 완료 후에는 Redis에서 제거
+        redisTemplate.delete(redisKey);
+//        Object saved = session.getAttribute(dto.getOrderId());
+//        if (saved == null) {
+//            throw new CustomException(ErrorCode.INVALID_PAYMENT_INFO);
+//        }
+//        String savedAmount = saved.toString();
+//        if (!savedAmount.equals(String.valueOf(dto.getAmount()))) {
+//            throw new CustomException(ErrorCode.INVALID_PAYMENT_INFO);
+//        }
+//        session.removeAttribute(dto.getOrderId());
     }
 
     /* 토스페이먼츠 결제 승인 */
