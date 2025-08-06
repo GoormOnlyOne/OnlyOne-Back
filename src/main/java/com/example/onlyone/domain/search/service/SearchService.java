@@ -99,7 +99,7 @@ public class SearchService {
     public List<ClubResponseDto> getClubsByTeammates(int page) {
         PageRequest pageRequest = PageRequest.of(page, 20);
         User currentUser = userService.getCurrentUser();
-        List<Object[]> resultList = clubRepository.findClubsByTeammates(4L, pageRequest);
+        List<Object[]> resultList = clubRepository.findClubsByTeammates(currentUser.getUserId(), pageRequest);
 
         return convertToClubResponseDto(resultList);
     }
