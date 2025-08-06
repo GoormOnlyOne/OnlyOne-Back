@@ -39,7 +39,7 @@ public class UserService {
     @Value("${jwt.refresh-expiration}")
     private long refreshTokenExpiration;
 
-    
+
     @Transactional(readOnly = true)
     public User getCurrentUser() {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
