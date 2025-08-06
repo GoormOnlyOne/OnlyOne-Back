@@ -64,9 +64,13 @@ public interface ClubRepository extends JpaRepository<Club, Long> {
             "AND (:interestId IS NULL OR c.interest_id = :interestId) " +
             "GROUP BY c.club_id " +
             "ORDER BY " +
-            "CASE WHEN :sortBy = 'LATEST' THEN c.created_at END DESC, " +
-            "CASE WHEN :sortBy = 'MEMBER_COUNT' THEN COUNT(uc.user_club_id) END DESC, " +
-            "CASE WHEN :keyword IS NOT NULL THEN MATCH(c.name, c.description) AGAINST(:keyword IN NATURAL LANGUAGE MODE) END DESC",
+            "CASE " +
+            "  WHEN :keyword IS NOT NULL THEN MATCH(c.name, c.description) AGAINST(:keyword IN NATURAL LANGUAGE MODE) " +
+            "  WHEN :sortBy = 'LATEST' THEN c.created_at " +
+            "  WHEN :sortBy = 'MEMBER_COUNT' THEN COUNT(uc.user_club_id) " +
+            "  ELSE COUNT(uc.user_club_id) " +
+            "END DESC, " +
+            "c.created_at DESC", // 동일한 값일 때 최신순으로 2차 정렬
             nativeQuery = true)
     List<Object[]> searchByKeywordWithFilter(@Param("keyword") String keyword,
                                              @Param("city") String city,
@@ -79,15 +83,14 @@ public interface ClubRepository extends JpaRepository<Club, Long> {
     @Query("""
         SELECT c, COUNT(uc)
         FROM Club c
-        LEFT JOIN UserClub uc ON c.clubId = uc.club.clubId 
-            AND uc.clubRole IN ('MEMBER', 'LEADER')
+        LEFT JOIN UserClub uc ON c.clubId = uc.club.clubId
         WHERE EXISTS (
             SELECT 1
             FROM UserClub uc1
             JOIN UserClub teammate ON uc1.club.clubId = teammate.club.clubId
             JOIN UserClub uc2 ON teammate.user.userId = uc2.user.userId
             WHERE uc2.club.clubId = c.clubId
-              AND uc1.user.userId = :userId 
+              AND uc1.user.userId = :userId
               AND teammate.user.userId != :userId
         )
         AND NOT EXISTS (
