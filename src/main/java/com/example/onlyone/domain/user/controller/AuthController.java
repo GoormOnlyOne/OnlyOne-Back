@@ -1,25 +1,36 @@
 package com.example.onlyone.domain.user.controller;
 
+import com.example.onlyone.domain.user.dto.response.LoginResponse;
 import com.example.onlyone.domain.user.entity.User;
 import com.example.onlyone.domain.user.service.KakaoService;
 import com.example.onlyone.domain.user.service.UserService;
+import com.example.onlyone.global.common.CommonResponse;
 import com.example.onlyone.global.exception.CustomException;
 import com.example.onlyone.global.exception.ErrorCode;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.java.Log;
+import lombok.extern.log4j.Log4j2;
+import org.springframework.data.redis.core.RedisTemplate;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+
+import java.time.Duration;
 import java.util.HashMap;
 import java.util.Map;
 
+@Log4j2
 @RestController
 @RequestMapping("/auth")
 @RequiredArgsConstructor
 public class AuthController {
-    
     private final KakaoService kakaoService;
     private final UserService userService;
+    private final RedisTemplate<String, Object> redisTemplate;
+    private static final long REFRESH_TOKEN_EXPIRE_TIME = 1000 * 60 * 60 * 25 * 14L; // 2주
 
-    @GetMapping("/kakao/callback")
-    public Map<String, Object> kakaoLogin(@RequestParam String code) {
+    @PostMapping("/kakao/callback")
+    public ResponseEntity<?> kakaoLogin(@RequestParam String code) {
+        log.info("▶ kakaoLogin POST 진입, code={}", code);
         try {
             // 1. 인증 코드로 카카오 액세스 토큰 받기
             String kakaoAccessToken = kakaoService.getAccessToken(code);
@@ -33,13 +44,16 @@ public class AuthController {
             // 4. JWT 토큰 생성 (Access + Refresh)
             Map<String, String> tokens = userService.generateTokenPair(user);
 
-            // 5. 응답 데이터 구성
-            Map<String, Object> response = new HashMap<>();
-            response.put("success", true);
-            response.put("accessToken", tokens.get("accessToken"));
-            response.put("refreshToken", tokens.get("refreshToken"));
+            // 5. refreshToken Redis에 저장
+            redisTemplate.opsForValue()
+                    .set(user.getUserId().toString(), tokens.get("refreshToken"), Duration.ofMillis(REFRESH_TOKEN_EXPIRE_TIME));
 
-            return response;
+            // 6. 응답 데이터 구성
+            LoginResponse response = new LoginResponse(
+                    tokens.get("accessToken"),
+                    tokens.get("refreshToken")
+            );
+            return ResponseEntity.ok(CommonResponse.success(response));
         } catch (Exception e) {
             throw new CustomException(ErrorCode.KAKAO_LOGIN_FAILED);
         }
