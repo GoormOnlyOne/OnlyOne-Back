@@ -39,7 +39,9 @@ public class AuthController {
             Map<String, Object> kakaoUserInfo = kakaoService.getUserInfo(kakaoAccessToken);
 
             // 3. 사용자 정보 저장 또는 업데이트
-            User user = userService.processKakaoLogin(kakaoUserInfo);
+            Map<String, Object> loginResult = userService.processKakaoLogin(kakaoUserInfo);
+            User user = (User) loginResult.get("user");
+            boolean isNewUser = (boolean) loginResult.get("isNewUser");
 
             // 4. JWT 토큰 생성 (Access + Refresh)
             Map<String, String> tokens = userService.generateTokenPair(user);
@@ -48,11 +50,15 @@ public class AuthController {
             redisTemplate.opsForValue()
                     .set(user.getUserId().toString(), tokens.get("refreshToken"), Duration.ofMillis(REFRESH_TOKEN_EXPIRE_TIME));
 
-            // 6. 응답 데이터 구성
+            // 6. 응답 데이터
             LoginResponse response = new LoginResponse(
                     tokens.get("accessToken"),
-                    tokens.get("refreshToken")
+                    tokens.get("refreshToken"),
+                    isNewUser
             );
+
+            log.info("카카오 로그인 성공 - userId: {}, isNewUser: {}", user.getUserId(), isNewUser);
+
             return ResponseEntity.ok(CommonResponse.success(response));
         } catch (Exception e) {
             throw new CustomException(ErrorCode.KAKAO_LOGIN_FAILED);
