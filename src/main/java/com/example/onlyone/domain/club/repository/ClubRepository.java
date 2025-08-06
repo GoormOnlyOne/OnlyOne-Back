@@ -54,7 +54,7 @@ public interface ClubRepository extends JpaRepository<Club, Long> {
 
     // 키워드 검색
     @Query(value = "SELECT c.club_id, c.name, c.description, " +
-            "c.district, c.club_image, c.interest_id, i.category, " +
+            "c.district, c.club_image, i.category, " +
             "COUNT(uc.user_club_id) as member_count " +
             "FROM club c LEFT JOIN user_club uc ON c.club_id = uc.club_id " +
             "LEFT JOIN interest i ON c.interest_id = i.interest_id " +
