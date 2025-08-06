@@ -3,8 +3,6 @@ package com.example.onlyone.domain.notification.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.doReturn;
-import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -27,7 +25,7 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 
 @ExtendWith(MockitoExtension.class)
-class NotificationGetTest {
+class NotificationQueryTest {
 
   @Mock
   private NotificationRepository notificationRepository;
@@ -52,7 +50,7 @@ class NotificationGetTest {
     Long unreadCount = 5L;
     Pageable expectedPageable = PageRequest.of(0, size);
 
-    when(notificationRepository.findTopByUser(userId, expectedPageable))
+    when(notificationRepository.findByUserIdOrderByNotificationIdDesc(userId, expectedPageable))
         .thenReturn(mockNotifications.subList(0, 5));
     when(notificationRepository.findAfterCursor(eq(userId), eq(5L), any(Pageable.class)))
         .thenReturn(mockNotifications.subList(5, 7)); // hasMore = true
@@ -68,7 +66,7 @@ class NotificationGetTest {
     assertThat(result.isHasMore()).isTrue();
     assertThat(result.getUnreadCount()).isEqualTo(unreadCount);
 
-    verify(notificationRepository).findTopByUser(userId, expectedPageable);
+    verify(notificationRepository).findByUserIdOrderByNotificationIdDesc(userId, expectedPageable);
     verify(notificationRepository).findAfterCursor(eq(userId), eq(5L), any(Pageable.class));
     verify(notificationRepository).countByUser_UserIdAndIsReadFalse(userId);
   }
@@ -111,7 +109,7 @@ class NotificationGetTest {
     int expectedSize = 100;
     Pageable expectedPageable = PageRequest.of(0, expectedSize);
 
-    when(notificationRepository.findTopByUser(userId, expectedPageable))
+    when(notificationRepository.findByUserIdOrderByNotificationIdDesc(userId, expectedPageable))
         .thenReturn(Collections.emptyList());
     when(notificationRepository.countByUser_UserIdAndIsReadFalse(userId))
         .thenReturn(0L);
@@ -120,7 +118,7 @@ class NotificationGetTest {
     notificationService.getNotifications(userId, null, requestSize);
 
     // then
-    verify(notificationRepository).findTopByUser(userId, expectedPageable);
+    verify(notificationRepository).findByUserIdOrderByNotificationIdDesc(userId, expectedPageable);
   }
 
   @Test
@@ -131,7 +129,7 @@ class NotificationGetTest {
     Long unreadCount = 0L;
     Pageable expectedPageable = PageRequest.of(0, size);
 
-    when(notificationRepository.findTopByUser(userId, expectedPageable))
+    when(notificationRepository.findByUserIdOrderByNotificationIdDesc(userId, expectedPageable))
         .thenReturn(Collections.emptyList());
     when(notificationRepository.countByUser_UserIdAndIsReadFalse(userId))
         .thenReturn(unreadCount);
@@ -145,7 +143,7 @@ class NotificationGetTest {
     assertThat(result.isHasMore()).isFalse();
     assertThat(result.getUnreadCount()).isEqualTo(unreadCount);
 
-    verify(notificationRepository).findTopByUser(userId, expectedPageable);
+    verify(notificationRepository).findByUserIdOrderByNotificationIdDesc(userId, expectedPageable);
     verify(notificationRepository).countByUser_UserIdAndIsReadFalse(userId);
     verify(notificationRepository, never()).findAfterCursor(any(), any(), any());
   }
@@ -182,7 +180,7 @@ class NotificationGetTest {
     int size = 5;
     List<NotificationListItem> exactSizeItems = mockNotifications.subList(0, 5);
 
-    when(notificationRepository.findTopByUser(userId, PageRequest.of(0, size)))
+    when(notificationRepository.findByUserIdOrderByNotificationIdDesc(userId, PageRequest.of(0, size)))
         .thenReturn(exactSizeItems);
     when(notificationRepository.findAfterCursor(eq(userId), eq(5L), any(Pageable.class)))
         .thenReturn(mockNotifications.subList(5, 6));

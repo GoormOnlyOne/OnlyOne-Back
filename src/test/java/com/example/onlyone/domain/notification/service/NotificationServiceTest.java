@@ -13,601 +13,292 @@ import com.example.onlyone.domain.user.entity.User;
 import com.example.onlyone.domain.user.repository.UserRepository;
 import com.example.onlyone.global.exception.CustomException;
 import com.example.onlyone.global.exception.ErrorCode;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.DisplayName;
+import com.google.firebase.messaging.FirebaseMessagingException;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.*;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
-import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
-import java.io.IOException;
 import java.time.LocalDateTime;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.List;
-import java.util.Optional;
+import java.util.*;
 
 import static org.assertj.core.api.Assertions.*;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.*;
 
 @ExtendWith(MockitoExtension.class)
 class NotificationServiceTest {
 
-  @Mock private UserRepository userRepository;
-  @Mock private NotificationTypeRepository notificationTypeRepository;
-  @Mock private NotificationRepository notificationRepository;
-  @Mock private ApplicationEventPublisher applicationEventPublisher;
-  @InjectMocks private NotificationService service;
-
-  /**
-   * 모든 테스트 실행 전에 Mock 객체들을 리셋합니다.
-   */
-  @BeforeEach
-  void resetAllMocks() {
-    Mockito.reset(userRepository, notificationTypeRepository, notificationRepository, applicationEventPublisher);
-  }
+  @Mock UserRepository userRepository;
+  @Mock NotificationTypeRepository notificationTypeRepository;
+  @Mock NotificationRepository notificationRepository;
+  @Mock SseEmittersService sseEmittersService;
+  @Mock FcmService fcmService;
+  @InjectMocks NotificationService service;
 
   @Nested
-  @DisplayName("createSseConnection 메서드")
-  class CreateSseConnectionTests {
-
-    @Test
-    @DisplayName("SSE 연결 생성 성공")
-    void createSseConnection_success() {
-      // given
-      Long userId = 1L;
-
-      // when
-      SseEmitter emitter = service.createSseConnection(userId);
-
-      // then
-      assertThat(emitter).isNotNull();
-      assertThat(emitter.getTimeout()).isEqualTo(0L);
-    }
-
-    @Test
-    @DisplayName("기존 연결이 있을 때 새 연결 생성")
-    void createSseConnection_withExistingConnection() {
-      // given
-      Long userId = 1L;
-
-      // 첫 번째 연결 생성
-      SseEmitter firstEmitter = service.createSseConnection(userId);
-
-      // when - 두 번째 연결 생성
-      SseEmitter secondEmitter = service.createSseConnection(userId);
-
-      // then
-      assertThat(secondEmitter).isNotNull();
-      assertThat(firstEmitter).isNotSameAs(secondEmitter);
-    }
-
-    @Test
-    @DisplayName("초기 하트비트 전송 실패 시 예외 발생")
-    void createSseConnection_heartbeatFailure() {
-      // given
-      Long userId = 1L;
-
-      try (MockedConstruction<SseEmitter> mockedEmitter = mockConstruction(SseEmitter.class,
-          (mock, context) -> {
-            doThrow(new IOException("Connection failed"))
-                .when(mock).send(any(SseEmitter.SseEventBuilder.class));
-          })) {
-
-        // when & then
-        assertThatThrownBy(() -> service.createSseConnection(userId))
-            .isInstanceOf(CustomException.class)
-            .hasFieldOrPropertyWithValue("errorCode", ErrorCode.SSE_CONNECTION_FAILED);
-      }
-    }
-  }
-
-  @Nested
-  @DisplayName("createNotification 메서드")
   class CreateNotificationTests {
 
     @Test
-    @DisplayName("알림 생성 성공")
-    void createNotification_success() {
+    void success_triggersSseAndFcm() throws FirebaseMessagingException {
       // given
       Long userId = 1L;
-      User mockUser = mock(User.class);
-      given(mockUser.getUserId()).willReturn(userId);
-      given(userRepository.findById(userId)).willReturn(Optional.of(mockUser));
+      User user = mock(User.class);
+      given(user.getUserId()).willReturn(userId);
+      given(userRepository.findById(userId))
+          .willReturn(Optional.of(user));
 
-      NotificationType mockType = mock(NotificationType.class);
-      given(mockType.getType()).willReturn(Type.COMMENT);
-      given(mockType.getTemplate()).willReturn("{0}님이 댓글을 남겼습니다");
+      // notificationRepository.save(any()) → argument 그대로 리턴
+      given(notificationRepository.save(any(Notification.class)))
+          .willAnswer(invocation -> invocation.getArgument(0));
+
+      NotificationType nt = mock(NotificationType.class);
       given(notificationTypeRepository.findByType(Type.COMMENT))
-          .willReturn(Optional.of(mockType));
+          .willReturn(Optional.of(nt));
 
-      try (MockedStatic<Notification> mockedNotification = mockStatic(Notification.class)) {
-        Notification mockNotification = mock(Notification.class);
-        given(mockNotification.getUser()).willReturn(mockUser);
-        given(mockNotification.getNotificationId()).willReturn(10001L);
-        given(mockNotification.getContent()).willReturn("홍길동님이 댓글을 남겼습니다");
-        given(mockNotification.getFcmSent()).willReturn(false);
+      // static factory Notification.create()
+      try (var mc = mockStatic(Notification.class)) {
+        Notification created = mock(Notification.class);
 
-        mockedNotification.when(() -> Notification.create(any(User.class),
-                any(NotificationType.class), any(String[].class)))
-            .thenReturn(mockNotification);
+        // 1) Notification.create(...) → 우리가 만든 mock 반환
+        given(Notification.create(eq(user), eq(nt), any(String[].class)))
+            .willReturn(created);
 
-        given(notificationRepository.save(any(Notification.class)))
-            .willReturn(mockNotification);
+        // 2) created.getUser() → user 반환
+        given(created.getUser()).willReturn(user);
 
-        NotificationCreateRequestDto requestDto = NotificationCreateRequestDto.builder()
-            .userId(userId)
-            .type(Type.COMMENT)
-            .args(new String[]{"홍길동"})
-            .build();
+        // 3) created.getNotificationId() → 42L 반환
+        given(created.getNotificationId()).willReturn(42L);
+
+        // save(created) → 다시 created 를 반환
+        given(notificationRepository.save(created))
+            .willReturn(created);
 
         // when
-        NotificationCreateResponseDto result = service.createNotification(requestDto);
+        NotificationCreateRequestDto dto = NotificationCreateRequestDto.builder()
+            .userId(userId)
+            .type(Type.COMMENT)
+            .args(new String[]{"A"})
+            .build();
+
+        NotificationCreateResponseDto resp = service.createNotification(dto);
 
         // then
-        assertThat(result.getNotificationId()).isEqualTo(10001L);
-        assertThat(result.getContent()).isEqualTo("홍길동님이 댓글을 남겼습니다");
-        assertThat(result.getFcmSent()).isFalse();
-
-        then(userRepository).should().findById(userId);
-        then(notificationTypeRepository).should().findByType(Type.COMMENT);
-        then(notificationRepository).should().save(any(Notification.class));
+        assertThat(resp.getNotificationId()).isEqualTo(42L);
+        then(sseEmittersService).should()
+            .sendSseNotification(userId, created);
+        then(fcmService).should()
+            .sendFcmNotification(created);
       }
     }
 
     @Test
-    @DisplayName("사용자 없음 - USER_NOT_FOUND 예외")
-    void createNotification_userNotFound() {
-      // given
-      Long userId = 999L;
-      given(userRepository.findById(userId)).willReturn(Optional.empty());
+    void userNotFound_throwsUserNotFound() {
+      given(userRepository.findById(99L)).willReturn(Optional.empty());
 
-      NotificationCreateRequestDto requestDto = NotificationCreateRequestDto.builder()
-          .userId(userId)
-          .type(Type.COMMENT)
-          .args(new String[]{"메세지"})
-          .build();
+      NotificationCreateRequestDto dto = NotificationCreateRequestDto.builder()
+          .userId(99L).type(Type.COMMENT).args(new String[]{}).build();
 
-      // when & then
-      assertThatThrownBy(() -> service.createNotification(requestDto))
+      assertThatThrownBy(() -> service.createNotification(dto))
           .isInstanceOf(CustomException.class)
           .hasFieldOrPropertyWithValue("errorCode", ErrorCode.USER_NOT_FOUND);
 
       then(notificationTypeRepository).shouldHaveNoInteractions();
       then(notificationRepository).shouldHaveNoInteractions();
+      then(sseEmittersService).shouldHaveNoInteractions();
+      then(fcmService).shouldHaveNoInteractions();
     }
 
     @Test
-    @DisplayName("알림 타입 없음 - NOTIFICATION_TYPE_NOT_FOUND 예외")
-    void createNotification_typeNotFound() {
-      // given
+    void typeNotFound_throwsTypeNotFound() {
       Long userId = 1L;
-      User mockUser = mock(User.class);
-      given(userRepository.findById(userId)).willReturn(Optional.of(mockUser));
+      User user = mock(User.class);
+      given(user.getUserId()).willReturn(userId);
+      given(userRepository.findById(userId)).willReturn(Optional.of(user));
       given(notificationTypeRepository.findByType(Type.COMMENT))
           .willReturn(Optional.empty());
 
-      NotificationCreateRequestDto requestDto = NotificationCreateRequestDto.builder()
-          .userId(userId)
-          .type(Type.COMMENT)
-          .args(new String[]{"메세지"})
-          .build();
+      NotificationCreateRequestDto dto = NotificationCreateRequestDto.builder()
+          .userId(userId).type(Type.COMMENT).args(new String[]{}).build();
 
-      // when & then
-      assertThatThrownBy(() -> service.createNotification(requestDto))
+      assertThatThrownBy(() -> service.createNotification(dto))
           .isInstanceOf(CustomException.class)
           .hasFieldOrPropertyWithValue("errorCode", ErrorCode.NOTIFICATION_TYPE_NOT_FOUND);
 
       then(notificationRepository).shouldHaveNoInteractions();
-    }
-
-    @Test
-    @DisplayName("SSE 전송 실패해도 알림 생성은 성공")
-    void createNotification_sseFailureDoesNotAffectCreation() {
-      // given
-      Long userId = 1L;
-      User mockUser = mock(User.class);
-      given(mockUser.getUserId()).willReturn(userId);
-      given(userRepository.findById(userId)).willReturn(Optional.of(mockUser));
-
-      NotificationType mockType = mock(NotificationType.class);
-      given(notificationTypeRepository.findByType(Type.COMMENT))
-          .willReturn(Optional.of(mockType));
-
-      try (MockedStatic<Notification> mockedNotification = mockStatic(Notification.class)) {
-        Notification mockNotification = mock(Notification.class);
-        given(mockNotification.getUser()).willReturn(mockUser);
-        given(mockNotification.getNotificationId()).willReturn(10001L);
-        given(mockNotification.getContent()).willReturn("테스트 알림");
-        given(mockNotification.getFcmSent()).willReturn(false);
-
-        mockedNotification.when(() -> Notification.create(any(), any(), any()))
-            .thenReturn(mockNotification);
-
-        given(notificationRepository.save(any(Notification.class)))
-            .willReturn(mockNotification);
-
-        service.createSseConnection(userId);
-
-        NotificationCreateRequestDto requestDto = NotificationCreateRequestDto.builder()
-            .userId(userId)
-            .type(Type.COMMENT)
-            .args(new String[]{"테스트"})
-            .build();
-
-        // when
-        NotificationCreateResponseDto result = service.createNotification(requestDto);
-
-        // then
-        assertThat(result).isNotNull();
-        assertThat(result.getNotificationId()).isEqualTo(10001L);
-      }
+      then(sseEmittersService).shouldHaveNoInteractions();
+      then(fcmService).shouldHaveNoInteractions();
     }
   }
 
-
-
   @Nested
-  @DisplayName("markAllAsRead 메서드")
-  class MarkAllAsReadTests {
+  class GetNotificationsTests {
 
     @Test
-    @DisplayName("전체 읽음 처리 성공")
-    void markAllAsRead_success() {
-      // given
+    void firstPage_success() {
       Long userId = 1L;
+      NotificationListItem item = new NotificationListItem(
+          10L, "hi", Type.LIKE, false, LocalDateTime.now());
+      given(notificationRepository.findByUserIdOrderByNotificationIdDesc(
+          eq(userId), any(Pageable.class)))
+          .willReturn(List.of(item));
+      given(notificationRepository.findAfterCursor(
+          eq(userId), anyLong(), any(Pageable.class)))
+          .willReturn(Collections.emptyList());
+      given(notificationRepository.countByUser_UserIdAndIsReadFalse(userId))
+          .willReturn(5L);
 
-      Notification notification1 = mock(Notification.class);
-      Notification notification2 = mock(Notification.class);
-      List<Notification> unreadList = Arrays.asList(notification1, notification2);
+      NotificationListResponseDto resp = service.getNotifications(userId, null, 20);
 
-      given(notificationRepository.findByUser_UserIdAndIsReadFalse(userId))
-          .willReturn(unreadList);
-
-      // when
-      service.markAllAsRead(userId);
-
-      // then
-      then(notification1).should().markAsRead();
-      then(notification2).should().markAsRead();
+      assertThat(resp.getNotifications()).hasSize(1);
+      assertThat(resp.getUnreadCount()).isEqualTo(5L);
+      assertThat(resp.isHasMore()).isFalse();
+      assertThat(resp.getCursor()).isEqualTo(10L);
     }
 
     @Test
-    @DisplayName("읽지 않은 알림이 없는 경우")
-    void markAllAsRead_noUnreadNotifications() {
-      // given
+    void nextPage_hasMoreTrue() {
+      Long userId = 1L;
+      NotificationListItem i1 = new NotificationListItem(20L,"A",Type.CHAT,false,LocalDateTime.now());
+      NotificationListItem i2 = new NotificationListItem(10L,"B",Type.COMMENT,false,LocalDateTime.now());
+      given(notificationRepository.findByUserIdOrderByNotificationIdDesc(userId, PageRequest.of(0,2)))
+          .willReturn(List.of(i1,i2));
+      // afterCursor returns one more to indicate hasMore
+      given(notificationRepository.findAfterCursor(userId, 10L, PageRequest.of(0,1)))
+          .willReturn(List.of(i1));
+      given(notificationRepository.countByUser_UserIdAndIsReadFalse(userId))
+          .willReturn(3L);
+
+      NotificationListResponseDto resp = service.getNotifications(userId, null, 2);
+
+      assertThat(resp.getNotifications()).extracting("notificationId")
+          .containsExactly(20L,10L);
+      assertThat(resp.isHasMore()).isTrue();
+      assertThat(resp.getCursor()).isEqualTo(10L);
+      assertThat(resp.getUnreadCount()).isEqualTo(3L);
+    }
+  }
+
+  @Nested
+  class MarkAllAsReadTests {
+
+    @Test
+    void noUnread_noInteraction() {
       Long userId = 1L;
       given(notificationRepository.findByUser_UserIdAndIsReadFalse(userId))
           .willReturn(Collections.emptyList());
 
-      // when
       service.markAllAsRead(userId);
 
-      // then
-      then(notificationRepository).should().findByUser_UserIdAndIsReadFalse(userId);
-      then(notificationRepository).shouldHaveNoMoreInteractions();
+      then(sseEmittersService).shouldHaveNoInteractions();
     }
 
     @Test
-    @DisplayName("읽음 처리 후 실시간 업데이트 전송")
-    void markAllAsRead_withSseUpdate() {
-      // given
+    void someUnread_triggersUpdate() {
       Long userId = 1L;
-
-      Notification notification = mock(Notification.class);
+      Notification n = mock(Notification.class);
       given(notificationRepository.findByUser_UserIdAndIsReadFalse(userId))
-          .willReturn(Arrays.asList(notification));
+          .willReturn(List.of(n));
 
-      service.createSseConnection(userId);
-
-      given(notificationRepository.countByUser_UserIdAndIsReadFalse(userId))
-          .willReturn(0L);
-
-      // when
       service.markAllAsRead(userId);
 
-      // then
-      then(notification).should().markAsRead();
-      then(notificationRepository).should().countByUser_UserIdAndIsReadFalse(userId);
+      then(n).should().markAsRead();
+      then(sseEmittersService).should().sendUnreadCountUpdate(userId);
     }
   }
 
   @Nested
-  @DisplayName("deleteNotification 메서드")
   class DeleteNotificationTests {
 
     @Test
-    @DisplayName("알림 삭제 성공")
-    void deleteNotification_success() {
-      // given
-      Long userId = 1L;
-      Long notificationId = 10001L;
+    void successUnread_triggersUpdate() {
+      Long userId = 1L, nid = 100L;
+      User user = mock(User.class);
+      given(user.getUserId()).willReturn(userId);
+      Notification notif = mock(Notification.class);
+      given(notif.getUser()).willReturn(user);
+      given(notif.getIsRead()).willReturn(false);
+      given(notificationRepository.findById(nid))
+          .willReturn(Optional.of(notif));
 
-      User mockUser = mock(User.class);
-      given(mockUser.getUserId()).willReturn(userId);
+      service.deleteNotification(userId, nid);
 
-      Notification mockNotification = mock(Notification.class);
-      given(mockNotification.getUser()).willReturn(mockUser);
-      given(mockNotification.getIsRead()).willReturn(false);
-
-      given(notificationRepository.findById(notificationId))
-          .willReturn(Optional.of(mockNotification));
-
-      // when
-      service.deleteNotification(userId, notificationId);
-
-      // then
-      then(notificationRepository).should().delete(mockNotification);
+      then(notificationRepository).should().delete(notif);
+      then(sseEmittersService).should().sendUnreadCountUpdate(userId);
     }
 
     @Test
-    @DisplayName("알림 없음 - NOTIFICATION_NOT_FOUND 예외")
-    void deleteNotification_notFound() {
-      // given
-      Long userId = 1L;
-      Long notificationId = 99999L;
+    void successRead_noUpdate() {
+      Long userId = 1L, nid = 200L;
+      User user = mock(User.class);
+      given(user.getUserId()).willReturn(userId);
+      Notification notif = mock(Notification.class);
+      given(notif.getUser()).willReturn(user);
+      given(notif.getIsRead()).willReturn(true);
+      given(notificationRepository.findById(nid))
+          .willReturn(Optional.of(notif));
 
-      given(notificationRepository.findById(notificationId))
+      service.deleteNotification(userId, nid);
+
+      then(notificationRepository).should().delete(notif);
+      then(sseEmittersService).should(never()).sendUnreadCountUpdate(any());
+    }
+
+    @Test
+    void notFound_throws() {
+      given(notificationRepository.findById(500L))
           .willReturn(Optional.empty());
 
-      // when & then
-      assertThatThrownBy(() -> service.deleteNotification(userId, notificationId))
+      assertThatThrownBy(() -> service.deleteNotification(1L, 500L))
           .isInstanceOf(CustomException.class)
           .hasFieldOrPropertyWithValue("errorCode", ErrorCode.NOTIFICATION_NOT_FOUND);
-
-      then(notificationRepository).should(never()).delete(any());
     }
 
     @Test
-    @DisplayName("다른 사용자의 알림 삭제 시도 - NOTIFICATION_NOT_FOUND 예외")
-    void deleteNotification_notOwner() {
-      // given
-      Long userId = 1L;
-      Long notificationId = 10001L;
+    void wrongOwner_throws() {
+      Long userId = 1L, nid = 300L;
+      User other = mock(User.class);
+      given(other.getUserId()).willReturn(2L);
+      Notification notif = mock(Notification.class);
+      given(notif.getUser()).willReturn(other);
+      given(notificationRepository.findById(nid))
+          .willReturn(Optional.of(notif));
 
-      User otherUser = mock(User.class);
-      given(otherUser.getUserId()).willReturn(2L);
-
-      Notification mockNotification = mock(Notification.class);
-      given(mockNotification.getUser()).willReturn(otherUser);
-
-      given(notificationRepository.findById(notificationId))
-          .willReturn(Optional.of(mockNotification));
-
-      // when & then
-      assertThatThrownBy(() -> service.deleteNotification(userId, notificationId))
+      assertThatThrownBy(() -> service.deleteNotification(userId,nid))
           .isInstanceOf(CustomException.class)
           .hasFieldOrPropertyWithValue("errorCode", ErrorCode.NOTIFICATION_NOT_FOUND);
-
-      then(notificationRepository).should(never()).delete(any());
-    }
-
-    @Test
-    @DisplayName("읽지 않은 알림 삭제 시 개수 업데이트")
-    void deleteNotification_unreadWithUpdate() {
-      // given
-      Long userId = 1L;
-      Long notificationId = 10001L;
-
-      User mockUser = mock(User.class);
-      given(mockUser.getUserId()).willReturn(userId);
-
-      Notification mockNotification = mock(Notification.class);
-      given(mockNotification.getUser()).willReturn(mockUser);
-      given(mockNotification.getIsRead()).willReturn(false);
-
-      given(notificationRepository.findById(notificationId))
-          .willReturn(Optional.of(mockNotification));
-
-      service.createSseConnection(userId);
-
-      given(notificationRepository.countByUser_UserIdAndIsReadFalse(userId))
-          .willReturn(4L);
-
-      // when
-      service.deleteNotification(userId, notificationId);
-
-      // then
-      then(notificationRepository).should().delete(mockNotification);
-      then(notificationRepository).should().countByUser_UserIdAndIsReadFalse(userId);
-    }
-
-    @Test
-    @DisplayName("읽은 알림 삭제 시 개수 업데이트 안함")
-    void deleteNotification_readWithoutUpdate() {
-      // given
-      Long userId = 1L;
-      Long notificationId = 10001L;
-
-      User mockUser = mock(User.class);
-      given(mockUser.getUserId()).willReturn(userId);
-
-      Notification mockNotification = mock(Notification.class);
-      given(mockNotification.getUser()).willReturn(mockUser);
-      given(mockNotification.getIsRead()).willReturn(true);
-
-      given(notificationRepository.findById(notificationId))
-          .willReturn(Optional.of(mockNotification));
-
-      // when
-      service.deleteNotification(userId, notificationId);
-
-      // then
-      then(notificationRepository).should().delete(mockNotification);
-      then(notificationRepository).should(never()).countByUser_UserIdAndIsReadFalse(anyLong());
     }
   }
 
   @Nested
-  @DisplayName("sendCreated 메서드")
-  class SendCreatedTests {
+  class SendEventTests {
 
     @Test
-    @DisplayName("알림 생성 이벤트 처리 성공")
-    void sendCreated_success() {
-      // given
+    void sendCreated_usesSseService() {
       Long userId = 1L;
-      User mockUser = mock(User.class);
-      given(mockUser.getUserId()).willReturn(userId);
+      User user = mock(User.class);
+      given(user.getUserId()).willReturn(userId);
+      Notification notif = mock(Notification.class);
+      given(notif.getUser()).willReturn(user);
 
-      Notification mockNotification = mock(Notification.class);
-      given(mockNotification.getUser()).willReturn(mockUser);
-      given(mockNotification.getNotificationId()).willReturn(10001L);
+      service.sendCreated(notif);
 
-      // when
-      service.sendCreated(mockNotification);
-
-      // then
-      assertThatCode(() -> service.sendCreated(mockNotification))
-          .doesNotThrowAnyException();
+      then(sseEmittersService).should().sendSseNotification(userId, notif);
     }
 
     @Test
-    @DisplayName("SSE 연결이 있을 때 알림 전송")
-    void sendCreated_withActiveConnection() {
-      // given
+    void sendRead_usesSseService() {
       Long userId = 1L;
-      User mockUser = mock(User.class);
-      given(mockUser.getUserId()).willReturn(userId);
+      User user = mock(User.class);
+      given(user.getUserId()).willReturn(userId);
+      Notification notif = mock(Notification.class);
+      given(notif.getUser()).willReturn(user);
 
-      Notification mockNotification = mock(Notification.class);
-      given(mockNotification.getUser()).willReturn(mockUser);
-      given(mockNotification.getNotificationId()).willReturn(10001L);
-      given(mockNotification.getContent()).willReturn("테스트 알림");
-      given(mockNotification.getNotificationType()).willReturn(mock(NotificationType.class));
+      service.sendRead(notif);
 
-      service.createSseConnection(userId);
-
-      // when
-      service.sendCreated(mockNotification);
-
-      // then
-      assertThatCode(() -> service.sendCreated(mockNotification))
-          .doesNotThrowAnyException();
-    }
-  }
-
-  @Nested
-  @DisplayName("sendRead 메서드")
-  class SendReadTests {
-
-    @Test
-    @DisplayName("알림 읽음 이벤트 처리 성공")
-    void sendRead_success() {
-      // given
-      Long userId = 1L;
-      User mockUser = mock(User.class);
-      given(mockUser.getUserId()).willReturn(userId);
-
-      Notification mockNotification = mock(Notification.class);
-      given(mockNotification.getUser()).willReturn(mockUser);
-      given(mockNotification.getNotificationId()).willReturn(10001L);
-
-      // when
-      service.sendRead(mockNotification);
-
-      // then
-      assertThatCode(() -> service.sendRead(mockNotification))
-          .doesNotThrowAnyException();
-    }
-
-    @Test
-    @DisplayName("SSE 연결이 있을 때 읽지 않은 개수 업데이트")
-    void sendRead_withActiveConnection() {
-      // given
-      Long userId = 1L;
-      User mockUser = mock(User.class);
-      given(mockUser.getUserId()).willReturn(userId);
-
-      Notification mockNotification = mock(Notification.class);
-      given(mockNotification.getUser()).willReturn(mockUser);
-
-      service.createSseConnection(userId);
-
-      given(notificationRepository.countByUser_UserIdAndIsReadFalse(userId))
-          .willReturn(3L);
-
-      // when
-      service.sendRead(mockNotification);
-
-      // then
-      then(notificationRepository).should().countByUser_UserIdAndIsReadFalse(userId);
-    }
-  }
-
-  @Nested
-  @DisplayName("통합 시나리오 테스트")
-  class IntegrationTests {
-
-    @Test
-    @DisplayName("알림 생성 후 조회 시나리오")
-    void createAndRetrieveNotification() {
-      // given
-      Long userId = 1L;
-      User mockUser = mock(User.class);
-      given(mockUser.getUserId()).willReturn(userId);
-      given(userRepository.findById(userId)).willReturn(Optional.of(mockUser));
-
-      NotificationType mockType = mock(NotificationType.class);
-      given(mockType.getType()).willReturn(Type.COMMENT);
-      given(mockType.getTemplate()).willReturn("{0}님이 댓글을 남겼습니다");
-      given(notificationTypeRepository.findByType(Type.COMMENT))
-          .willReturn(Optional.of(mockType));
-
-      try (MockedStatic<Notification> mockedNotification = mockStatic(Notification.class)) {
-        Notification mockNotification = mock(Notification.class);
-        given(mockNotification.getUser()).willReturn(mockUser);
-        given(mockNotification.getNotificationId()).willReturn(10001L);
-        given(mockNotification.getContent()).willReturn("홍길동님이 댓글을 남겼습니다");
-        given(mockNotification.getFcmSent()).willReturn(false);
-
-        mockedNotification.when(() -> Notification.create(any(), any(), any()))
-            .thenReturn(mockNotification);
-
-        given(notificationRepository.save(any(Notification.class)))
-            .willReturn(mockNotification);
-
-        NotificationCreateRequestDto createDto = NotificationCreateRequestDto.builder()
-            .userId(userId)
-            .type(Type.COMMENT)
-            .args(new String[]{"홍길동"})
-            .build();
-
-        // when - 알림 생성
-        NotificationCreateResponseDto createResult = service.createNotification(createDto);
-
-        // then
-        assertThat(createResult.getNotificationId()).isEqualTo(10001L);
-
-        // given - 조회 설정
-        NotificationListItem item = mock(NotificationListItem.class);
-        given(item.getNotificationId()).willReturn(10001L);
-        given(item.getContent()).willReturn("홍길동님이 댓글을 남겼습니다");
-        given(item.getType()).willReturn(Type.COMMENT);
-        given(item.getIsRead()).willReturn(false);
-        given(item.getCreatedAt()).willReturn(LocalDateTime.now());
-
-        given(notificationRepository.findTopByUser(eq(userId), any(Pageable.class)))
-            .willReturn(Arrays.asList(item));
-        given(notificationRepository.findAfterCursor(eq(userId), eq(10001L), any(Pageable.class)))
-            .willReturn(Collections.emptyList());
-        given(notificationRepository.countByUser_UserIdAndIsReadFalse(userId))
-            .willReturn(1L);
-
-        // when - 알림 조회
-        NotificationListResponseDto listResult = service.getNotifications(userId, null, 20);
-
-        // then
-        assertThat(listResult.getNotifications()).hasSize(1);
-        assertThat(listResult.getNotifications().get(0).getNotificationId()).isEqualTo(10001L);
-        assertThat(listResult.getUnreadCount()).isEqualTo(1L);
-      }
+      then(sseEmittersService).should().sendUnreadCountUpdate(userId);
     }
   }
 }
