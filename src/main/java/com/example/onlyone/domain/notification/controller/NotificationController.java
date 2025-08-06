@@ -4,6 +4,7 @@ import com.example.onlyone.domain.notification.dto.requestDto.NotificationCreate
 import com.example.onlyone.domain.notification.dto.responseDto.NotificationCreateResponseDto;
 import com.example.onlyone.domain.notification.dto.responseDto.NotificationListResponseDto;
 import com.example.onlyone.domain.notification.service.NotificationService;
+import com.example.onlyone.domain.notification.service.SseEmittersService;
 import com.example.onlyone.global.common.CommonResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -38,8 +39,9 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 public class NotificationController {
 
     private final NotificationService notificationService;
+    private final SseEmittersService sseEmittersService;
 
-    /**
+  /**
      * SSE 스트림 연결
      * 클라이언트와 서버 간 실시간 알림을 위한 SSE 연결을 생성합니다.
      * SSE 이벤트 타입: - heartbeat: 연결 유지 확인 - notification: 새로운 알림 도착 - unread_count: 읽지 않은 개수 변경
@@ -48,11 +50,14 @@ public class NotificationController {
      *
      */
     @Operation(summary = "알림 실시간 스트림", description = "Server-Sent Events를 통한 실시간 알림 수신")
-    @GetMapping(value = "/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
+    @GetMapping(
+        value    = "/stream",
+        produces = {MediaType.TEXT_EVENT_STREAM_VALUE, MediaType.APPLICATION_JSON_VALUE}
+    )
     public SseEmitter streamNotifications(@RequestParam Long userId) {
         log.info("SSE 스트림 연결 요청 - 사용자 ID: {}", userId);
         // 서비스에서 실패 시 CustomException을 던지고, GlobalExceptionHandler가 처리해 줍니다.
-        return notificationService.createSseConnection(userId);
+        return sseEmittersService.createSseConnection(userId);
     }
 
     /**
