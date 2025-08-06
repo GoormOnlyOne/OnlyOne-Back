@@ -8,6 +8,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.data.web.PageableDefault;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -36,7 +37,9 @@ public class SettlementController {
 
     @Operation(summary = "스케줄 참여자 정산 조회", description = "정기 모임 모든 참여자의 정산 상태를 조회합니다.")
     @GetMapping
-    public ResponseEntity<?> getSettlementList(@PathVariable("clubId") final Long clubId, @PathVariable("scheduleId") final Long scheduleId, @PageableDefault(size = 20) final Pageable pageable) {
+    public ResponseEntity<?> getSettlementList(@PathVariable("clubId") final Long clubId, @PathVariable("scheduleId") final Long scheduleId,
+                                               @PageableDefault(size = 20, sort = "createdAt", direction = Sort.Direction.DESC)
+                                               Pageable pageable) {
         return ResponseEntity.ok(CommonResponse.success(settlementService.getSettlementList(clubId, scheduleId,  pageable)));
     }
 }

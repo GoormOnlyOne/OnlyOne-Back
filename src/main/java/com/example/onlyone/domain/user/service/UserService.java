@@ -11,8 +11,10 @@ import io.jsonwebtoken.security.Keys;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.log4j.Log4j2;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.security.core.Authentication;
 
 import javax.crypto.SecretKey;
 import java.time.LocalDate;
@@ -37,15 +39,21 @@ public class UserService {
     @Value("${jwt.refresh-expiration}")
     private long refreshTokenExpiration;
 
-    // 개발 진행을 위한 임시 메서드
-    public User getCurrentUser(){
-        return userRepository.findById((long) 1)
-                .orElseThrow(() -> new CustomException(ErrorCode.USER_NOT_FOUND));
-    }
 
-    public User getAnotherUser(){
-        return userRepository.findById((long) 4)
-                .orElseThrow(() -> new CustomException(ErrorCode.USER_NOT_FOUND));
+    @Transactional(readOnly = true)
+    public User getCurrentUser() {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication == null || !authentication.isAuthenticated()) {
+            throw new CustomException(ErrorCode.UNAUTHORIZED);
+        }
+        Long kakaoId = 0L;
+        try {
+            kakaoId = Long.valueOf(authentication.getName());
+        } catch (NumberFormatException e) {
+            throw new  CustomException(ErrorCode.UNAUTHORIZED);
+        }
+        return userRepository.findByKakaoId(kakaoId)
+                .orElseThrow(() -> new CustomException(ErrorCode.KAKAO_API_ERROR));
     }
 
     public User getMemberById(Long memberId){
@@ -92,7 +100,7 @@ public class UserService {
         SecretKey key = Keys.hmacShaKeyFor(jwtSecret.getBytes());
         
         return Jwts.builder()
-                .subject(user.getUserId().toString())
+                .subject(user.getKakaoId().toString())
                 .claim("kakaoId", user.getKakaoId())
                 .claim("nickname", user.getNickname())
                 .claim("type", "access")
