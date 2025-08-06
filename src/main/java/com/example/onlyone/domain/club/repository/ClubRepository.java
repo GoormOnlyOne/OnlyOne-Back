@@ -52,17 +52,28 @@ public interface ClubRepository extends JpaRepository<Club, Long> {
             "ORDER BY COUNT(uc) DESC, c.createdAt DESC")
     List<Object[]> searchByUserInterests(@Param("interestIds") List<Long> interestIds, Pageable pageable);
 
-    // 키워드 검색
+    // 통합 검색 (키워드 + 필터)
     @Query(value = "SELECT c.club_id, c.name, c.description, " +
             "c.district, c.club_image, i.category, " +
             "COUNT(uc.user_club_id) as member_count " +
             "FROM club c LEFT JOIN user_club uc ON c.club_id = uc.club_id " +
             "LEFT JOIN interest i ON c.interest_id = i.interest_id " +
-            "WHERE MATCH(c.name, c.description) AGAINST(:keyword IN NATURAL LANGUAGE MODE) " +
+            "WHERE (:keyword IS NULL OR MATCH(c.name, c.description) AGAINST(:keyword IN NATURAL LANGUAGE MODE)) " +
+            "AND (:city IS NULL OR c.city = :city) " +
+            "AND (:district IS NULL OR c.district = :district) " +
+            "AND (:interestId IS NULL OR c.interest_id = :interestId) " +
             "GROUP BY c.club_id " +
-            "ORDER BY MATCH(c.name, c.description) AGAINST(:keyword IN NATURAL LANGUAGE MODE) DESC, " +
-            "COUNT(uc.user_club_id) DESC", nativeQuery = true)
-    List<Object[]> searchByKeyword(@Param("keyword") String keyword, Pageable pageable);
+            "ORDER BY " +
+            "CASE WHEN :sortBy = 'LATEST' THEN c.created_at END DESC, " +
+            "CASE WHEN :sortBy = 'MEMBER_COUNT' THEN COUNT(uc.user_club_id) END DESC, " +
+            "CASE WHEN :keyword IS NOT NULL THEN MATCH(c.name, c.description) AGAINST(:keyword IN NATURAL LANGUAGE MODE) END DESC",
+            nativeQuery = true)
+    List<Object[]> searchByKeywordWithFilter(@Param("keyword") String keyword,
+                                             @Param("city") String city,
+                                             @Param("district") String district,
+                                             @Param("interestId") Long interestId,
+                                             @Param("sortBy") String sortBy,
+                                             Pageable pageable);
 
     // 함께하는 멤버들의 다른 모임 조회
     @Query("""
