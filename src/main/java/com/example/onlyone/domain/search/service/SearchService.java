@@ -2,10 +2,13 @@ package com.example.onlyone.domain.search.service;
 
 import com.example.onlyone.domain.club.entity.Club;
 import com.example.onlyone.domain.club.repository.ClubRepository;
+import com.example.onlyone.domain.search.dto.request.SearchFilterDto;
 import com.example.onlyone.domain.search.dto.response.ClubResponseDto;
 import com.example.onlyone.domain.user.entity.User;
 import com.example.onlyone.domain.user.repository.UserInterestRepository;
 import com.example.onlyone.domain.user.service.UserService;
+import com.example.onlyone.global.exception.CustomException;
+import com.example.onlyone.global.exception.ErrorCode;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -60,10 +63,34 @@ public class SearchService {
         return convertToClubResponseDto(resultList);
     }
 
-    // 키워드 검색
-    public List<ClubResponseDto> searchClubByKeyword(String keyword, int page) {
-        PageRequest pageRequest = PageRequest.of(page, 20);
-        List<Object[]> resultList = clubRepository.searchByKeyword(keyword, pageRequest);
+    // 통합 검색 (키워드 + 필터)
+    public List<ClubResponseDto> searchClubs(SearchFilterDto filter) {
+        // 지역 필터 유효성 검증
+        if (!filter.isLocationValid()) {
+            throw new CustomException(ErrorCode.INVALID_SEARCH_FILTER);
+        }
+        // 키워드 유효성 검증
+        if (!filter.isKeywordValid()) {
+            throw new CustomException(ErrorCode.SEARCH_KEYWORD_TOO_SHORT);
+        }
+        PageRequest pageRequest = PageRequest.of(filter.getPage(), 20);
+        
+        // 지역은 세트로만 처리
+        String city = null;
+        String district = null;
+        if (filter.hasLocation()) {
+            city = filter.getCity().trim();
+            district = filter.getDistrict().trim();
+        }
+        
+        List<Object[]> resultList = clubRepository.searchByKeywordWithFilter(
+            filter.getKeyword(),
+            city,
+            district,
+            filter.getInterestId(),
+            filter.getSortBy().name(),
+            pageRequest
+        );
 
         return convertKeywordSearchResults(resultList);
     }
