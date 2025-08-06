@@ -110,7 +110,7 @@ public class SettlementService {
     }
 
     public void updateUserSettlement(Long clubId, Long scheduleId) {
-        User user = userService.getAnotherUser();
+        User user = userService.getCurrentUser();
 //        User user = userService.getCurrentUser();
         // 유효성 검증
         clubRepository.findById(clubId)
