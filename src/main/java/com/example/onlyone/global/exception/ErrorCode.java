@@ -12,9 +12,14 @@ public enum ErrorCode {
     METHOD_NOT_ALLOWED(405, "GLOBAL_400_2", "지원하지 않는 HTTP 메서드입니다."),
     BAD_REQUEST(400, "GLOBAL_400_3", "필수 파라미터가 누락되었습니다."),
     INTERNAL_SERVER_ERROR(500, "GLOBAL_500_1", "서버 내부 오류가 발생했습니다."),
+    EXTERNAL_API_ERROR(503, "GLOBAL_503_1", "외부 API 서버 호출 중 오류가 발생했습니다."),
+    UNAUTHORIZED(401, "GLOBAL_401_1", "인증되지 않은 사용자입니다."),
 
     // User
     USER_NOT_FOUND(404, "USER_404_1", "유저를 찾을 수 없습니다."),
+    KAKAO_AUTH_FAILED(401, "USER_401_1", "카카오 인가 코드가 유효하지 않습니다."),
+    KAKAO_LOGIN_FAILED(502, "USER_502_1", "카카오 로그인 처리 중 오류가 발생했습니다."),
+    KAKAO_API_ERROR(502, "USER_502_2", "카카오 API 응답에 실패했습니다."),
 
     // Interest
     INVALID_CATEGORY(400, "INTEREST_400_1", "유효하지 않은 카데고리입니다."),
@@ -51,19 +56,21 @@ public enum ErrorCode {
     USER_SETTLEMENT_NOT_FOUND(404, "SETTLEMENT_404_2", "정산 참여자를 찾을 수 없습니다."),
     ALREADY_SETTLED_USER(409, "SETTLEMENT_409_1", "이미 해당 정기 모임에 대해 정산한 유저입니다."),
 
-    // Chat
-    CHAT_ROOM_NOT_FOUND(404, "CHAT_404_1", "채팅방을 찾을 수 없습니다."),
-    USER_CHAT_ROOM_NOT_FOUND(404, "CHAT_404_2", "채팅방 참여자를 찾을 수 없습니다."),
-    CHAT_ROOM_DELETE_FAILED(409, "CHAT_409_2", "채팅방 삭제에 실패했습니다."),
-
     // Wallet
     INVALID_FILTER(400, "WALLET_400_1", "유효하지 않은 필터입니다."),
     WALLET_NOT_FOUND(404, "WALLET_404_1", "사용자의 지갑을 찾을 수 없습니다."),
     WALLET_BALANCE_NOT_ENOUGH(409, "WALLET_409_1", "사용자의 잔액이 부족합니다."),
 
     // Payment
-    INVALID_PAYMENT_INFO(400, "PAYMENT_400_1", "결제 금액 정보가 유효하지 않습니다."),
-  
+    INVALID_PAYMENT_INFO(400, "PAYMENT_400_1", "결제 정보가 유효하지 않습니다."),
+    ALREADY_COMPLETED_PAYMENT(409, "PAYMENT_409_1", "이미 결제가 완료되었습니다."),
+    TOSS_PAYMENT_FAILED(502, "PAYMENT_502_1", "토스페이먼츠 결제 승인에 실패했습니다."),
+
+    // Chat
+    CHAT_ROOM_NOT_FOUND(404, "CHAT_404_1", "채팅방을 찾을 수 없습니다."),
+    USER_CHAT_ROOM_NOT_FOUND(404, "CHAT_404_2", "채팅방 참여자를 찾을 수 없습니다."),
+    CHAT_ROOM_DELETE_FAILED(409, "CHAT_409_2", "채팅방 삭제에 실패했습니다."),
+
     // Chat - 채팅방 목록 조회
     UNAUTHORIZED_CHAT_ACCESS(401, "CHAT_401_1", "채팅방 접근 권한이 없습니다."),
     INTERNAL_CHAT_SERVER_ERROR(500, "CHAT_500_1", "채팅 서버 오류가 발생했습니다."),
@@ -95,7 +102,9 @@ public enum ErrorCode {
     INVALID_IMAGE_CONTENT_TYPE(400, "IMAGE_400_2", "유효하지 않은 이미지 컨텐츠 타입입니다."),
     INVALID_IMAGE_SIZE(400, "IMAGE_400_3", "유효하지 않은 이미지 크기입니다."),
     IMAGE_SIZE_EXCEEDED(413, "IMAGE_413_1", "이미지 크기가 허용된 최대 크기(5MB) 크기를 초과했니다."),
-    IMAGE_UPLOAD_FAILED(500, "IMAGE_500_1", "이미지 업로드 중 오류가 발생했습니다.");
+    IMAGE_UPLOAD_FAILED(500, "IMAGE_500_1", "이미지 업로드 중 오류가 발생했습니다."),
+
+    ;
 
     private final int status;
     private final String code;

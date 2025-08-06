@@ -2,11 +2,9 @@ package com.example.onlyone.domain.chat.controller;
 
 import com.example.onlyone.domain.chat.dto.ChatMessageRequest;
 import com.example.onlyone.domain.chat.dto.ChatMessageResponse;
-import com.example.onlyone.domain.chat.entity.Message;
 import com.example.onlyone.domain.chat.service.MessageService;
 import com.example.onlyone.global.common.CommonResponse;
 import io.swagger.v3.oas.annotations.Operation;
-import io.swagger.v3.oas.annotations.Parameter;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
