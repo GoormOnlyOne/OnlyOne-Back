@@ -25,7 +25,7 @@ public class SearchService {
     private final UserInterestRepository userInterestRepository;
 
     // 사용자 맞춤 추천
-    public Page<ClubResponseDto> recommendedClubs(int page) {
+    public List<ClubResponseDto> recommendedClubs(int page) {
         PageRequest pageRequest = PageRequest.of(page, 20);
         User user = userService.getCurrentUser();
 
@@ -33,9 +33,9 @@ public class SearchService {
         List<Long> interestIds = userInterestRepository.findInterestIdsByUserId(user.getUserId());
 
         // 1단계: 관심사 + 지역 일치
-        Page<Object[]> resultList = clubRepository.searchByUserInterestAndLocation(interestIds, user.getCity(), user.getDistrict(), pageRequest);
+        List<Object[]> resultList = clubRepository.searchByUserInterestAndLocation(interestIds, user.getCity(), user.getDistrict(), pageRequest);
 
-        if(resultList.getTotalElements() > 0) {
+        if(resultList.size() > 0) {
             return convertToClubResponseDto(resultList);
         }
 
@@ -45,41 +45,41 @@ public class SearchService {
     }
 
     // 모임 검색 (관심사)
-    public Page<ClubResponseDto> searchClubByInterest(Long interestId, int page) {
+    public List<ClubResponseDto> searchClubByInterest(Long interestId, int page) {
         PageRequest pageRequest = PageRequest.of(page, 20);
-        Page<Object[]> resultList = clubRepository.searchByInterest(interestId, pageRequest);
+        List<Object[]> resultList = clubRepository.searchByInterest(interestId, pageRequest);
 
         return convertToClubResponseDto(resultList);
     }
 
     // 모임 검색 (지역)
-    public Page<ClubResponseDto> searchClubByLocation(String city, String district, int page) {
+    public List<ClubResponseDto> searchClubByLocation(String city, String district, int page) {
         PageRequest pageRequest = PageRequest.of(page, 20);
-        Page<Object[]> resultList = clubRepository.searchByLocation(city, district, pageRequest);
+        List<Object[]> resultList = clubRepository.searchByLocation(city, district, pageRequest);
 
         return convertToClubResponseDto(resultList);
     }
 
     // 키워드 검색
-    public Page<ClubResponseDto> searchClubByKeyword(String keyword, int page) {
+    public List<ClubResponseDto> searchClubByKeyword(String keyword, int page) {
         PageRequest pageRequest = PageRequest.of(page, 20);
-        Page<Object[]> resultList = clubRepository.searchByKeyword(keyword, pageRequest);
+        List<Object[]> resultList = clubRepository.searchByKeyword(keyword, pageRequest);
 
         return convertKeywordSearchResults(resultList);
     }
 
     // 엔티티 -> DTO 형태로 변환
-    private Page<ClubResponseDto> convertToClubResponseDto(Page<Object[]> results) {
-        return results.map(result -> {
+    private List<ClubResponseDto> convertToClubResponseDto(List<Object[]> results) {
+        return results.stream().map(result -> {
             Club club = (Club) result[0];
             Long memberCount = (Long) result[1];
             return ClubResponseDto.from(club, memberCount);
-        });
+        }).toList();
     }
 
     // 키워드 검색 결과 전용 변환
-    private Page<ClubResponseDto> convertKeywordSearchResults(Page<Object[]> results) {
-        return results.map(result -> {
+    private List<ClubResponseDto> convertKeywordSearchResults(List<Object[]> results) {
+        return results.stream().map(result -> {
             return ClubResponseDto.builder()
                     .clubId(((Number) result[0]).longValue())
                     .name((String) result[1])
@@ -89,6 +89,6 @@ public class SearchService {
                     .interest((String) result[5])
                     .memberCount(((Number) result[6]).longValue())
                     .build();
-        });
+        }).toList();
     }
 }
