@@ -1,11 +1,14 @@
 package com.example.onlyone.domain.feed.service;
 
 import com.example.onlyone.domain.club.entity.Club;
+import com.example.onlyone.domain.club.entity.UserClub;
 import com.example.onlyone.domain.club.repository.ClubRepository;
+import com.example.onlyone.domain.club.repository.UserClubRepository;
 import com.example.onlyone.domain.feed.dto.request.FeedCommentRequestDto;
 import com.example.onlyone.domain.feed.dto.request.FeedRequestDto;
 import com.example.onlyone.domain.feed.dto.response.FeedCommentResponseDto;
 import com.example.onlyone.domain.feed.dto.response.FeedDetailResponseDto;
+import com.example.onlyone.domain.feed.dto.response.FeedOverviewDto;
 import com.example.onlyone.domain.feed.dto.response.FeedSummaryResponseDto;
 import com.example.onlyone.domain.feed.entity.Feed;
 import com.example.onlyone.domain.feed.entity.FeedComment;
@@ -25,8 +28,10 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 @Log4j2
@@ -39,6 +44,7 @@ public class FeedService {
     private final UserService userService;
     private final FeedLikeRepository feedLikeRepository;
     private final FeedCommentRepository feedCommentRepository;
+    private final UserClubRepository userClubRepository;
 
 
     public void createFeed(Long clubId, FeedRequestDto requestDto) {
@@ -175,5 +181,41 @@ public class FeedService {
         }
 
         feedCommentRepository.delete(feedComment);
+    }
+
+    @Transactional(readOnly = true)
+    public List<FeedOverviewDto> getPersonalFeed(Pageable pageable) {
+        Long userId = userService.getCurrentUser().getUserId();
+
+        List<UserClub> myJoinClubs = userClubRepository.findByUserUserId(userId);
+
+        List<Long> myClubIds = myJoinClubs.stream()
+                .map(uc -> uc.getClub().getClubId())
+                .toList();
+
+        List<Long> memberIds = userClubRepository.findUserIdByClubIds(myClubIds);
+
+        List<UserClub> friendMemberJoinClubs = userClubRepository.findByUserUserIdIn(memberIds);
+
+        List<Long> friendClubIds = friendMemberJoinClubs.stream()
+                .map(uc -> uc.getClub().getClubId())
+                .filter(id -> !myClubIds.contains(id))
+                .toList();
+
+        List<Long> allClubIds = new ArrayList<>(myClubIds);
+        allClubIds.addAll(friendClubIds);
+
+        List<Feed> feeds = feedRepository.findByClubIds(allClubIds, pageable);
+
+        return feeds.stream()
+                .map(feed -> FeedOverviewDto.builder()
+                        .feedId(feed.getFeedId())
+                        .thumbnailUrl(feed.getFeedImages().get(0).getFeedImage())
+                        .likeCount(feed.getFeedLikes().size())
+                        .commentCount(feed.getFeedComments().size())
+                        .profileImage(feed.getUser().getProfileImage())
+                        .build()
+                )
+                .toList();
     }
 }

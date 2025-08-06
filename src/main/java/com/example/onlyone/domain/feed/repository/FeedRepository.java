@@ -5,6 +5,7 @@ import com.example.onlyone.domain.feed.entity.Feed;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
 
 import java.util.List;
 import java.util.Optional;
@@ -15,4 +16,7 @@ public interface FeedRepository extends JpaRepository<Feed,Long> {
     Optional<Feed> findByFeedIdAndClub(Long feedId, Club club);
 
     Page<Feed> findByClub(Club club, Pageable pageable);
+
+    @Query("SELECT f FROM Feed f WHERE f.club.clubId IN :clubIds")
+    List<Feed> findByClubIds(List<Long> clubIds, Pageable pageable);
 }
