@@ -1,0 +1,49 @@
+spring:
+  datasource:
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    url: jdbc:mysql://test-db.c342wkc6ox7d.ap-northeast-2.rds.amazonaws.com:3306/buddkit?createDatabaseIfNotExist=true&characterEncoding=UTF-8&characterSetResults=UTF-8
+    username: admin
+    password: H5FpkyHBJL
+  jpa:
+    hibernate:
+      ddl-auto: update
+    generate-ddl: true
+    show-sql: true
+  data:
+    redis:
+      host: 43.201.105.7
+      port: 6379
+      password: password
+aws:
+  s3:
+    access-key: AKIAWTJTPYTCVJP74JGI
+    secret-key: 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
+    region: ap-northeast-2
+    bucket: buddkit-image
+    folder:
+      chat: chat
+      club: club
+      feed: feed
+      user: user
+  cloudfront:
+    domain: d1c3fg3ti7m8cn.cloudfront.net
+kakao:
+  client:
+    id: cb62270f81c3942b697f94401978d95b
+  redirect:
+    uri: http://localhost:8080/auth/kakao/callback
+jwt:
+  secret: 7e9eeb12d176a2d72f554c6b096522b4e1a34d799727e45a96f192bbff2a2a851ede29ed24b10b6e6b1835ac94380e2469df99ff9713477bf4d43eeaa9cd16a3
+  access-expiration: 3600000      # 1시간 (밀리초)
+  refresh-expiration: 604800000   # 7일 (밀리초)
+payment:
+  toss:
+    test_secret_api_key: test_gsk_docs_OaPz8L5KdmQXkzRz3y47BMw6
+    base_url: https://api.tosspayments.com/v1/payments
+
+app:
+  base_url: https://api.buddkit.p-e.kr
+
+firebase:
+  service-account:
+    path: firebase/service-account.json
