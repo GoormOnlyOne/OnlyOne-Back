@@ -114,14 +114,15 @@ public class PaymentService {
                 .targetWallet(wallet)
                 .build();
         walletTransactionRepository.save(walletTransaction);
-        paymentRepository.save(Payment.builder()
+        Payment payment = Payment.builder()
                 .tossPaymentKey(response.getPaymentKey())
                 .tossOrderId(response.getOrderId())
                 .totalAmount(response.getTotalAmount())
                 .method(Method.from(response.getMethod()))
                 .status(Status.from(response.getStatus()))
                 .walletTransaction(walletTransaction)
-                .build());
+                .build();
+        walletTransaction.updatePayment(payment);
         return response;
     }
 }
