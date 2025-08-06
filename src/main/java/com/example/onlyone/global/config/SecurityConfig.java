@@ -39,10 +39,6 @@ public class SecurityConfig {
     @Value("${app.base-url}")
     private String baseUrl;
 
-    public SecurityConfig(@Value("${app.base-url}") String baseUrl) {
-        this.baseUrl = baseUrl;
-    }
-
     @Bean
     public WebSecurityCustomizer webSecurityCustomizer() {
         return web -> web.ignoring()
@@ -74,13 +70,8 @@ public class SecurityConfig {
                 baseUrl
         ));
         configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"));
-        configuration.setAllowedHeaders(Arrays.asList("*"));
-        configuration.setExposedHeaders(Arrays.asList(
-                "Set-Cookie",
-                "Location",
-                "Access-Control-Allow-Origin",
-                "Access-Control-Allow-Credentials"
-        ));
+        configuration.addAllowedHeader("*");
+        configuration.setExposedHeaders(Arrays.asList("Set-Cookie", "Location"));
         configuration.setAllowCredentials(true);
 
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
