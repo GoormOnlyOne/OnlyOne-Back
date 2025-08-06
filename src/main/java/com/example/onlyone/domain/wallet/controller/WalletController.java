@@ -27,7 +27,6 @@ public class WalletController {
     public ResponseEntity<?> getWalletTransactionList(@RequestParam(required = false) Filter filter,
                                                       @PageableDefault(size = 20, sort = "createdAt", direction = Sort.Direction.DESC)
                                                       Pageable pageable) {
-        return ResponseEntity.status(HttpStatus.OK).body(walletService.getWalletTransactionList(filter, pageable));
+        return ResponseEntity.status(HttpStatus.OK).body(CommonResponse.success(walletService.getWalletTransactionList(filter, pageable)));
     }
-
 }
