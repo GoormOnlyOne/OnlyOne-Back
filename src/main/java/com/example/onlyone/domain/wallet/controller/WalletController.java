@@ -8,6 +8,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.xml.bind.annotation.XmlType;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.data.web.PageableDefault;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -23,9 +24,9 @@ public class WalletController {
 
     @Operation(summary = "정산/거래 내역 목록 조회", description = "사용자의 정산/거래 내역 목록을 조회합니다.")
     @GetMapping
-    public ResponseEntity<?> getWalletTransactionList(@RequestParam(defaultValue = "ALL") final Filter filter,
-            @PageableDefault(size = 20) final Pageable pageable) {
-        return ResponseEntity.status(HttpStatus.OK).body(walletService.getWalletTransactionList(filter, pageable));
+    public ResponseEntity<?> getWalletTransactionList(@RequestParam(required = false) Filter filter,
+                                                      @PageableDefault(size = 20, sort = "createdAt", direction = Sort.Direction.DESC)
+                                                      Pageable pageable) {
+        return ResponseEntity.status(HttpStatus.OK).body(CommonResponse.success(walletService.getWalletTransactionList(filter, pageable)));
     }
-
 }
