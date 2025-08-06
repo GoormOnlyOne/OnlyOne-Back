@@ -63,4 +63,30 @@ public interface ClubRepository extends JpaRepository<Club, Long> {
             "ORDER BY MATCH(c.name, c.description) AGAINST(:keyword IN NATURAL LANGUAGE MODE) DESC, " +
             "COUNT(uc.user_club_id) DESC", nativeQuery = true)
     List<Object[]> searchByKeyword(@Param("keyword") String keyword, Pageable pageable);
+
+    // 함께하는 멤버들의 다른 모임 조회
+    @Query("""
+        SELECT c, COUNT(uc)
+        FROM Club c
+        LEFT JOIN UserClub uc ON c.clubId = uc.club.clubId 
+            AND uc.clubRole IN ('MEMBER', 'LEADER')
+        WHERE EXISTS (
+            SELECT 1
+            FROM UserClub uc1
+            JOIN UserClub teammate ON uc1.club.clubId = teammate.club.clubId
+            JOIN UserClub uc2 ON teammate.user.userId = uc2.user.userId
+            WHERE uc2.club.clubId = c.clubId
+              AND uc1.user.userId = :userId 
+              AND teammate.user.userId != :userId
+        )
+        AND NOT EXISTS (
+            SELECT 1
+            FROM UserClub uc3
+            WHERE uc3.club.clubId = c.clubId
+              AND uc3.user.userId = :userId
+        )
+        GROUP BY c.clubId
+        ORDER BY COUNT(uc) DESC, c.createdAt DESC
+    """)
+    List<Object[]> findClubsByTeammates(@Param("userId") Long userId, Pageable pageable);
 }

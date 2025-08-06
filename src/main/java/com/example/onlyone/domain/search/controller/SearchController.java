@@ -41,4 +41,10 @@ public class SearchController {
     public ResponseEntity<?> searchClubByKeyword(@RequestParam String keyword, @RequestParam(defaultValue = "0") int page) {
         return ResponseEntity.ok(searchService.searchClubByKeyword(keyword, page));
     }
+
+    @Operation(summary = "함께하는 멤버들의 다른 모임", description = "내가 속한 모임의 다른 멤버들이 가입한 다른 모임을 조회합니다.")
+    @GetMapping("/teammates-clubs")
+    public ResponseEntity<?> getClubsByTeammates(@RequestParam(defaultValue = "0") int page) {
+        return ResponseEntity.ok(searchService.getClubsByTeammates(page));
+    }
 }
