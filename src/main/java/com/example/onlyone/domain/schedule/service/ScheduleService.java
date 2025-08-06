@@ -110,8 +110,7 @@ public class ScheduleService {
                 .orElseThrow(() -> new CustomException(ErrorCode.CLUB_NOT_FOUND));
         Schedule schedule = scheduleRepository.findById(scheduleId)
                 .orElseThrow(() -> new CustomException(ErrorCode.SCHEDULE_NOT_FOUND));
-//        User user = userService.getCurrentUser();
-        User user = userService.getAnotherUser();
+        User user = userService.getCurrentUser();
         int userCount = userScheduleRepository.countBySchedule(schedule);
         if (userCount >= schedule.getUserLimit()) {
             throw new CustomException(ErrorCode.ALREADY_EXCEEDED_SCHEDULE);
@@ -142,8 +141,7 @@ public class ScheduleService {
 
     /* 정기 모임 참여 취소 */
     public void leaveSchedule(Long clubId, Long scheduleId) {
-//        User user = userService.getCurrentUser();
-        User user = userService.getAnotherUser();
+        User user = userService.getCurrentUser();
         clubRepository.findById(clubId)
                 .orElseThrow(() -> new CustomException(ErrorCode.CLUB_NOT_FOUND));
         Schedule schedule = scheduleRepository.findById(scheduleId)
