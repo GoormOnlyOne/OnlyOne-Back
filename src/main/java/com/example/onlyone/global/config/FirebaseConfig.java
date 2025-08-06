@@ -19,7 +19,7 @@ public class FirebaseConfig {
   private String SERVICE_ACCOUNT_PATH;
 
   @Bean
-  public FirebaseApp firebaseApp(FirebaseApp firebaseApp) {
+  public FirebaseApp firebaseApp() {
     try {
       FirebaseOptions options = FirebaseOptions.builder()
           .setCredentials(
