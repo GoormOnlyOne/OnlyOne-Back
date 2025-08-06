@@ -68,6 +68,15 @@ public class SearchService {
         return convertKeywordSearchResults(resultList);
     }
 
+    // 함께하는 멤버들의 다른 모임 조회
+    public List<ClubResponseDto> getClubsByTeammates(int page) {
+        PageRequest pageRequest = PageRequest.of(page, 20);
+        User currentUser = userService.getCurrentUser();
+        List<Object[]> resultList = clubRepository.findClubsByTeammates(4L, pageRequest);
+
+        return convertToClubResponseDto(resultList);
+    }
+
     // 엔티티 -> DTO 형태로 변환
     private List<ClubResponseDto> convertToClubResponseDto(List<Object[]> results) {
         return results.stream().map(result -> {
