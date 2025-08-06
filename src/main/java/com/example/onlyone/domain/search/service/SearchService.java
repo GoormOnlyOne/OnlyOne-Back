@@ -86,8 +86,8 @@ public class SearchService {
                     .description((String) result[2])
                     .district((String) result[3])
                     .image((String) result[4])
-                    .interest((String) result[6])
-                    .memberCount(((Number) result[7]).longValue())
+                    .interest((String) result[5])
+                    .memberCount(((Number) result[6]).longValue())
                     .build();
         });
     }
