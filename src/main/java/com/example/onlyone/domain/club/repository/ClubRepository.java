@@ -15,14 +15,14 @@ public interface ClubRepository extends JpaRepository<Club, Long> {
             "LEFT JOIN UserClub uc ON c.clubId = uc.club.clubId " +
             "WHERE c.interest.interestId = :interestId " +
             "GROUP BY c.clubId")
-    Page<Object[]> searchByInterest(@Param("interestId") Long interestId, Pageable pageable);
+    List<Object[]> searchByInterest(@Param("interestId") Long interestId, Pageable pageable);
 
     // 모임 검색 (지역)
     @Query("SELECT c, COUNT(uc) FROM Club c " +
             "LEFT JOIN UserClub uc ON c.clubId = uc.club.clubId " +
             "WHERE c.city = :city and c.district = :district " +
             "GROUP BY c.clubId")
-    Page<Object[]> searchByLocation(@Param("city") String city,
+    List<Object[]> searchByLocation(@Param("city") String city,
                                     @Param("district") String district,
                                     Pageable pageable);
 
@@ -39,7 +39,7 @@ public interface ClubRepository extends JpaRepository<Club, Long> {
             "WHERE c.interest.interestId IN :interestIds AND c.city = :city AND c.district = :district " +
             "GROUP BY c.clubId " +
             "ORDER BY COUNT(uc) DESC, c.createdAt DESC")
-    Page<Object[]> searchByUserInterestAndLocation(@Param("interestIds") List<Long> interestIds,
+    List<Object[]> searchByUserInterestAndLocation(@Param("interestIds") List<Long> interestIds,
                                                    @Param("city") String city,
                                                    @Param("district") String district,
                                                    Pageable pageable);
@@ -50,7 +50,7 @@ public interface ClubRepository extends JpaRepository<Club, Long> {
             "WHERE c.interest.interestId IN :interestIds " +
             "GROUP BY c.clubId " +
             "ORDER BY COUNT(uc) DESC, c.createdAt DESC")
-    Page<Object[]> searchByUserInterests(@Param("interestIds") List<Long> interestIds, Pageable pageable);
+    List<Object[]> searchByUserInterests(@Param("interestIds") List<Long> interestIds, Pageable pageable);
 
     // 키워드 검색
     @Query(value = "SELECT c.club_id, c.name, c.description, " +
@@ -62,5 +62,5 @@ public interface ClubRepository extends JpaRepository<Club, Long> {
             "GROUP BY c.club_id " +
             "ORDER BY MATCH(c.name, c.description) AGAINST(:keyword IN NATURAL LANGUAGE MODE) DESC, " +
             "COUNT(uc.user_club_id) DESC", nativeQuery = true)
-    Page<Object[]> searchByKeyword(@Param("keyword") String keyword, Pageable pageable);
+    List<Object[]> searchByKeyword(@Param("keyword") String keyword, Pageable pageable);
 }
