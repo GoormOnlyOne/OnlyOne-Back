@@ -64,4 +64,8 @@ public class WalletTransaction extends BaseTimeEntity {
     public void updateTransfer(Transfer transfer) {
         this.transfer = transfer;
     }
+
+    public void updatePayment(Payment payment) {
+        this.payment = payment;
+    }
 }
