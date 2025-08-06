@@ -18,38 +18,31 @@ import org.springframework.http.HttpHeaders;
 @RequiredArgsConstructor
 @Configuration
 public class SwaggerConfig {
-
     @Bean
-    public OpenAPI openAPI() {
-        return new OpenAPI();
+    public OpenAPI openAPI() { // Security 스키마 설정
+        SecurityScheme bearerAuth = new SecurityScheme()
+                .type(SecurityScheme.Type.HTTP)
+                .scheme("bearer")
+                .bearerFormat("JWT")
+                .in(SecurityScheme.In.HEADER)
+                .name(HttpHeaders.AUTHORIZATION);
+
+        SecurityRequirement securityRequirement = new SecurityRequirement().addList("bearerAuth");
+
+        return new OpenAPI()
+                .components(new Components()
+                        .addSecuritySchemes("bearerAuth", bearerAuth))
+                .security(Arrays.asList(securityRequirement));
     }
 
-//
-//    @Bean
-//    public OpenAPI openAPI() { // Security 스키마 설정
-//        SecurityScheme bearerAuth = new SecurityScheme()
-//                .type(SecurityScheme.Type.HTTP)
-//                .scheme("bearer")
-//                .bearerFormat("JWT")
-//                .in(SecurityScheme.In.HEADER)
-//                .name(HttpHeaders.AUTHORIZATION);
-//
-//        SecurityRequirement securityRequirement = new SecurityRequirement().addList("bearerAuth");
-//
-//        return new OpenAPI()
-//                .components(new Components()
-//                        .addSecuritySchemes("bearerAuth", bearerAuth))
-//                .security(Arrays.asList(securityRequirement));
-//    }
-//
-//
-//    @Bean
-//    public GroupedOpenApi coreOpenApi() {
-//        String[] paths = {"/**"};
-//
-//        return GroupedOpenApi.builder()
-//                .group("OnlyOne")
-//                .pathsToMatch(paths)
-//                .build();
-//    }
+
+    @Bean
+    public GroupedOpenApi coreOpenApi() {
+        String[] paths = {"/**"};
+
+        return GroupedOpenApi.builder()
+                .group("OnlyOne")
+                .pathsToMatch(paths)
+                .build();
+    }
 }
