@@ -17,6 +17,7 @@ public class UserWalletTransactionDto {
     private String title;
     private WalletTransactionStatus status;
     private String mainImage;
+    private int amount;
     private LocalDateTime createdAt;
 
     public static UserWalletTransactionDto from(WalletTransaction walletTransaction, String title, String mainImage) {
@@ -25,6 +26,7 @@ public class UserWalletTransactionDto {
                 .title(title)
                 .status(walletTransaction.getWalletTransactionStatus())
                 .mainImage(mainImage)
+                .amount(walletTransaction.getAmount())
                 .createdAt(walletTransaction.getCreatedAt())
                 .build();
     }
