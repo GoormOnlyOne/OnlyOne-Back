@@ -18,7 +18,7 @@ jobs:
 
       - name: Make application-prod.yml
         run: |
-          mkdir -p ./src/main/resources
+          mkdir -p ./src/main/resources/firebase
           touch ./src/main/resources/application.yml
           echo "${{ secrets.APPLICATION }}" > ./src/main/resources/application.yml
 
@@ -27,7 +27,7 @@ jobs:
         with:
           name: "service-account.json"
           json: ${{ secrets.FIREBASE_ACCOUNT }}
-          dir: 'src/main/resources/firebase/'
+          dir: './src/main/resources/firebase'
 
       - name: Build with Gradle
         run: |
