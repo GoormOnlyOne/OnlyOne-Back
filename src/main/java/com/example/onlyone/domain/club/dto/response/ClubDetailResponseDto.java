@@ -31,7 +31,7 @@ public class ClubDetailResponseDto {
 
     private String district;
 
-    private Category category;
+    private String category;
 
     private ClubRole clubRole;
 
@@ -45,7 +45,7 @@ public class ClubDetailResponseDto {
                 .description(club.getDescription())
                 .clubImage(club.getClubImage())
                 .district(club.getDistrict())
-                .category(club.getInterest().getCategory())
+                .category(club.getInterest().getCategory().getKoreanName())
                 .clubRole(clubRole)
                 .userLimit(club.getUserLimit())
                 .build();

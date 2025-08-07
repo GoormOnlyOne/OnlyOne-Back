@@ -6,12 +6,15 @@ import lombok.Getter;
 
 import java.time.LocalDateTime;
 
-@Builder
 @Getter
+@Builder
 @AllArgsConstructor
-public class FeedSummaryResponseDto {
+public class FeedOverviewDto {
     private Long feedId;
     private String thumbnailUrl;
     private int likeCount;
     private int commentCount;
+    private String profileImage;
+
+    private LocalDateTime created;
 }
