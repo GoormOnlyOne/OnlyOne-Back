@@ -62,6 +62,12 @@ public class ScheduleController {
         return ResponseEntity.ok(CommonResponse.success(scheduleList));
     }
 
+    @Operation(summary = "스케줄 상세 조회", description = "스케줄을 상세 조회합니다.")
+    @GetMapping("/{scheduleId}")
+    public ResponseEntity<?> getScheduleDetails(@PathVariable("clubId") final Long clubId, @PathVariable("scheduleId") final Long scheduleId) {
+        return ResponseEntity.ok(CommonResponse.success(scheduleService.getScheduleDetails(clubId, scheduleId)));
+    }
+
     @Operation(summary = "스케줄 참여자 목록 조회", description = "스케줄 참여자의 목록을 조회합니다.")
     @GetMapping("/{scheduleId}/users")
     public ResponseEntity<?> getScheduleUserList(@PathVariable("clubId") final Long clubId, @PathVariable("scheduleId") final Long scheduleId) {
