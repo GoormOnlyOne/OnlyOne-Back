@@ -1,121 +1,91 @@
 package com.example.onlyone.domain.notification.repository;
 
-import com.example.onlyone.domain.notification.dto.requestDto.NotificationListItem;
 import com.example.onlyone.domain.notification.entity.Notification;
-import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
-
-import java.util.List;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.time.LocalDateTime;
+import java.util.List;
+
 /**
- * 알림 리포지토리
- *
- * Notification 엔티티에 대한 모든 데이터 액세스 작업을 담당합니다.
+ * 알림 리포지토리 - 네이티브 쿼리 사용
  */
 public interface NotificationRepository extends JpaRepository<Notification, Long> {
 
-    /**
-     * 사용자의 읽지 않은 알림 목록 조회 (엔티티 전체)
-     *
-     * @param userId 사용자 ID
-     * @return 읽지 않은 알림 엔티티 목록
-     */
-    List<Notification> findByUser_UserIdAndIsReadFalse(Long userId);
+  /**
+   * 사용자의 읽지 않은 알림 목록 조회 (엔티티 전체)
+   */
+  List<Notification> findByUser_UserIdAndIsReadFalse(Long userId);
 
-    /**
-     * 사용자의 읽지 않은 알림 개수 조회
-     *
-     * @param userId 사용자 ID
-     * @return 읽지 않은 알림 개수
-     */
-    long countByUser_UserIdAndIsReadFalse(Long userId);
+  /**
+   * 사용자의 읽지 않은 알림 개수 조회
+   */
+  @Query(value = """
+        SELECT COUNT(*) 
+        FROM notification n 
+        WHERE n.user_id = :userId 
+          AND n.is_read = false
+        """, nativeQuery = true)
+  long countByUser_UserIdAndIsReadFalse(@Param("userId") Long userId);
 
-    /**
-     * 첫 페이지 조회 (NotificationListItem 프로젝션 사용)
-     * <p>
-     * 알림 목록의 첫 페이지를 조회합니다. 프로젝션을 사용하여 필요한 필드만 조회합니다. notification_id DESC 정렬로 최신 알림이 먼저 표시됩니다.
-     *
-     * @param userId   사용자 ID
-     * @param pageable 페이지 정보 (주로 size만 사용)
-     * @return 알림 목록 (프로젝션)
-     * <p>
-     * 사용 시나리오: - 앱 실행 시 최신 알림 목록 로드 - 알림 화면 진입 시 초기 데이터 표시
-     */
-    @Query("""
-        SELECT new com.example.onlyone.domain.notification.dto.requestDto.NotificationListItem(
-            n.notificationId, 
-            n.content, 
-            n.notificationType.type, 
-            n.isRead, 
-            n.createdAt
-        )
-        FROM Notification n
-        WHERE n.user.userId = :userId
-        ORDER BY n.notificationId DESC
-        """)
-    List<NotificationListItem> findTopByUser(
-        @Param("userId") Long userId,
-        Pageable pageable);
+  /**
+   * FCM 전송 실패한 알림 목록 조회
+   */
+  List<Notification> findByUser_UserIdAndFcmSentFalse(Long userId);
 
-    /**
-     * 커서 이후 페이지 조회 (NotificationListItem 프로젝션 사용)
-     *
-     * 커서 기반 페이징의 핵심 메서드입니다. 커서(이전 페이지의 마지막 notification_id)보다 작은 ID를 가진 알림들을 조회합니다.
-     *
-     * @param userId   사용자 ID
-     * @param cursor   이전 페이지의 마지막 notification_id
-     * @param pageable 페이지 정보 (size)
-     * @return 커서 이후의 알림 목록 (프로젝션)
-     *
-     * 사용 시나리오: - 무한 스크롤 구현 - "더보기" 버튼 클릭 시 추가 데이터 로드
-     */
-    @Query("""
-        SELECT new com.example.onlyone.domain.notification.dto.requestDto.NotificationListItem(
-            n.notificationId, 
-            n.content, 
-            n.notificationType.type, 
-            n.isRead, 
-            n.createdAt
-        )
-        FROM Notification n
-        WHERE n.user.userId = :userId
-          AND n.notificationId < :cursor
-        ORDER BY n.notificationId DESC
-        """)
-    List<NotificationListItem> findAfterCursor(
-        @Param("userId") Long userId,
-        @Param("cursor") Long cursor,
-        Pageable pageable);
+  /**
+   * 첫 페이지 알림 목록 조회 (네이티브 쿼리)
+   */
+  @Query(value = """
+        SELECT 
+            n.notification_id as notificationId,
+            n.content as content,
+            nt.type as type,
+            n.is_read as isRead,
+            n.created_at as createdAt
+        FROM notification n
+        INNER JOIN notification_type nt ON n.type_id = nt.type_id
+        WHERE n.user_id = :userId
+        ORDER BY n.notification_id DESC
+        LIMIT :limit
+        """, nativeQuery = true)
+  List<NotificationListProjection> findFirstPageByUserId(
+      @Param("userId") Long userId,
+      @Param("limit") int limit
+  );
+
+  /**
+   * 커서 이후 알림 목록 조회 (네이티브 쿼리)
+   */
+  @Query(value = """
+        SELECT 
+            n.notification_id as notificationId,
+            n.content as content,
+            nt.type as type,
+            n.is_read as isRead,
+            n.created_at as createdAt
+        FROM notification n
+        INNER JOIN notification_type nt ON n.type_id = nt.type_id
+        WHERE n.user_id = :userId
+          AND n.notification_id < :cursor
+        ORDER BY n.notification_id DESC
+        LIMIT :limit
+        """, nativeQuery = true)
+  List<NotificationListProjection> findAfterCursorByUserId(
+      @Param("userId") Long userId,
+      @Param("cursor") Long cursor,
+      @Param("limit") int limit
+  );
+
+  /**
+   * 네이티브 쿼리 결과를 위한 프로젝션 인터페이스
+   */
+  interface NotificationListProjection {
+    Long getNotificationId();
+    String getContent();
+    String getType();
+    Boolean getIsRead();
+    LocalDateTime getCreatedAt();
+  }
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

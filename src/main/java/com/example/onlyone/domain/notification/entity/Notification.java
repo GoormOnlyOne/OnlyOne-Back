@@ -38,12 +38,12 @@ public class Notification extends BaseTimeEntity {
 
   /**
    * 알림 읽음 상태 false: 읽지 않음 (기본값) true: 읽음 처리됨
-   * <p>
+   *
    * 읽지 않은 알림 개수 계산과 UI 표시에 사용됩니다.
    */
   @Column(name = "is_read")
   @NotNull
-  private Boolean isRead;
+  private Boolean isRead = false;
 
   /**
    * 알림 타입 정보 알림의 종류(채팅, 정산, 좋아요, 댓글)를 나타내며 각 타입별로 다른 템플릿과 처리 로직을 적용합니다.
