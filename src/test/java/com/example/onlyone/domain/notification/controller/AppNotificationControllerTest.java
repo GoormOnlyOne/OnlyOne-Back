@@ -7,6 +7,8 @@ import com.example.onlyone.domain.notification.dto.responseDto.NotificationListR
 import com.example.onlyone.domain.notification.entity.Type;
 import com.example.onlyone.domain.notification.service.NotificationService;
 import com.example.onlyone.domain.notification.service.SseEmittersService;
+import com.example.onlyone.domain.user.entity.User;
+import com.example.onlyone.domain.user.service.UserService;
 import com.example.onlyone.global.exception.CustomException;
 import com.example.onlyone.global.exception.ErrorCode;
 import com.example.onlyone.global.exception.GlobalExceptionHandler;
@@ -31,13 +33,16 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 @ExtendWith(MockitoExtension.class)
-class NotificationControllerTest {
+class AppNotificationControllerTest {
 
   @Mock
   private NotificationService notificationService;
 
   @Mock
   private SseEmittersService sseEmittersService;
+
+  @Mock
+  private UserService userService;
 
   @InjectMocks
   private NotificationController notificationController;
@@ -80,8 +85,7 @@ class NotificationControllerTest {
         .willReturn(mockEmitter);
 
     // when & then
-    mockMvc.perform(get("/notifications/stream")
-            .param("userId", userId.toString())
+    mockMvc.perform(get("/notifications/stream/{userId}", userId)
             .accept(MediaType.TEXT_EVENT_STREAM))
         .andExpect(status().isOk());
 
@@ -168,8 +172,7 @@ class NotificationControllerTest {
     given(sseEmittersService.createSseConnection(userId))
         .willThrow(new CustomException(ErrorCode.SSE_CONNECTION_FAILED));
 
-    mockMvc.perform(get("/notifications/stream")
-            .param("userId", userId.toString())
+    mockMvc.perform(get("/notifications/stream/{userId}", userId)
             .accept(MediaType.ALL))
         .andExpect(status().isServiceUnavailable())
         .andExpect(content().contentType(MediaType.APPLICATION_JSON_VALUE))
@@ -181,6 +184,38 @@ class NotificationControllerTest {
 
     then(sseEmittersService).should().createSseConnection(userId);
     then(notificationService).shouldHaveNoInteractions();
+  }
+
+  @Test
+  @DisplayName("FCM 토큰 업데이트 - 성공")
+  void updateFcmToken_Success() throws Exception {
+    // given
+    User mockUser = mock(User.class);
+    given(userService.getMemberById(userId)).willReturn(mockUser);
+    willDoNothing().given(mockUser).updateFcmToken(anyString());
+
+    // when & then
+    mockMvc.perform(post("/notifications/fcm-token")
+            .param("userId", userId.toString())
+            .param("fcmToken", "valid-fcm-token"))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.success").value(true));
+
+    then(userService).should().getMemberById(userId);
+    then(mockUser).should().updateFcmToken("valid-fcm-token");
+  }
+
+  @Test
+  @DisplayName("FCM 토큰 업데이트 - null 토큰")
+  void updateFcmToken_NullToken() throws Exception {
+    // when & then
+    mockMvc.perform(post("/notifications/fcm-token")
+            .param("userId", userId.toString())
+            .param("fcmToken", ""))
+        .andExpect(status().isNotFound())
+        .andExpect(jsonPath("$.success").value(false));
+
+    then(userService).shouldHaveNoInteractions();
   }
 
   private List<NotificationItemDto> createMockNotificationDtos() {
