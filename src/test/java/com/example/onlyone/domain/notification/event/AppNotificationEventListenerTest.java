@@ -1,6 +1,6 @@
 package com.example.onlyone.domain.notification.event;
 
-import com.example.onlyone.domain.notification.entity.Notification;
+import com.example.onlyone.domain.notification.entity.AppNotification;
 import com.example.onlyone.domain.notification.service.NotificationService;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -11,7 +11,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import static org.mockito.BDDMockito.then;
 
 @ExtendWith(MockitoExtension.class)
-class NotificationEventListenerTest {
+class AppNotificationEventListenerTest {
 
     @Mock
     private NotificationService notificationService; // 변경: SseEmitterService → NotificationService
@@ -23,29 +23,29 @@ class NotificationEventListenerTest {
     @DisplayName("NotificationCreatedEvent 수신 시 sendCreated() 호출")
     void onNotificationCreated() {
         // given
-        Notification mockNotification = Mockito.mock(Notification.class);
-        NotificationCreatedEvent event = new NotificationCreatedEvent(mockNotification);
+        AppNotification mockAppNotification = Mockito.mock(AppNotification.class);
+        NotificationCreatedEvent event = new NotificationCreatedEvent(mockAppNotification);
 
         // when
         listener.onNotificationCreated(event);
 
         // then
         then(notificationService).should()
-            .sendCreated(mockNotification);
+            .sendCreated(mockAppNotification);
     }
 
     @Test
     @DisplayName("NotificationReadEvent 수신 시 sendRead() 호출")
     void onNotificationRead() {
         // given
-        Notification mockNotification = Mockito.mock(Notification.class);
-        NotificationReadEvent event = new NotificationReadEvent(mockNotification);
+        AppNotification mockAppNotification = Mockito.mock(AppNotification.class);
+        NotificationReadEvent event = new NotificationReadEvent(mockAppNotification);
 
         // when
         listener.onNotificationRead(event);
 
         // then
         then(notificationService).should()
-            .sendRead(mockNotification);
+            .sendRead(mockAppNotification);
     }
 }
