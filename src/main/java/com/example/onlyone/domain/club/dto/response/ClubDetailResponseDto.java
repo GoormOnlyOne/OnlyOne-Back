@@ -35,6 +35,8 @@ public class ClubDetailResponseDto {
 
     private ClubRole clubRole;
 
+    private int userLimit;
+
     public static ClubDetailResponseDto from(Club club, int userCount, ClubRole clubRole) {
         return ClubDetailResponseDto.builder()
                 .clubId(club.getClubId())
@@ -45,6 +47,7 @@ public class ClubDetailResponseDto {
                 .district(club.getDistrict())
                 .category(club.getInterest().getCategory())
                 .clubRole(clubRole)
+                .userLimit(club.getUserLimit())
                 .build();
     }
 }
