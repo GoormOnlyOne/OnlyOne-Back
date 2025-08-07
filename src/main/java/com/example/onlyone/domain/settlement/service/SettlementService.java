@@ -73,10 +73,7 @@ public class SettlementService {
         if (!(schedule.getScheduleStatus() == ScheduleStatus.ENDED || schedule.getScheduleTime().isBefore(LocalDateTime.now()))) {
             throw new CustomException(ErrorCode.BEFORE_SCHEDULE_START);
         }
-        // 정산 금액이 0원이면 즉시 스케줄 종료
-        if (schedule.getCost() == 0) {
-            schedule.updateStatus(ScheduleStatus.CLOSED);
-        }
+
         UserSchedule leaderUserSchedule = userScheduleRepository.findByUserAndSchedule(user, schedule)
                 .orElseThrow(() -> new CustomException(ErrorCode.USER_SCHEDULE_NOT_FOUND));
         // 리더가 호출하고 있는지 확인
@@ -84,10 +81,12 @@ public class SettlementService {
             throw new CustomException(ErrorCode.MEMBER_CANNOT_CREATE_SETTLEMENT);
         }
         int userCount = userScheduleRepository.countBySchedule(schedule);
-        // 스케줄 참여 인원이 1명(리더)면 즉시 스케줄 종료
-        if (userCount <= 1) {
+        // 비용이 0원이거나 참여자가 1명(리더만)인 경우 → 바로 CLOSED 처리 후 리턴
+        if (schedule.getCost() == 0 || userCount <= 1) {
             schedule.updateStatus(ScheduleStatus.CLOSED);
+            return;
         }
+        schedule.updateStatus(ScheduleStatus.SETTLING);
         int totalAmount = userCount * schedule.getCost();
         Settlement settlement = Settlement.builder()
                 .schedule(schedule)

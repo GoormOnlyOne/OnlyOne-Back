@@ -1,5 +1,6 @@
 package com.example.onlyone.domain.notification.dto.requestDto;
 
+import com.example.onlyone.domain.notification.dto.responseDto.NotificationItemDto;
 import com.example.onlyone.domain.notification.entity.Type;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.AllArgsConstructor;

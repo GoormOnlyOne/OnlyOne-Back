@@ -1,6 +1,5 @@
 package com.example.onlyone.domain.notification.dto.responseDto;
 
-import com.example.onlyone.domain.notification.dto.requestDto.NotificationItemDto;
 import lombok.Builder;
 import lombok.Getter;
 
