@@ -23,8 +23,7 @@ public class ClubController {
     @Operation(summary = "모임 생성", description = "모임을 생성합니다.")
     @PostMapping
     public ResponseEntity<?> createClub(@RequestBody @Valid ClubRequestDto requestDto) {
-        clubService.createClub(requestDto);
-        return ResponseEntity.status(HttpStatus.CREATED).body(CommonResponse.success(null));
+        return ResponseEntity.status(HttpStatus.CREATED).body(CommonResponse.success(clubService.createClub(requestDto)));
     }
 
     @Operation(summary = "모임 수정", description = "모임을 수정합니다.")
