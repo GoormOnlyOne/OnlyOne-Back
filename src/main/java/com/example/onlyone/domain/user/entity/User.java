@@ -16,36 +16,51 @@ import java.time.*;
 @AllArgsConstructor
 public class User extends BaseTimeEntity {
 
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    @Column(name = "user_id", updatable = false)
-    private Long userId;
+  @Id
+  @GeneratedValue(strategy = GenerationType.IDENTITY)
+  @Column(name = "user_id", updatable = false)
+  private Long userId;
 
-    @Column(name = "kakao_id", updatable = false, unique = true)
-    @NotNull
-    private Long kakaoId;
+  @Column(name = "kakao_id", updatable = false, unique = true)
+  @NotNull
+  private Long kakaoId;
 
-    @Column(name = "nickname")
-    private String nickname;
+  @Column(name = "nickname")
+  private String nickname;
 
-    @Column(name = "birth")
-    private LocalDate birth;
+  @Column(name = "birth")
+  private LocalDate birth;
 
-    @Column(name = "status")
-    @NotNull
-    @Enumerated(EnumType.STRING)
-    private Status status;
+  @Column(name = "status")
+  @NotNull
+  @Enumerated(EnumType.STRING)
+  private Status status;
 
-    @Column(name = "profile_image")
-    private String profileImage;
+  @Column(name = "profile_image")
+  private String profileImage;
 
-    @Column(name = "gender")
-    @Enumerated(EnumType.STRING)
-    private Gender gender;
+  @Column(name = "gender")
+  @Enumerated(EnumType.STRING)
+  private Gender gender;
 
-    @Column(name = "district")
-    private String district;
+  @Column(name = "city")
+  private String city;
 
-    @Column(name = "fcm_token")
-    private String fcmToken;
+  @Column(name = "district")
+  private String district;
+
+  @Column(name = "fcm_token")
+  private String fcmToken;
+
+  public void updateFcmToken(String fcmToken) {
+    this.fcmToken = fcmToken;
+  }
+
+  public void clearFcmToken() {
+    this.fcmToken = null;
+  }
+
+  public boolean hasFcmToken() {
+    return fcmToken != null && !fcmToken.isBlank();
+  }
 }
