@@ -39,7 +39,6 @@ public class ClubService {
     private final ChatRoomRepository chatRoomRepository;
     private final UserService userService;
     private final UserChatRoomRepository userChatRoomRepository;
-    private final FeedRepository feedRepository;
 
     /* 모임 생성*/
     public void createClub(ClubRequestDto requestDto) {

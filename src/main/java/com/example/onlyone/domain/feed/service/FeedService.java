@@ -28,10 +28,8 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
-import java.util.Set;
 import java.util.stream.Collectors;
 
 @Log4j2
@@ -181,41 +179,5 @@ public class FeedService {
         }
 
         feedCommentRepository.delete(feedComment);
-    }
-
-    @Transactional(readOnly = true)
-    public List<FeedOverviewDto> getPersonalFeed(Pageable pageable) {
-        Long userId = userService.getCurrentUser().getUserId();
-
-        List<UserClub> myJoinClubs = userClubRepository.findByUserUserId(userId);
-
-        List<Long> myClubIds = myJoinClubs.stream()
-                .map(uc -> uc.getClub().getClubId())
-                .toList();
-
-        List<Long> memberIds = userClubRepository.findUserIdByClubIds(myClubIds);
-
-        List<UserClub> friendMemberJoinClubs = userClubRepository.findByUserUserIdIn(memberIds);
-
-        List<Long> friendClubIds = friendMemberJoinClubs.stream()
-                .map(uc -> uc.getClub().getClubId())
-                .filter(id -> !myClubIds.contains(id))
-                .toList();
-
-        List<Long> allClubIds = new ArrayList<>(myClubIds);
-        allClubIds.addAll(friendClubIds);
-
-        List<Feed> feeds = feedRepository.findByClubIds(allClubIds, pageable);
-
-        return feeds.stream()
-                .map(feed -> FeedOverviewDto.builder()
-                        .feedId(feed.getFeedId())
-                        .thumbnailUrl(feed.getFeedImages().get(0).getFeedImage())
-                        .likeCount(feed.getFeedLikes().size())
-                        .commentCount(feed.getFeedComments().size())
-                        .profileImage(feed.getUser().getProfileImage())
-                        .build()
-                )
-                .toList();
     }
 }
