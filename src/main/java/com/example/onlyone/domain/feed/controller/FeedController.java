@@ -10,6 +10,10 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -41,8 +45,11 @@ public class FeedController {
 
     @Operation(summary = "모임 피드 목록 조회", description = "모임의 피드 목록을 조회합니다.")
     @GetMapping
-    public ResponseEntity<?> getFeedList(@PathVariable("clubId") Long clubId) {
-        List<FeedSummaryResponseDto> feedList = feedService.getFeedList(clubId);
+    public ResponseEntity<?> getFeedList(@PathVariable("clubId") Long clubId,
+                                         @RequestParam(name = "page", defaultValue = "0") int page,
+                                         @RequestParam(name = "limit", defaultValue = "20") int limit) {
+        Pageable pageable = PageRequest.of(page, limit, Sort.by("createdAt").descending());
+        Page<FeedSummaryResponseDto> feedList = feedService.getFeedList(clubId, pageable);
         return ResponseEntity.status(HttpStatus.OK).body(CommonResponse.success(feedList));
     }
 
