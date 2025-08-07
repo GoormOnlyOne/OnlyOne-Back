@@ -11,8 +11,10 @@ import io.jsonwebtoken.security.Keys;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.log4j.Log4j2;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.security.core.Authentication;
 
 import javax.crypto.SecretKey;
 import java.time.LocalDate;
@@ -37,15 +39,21 @@ public class UserService {
     @Value("${jwt.refresh-expiration}")
     private long refreshTokenExpiration;
 
-    // 개발 진행을 위한 임시 메서드
-    public User getCurrentUser(){
-        return userRepository.findById((long) 1)
-                .orElseThrow(() -> new CustomException(ErrorCode.USER_NOT_FOUND));
-    }
 
-    public User getAnotherUser(){
-        return userRepository.findById((long) 4)
-                .orElseThrow(() -> new CustomException(ErrorCode.USER_NOT_FOUND));
+    @Transactional(readOnly = true)
+    public User getCurrentUser() {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication == null || !authentication.isAuthenticated()) {
+            throw new CustomException(ErrorCode.UNAUTHORIZED);
+        }
+        Long kakaoId = 0L;
+        try {
+            kakaoId = Long.valueOf(authentication.getName());
+        } catch (NumberFormatException e) {
+            throw new  CustomException(ErrorCode.UNAUTHORIZED);
+        }
+        return userRepository.findByKakaoId(kakaoId)
+                .orElseThrow(() -> new CustomException(ErrorCode.KAKAO_API_ERROR));
     }
 
     public User getMemberById(Long memberId){
@@ -55,16 +63,20 @@ public class UserService {
 
     /**
      * 카카오 로그인 처리: 기존 사용자 조회 또는 신규 사용자 생성
+     * @return Map containing user and isNewUser flag
      */
-    public User processKakaoLogin(Map<String, Object> kakaoUserInfo) {
+    public Map<String, Object> processKakaoLogin(Map<String, Object> kakaoUserInfo) {
         Long kakaoId = Long.valueOf(kakaoUserInfo.get("id").toString());
-        
+
         // 기존 사용자 조회
         Optional<User> existingUser = userRepository.findByKakaoId(kakaoId);
-        
+
+        Map<String, Object> result = new HashMap<>();
+
         if (existingUser.isPresent()) {
-            // 기존 사용자 반환
-            return existingUser.get();
+            // 기존 사용자
+            result.put("user", existingUser.get());
+            result.put("isNewUser", false);
         } else {
             // 신규 사용자 생성
             User newUser = User.builder()
@@ -75,11 +87,12 @@ public class UserService {
                     .gender(Gender.MALE)
                     .build();
 
-            // 필수 필드들은 회원가입 시 입력받을 예정이므로 임시값 설정
-            // birth, gender는 @NotNull이므로 기본값 필요 없음 (nullable로 변경 예정)
-
-            return userRepository.save(newUser);
+            User savedUser = userRepository.save(newUser);
+            result.put("user", savedUser);
+            result.put("isNewUser", true);
         }
+
+        return result;
     }
 
     /**
@@ -92,7 +105,7 @@ public class UserService {
         SecretKey key = Keys.hmacShaKeyFor(jwtSecret.getBytes());
         
         return Jwts.builder()
-                .subject(user.getUserId().toString())
+                .subject(user.getKakaoId().toString())
                 .claim("kakaoId", user.getKakaoId())
                 .claim("nickname", user.getNickname())
                 .claim("type", "access")

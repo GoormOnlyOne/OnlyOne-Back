@@ -13,6 +13,7 @@ public enum ErrorCode {
     BAD_REQUEST(400, "GLOBAL_400_3", "필수 파라미터가 누락되었습니다."),
     INTERNAL_SERVER_ERROR(500, "GLOBAL_500_1", "서버 내부 오류가 발생했습니다."),
     EXTERNAL_API_ERROR(503, "GLOBAL_503_1", "외부 API 서버 호출 중 오류가 발생했습니다."),
+    UNAUTHORIZED(401, "GLOBAL_401_1", "인증되지 않은 사용자입니다."),
 
     // User
     USER_NOT_FOUND(404, "USER_404_1", "유저를 찾을 수 없습니다."),
@@ -113,6 +114,10 @@ public enum ErrorCode {
     INVALID_IMAGE_SIZE(400, "IMAGE_400_3", "유효하지 않은 이미지 크기입니다."),
     IMAGE_SIZE_EXCEEDED(413, "IMAGE_413_1", "이미지 크기가 허용된 최대 크기(5MB) 크기를 초과했니다."),
     IMAGE_UPLOAD_FAILED(500, "IMAGE_500_1", "이미지 업로드 중 오류가 발생했습니다."),
+
+    // Search
+    INVALID_SEARCH_FILTER(400, "SEARCH_400_1", "지역 필터는 city와 district가 모두 제공되어야 합니다."),
+    SEARCH_KEYWORD_TOO_SHORT(400, "SEARCH_400_2", "검색어는 최소 2글자 이상이어야 합니다."),
 
     ;
 

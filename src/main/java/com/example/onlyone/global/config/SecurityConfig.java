@@ -1,6 +1,8 @@
 package com.example.onlyone.global.config;
 
+import com.example.onlyone.global.filter.JwtAuthenticationFilter;
 import lombok.AllArgsConstructor;
+import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.security.servlet.PathRequest;
 import org.springframework.context.annotation.Bean;
@@ -9,6 +11,7 @@ import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
+import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.annotation.web.configuration.WebSecurityCustomizer;
@@ -29,14 +32,12 @@ import java.util.List;
 
 @Configuration
 @EnableWebSecurity
+@EnableMethodSecurity(securedEnabled = true)
+@RequiredArgsConstructor
 public class SecurityConfig {
-
+    private final JwtAuthenticationFilter jwtAuthenticationFilter;
     @Value("${app.base-url}")
     private String baseUrl;
-
-    public SecurityConfig(@Value("${app.base-url}") String baseUrl) {
-        this.baseUrl = baseUrl;
-    }
 
     @Bean
     public WebSecurityCustomizer webSecurityCustomizer() {
@@ -54,7 +55,9 @@ public class SecurityConfig {
             "/email/**",
             "/ws/**",          // WebSocket STOMP 엔드포인트 허용
             "/ws/chat/**",      // SockJS는 /info, /websocket, /xhr 등 내부 경로 씀
-            "/subscribe/**"    // SSE 구독 엔드포인트 허용
+            "/subscribe/**",    // SSE 구독 엔드포인트 허용
+            "/kakao/**",
+            "/auth/**",
     };
 
     // CORS 설정
@@ -101,6 +104,8 @@ public class SecurityConfig {
                         .deleteCookies("refreshToken")
                         .logoutSuccessHandler(new HttpStatusReturningLogoutSuccessHandler(HttpStatus.OK)))
                 .httpBasic(AbstractHttpConfigurer::disable)
+                .addFilterBefore(jwtAuthenticationFilter,
+                        UsernamePasswordAuthenticationFilter.class)
                 .sessionManagement(session -> session
                         .sessionCreationPolicy(SessionCreationPolicy.IF_REQUIRED)
                         .sessionFixation().migrateSession())
@@ -118,7 +123,7 @@ public class SecurityConfig {
                         ).permitAll()
                         .requestMatchers(PathRequest.toStaticResources().atCommonLocations()).permitAll()
                         // 그 외는 인증 필요 시 authenticated(), 아니면 permitAll()
-                        .anyRequest().permitAll()
+                        .anyRequest().authenticated()
                 );
 
         // 필요 시 JWT 필터 삽입

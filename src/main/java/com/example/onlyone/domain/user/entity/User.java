@@ -43,11 +43,11 @@ public class User extends BaseTimeEntity {
   @Enumerated(EnumType.STRING)
   private Gender gender;
 
-  @Column(name = "city")
-  private String city;
+    @Column(name = "city")
+    private String city;
 
-  @Column(name = "district")
-  private String district;
+    @Column(name = "district")
+    private String district;
 
   @Column(name = "fcm_token")
   private String fcmToken;
