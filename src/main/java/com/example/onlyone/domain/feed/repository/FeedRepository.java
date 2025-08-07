@@ -12,6 +12,15 @@ import java.util.List;
 import java.util.Optional;
 
 public interface FeedRepository extends JpaRepository<Feed,Long> {
+    Optional<Feed> findByFeedIdAndClub(Long feedId, Club club);
+
+    Page<Feed> findByClub(Club club, Pageable pageable);
+
+    Feed findByFeedId(Long feedId);
+
+    @Query("SELECT f FROM Feed f WHERE f.club.clubId IN :clubIds")
+    List<Feed> findByClubIds(List<Long> clubIds, Pageable pageable);
+
     @Query(
             value = """
         SELECT f.* 
@@ -32,10 +41,5 @@ public interface FeedRepository extends JpaRepository<Feed,Long> {
     )
     List<Feed> findPopularByClubIds(@Param("clubIds") List<Long> clubIds, Pageable pageable);
 
-    Optional<Feed> findByFeedIdAndClub(Long feedId, Club club);
 
-    Page<Feed> findByClub(Club club, Pageable pageable);
-
-    @Query("SELECT f FROM Feed f WHERE f.club.clubId IN :clubIds")
-    List<Feed> findByClubIds(List<Long> clubIds, Pageable pageable);
 }
