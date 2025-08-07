@@ -2,6 +2,7 @@ package com.example.onlyone.domain.search.service;
 
 import com.example.onlyone.domain.club.entity.Club;
 import com.example.onlyone.domain.club.repository.ClubRepository;
+import com.example.onlyone.domain.interest.entity.Category;
 import com.example.onlyone.domain.search.dto.request.SearchFilterDto;
 import com.example.onlyone.domain.search.dto.response.ClubResponseDto;
 import com.example.onlyone.domain.user.entity.User;
@@ -28,8 +29,8 @@ public class SearchService {
     private final UserInterestRepository userInterestRepository;
 
     // 사용자 맞춤 추천
-    public List<ClubResponseDto> recommendedClubs(int page) {
-        PageRequest pageRequest = PageRequest.of(page, 20);
+    public List<ClubResponseDto> recommendedClubs(int page, int size) {
+        PageRequest pageRequest = PageRequest.of(page, size);
         User user = userService.getCurrentUser();
 
         // 사용자 관심사 조회
@@ -96,8 +97,8 @@ public class SearchService {
     }
 
     // 함께하는 멤버들의 다른 모임 조회
-    public List<ClubResponseDto> getClubsByTeammates(int page) {
-        PageRequest pageRequest = PageRequest.of(page, 20);
+    public List<ClubResponseDto> getClubsByTeammates(int page, int size) {
+        PageRequest pageRequest = PageRequest.of(page, size);
         User currentUser = userService.getCurrentUser();
         List<Object[]> resultList = clubRepository.findClubsByTeammates(currentUser.getUserId(), pageRequest);
 
@@ -116,13 +117,16 @@ public class SearchService {
     // 키워드 검색 결과 전용 변환
     private List<ClubResponseDto> convertKeywordSearchResults(List<Object[]> results) {
         return results.stream().map(result -> {
+            String categoryName = (String) result[5];
+            String koreanCategoryName = Category.valueOf(categoryName).getKoreanName();
+            
             return ClubResponseDto.builder()
                     .clubId(((Number) result[0]).longValue())
                     .name((String) result[1])
                     .description((String) result[2])
                     .district((String) result[3])
                     .image((String) result[4])
-                    .interest((String) result[5])
+                    .interest(koreanCategoryName)
                     .memberCount(((Number) result[6]).longValue())
                     .build();
         }).toList();
