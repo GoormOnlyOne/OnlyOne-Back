@@ -23,9 +23,9 @@ jobs:
           echo "${{ secrets.APPLICATION }}" > ./src/main/resources/application.yml
 
       - name: Setup Firebase service key
-          run: |
-            mkdir -p src/main/resources/firebase
-            echo ${{ secrets.FIREBASE_ACCOUNT }} | base64 -d > src/main/resources/firebase/service-account.json
+        run: |
+          mkdir -p src/main/resources/firebase
+          echo ${{ secrets.FIREBASE_ACCOUNT }} | base64 -d > src/main/resources/firebase/service-account.json
 
       - name: Build with Gradle
         run: |
