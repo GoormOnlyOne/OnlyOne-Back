@@ -129,7 +129,7 @@ public class ScheduleService {
                 .scheduleRole(ScheduleRole.MEMBER)
                 .build();
         userScheduleRepository.save(userSchedule);
-        ChatRoom chatRoom = chatRoomRepository.findByScheduleScheduleIdIdAndClubClubId(schedule.getScheduleId(), clubId)
+        ChatRoom chatRoom = chatRoomRepository.findByTypeAndScheduleId(Type.SCHEDULE, schedule.getScheduleId())
                 .orElseThrow(() -> new CustomException(ErrorCode.CHAT_ROOM_NOT_FOUND));
         UserChatRoom userChatRoom = UserChatRoom.builder()
                 .user(user)

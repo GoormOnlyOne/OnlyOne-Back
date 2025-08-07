@@ -15,7 +15,8 @@ public interface ChatRoomRepository extends JpaRepository<ChatRoom,Long> {
 
     // 특정 유저 & 특정 모임(club)에서 속해 있는 채팅방 목록 조회
     @Query("""
-    SELECT ucr.chatRoom
+
+            SELECT ucr.chatRoom
     FROM UserChatRoom ucr
     WHERE ucr.user.userId = :userId AND ucr.chatRoom.club.clubId = :clubId
     ORDER BY ucr.chatRoom.createdAt DESC
@@ -25,5 +26,4 @@ public interface ChatRoomRepository extends JpaRepository<ChatRoom,Long> {
     // 정기 모임 관련 채팅 목록 중 정기 모임
     Optional<ChatRoom> findByTypeAndScheduleId(Type type, Long scheduleId);
 
-    Optional<ChatRoom> findByScheduleScheduleIdIdAndClubClubId(Long scheduleId, Long clubId);
 }
