@@ -22,10 +22,12 @@ jobs:
           touch ./src/main/resources/application.yml
           echo "${{ secrets.APPLICATION }}" > ./src/main/resources/application.yml
 
-      - name: Setup Firebase service key
-        run: |
-          mkdir -p src/main/resources/firebase
-          echo ${{ secrets.FIREBASE_ACCOUNT }} | base64 -d > src/main/resources/firebase/service-account.json
+      - name: create-json
+        uses: jsdaniell/create-json@v1.2.2
+        with:
+          name: "service-account.json"
+          json: ${{ secrets.FIREBASE_ACCOUNT }}
+          dir: 'src/main/resources/firebase/'
 
       - name: Build with Gradle
         run: |
