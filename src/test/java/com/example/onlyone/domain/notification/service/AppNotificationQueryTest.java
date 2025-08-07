@@ -26,7 +26,7 @@ import static org.mockito.Mockito.when;
  * 네이티브 쿼리 기반 NotificationQueryTest
  */
 @ExtendWith(MockitoExtension.class)
-class NotificationQueryTest {
+class AppNotificationQueryTest {
 
   @Mock
   private NotificationRepository notificationRepository;
