@@ -22,7 +22,7 @@ public class ClubResponseDto {
                 .clubId(club.getClubId())
                 .name(club.getName())
                 .description(club.getDescription())
-                .interest(club.getInterest().getCategory().toString())
+                .interest(club.getInterest().getCategory().getKoreanName())
                 .district(club.getDistrict())
                 .memberCount(memberCount)
                 .image(club.getClubImage())
