@@ -17,6 +17,7 @@ public class ScheduleDetailResponseDto {
     private LocalDateTime scheduleTime;
     private int cost;
     private int userLimit;
+    private String location;
 
     public static ScheduleDetailResponseDto from(Schedule schedule) {
         return ScheduleDetailResponseDto.builder()
@@ -25,6 +26,7 @@ public class ScheduleDetailResponseDto {
                 .scheduleTime(schedule.getScheduleTime())
                 .cost(schedule.getCost())
                 .userLimit(schedule.getUserLimit())
+                .location(schedule.getLocation())
                 .build();
     }
 }
