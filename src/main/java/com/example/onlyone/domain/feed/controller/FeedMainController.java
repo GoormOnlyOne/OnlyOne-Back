@@ -1,5 +1,6 @@
 package com.example.onlyone.domain.feed.controller;
 
+import com.example.onlyone.domain.feed.dto.response.FeedCommentResponseDto;
 import com.example.onlyone.domain.feed.dto.response.FeedOverviewDto;
 import com.example.onlyone.domain.feed.dto.response.FeedSummaryResponseDto;
 import com.example.onlyone.domain.feed.service.FeedMainService;
@@ -15,10 +16,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 
@@ -49,6 +47,16 @@ public class FeedMainController {
         Pageable pageable = PageRequest.of(page, limit, Sort.unsorted());
         List<FeedOverviewDto> popularFeeds = feedMainService.getPopularFeed(pageable);
         return ResponseEntity.ok(CommonResponse.success(popularFeeds));
+    }
+
+    @Operation(summary = "댓글 목록 조회", description = "해당 피드에 댓글 목록을 조회합니다.")
+    @GetMapping("/{feedId}/comments")
+    public ResponseEntity<?> getCommentList(@PathVariable Long feedId,
+                                            @RequestParam(name = "page", defaultValue = "0")  int page,
+                                            @RequestParam(name = "limit", defaultValue = "20") int limit) {
+        Pageable pageable = PageRequest.of(page, limit, Sort.by(Sort.Direction.DESC, "createdAt"));
+        List<FeedCommentResponseDto> feedCommentResponseDto = feedMainService.getCommentList(feedId, pageable);
+        return ResponseEntity.ok(CommonResponse.success(feedCommentResponseDto));
     }
 }
 
