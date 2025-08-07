@@ -4,7 +4,7 @@ import com.example.onlyone.domain.notification.dto.requestDto.NotificationCreate
 import com.example.onlyone.domain.notification.dto.responseDto.NotificationItemDto;
 import com.example.onlyone.domain.notification.dto.responseDto.NotificationCreateResponseDto;
 import com.example.onlyone.domain.notification.dto.responseDto.NotificationListResponseDto;
-import com.example.onlyone.domain.notification.entity.Notification;
+import com.example.onlyone.domain.notification.entity.AppNotification;
 import com.example.onlyone.domain.notification.entity.NotificationType;
 import com.example.onlyone.domain.notification.entity.Type;
 import com.example.onlyone.domain.notification.repository.NotificationRepository;
@@ -47,11 +47,11 @@ public class NotificationService {
     User user = findUser(requestDto.getUserId());
     NotificationType type = findNotificationType(requestDto.getType());
 
-    Notification notification = createAndSaveNotification(user, type, requestDto.getArgs());
-    sendNotifications(notification);
+    AppNotification appNotification = createAndSaveNotification(user, type, requestDto.getArgs());
+    sendNotifications(appNotification);
 
-    log.info("Notification created: id={}", notification.getNotificationId());
-    return NotificationCreateResponseDto.from(notification);
+    log.info("Notification created: id={}", appNotification.getNotificationId());
+    return NotificationCreateResponseDto.from(appNotification);
   }
 
   /**
@@ -81,15 +81,15 @@ public class NotificationService {
   public void markAllAsRead(Long userId) {
     log.debug("Marking all notifications as read: userId={}", userId);
 
-    List<Notification> unreadNotifications = notificationRepository.findByUser_UserIdAndIsReadFalse(userId);
-    if (unreadNotifications.isEmpty()) {
+    List<AppNotification> unreadAppNotifications = notificationRepository.findByUser_UserIdAndIsReadFalse(userId);
+    if (unreadAppNotifications.isEmpty()) {
       return;
     }
 
-    unreadNotifications.forEach(Notification::markAsRead);
+    unreadAppNotifications.forEach(AppNotification::markAsRead);
     sendUnreadCountUpdate(userId);
 
-    log.info("Marked {} notifications as read for user: {}", unreadNotifications.size(), userId);
+    log.info("Marked {} notifications as read for user: {}", unreadAppNotifications.size(), userId);
   }
 
   /**
@@ -99,11 +99,11 @@ public class NotificationService {
   public void deleteNotification(Long userId, Long notificationId) {
     log.debug("Deleting notification: userId={}, notificationId={}", userId, notificationId);
 
-    Notification notification = findNotification(notificationId);
-    validateNotificationOwnership(notification, userId);
+    AppNotification appNotification = findNotification(notificationId);
+    validateNotificationOwnership(appNotification, userId);
 
-    boolean wasUnread = !notification.getIsRead();
-    notificationRepository.delete(notification);
+    boolean wasUnread = !appNotification.getIsRead();
+    notificationRepository.delete(appNotification);
 
     if (wasUnread) {
       sendUnreadCountUpdate(userId);
@@ -115,15 +115,15 @@ public class NotificationService {
   /**
    * 알림 생성 이벤트 처리
    */
-  public void sendCreated(Notification notification) {
-    sendSseNotificationSafely(notification);
+  public void sendCreated(AppNotification appNotification) {
+    sendSseNotificationSafely(appNotification);
   }
 
   /**
    * 알림 읽음 이벤트 처리
    */
-  public void sendRead(Notification notification) {
-    sendUnreadCountUpdate(notification.getUser().getUserId());
+  public void sendRead(AppNotification appNotification) {
+    sendUnreadCountUpdate(appNotification.getUser().getUserId());
   }
 
   // ================================
@@ -144,7 +144,7 @@ public class NotificationService {
     );
   }
 
-  private Notification findNotification(Long notificationId) {
+  private AppNotification findNotification(Long notificationId) {
     return findEntityOrThrow(
         notificationRepository.findById(notificationId),
         "Notification", notificationId, ErrorCode.NOTIFICATION_NOT_FOUND
@@ -158,45 +158,60 @@ public class NotificationService {
     });
   }
 
-  private Notification createAndSaveNotification(User user, NotificationType type, String... args) {
-    Notification notification = Notification.create(user, type, args);
-    return notificationRepository.save(notification);
+  private AppNotification createAndSaveNotification(User user, NotificationType type, String... args) {
+    AppNotification appNotification = AppNotification.create(user, type, args);
+    return notificationRepository.save(appNotification);
   }
 
-  private void sendNotifications(Notification notification) {
-    sendSseNotificationSafely(notification);
-    sendFcmNotificationSafely(notification);
+  private void sendNotifications(AppNotification appNotification) {
+    sendSseNotificationSafely(appNotification);
+    sendFcmNotificationSafely(appNotification);
   }
 
-  private void sendSseNotificationSafely(Notification notification) {
+  private void sendSseNotificationSafely(AppNotification appNotification) {
     executeNotificationSafely(
-        () -> sseEmittersService.sendSseNotification(notification.getUser().getUserId(), notification),
-        "SSE", notification.getNotificationId()
+        () -> sseEmittersService.sendSseNotification(appNotification.getUser().getUserId(),
+            appNotification),
+        "SSE", appNotification.getNotificationId()
     );
   }
 
-  private void sendFcmNotificationSafely(Notification notification) {
+  private void sendFcmNotificationSafely(AppNotification appNotification) {
+    Long userId = appNotification.getUser().getUserId();
+    String fcmToken = appNotification.getUser().getFcmToken();
+    
+    // FCM 토큰 상태 로깅
+    log.info("FCM notification attempt: userId={}, notificationId={}, hasToken={}, tokenLength={}", 
+        userId, appNotification.getNotificationId(), 
+        fcmToken != null, fcmToken != null ? fcmToken.length() : 0);
+    
+    if (fcmToken == null || fcmToken.isBlank()) {
+      log.warn("FCM token is null or empty for user: {}, skipping FCM notification", userId);
+      appNotification.markFcmSent(false);
+      return;
+    }
+    
     try {
-      fcmService.sendFcmNotification(notification);
-      notification.markFcmSent(true);
-      log.debug("FCM notification sent successfully: id={}", notification.getNotificationId());
+      fcmService.sendFcmNotification(appNotification);
+      appNotification.markFcmSent(true);
+      log.debug("FCM notification sent successfully: id={}", appNotification.getNotificationId());
 
     } catch (CustomException e) {
       // FCM 관련 CustomException은 이미 FcmService에서 적절히 로깅됨
-      notification.markFcmSent(false);
+      appNotification.markFcmSent(false);
       log.debug("FCM notification failed with CustomException: id={}, errorCode={}",
-          notification.getNotificationId(), e.getErrorCode());
+          appNotification.getNotificationId(), e.getErrorCode());
 
       // FCM 토큰 관련 에러인 경우 추가 처리 가능
       if (e.getErrorCode() == ErrorCode.FCM_TOKEN_NOT_FOUND) {
-        handleInvalidFcmToken(notification.getUser());
+        handleInvalidFcmToken(appNotification.getUser());
       }
 
     } catch (Exception e) {
       // 예상치 못한 예외 (FcmService에서 모든 예외를 CustomException으로 변환하므로 발생하지 않아야 함)
-      notification.markFcmSent(false);
+      appNotification.markFcmSent(false);
       log.error("Unexpected FCM error: id={}, error={}",
-          notification.getNotificationId(), e.getMessage(), e);
+          appNotification.getNotificationId(), e.getMessage(), e);
     }
   }
 
@@ -204,8 +219,8 @@ public class NotificationService {
     try {
       // FCM 토큰이 무효한 경우 처리 로직
       log.info("Handling invalid FCM token for user: {}", user.getUserId());
-      // 예: user.clearFcmToken();
-      // 예: 토큰 갱신 이벤트 발행
+      user.clearFcmToken(); // 무효한 토큰 제거
+      log.info("Cleared invalid FCM token for user: {}", user.getUserId());
     } catch (Exception e) {
       log.error("Failed to handle invalid FCM token for user: {}, error={}",
           user.getUserId(), e.getMessage());
@@ -228,10 +243,10 @@ public class NotificationService {
     );
   }
 
-  private void validateNotificationOwnership(Notification notification, Long userId) {
-    if (!notification.getUser().getUserId().equals(userId)) {
+  private void validateNotificationOwnership(AppNotification appNotification, Long userId) {
+    if (!appNotification.getUser().getUserId().equals(userId)) {
       log.error("Unauthorized notification access: userId={}, notificationOwnerId={}",
-          userId, notification.getUser().getUserId());
+          userId, appNotification.getUser().getUserId());
       throw new CustomException(ErrorCode.NOTIFICATION_NOT_FOUND);
     }
   }

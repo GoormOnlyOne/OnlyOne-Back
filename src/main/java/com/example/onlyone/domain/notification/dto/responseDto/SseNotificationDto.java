@@ -1,6 +1,6 @@
-package com.example.onlyone.domain.notification.dto;
+package com.example.onlyone.domain.notification.dto.responseDto;
 
-import com.example.onlyone.domain.notification.entity.Notification;
+import com.example.onlyone.domain.notification.entity.AppNotification;
 import com.example.onlyone.domain.notification.entity.Type;
 import java.time.LocalDateTime;
 import lombok.Builder;
@@ -35,12 +35,12 @@ public class SseNotificationDto {
 
   private LocalDateTime createdAt;
 
-  public static SseNotificationDto from(Notification notification) {
+  public static SseNotificationDto from(AppNotification appNotification) {
     return SseNotificationDto.builder()
-        .notificationId(notification.getNotificationId())
-        .content(notification.getContent())
-        .type(notification.getNotificationType().getType())
-        .createdAt(notification.getCreatedAt())
+        .notificationId(appNotification.getNotificationId())
+        .content(appNotification.getContent())
+        .type(appNotification.getNotificationType().getType())
+        .createdAt(appNotification.getCreatedAt())
         .build();
   }
 }
