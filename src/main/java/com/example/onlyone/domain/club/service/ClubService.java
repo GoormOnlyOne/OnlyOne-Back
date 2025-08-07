@@ -7,6 +7,7 @@ import com.example.onlyone.domain.chat.repository.ChatRoomRepository;
 
 import com.example.onlyone.domain.chat.repository.UserChatRoomRepository;
 import com.example.onlyone.domain.club.dto.request.ClubRequestDto;
+import com.example.onlyone.domain.club.dto.response.ClubCreateResponseDto;
 import com.example.onlyone.domain.club.dto.response.ClubDetailResponseDto;
 import com.example.onlyone.domain.club.entity.Club;
 import com.example.onlyone.domain.club.entity.ClubRole;
@@ -42,7 +43,7 @@ public class ClubService {
     private final FeedRepository feedRepository;
 
     /* 모임 생성*/
-    public void createClub(ClubRequestDto requestDto) {
+    public ClubCreateResponseDto createClub(ClubRequestDto requestDto) {
         Interest interest = interestRepository.findByCategory(Category.from(requestDto.getCategory()))
                 .orElseThrow(() -> new CustomException(ErrorCode.INTEREST_NOT_FOUND));
         Club club = requestDto.toEntity(interest);
@@ -68,6 +69,7 @@ public class ClubService {
                 .chatRole(ChatRole.LEADER)
                 .build();
         userChatRoomRepository.save(userChatRoom);
+        return new ClubCreateResponseDto(club.getClubId());
     }
 
     /* 모임 수정*/
