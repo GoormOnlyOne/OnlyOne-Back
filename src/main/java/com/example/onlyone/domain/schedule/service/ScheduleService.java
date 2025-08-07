@@ -9,6 +9,7 @@ import com.example.onlyone.domain.chat.repository.UserChatRoomRepository;
 import com.example.onlyone.domain.club.entity.Club;
 import com.example.onlyone.domain.club.repository.ClubRepository;
 import com.example.onlyone.domain.schedule.dto.request.ScheduleRequestDto;
+import com.example.onlyone.domain.schedule.dto.response.ScheduleDetailResponseDto;
 import com.example.onlyone.domain.schedule.dto.response.ScheduleResponseDto;
 import com.example.onlyone.domain.schedule.dto.response.ScheduleUserResponseDto;
 import com.example.onlyone.domain.schedule.entity.Schedule;
@@ -110,8 +111,7 @@ public class ScheduleService {
                 .orElseThrow(() -> new CustomException(ErrorCode.CLUB_NOT_FOUND));
         Schedule schedule = scheduleRepository.findById(scheduleId)
                 .orElseThrow(() -> new CustomException(ErrorCode.SCHEDULE_NOT_FOUND));
-//        User user = userService.getCurrentUser();
-        User user = userService.getAnotherUser();
+        User user = userService.getCurrentUser();
         int userCount = userScheduleRepository.countBySchedule(schedule);
         if (userCount >= schedule.getUserLimit()) {
             throw new CustomException(ErrorCode.ALREADY_EXCEEDED_SCHEDULE);
@@ -130,7 +130,7 @@ public class ScheduleService {
                 .scheduleRole(ScheduleRole.MEMBER)
                 .build();
         userScheduleRepository.save(userSchedule);
-        ChatRoom chatRoom = chatRoomRepository.findByChatRoomIdAndClubClubId(schedule.getScheduleId(), clubId)
+        ChatRoom chatRoom = chatRoomRepository.findByTypeAndScheduleId(Type.SCHEDULE, schedule.getScheduleId())
                 .orElseThrow(() -> new CustomException(ErrorCode.CHAT_ROOM_NOT_FOUND));
         UserChatRoom userChatRoom = UserChatRoom.builder()
                 .user(user)
@@ -142,8 +142,7 @@ public class ScheduleService {
 
     /* 정기 모임 참여 취소 */
     public void leaveSchedule(Long clubId, Long scheduleId) {
-//        User user = userService.getCurrentUser();
-        User user = userService.getAnotherUser();
+        User user = userService.getCurrentUser();
         clubRepository.findById(clubId)
                 .orElseThrow(() -> new CustomException(ErrorCode.CLUB_NOT_FOUND));
         Schedule schedule = scheduleRepository.findById(scheduleId)
@@ -189,6 +188,7 @@ public class ScheduleService {
     }
 
     /* 모임 스케줄 참여자 목록 조회 */
+    @Transactional(readOnly = true)
     public List<ScheduleUserResponseDto> getScheduleUserList(Long clubId, Long scheduleId) {
         clubRepository.findById(clubId)
                 .orElseThrow(() -> new CustomException(ErrorCode.CLUB_NOT_FOUND));
@@ -199,4 +199,12 @@ public class ScheduleService {
                 .collect(Collectors.toList());
     }
 
+    @Transactional(readOnly = true)
+    public ScheduleDetailResponseDto getScheduleDetails(Long clubId, Long scheduleId) {
+        clubRepository.findById(clubId)
+                .orElseThrow(() -> new CustomException(ErrorCode.CLUB_NOT_FOUND));
+        Schedule schedule = scheduleRepository.findById(scheduleId)
+                .orElseThrow(() -> new CustomException(ErrorCode.SCHEDULE_NOT_FOUND));
+        return ScheduleDetailResponseDto.from(schedule);
+    }
 }
