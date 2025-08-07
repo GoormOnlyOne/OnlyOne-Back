@@ -20,10 +20,10 @@ public class NotificationEventListener {
   @EventListener
   @Async
   public void onNotificationCreated(NotificationCreatedEvent event) {
-    Long notificationId = event.getNotification().getNotificationId();
+    Long notificationId = event.getAppNotification().getNotificationId();
     try {
       log.debug("새 알림 생성 완료. 알림 ID={}", notificationId);
-      notificationService.sendCreated(event.getNotification());
+      notificationService.sendCreated(event.getAppNotification());
     } catch (Exception e) {
       log.error("알림 생성 후 발송 처리에 실패했습니다. 알림 ID={}", notificationId, e);
     }
@@ -35,10 +35,10 @@ public class NotificationEventListener {
   @EventListener
   @Async
   public void onNotificationRead(NotificationReadEvent event) {
-    Long notificationId = event.getNotification().getNotificationId();
+    Long notificationId = event.getAppNotification().getNotificationId();
     try {
       log.debug("알림 읽음 처리 완료. 알림 ID={}", notificationId);
-      notificationService.sendRead(event.getNotification());
+      notificationService.sendRead(event.getAppNotification());
     } catch (Exception e) {
       log.error("알림 읽음 처리 후 전송에 실패했습니다. 알림 ID={}", notificationId, e);
     }

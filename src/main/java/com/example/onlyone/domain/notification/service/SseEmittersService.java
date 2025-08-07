@@ -1,7 +1,7 @@
 package com.example.onlyone.domain.notification.service;
 
-import com.example.onlyone.domain.notification.dto.SseNotificationDto;
-import com.example.onlyone.domain.notification.entity.Notification;
+import com.example.onlyone.domain.notification.dto.responseDto.SseNotificationDto;
+import com.example.onlyone.domain.notification.entity.AppNotification;
 import com.example.onlyone.domain.notification.repository.NotificationRepository;
 import com.example.onlyone.global.exception.CustomException;
 import com.example.onlyone.global.exception.ErrorCode;
@@ -45,7 +45,7 @@ public class SseEmittersService {
   /**
    * SSE 알림 전송
    */
-  public void sendSseNotification(Long userId, Notification notification) {
+  public void sendSseNotification(Long userId, AppNotification appNotification) {
     SseEmitter emitter = sseEmitters.get(userId);
     if (emitter == null) {
       log.debug("No SSE connection for user: {}", userId);
@@ -53,12 +53,12 @@ public class SseEmittersService {
     }
 
     try {
-      SseNotificationDto sseDto = SseNotificationDto.from(notification);
+      SseNotificationDto sseDto = SseNotificationDto.from(appNotification);
       emitter.send(SseEmitter.event()
           .name("notification")
           .data(sseDto));
 
-      log.debug("SSE notification sent: userId={}, notificationId={}", userId, notification.getNotificationId());
+      log.debug("SSE notification sent: userId={}, notificationId={}", userId, appNotification.getNotificationId());
     } catch (IOException e) {
       log.error("Failed to send SSE notification: userId={}, error={}", userId, e.getMessage());
       cleanupConnection(userId, "send_failure");

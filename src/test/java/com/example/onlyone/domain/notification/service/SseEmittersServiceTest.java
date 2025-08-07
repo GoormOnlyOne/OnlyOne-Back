@@ -1,6 +1,6 @@
 package com.example.onlyone.domain.notification.service;
 
-import com.example.onlyone.domain.notification.entity.Notification;
+import com.example.onlyone.domain.notification.entity.AppNotification;
 import com.example.onlyone.domain.notification.entity.NotificationType;
 import com.example.onlyone.domain.notification.repository.NotificationRepository;
 import com.example.onlyone.global.exception.CustomException;
@@ -94,7 +94,7 @@ class SseEmittersServiceTest {
 
   @Nested
   @DisplayName("SSE 알림 전송 테스트")
-  class SendNotificationTests {
+  class SendAppNotificationTests {
 
     @Test
     @DisplayName("연결된 사용자에게 알림 전송 성공")
@@ -102,13 +102,13 @@ class SseEmittersServiceTest {
       // given
       Long userId = 1L;
       SseEmitter mockEmitter = spy(new SseEmitter(0L));
-      Notification mockNotification = createMockNotification();
+      AppNotification mockAppNotification = createMockNotification();
 
       given(emitterFactory.create(0L)).willReturn(mockEmitter);
       service.createSseConnection(userId); // 연결 생성
 
       // when
-      service.sendSseNotification(userId, mockNotification);
+      service.sendSseNotification(userId, mockAppNotification);
 
       // then
       // 하트비트(1회) + 알림(1회) = 총 2회 호출
@@ -120,10 +120,10 @@ class SseEmittersServiceTest {
     void sendNotification_NoConnection() {
       // given
       Long userId = 1L;
-      Notification mockNotification = createMockNotification();
+      AppNotification mockAppNotification = createMockNotification();
 
       // when
-      service.sendSseNotification(userId, mockNotification);
+      service.sendSseNotification(userId, mockAppNotification);
 
       // then
       // 로그만 남기고 예외 발생하지 않음
@@ -136,7 +136,7 @@ class SseEmittersServiceTest {
       // given
       Long userId = 1L;
       SseEmitter mockEmitter = mock(SseEmitter.class);
-      Notification mockNotification = createMockNotification();
+      AppNotification mockAppNotification = createMockNotification();
 
       given(emitterFactory.create(0L)).willReturn(mockEmitter);
 
@@ -147,11 +147,11 @@ class SseEmittersServiceTest {
       service.createSseConnection(userId);
 
       // when
-      service.sendSseNotification(userId, mockNotification);
+      service.sendSseNotification(userId, mockAppNotification);
 
       // then
       // 연결이 정리되었는지 확인 (다음 전송 시도에서 연결 없음)
-      service.sendSseNotification(userId, mockNotification); // 두 번째 시도
+      service.sendSseNotification(userId, mockAppNotification); // 두 번째 시도
       verify(mockEmitter, times(2)).send(any(SseEmitter.SseEventBuilder.class));
     }
   }
@@ -222,14 +222,14 @@ class SseEmittersServiceTest {
   // Helper Methods
   // ================================
 
-  private Notification createMockNotification() {
-    Notification notification = mock(Notification.class);
+  private AppNotification createMockNotification() {
+    AppNotification appNotification = mock(AppNotification.class);
     NotificationType notificationType = mock(NotificationType.class);
 
-    given(notification.getNotificationId()).willReturn(1L);
-    given(notification.getContent()).willReturn("테스트 알림");
-    given(notification.getNotificationType()).willReturn(notificationType);
+    given(appNotification.getNotificationId()).willReturn(1L);
+    given(appNotification.getContent()).willReturn("테스트 알림");
+    given(appNotification.getNotificationType()).willReturn(notificationType);
 
-    return notification;
+    return appNotification;
   }
 }
