@@ -1,14 +1,14 @@
 package com.example.onlyone.domain.notification.event;
 
-import com.example.onlyone.domain.notification.entity.Notification;
+import com.example.onlyone.domain.notification.entity.AppNotification;
 import lombok.Getter;
 
 @Getter
 public class NotificationCreatedEvent {
 
-  private final Notification notification;
+  private final AppNotification appNotification;
 
-  public NotificationCreatedEvent(Notification notification) {
-    this.notification = notification;
+  public NotificationCreatedEvent(AppNotification appNotification) {
+    this.appNotification = appNotification;
   }
 }
