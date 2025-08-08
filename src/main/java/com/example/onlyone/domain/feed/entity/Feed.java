@@ -31,7 +31,7 @@ public class Feed extends BaseTimeEntity {
     @NotNull
     private Club club;
 
-    @ManyToOne(fetch = FetchType.LAZY, cascade = CascadeType.ALL)
+    @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "user_id", updatable = false)
     @NotNull
     private User user;
