@@ -1,6 +1,7 @@
 package com.example.onlyone.domain.chat.entity;
 
 import com.example.onlyone.domain.club.entity.Club;
+import com.example.onlyone.domain.schedule.entity.Schedule;
 import com.example.onlyone.global.BaseTimeEntity;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
@@ -30,7 +31,11 @@ public class ChatRoom extends BaseTimeEntity {
     private Club club;
 
     // 논리적 FK로 설정
-    @Column(name = "schedule_id", nullable = true, updatable = false)
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "schedule_id", insertable = false, updatable = false)
+    private Schedule schedule;
+
+    @Column(name = "schedule_id")
     private Long scheduleId;
 
     @Column(name = "type")
