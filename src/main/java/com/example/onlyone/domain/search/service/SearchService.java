@@ -2,6 +2,7 @@ package com.example.onlyone.domain.search.service;
 
 import com.example.onlyone.domain.club.entity.Club;
 import com.example.onlyone.domain.club.repository.ClubRepository;
+import com.example.onlyone.domain.club.repository.UserClubRepository;
 import com.example.onlyone.domain.interest.entity.Category;
 import com.example.onlyone.domain.search.dto.request.SearchFilterDto;
 import com.example.onlyone.domain.search.dto.response.ClubResponseDto;
@@ -17,6 +18,7 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.Collections;
 import java.util.List;
 
 @Service
@@ -25,26 +27,37 @@ import java.util.List;
 @Transactional(readOnly = true)
 public class SearchService {
     private final ClubRepository clubRepository;
+    private final UserClubRepository userClubRepository;
     private final UserService userService;
     private final UserInterestRepository userInterestRepository;
 
     // 사용자 맞춤 추천
     public List<ClubResponseDto> recommendedClubs(int page, int size) {
-        PageRequest pageRequest = PageRequest.of(page, size);
+        PageRequest pageRequest = PageRequest.of(page, 20);
         User user = userService.getCurrentUser();
 
         // 사용자 관심사 조회
         List<Long> interestIds = userInterestRepository.findInterestIdsByUserId(user.getUserId());
 
         // 1단계: 관심사 + 지역 일치
-        List<Object[]> resultList = clubRepository.searchByUserInterestAndLocation(interestIds, user.getCity(), user.getDistrict(), pageRequest);
+        List<Object[]> resultList = clubRepository.searchByUserInterestAndLocation(interestIds, user.getCity(), user.getDistrict(), user.getUserId(), pageRequest);
 
-        if(resultList.size() > 0) {
+        if (!resultList.isEmpty()) {
+            if (size == 5) {
+                Collections.shuffle(resultList);
+                resultList = resultList.subList(0, Math.min(5, resultList.size()));
+            }
             return convertToClubResponseDto(resultList);
         }
 
         // 2단계: 관심사 일치
-        resultList = clubRepository.searchByUserInterests(interestIds, pageRequest);
+        resultList = clubRepository.searchByUserInterests(interestIds, user.getUserId(), pageRequest);
+
+        if (size == 5) {
+            Collections.shuffle(resultList);
+            resultList = resultList.subList(0, Math.min(5, resultList.size()));
+        }
+
         return convertToClubResponseDto(resultList);
     }
 
@@ -52,16 +65,22 @@ public class SearchService {
     public List<ClubResponseDto> searchClubByInterest(Long interestId, int page) {
         PageRequest pageRequest = PageRequest.of(page, 20);
         List<Object[]> resultList = clubRepository.searchByInterest(interestId, pageRequest);
+        User user = userService.getCurrentUser();
+        List<Long> joinedClubIds = userClubRepository.findByUserUserId(user.getUserId())
+                .stream().map(uc -> uc.getClub().getClubId()).toList();
 
-        return convertToClubResponseDto(resultList);
+        return convertToClubResponseDtoWithJoinStatus(resultList, joinedClubIds);
     }
 
     // 모임 검색 (지역)
     public List<ClubResponseDto> searchClubByLocation(String city, String district, int page) {
         PageRequest pageRequest = PageRequest.of(page, 20);
         List<Object[]> resultList = clubRepository.searchByLocation(city, district, pageRequest);
+        User user = userService.getCurrentUser();
+        List<Long> joinedClubIds = userClubRepository.findByUserUserId(user.getUserId())
+                .stream().map(uc -> uc.getClub().getClubId()).toList();
 
-        return convertToClubResponseDto(resultList);
+        return convertToClubResponseDtoWithJoinStatus(resultList, joinedClubIds);
     }
 
     // 통합 검색 (키워드 + 필터)
@@ -84,8 +103,11 @@ public class SearchService {
             district = filter.getDistrict().trim();
         }
         
+        // 키워드가 없으면 null로 전달
+        String keyword = filter.hasKeyword() ? filter.getKeyword().trim() : null;
+        
         List<Object[]> resultList = clubRepository.searchByKeywordWithFilter(
-            filter.getKeyword(),
+            keyword,
             city,
             district,
             filter.getInterestId(),
@@ -93,14 +115,25 @@ public class SearchService {
             pageRequest
         );
 
-        return convertKeywordSearchResults(resultList);
+        User user = userService.getCurrentUser();
+        List<Long> joinedClubIds = userClubRepository.findByUserUserId(user.getUserId())
+                .stream().map(uc -> uc.getClub().getClubId()).toList();
+
+        return convertKeywordSearchResultsWithJoinStatus(resultList, joinedClubIds);
     }
 
     // 함께하는 멤버들의 다른 모임 조회
     public List<ClubResponseDto> getClubsByTeammates(int page, int size) {
-        PageRequest pageRequest = PageRequest.of(page, size);
+        PageRequest pageRequest = PageRequest.of(page, 20);
         User currentUser = userService.getCurrentUser();
         List<Object[]> resultList = clubRepository.findClubsByTeammates(currentUser.getUserId(), pageRequest);
+
+        // 홈 화면에서 보여주는건 상위 20개 중 랜덤으로 최대 5개
+        if (size == 5) {
+            Collections.shuffle(resultList);
+            resultList = resultList.subList(0, Math.min(5, resultList.size()));
+            return convertToClubResponseDto(resultList);
+        }
 
         return convertToClubResponseDto(resultList);
     }
@@ -110,25 +143,38 @@ public class SearchService {
         return results.stream().map(result -> {
             Club club = (Club) result[0];
             Long memberCount = (Long) result[1];
-            return ClubResponseDto.from(club, memberCount);
+            return ClubResponseDto.from(club, memberCount, false);
         }).toList();
     }
 
-    // 키워드 검색 결과 전용 변환
-    private List<ClubResponseDto> convertKeywordSearchResults(List<Object[]> results) {
+    // 키워드 검색 결과 가입 상태와 함께 변환
+    private List<ClubResponseDto> convertKeywordSearchResultsWithJoinStatus(List<Object[]> results, List<Long> joinedClubIds) {
         return results.stream().map(result -> {
+            Long clubId = ((Number) result[0]).longValue();
             String categoryName = (String) result[5];
             String koreanCategoryName = Category.valueOf(categoryName).getKoreanName();
+            boolean isJoined = joinedClubIds.contains(clubId);
             
             return ClubResponseDto.builder()
-                    .clubId(((Number) result[0]).longValue())
+                    .clubId(clubId)
                     .name((String) result[1])
                     .description((String) result[2])
                     .district((String) result[3])
                     .image((String) result[4])
                     .interest(koreanCategoryName)
                     .memberCount(((Number) result[6]).longValue())
+                    .isJoined(isJoined)
                     .build();
+        }).toList();
+    }
+
+    // 엔티티 -> DTO 가입 상태와 함께 변환
+    private List<ClubResponseDto> convertToClubResponseDtoWithJoinStatus(List<Object[]> results, List<Long> joinedClubIds) {
+        return results.stream().map(result -> {
+            Club club = (Club) result[0];
+            Long memberCount = (Long) result[1];
+            boolean isJoined = joinedClubIds.contains(club.getClubId());
+            return ClubResponseDto.from(club, memberCount, isJoined);
         }).toList();
     }
 }
