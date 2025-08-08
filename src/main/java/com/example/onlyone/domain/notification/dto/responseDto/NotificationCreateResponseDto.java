@@ -1,6 +1,6 @@
 package com.example.onlyone.domain.notification.dto.responseDto;
 
-import com.example.onlyone.domain.notification.entity.Notification;
+import com.example.onlyone.domain.notification.entity.AppNotification;
 import lombok.Builder;
 import lombok.Getter;
 
@@ -24,12 +24,12 @@ public class NotificationCreateResponseDto {
 
   private LocalDateTime createdAt;
 
-  public static NotificationCreateResponseDto from(Notification notification) {
+  public static NotificationCreateResponseDto from(AppNotification appNotification) {
     return NotificationCreateResponseDto.builder()
-        .notificationId(notification.getNotificationId())
-        .content(notification.getContent())
-        .fcmSent(notification.getFcmSent())
-        .createdAt(notification.getCreatedAt())
+        .notificationId(appNotification.getNotificationId())
+        .content(appNotification.getContent())
+        .fcmSent(appNotification.getFcmSent())
+        .createdAt(appNotification.getCreatedAt())
         .build();
   }
 }

@@ -1,21 +1,9 @@
 package com.example.onlyone.domain.notification.service;
 
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.doReturn;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
-
-import com.example.onlyone.domain.notification.dto.requestDto.NotificationListItem;
 import com.example.onlyone.domain.notification.dto.responseDto.NotificationListResponseDto;
 import com.example.onlyone.domain.notification.entity.Type;
 import com.example.onlyone.domain.notification.repository.NotificationRepository;
-import java.time.LocalDateTime;
-import java.util.Collections;
-import java.util.List;
+import com.example.onlyone.domain.notification.repository.NotificationRepository.NotificationListProjection;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -23,11 +11,22 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.data.domain.PageRequest;
-import org.springframework.data.domain.Pageable;
 
+import java.time.LocalDateTime;
+import java.util.Collections;
+import java.util.List;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
+
+/**
+ * 네이티브 쿼리 기반 NotificationQueryTest
+ */
 @ExtendWith(MockitoExtension.class)
-class NotificationGetTest {
+class AppNotificationQueryTest {
 
   @Mock
   private NotificationRepository notificationRepository;
@@ -36,12 +35,12 @@ class NotificationGetTest {
   private NotificationService notificationService;
 
   private Long userId;
-  private List<NotificationListItem> mockNotifications;
+  private List<NotificationListProjection> mockProjections;
 
   @BeforeEach
   void setUp() {
     userId = 1L;
-    mockNotifications = createMockNotifications();
+    mockProjections = createMockProjections();
   }
 
   @Test
@@ -50,12 +49,11 @@ class NotificationGetTest {
     // given
     int size = 10;
     Long unreadCount = 5L;
-    Pageable expectedPageable = PageRequest.of(0, size);
 
-    when(notificationRepository.findTopByUser(userId, expectedPageable))
-        .thenReturn(mockNotifications.subList(0, 5));
-    when(notificationRepository.findAfterCursor(eq(userId), eq(5L), any(Pageable.class)))
-        .thenReturn(mockNotifications.subList(5, 7)); // hasMore = true
+    when(notificationRepository.findFirstPageByUserId(userId, size))
+        .thenReturn(mockProjections.subList(0, 5));
+    when(notificationRepository.findAfterCursorByUserId(userId, 5L, 1))
+        .thenReturn(mockProjections.subList(5, 6)); // hasMore = true
     when(notificationRepository.countByUser_UserIdAndIsReadFalse(userId))
         .thenReturn(unreadCount);
 
@@ -68,8 +66,8 @@ class NotificationGetTest {
     assertThat(result.isHasMore()).isTrue();
     assertThat(result.getUnreadCount()).isEqualTo(unreadCount);
 
-    verify(notificationRepository).findTopByUser(userId, expectedPageable);
-    verify(notificationRepository).findAfterCursor(eq(userId), eq(5L), any(Pageable.class));
+    verify(notificationRepository).findFirstPageByUserId(userId, size);
+    verify(notificationRepository).findAfterCursorByUserId(userId, 5L, 1);
     verify(notificationRepository).countByUser_UserIdAndIsReadFalse(userId);
   }
 
@@ -80,11 +78,10 @@ class NotificationGetTest {
     Long cursor = 10L;
     int size = 5;
     Long unreadCount = 3L;
-    Pageable expectedPageable = PageRequest.of(0, size);
 
-    when(notificationRepository.findAfterCursor(userId, cursor, expectedPageable))
-        .thenReturn(mockNotifications.subList(0, 3));
-    when(notificationRepository.findAfterCursor(eq(userId), eq(3L), any(Pageable.class)))
+    when(notificationRepository.findAfterCursorByUserId(userId, cursor, size))
+        .thenReturn(mockProjections.subList(0, 3));
+    when(notificationRepository.findAfterCursorByUserId(userId, 3L, 1))
         .thenReturn(Collections.emptyList()); // hasMore = false
     when(notificationRepository.countByUser_UserIdAndIsReadFalse(userId))
         .thenReturn(unreadCount);
@@ -98,8 +95,8 @@ class NotificationGetTest {
     assertThat(result.isHasMore()).isFalse();
     assertThat(result.getUnreadCount()).isEqualTo(unreadCount);
 
-    verify(notificationRepository).findAfterCursor(userId, cursor, expectedPageable);
-    verify(notificationRepository).findAfterCursor(eq(userId), eq(3L), any(Pageable.class));
+    verify(notificationRepository).findAfterCursorByUserId(userId, cursor, size);
+    verify(notificationRepository).findAfterCursorByUserId(userId, 3L, 1);
     verify(notificationRepository).countByUser_UserIdAndIsReadFalse(userId);
   }
 
@@ -109,9 +106,8 @@ class NotificationGetTest {
     // given
     int requestSize = 150;
     int expectedSize = 100;
-    Pageable expectedPageable = PageRequest.of(0, expectedSize);
 
-    when(notificationRepository.findTopByUser(userId, expectedPageable))
+    when(notificationRepository.findFirstPageByUserId(userId, expectedSize))
         .thenReturn(Collections.emptyList());
     when(notificationRepository.countByUser_UserIdAndIsReadFalse(userId))
         .thenReturn(0L);
@@ -120,7 +116,7 @@ class NotificationGetTest {
     notificationService.getNotifications(userId, null, requestSize);
 
     // then
-    verify(notificationRepository).findTopByUser(userId, expectedPageable);
+    verify(notificationRepository).findFirstPageByUserId(userId, expectedSize);
   }
 
   @Test
@@ -129,9 +125,8 @@ class NotificationGetTest {
     // given
     int size = 10;
     Long unreadCount = 0L;
-    Pageable expectedPageable = PageRequest.of(0, size);
 
-    when(notificationRepository.findTopByUser(userId, expectedPageable))
+    when(notificationRepository.findFirstPageByUserId(userId, size))
         .thenReturn(Collections.emptyList());
     when(notificationRepository.countByUser_UserIdAndIsReadFalse(userId))
         .thenReturn(unreadCount);
@@ -145,9 +140,9 @@ class NotificationGetTest {
     assertThat(result.isHasMore()).isFalse();
     assertThat(result.getUnreadCount()).isEqualTo(unreadCount);
 
-    verify(notificationRepository).findTopByUser(userId, expectedPageable);
+    verify(notificationRepository).findFirstPageByUserId(userId, size);
     verify(notificationRepository).countByUser_UserIdAndIsReadFalse(userId);
-    verify(notificationRepository, never()).findAfterCursor(any(), any(), any());
+    verify(notificationRepository, never()).findAfterCursorByUserId(eq(userId), eq(null), eq(1));
   }
 
   @Test
@@ -156,11 +151,11 @@ class NotificationGetTest {
     // given
     Long cursor = 20L;
     int size = 10;
-    List<NotificationListItem> lastPageItems = mockNotifications.subList(0, 3);
+    List<NotificationListProjection> lastPageItems = mockProjections.subList(0, 3);
 
-    when(notificationRepository.findAfterCursor(userId, cursor, PageRequest.of(0, size)))
+    when(notificationRepository.findAfterCursorByUserId(userId, cursor, size))
         .thenReturn(lastPageItems);
-    when(notificationRepository.findAfterCursor(eq(userId), eq(3L), any(Pageable.class)))
+    when(notificationRepository.findAfterCursorByUserId(userId, 3L, 1))
         .thenReturn(Collections.emptyList());
     when(notificationRepository.countByUser_UserIdAndIsReadFalse(userId))
         .thenReturn(1L);
@@ -180,12 +175,12 @@ class NotificationGetTest {
   void getNotifications_ExactPageSize_HasMoreTrue() {
     // given
     int size = 5;
-    List<NotificationListItem> exactSizeItems = mockNotifications.subList(0, 5);
+    List<NotificationListProjection> exactSizeItems = mockProjections.subList(0, 5);
 
-    when(notificationRepository.findTopByUser(userId, PageRequest.of(0, size)))
+    when(notificationRepository.findFirstPageByUserId(userId, size))
         .thenReturn(exactSizeItems);
-    when(notificationRepository.findAfterCursor(eq(userId), eq(5L), any(Pageable.class)))
-        .thenReturn(mockNotifications.subList(5, 6));
+    when(notificationRepository.findAfterCursorByUserId(userId, 5L, 1))
+        .thenReturn(mockProjections.subList(5, 6));
     when(notificationRepository.countByUser_UserIdAndIsReadFalse(userId))
         .thenReturn(10L);
 
@@ -199,28 +194,51 @@ class NotificationGetTest {
     assertThat(result.getUnreadCount()).isEqualTo(10L);
   }
 
-  private List<NotificationListItem> createMockNotifications() {
+  // ================================
+  // Helper Methods
+  // ================================
+
+  private List<NotificationListProjection> createMockProjections() {
     return List.of(
-        createNotificationListItem(1L, "새로운 채팅 메시지가 도착했습니다.", Type.CHAT, false),
-        createNotificationListItem(2L, "정산이 완료되었습니다.", Type.SETTLEMENT, true),
-        createNotificationListItem(3L, "게시글이 좋아요를 받았습니다.", Type.LIKE, false),
-        createNotificationListItem(4L, "새로운 댓글이 등록되었습니다.", Type.COMMENT, false),
-        createNotificationListItem(5L, "채팅방에 새로운 참가자가 추가되었습니다.", Type.CHAT, true),
-        createNotificationListItem(6L, "정산 요청이 승인되었습니다.", Type.SETTLEMENT, false),
-        createNotificationListItem(7L, "댓글이 좋아요를 받았습니다.", Type.LIKE, false),
-        createNotificationListItem(8L, "댓글에 답글이 달렸습니다.", Type.COMMENT, true),
-        createNotificationListItem(9L, "채팅 메시지가 삭제되었습니다.", Type.CHAT, false),
-        createNotificationListItem(10L, "정산이 취소되었습니다.", Type.SETTLEMENT, false)
+        createMockProjection(1L, "새로운 채팅 메시지가 도착했습니다.", Type.CHAT, false),
+        createMockProjection(2L, "정산이 완료되었습니다.", Type.SETTLEMENT, true),
+        createMockProjection(3L, "게시글이 좋아요를 받았습니다.", Type.LIKE, false),
+        createMockProjection(4L, "새로운 댓글이 등록되었습니다.", Type.COMMENT, false),
+        createMockProjection(5L, "채팅방에 새로운 참가자가 추가되었습니다.", Type.CHAT, true),
+        createMockProjection(6L, "정산 요청이 승인되었습니다.", Type.SETTLEMENT, false),
+        createMockProjection(7L, "댓글이 좋아요를 받았습니다.", Type.LIKE, false),
+        createMockProjection(8L, "댓글에 답글이 달렸습니다.", Type.COMMENT, true),
+        createMockProjection(9L, "채팅 메시지가 삭제되었습니다.", Type.CHAT, false),
+        createMockProjection(10L, "정산이 취소되었습니다.", Type.SETTLEMENT, false)
     );
   }
 
-  private NotificationListItem createNotificationListItem(Long id, String content, Type type, boolean isRead) {
-    return NotificationListItem.builder()
-        .notificationId(id)
-        .content(content)
-        .type(type)
-        .isRead(isRead)
-        .createdAt(LocalDateTime.now().minusHours(id))
-        .build();
+  private NotificationListProjection createMockProjection(Long id, String content, Type type, boolean isRead) {
+    return new NotificationListProjection() {
+      @Override
+      public Long getNotificationId() {
+        return id;
+      }
+
+      @Override
+      public String getContent() {
+        return content;
+      }
+
+      @Override
+      public String getType() {
+        return type.name();
+      }
+
+      @Override
+      public Boolean getIsRead() {
+        return isRead;
+      }
+
+      @Override
+      public LocalDateTime getCreatedAt() {
+        return LocalDateTime.now().minusHours(id);
+      }
+    };
   }
 }
