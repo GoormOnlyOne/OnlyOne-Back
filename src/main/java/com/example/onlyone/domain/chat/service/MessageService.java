@@ -5,6 +5,8 @@ import com.example.onlyone.domain.chat.entity.ChatRoom;
 import com.example.onlyone.domain.chat.entity.Message;
 import com.example.onlyone.domain.chat.repository.ChatRoomRepository;
 import com.example.onlyone.domain.chat.repository.MessageRepository;
+import com.example.onlyone.domain.notification.entity.Type;
+import com.example.onlyone.domain.notification.service.NotificationService;
 import com.example.onlyone.domain.user.entity.User;
 import com.example.onlyone.domain.user.repository.UserRepository;
 import com.example.onlyone.global.exception.CustomException;
@@ -25,6 +27,7 @@ public class MessageService {
     private final MessageRepository messageRepository;
     private final ChatRoomRepository chatRoomRepository;
     private final UserRepository userRepository;
+    private final NotificationService notificationService;
 
     /**
      * 메시지 저장
@@ -43,8 +46,9 @@ public class MessageService {
                 .sentAt(LocalDateTime.now())
                 .deleted(false)
                 .build();
-
-        return ChatMessageResponse.from(messageRepository.save(message));
+        messageRepository.save(message);
+        notificationService.createNotification(user, Type.CHAT, new String[]{user.getNickname()});
+        return ChatMessageResponse.from(message);
     }
 
     /**

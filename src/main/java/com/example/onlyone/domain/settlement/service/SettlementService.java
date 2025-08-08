@@ -1,6 +1,7 @@
 package com.example.onlyone.domain.settlement.service;
 
 import com.example.onlyone.domain.club.repository.ClubRepository;
+import com.example.onlyone.domain.notification.service.NotificationService;
 import com.example.onlyone.domain.schedule.entity.Schedule;
 import com.example.onlyone.domain.schedule.entity.ScheduleRole;
 import com.example.onlyone.domain.schedule.entity.ScheduleStatus;
@@ -27,6 +28,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import com.example.onlyone.domain.notification.entity.Type;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -45,6 +47,7 @@ public class SettlementService {
     private final WalletRepository walletRepository;
     private final WalletTransactionRepository walletTransactionRepository;
     private final TransferRepository transferRepository;
+    private final NotificationService notificationService;
 
 
     /* 정산 Status를 REQUESTED -> COMPLETED로 스케줄링 (낙관적 락 적용)*/
@@ -55,9 +58,15 @@ public class SettlementService {
         for (Settlement settlement : settlements) {
             long totalCount = userSettlementRepository.countBySettlement(settlement);
             long completedCount = userSettlementRepository.countBySettlementAndSettlementStatus(settlement, SettlementStatus.COMPLETED);
+            User leader = userScheduleRepository.findLeaderByScheduleAndScheduleRole(settlement.getSchedule(), ScheduleRole.LEADER)
+                    .orElseThrow(() -> new CustomException(ErrorCode.LEADER_NOT_FOUND));
+            // 모든 정산이 완료된 경우
             if (totalCount > 0 && totalCount == completedCount) {
-                settlement.updateStatus(TotalStatus.COMPLETED);
+                settlement.update(TotalStatus.COMPLETED, LocalDateTime.now());
                 settlementRepository.save(settlement);
+                settlement.getSchedule().updateStatus(ScheduleStatus.CLOSED);
+                // 정산 리더에게 완료 알림
+                notificationService.createNotification(leader, Type.SETTLEMENT, new String[]{String.valueOf(settlement.getSum())});
             }
         }
     }
@@ -108,9 +117,9 @@ public class SettlementService {
         // [TODO] Notification 생성 및 유저에게 알림 전송
     }
 
+    /* 참여자의 정산 수행 */
     public void updateUserSettlement(Long clubId, Long scheduleId) {
         User user = userService.getCurrentUser();
-//        User user = userService.getCurrentUser();
         // 유효성 검증
         clubRepository.findById(clubId)
                 .orElseThrow(() -> new CustomException(ErrorCode.CLUB_NOT_FOUND));
@@ -146,12 +155,13 @@ public class SettlementService {
             // 정산 상태 변경
             userSettlement.updateSettlement(SettlementStatus.COMPLETED, LocalDateTime.now());
             userSettlementRepository.save(userSettlement);
+            // 정산 완료 알림
+            notificationService.createNotification(user, Type.SETTLEMENT, new String[]{String.valueOf(amount)});
         } catch (Exception e) {
             // 리더-멤버의 WalletTransaction 기록
             saveWalletTransactions(wallet, leaderWallet, amount, WalletTransactionStatus.FAILED, userSettlement);
             throw e;
         }
-        // [TODO] Notification 생성 및 유저에게 알림 전송
     }
 
     /* WalletTransaction 저장 로직 */
@@ -159,7 +169,7 @@ public class SettlementService {
                                         WalletTransactionStatus status, UserSettlement userSettlement) {
         // WalletTransaction 저장
         WalletTransaction walletTransaction = WalletTransaction.builder()
-                .type(Type.OUTGOING)
+                .walletTransactionType(WalletTransactionType.OUTGOING)
                 .amount(amount)
                 .balance(wallet.getBalance())
                 .walletTransactionStatus(status)
@@ -168,7 +178,7 @@ public class SettlementService {
                 .build();
         walletTransactionRepository.save(walletTransaction);
         WalletTransaction leaderWalletTransaction = WalletTransaction.builder()
-                .type(Type.INCOMING)
+                .walletTransactionType(WalletTransactionType.INCOMING)
                 .amount(amount)
                 .balance(leaderWallet.getBalance())
                 .walletTransactionStatus(status)
