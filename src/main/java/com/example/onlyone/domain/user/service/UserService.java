@@ -185,6 +185,14 @@ public class UserService {
             userInterestRepository.save(userInterest);
         }
 
+        // 사용자 지갑 생성 및 웰컴 포인트 100000원 지급
+        Wallet wallet = Wallet.builder()
+                .user(user)
+                .balance(100000)
+                .build();
+        
+        walletRepository.save(wallet);
+
         return user;
     }
 }
