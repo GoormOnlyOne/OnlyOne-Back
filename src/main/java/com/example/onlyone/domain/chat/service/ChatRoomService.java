@@ -39,7 +39,6 @@ public class ChatRoomService {
         }
     }
 
-
     // 유저가 특정 모임(club)의 어떤 채팅방들에 참여하고 있는지 조회
     public List<ChatRoomResponse> getChatRoomsUserJoinedInClub(Long clubId) {
         User user = userService.getCurrentUser();

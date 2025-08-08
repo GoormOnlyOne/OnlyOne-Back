@@ -44,7 +44,8 @@ public class Settlement extends BaseTimeEntity {
     @NotNull
     private User receiver;
 
-    public void updateStatus(TotalStatus totalStatus) {
+    public void update(TotalStatus totalStatus, LocalDateTime completedTime) {
         this.totalStatus = totalStatus;
+        this.completedTime = completedTime;
     }
 }
