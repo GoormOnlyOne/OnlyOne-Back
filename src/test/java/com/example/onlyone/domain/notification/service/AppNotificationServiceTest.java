@@ -2,7 +2,7 @@ package com.example.onlyone.domain.notification.service;
 
 import com.example.onlyone.domain.notification.dto.requestDto.NotificationCreateRequestDto;
 import com.example.onlyone.domain.notification.dto.responseDto.NotificationCreateResponseDto;
-import com.example.onlyone.domain.notification.entity.Notification;
+import com.example.onlyone.domain.notification.entity.AppNotification;
 import com.example.onlyone.domain.notification.entity.NotificationType;
 import com.example.onlyone.domain.notification.entity.Type;
 import com.example.onlyone.domain.notification.repository.NotificationRepository;
@@ -43,7 +43,7 @@ import static org.mockito.Mockito.never;
  */
 @ExtendWith(MockitoExtension.class)
 @MockitoSettings(strictness = Strictness.LENIENT)
-class NotificationServiceTest {
+class AppNotificationServiceTest {
 
   @Mock
   private UserRepository userRepository;
@@ -60,7 +60,7 @@ class NotificationServiceTest {
 
   @Nested
   @DisplayName("알림 생성 테스트")
-  class CreateNotificationTests {
+  class CreateAppNotificationTests {
 
     @Test
     @DisplayName("정상적인 알림 생성 - SSE와 FCM 전송 모두 성공")
@@ -69,24 +69,24 @@ class NotificationServiceTest {
       NotificationCreateRequestDto request = createValidRequest();
       User mockUser = createMockUser();
       NotificationType mockType = createMockNotificationType();
-      Notification mockNotification = createMockNotification(mockUser);
+      AppNotification mockAppNotification = createMockNotification(mockUser);
 
       given(userRepository.findById(1L)).willReturn(Optional.of(mockUser));
       given(notificationTypeRepository.findByType(Type.CHAT)).willReturn(Optional.of(mockType));
-      given(notificationRepository.save(any(Notification.class))).willReturn(mockNotification);
+      given(notificationRepository.save(any(AppNotification.class))).willReturn(mockAppNotification);
 
-      try (MockedStatic<Notification> mockedStatic = mockStatic(Notification.class)) {
-        mockedStatic.when(() -> Notification.create(mockUser, mockType, new String[]{"홍길동"}))
-            .thenReturn(mockNotification);
+      try (MockedStatic<AppNotification> mockedStatic = mockStatic(AppNotification.class)) {
+        mockedStatic.when(() -> AppNotification.create(mockUser, mockType, new String[]{"홍길동"}))
+            .thenReturn(mockAppNotification);
 
         // when
         NotificationCreateResponseDto result = service.createNotification(request);
 
         // then
         assertThat(result.getNotificationId()).isEqualTo(1L);
-        then(sseEmittersService).should().sendSseNotification(1L, mockNotification);
+        then(sseEmittersService).should().sendSseNotification(1L, mockAppNotification);
         // FCM 호출은 void 메서드이므로 검증만
-        then(fcmService).should().sendFcmNotification(mockNotification);
+        then(fcmService).should().sendFcmNotification(mockAppNotification);
       }
     }
 
@@ -150,7 +150,7 @@ class NotificationServiceTest {
     void createNotification_FcmFailure() throws Exception {
       // given
       NotificationCreateRequestDto request = createValidRequest();
-      Notification mockNotification = setupMocksForSuccessfulCreation();
+      AppNotification mockAppNotification = setupMocksForSuccessfulCreation();
 
       willThrow(new RuntimeException("FCM 전송 실패"))
           .given(fcmService).sendFcmNotification(any());
@@ -159,13 +159,13 @@ class NotificationServiceTest {
       service.createNotification(request);
 
       // then
-      then(mockNotification).should().markFcmSent(false);
+      then(mockAppNotification).should().markFcmSent(false);
     }
   }
 
   @Nested
   @DisplayName("알림 삭제 테스트")
-  class DeleteNotificationTests {
+  class DeleteAppNotificationTests {
 
     @Test
     @DisplayName("읽지 않은 알림 삭제 - 읽지 않은 개수 업데이트")
@@ -174,16 +174,17 @@ class NotificationServiceTest {
       Long userId = 1L;
       Long notificationId = 10L;
       User mockUser = createMockUser();
-      Notification mockNotification = createMockNotification(mockUser);
+      AppNotification mockAppNotification = createMockNotification(mockUser);
 
-      given(mockNotification.getIsRead()).willReturn(false);
-      given(notificationRepository.findById(notificationId)).willReturn(Optional.of(mockNotification));
+      given(mockAppNotification.getIsRead()).willReturn(false);
+      given(notificationRepository.findById(notificationId)).willReturn(Optional.of(
+          mockAppNotification));
 
       // when
       service.deleteNotification(userId, notificationId);
 
       // then
-      then(notificationRepository).should().delete(mockNotification);
+      then(notificationRepository).should().delete(mockAppNotification);
       then(sseEmittersService).should().sendUnreadCountUpdate(userId);
     }
 
@@ -194,16 +195,17 @@ class NotificationServiceTest {
       Long userId = 1L;
       Long notificationId = 10L;
       User mockUser = createMockUser();
-      Notification mockNotification = createMockNotification(mockUser);
+      AppNotification mockAppNotification = createMockNotification(mockUser);
 
-      given(mockNotification.getIsRead()).willReturn(true);
-      given(notificationRepository.findById(notificationId)).willReturn(Optional.of(mockNotification));
+      given(mockAppNotification.getIsRead()).willReturn(true);
+      given(notificationRepository.findById(notificationId)).willReturn(Optional.of(
+          mockAppNotification));
 
       // when
       service.deleteNotification(userId, notificationId);
 
       // then
-      then(notificationRepository).should().delete(mockNotification);
+      then(notificationRepository).should().delete(mockAppNotification);
       then(sseEmittersService).should(never()).sendUnreadCountUpdate(any());
     }
 
@@ -214,10 +216,11 @@ class NotificationServiceTest {
       Long userId = 1L;
       Long notificationId = 10L;
       User otherUser = mock(User.class);
-      Notification mockNotification = createMockNotification(otherUser);
+      AppNotification mockAppNotification = createMockNotification(otherUser);
 
       given(otherUser.getUserId()).willReturn(2L);
-      given(notificationRepository.findById(notificationId)).willReturn(Optional.of(mockNotification));
+      given(notificationRepository.findById(notificationId)).willReturn(Optional.of(
+          mockAppNotification));
 
       // when & then
       assertThatThrownBy(() -> service.deleteNotification(userId, notificationId))
@@ -264,19 +267,20 @@ class NotificationServiceTest {
     void markAllAsRead_HasUnreadNotifications() {
       // given
       Long userId = 1L;
-      Notification notification1 = mock(Notification.class);
-      Notification notification2 = mock(Notification.class);
-      List<Notification> unreadNotifications = Arrays.asList(notification1, notification2);
+      AppNotification appNotification1 = mock(AppNotification.class);
+      AppNotification appNotification2 = mock(AppNotification.class);
+      List<AppNotification> unreadAppNotifications = Arrays.asList(appNotification1,
+          appNotification2);
 
       given(notificationRepository.findByUser_UserIdAndIsReadFalse(userId))
-          .willReturn(unreadNotifications);
+          .willReturn(unreadAppNotifications);
 
       // when
       service.markAllAsRead(userId);
 
       // then
-      then(notification1).should().markAsRead();
-      then(notification2).should().markAsRead();
+      then(appNotification1).should().markAsRead();
+      then(appNotification2).should().markAsRead();
       then(sseEmittersService).should().sendUnreadCountUpdate(userId);
     }
   }
@@ -290,13 +294,13 @@ class NotificationServiceTest {
     void sendCreated_Success() {
       // given
       User mockUser = createMockUser();
-      Notification mockNotification = createMockNotification(mockUser);
+      AppNotification mockAppNotification = createMockNotification(mockUser);
 
       // when
-      service.sendCreated(mockNotification);
+      service.sendCreated(mockAppNotification);
 
       // then
-      then(sseEmittersService).should().sendSseNotification(1L, mockNotification);
+      then(sseEmittersService).should().sendSseNotification(1L, mockAppNotification);
     }
 
     @Test
@@ -304,10 +308,10 @@ class NotificationServiceTest {
     void sendRead_Success() {
       // given
       User mockUser = createMockUser();
-      Notification mockNotification = createMockNotification(mockUser);
+      AppNotification mockAppNotification = createMockNotification(mockUser);
 
       // when
-      service.sendRead(mockNotification);
+      service.sendRead(mockAppNotification);
 
       // then
       then(sseEmittersService).should().sendUnreadCountUpdate(1L);
@@ -340,23 +344,23 @@ class NotificationServiceTest {
     return type;
   }
 
-  private Notification createMockNotification(User user) {
-    Notification notification = mock(Notification.class);
-    given(notification.getNotificationId()).willReturn(1L);
-    given(notification.getUser()).willReturn(user);
-    given(notification.getContent()).willReturn("홍길동님이 메시지를 보냈습니다.");
-    return notification;
+  private AppNotification createMockNotification(User user) {
+    AppNotification appNotification = mock(AppNotification.class);
+    given(appNotification.getNotificationId()).willReturn(1L);
+    given(appNotification.getUser()).willReturn(user);
+    given(appNotification.getContent()).willReturn("홍길동님이 메시지를 보냈습니다.");
+    return appNotification;
   }
 
-  private Notification setupMocksForSuccessfulCreation() {
+  private AppNotification setupMocksForSuccessfulCreation() {
     User mockUser = createMockUser();
     NotificationType mockType = createMockNotificationType();
-    Notification mockNotification = createMockNotification(mockUser);
+    AppNotification mockAppNotification = createMockNotification(mockUser);
 
     given(userRepository.findById(1L)).willReturn(Optional.of(mockUser));
     given(notificationTypeRepository.findByType(Type.CHAT)).willReturn(Optional.of(mockType));
-    given(notificationRepository.save(any(Notification.class))).willReturn(mockNotification);
+    given(notificationRepository.save(any(AppNotification.class))).willReturn(mockAppNotification);
 
-    return mockNotification;
+    return mockAppNotification;
   }
 }

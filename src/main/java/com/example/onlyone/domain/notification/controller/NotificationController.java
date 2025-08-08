@@ -5,7 +5,11 @@ import com.example.onlyone.domain.notification.dto.responseDto.NotificationCreat
 import com.example.onlyone.domain.notification.dto.responseDto.NotificationListResponseDto;
 import com.example.onlyone.domain.notification.service.NotificationService;
 import com.example.onlyone.domain.notification.service.SseEmittersService;
+import com.example.onlyone.domain.user.entity.User;
+import com.example.onlyone.domain.user.service.UserService;
 import com.example.onlyone.global.common.CommonResponse;
+import com.example.onlyone.global.exception.CustomException;
+import com.example.onlyone.global.exception.ErrorCode;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
@@ -14,6 +18,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
@@ -32,13 +37,14 @@ public class NotificationController {
 
   private final NotificationService notificationService;
   private final SseEmittersService sseEmittersService;
+  private final UserService userService;
 
   /**
    * SSE 스트림 연결
    */
   @Operation(summary = "알림 실시간 스트림", description = "Server-Sent Events를 통한 실시간 알림 수신")
-  @GetMapping(value = "/stream", produces = {MediaType.TEXT_EVENT_STREAM_VALUE, MediaType.APPLICATION_JSON_VALUE})
-  public SseEmitter streamNotifications(@RequestParam Long userId) {
+  @GetMapping(value = "/stream/{userId}", produces = {MediaType.TEXT_EVENT_STREAM_VALUE, MediaType.APPLICATION_JSON_VALUE})
+  public SseEmitter streamNotifications(@PathVariable Long userId) {
     log.info("SSE stream connection requested: userId={}", userId);
     return sseEmittersService.createSseConnection(userId);
   }
@@ -93,6 +99,25 @@ public class NotificationController {
 
     notificationService.deleteNotification(userId, notificationId);
     return ResponseEntity.noContent().build();
+  }
+
+  @Operation(summary = "fcm-token 관리", description = "fcm-token을 업데이트합니다")
+  @PostMapping("/fcm-token")
+  @Transactional
+  public ResponseEntity<CommonResponse<Void>> updateFcmToken(
+      @RequestParam Long userId,
+      @RequestParam String fcmToken) {
+
+    // 기본 null/blank 체크만 수행 (상세 검증은 FcmService에서)
+    if (fcmToken == null || fcmToken.isBlank()) {
+      throw new CustomException(ErrorCode.FCM_TOKEN_NOT_FOUND);
+    }
+
+    User user = userService.getMemberById(userId);
+    user.updateFcmToken(fcmToken);
+    
+    log.info("FCM token updated successfully for user: {}", userId);
+    return ResponseEntity.ok(CommonResponse.success(null));
   }
 
   // ================================

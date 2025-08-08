@@ -1,12 +1,13 @@
 package com.example.onlyone.domain.notification.service;
 
-import com.example.onlyone.domain.notification.entity.Notification;
+import com.example.onlyone.domain.notification.entity.AppNotification;
 import com.example.onlyone.domain.notification.repository.NotificationRepository;
 import com.example.onlyone.global.exception.CustomException;
 import com.example.onlyone.global.exception.ErrorCode;
 import com.google.firebase.messaging.FirebaseMessaging;
 import com.google.firebase.messaging.FirebaseMessagingException;
 import com.google.firebase.messaging.Message;
+import com.google.firebase.messaging.Notification;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Async;
@@ -32,33 +33,55 @@ public class FcmService {
    * FCM 알림 전송
    * 모든 예외를 CustomException으로 변환하여 글로벌 예외 처리기에서 처리
    */
-  public void sendFcmNotification(Notification notification) {
+  public void sendFcmNotification(AppNotification appNotification) {
     try {
-      String token = validateAndGetToken(notification);
-      Message message = buildMessage(notification, token);
+      String token = validateAndGetToken(appNotification);
+      Message message = buildMessage(appNotification, token);
 
       String response = firebaseMessaging.send(message);
       log.info("FCM sent successfully: response={}, notificationId={}",
-          response, notification.getNotificationId());
+          response, appNotification.getNotificationId());
 
     } catch (IllegalArgumentException e) {
       // FCM 토큰 관련 예외
       log.error("FCM token validation failed: notificationId={}, error={}",
-          notification.getNotificationId(), e.getMessage());
+          appNotification.getNotificationId(), e.getMessage());
       throw new CustomException(ErrorCode.FCM_TOKEN_NOT_FOUND);
 
     } catch (FirebaseMessagingException e) {
       // Firebase 서비스 예외
+      String errorCode = e.getErrorCode() != null ? e.getErrorCode().toString() : "UNKNOWN";
       log.error("FCM message send failed: notificationId={}, errorCode={}, error={}",
-          notification.getNotificationId(), e.getErrorCode(), e.getMessage());
+          appNotification.getNotificationId(), errorCode, e.getMessage());
+      
+      // 특정 에러 코드에 따른 처리
+      if (isInvalidTokenError(e)) {
+        // 무효한 토큰인 경우 사용자의 토큰을 정리
+        log.warn("Invalid FCM token detected for user: {}, clearing token", 
+            appNotification.getUser().getUserId());
+        appNotification.getUser().clearFcmToken();
+      }
+      
       throw new CustomException(ErrorCode.FCM_MESSAGE_SEND_FAILED);
 
     } catch (Exception e) {
       // 기타 예상치 못한 예외
       log.error("Unexpected FCM error: notificationId={}, error={}",
-          notification.getNotificationId(), e.getMessage(), e);
+          appNotification.getNotificationId(), e.getMessage(), e);
       throw new CustomException(ErrorCode.FCM_MESSAGE_SEND_FAILED);
     }
+  }
+  
+  /**
+   * Firebase 예외가 무효한 토큰 에러인지 확인
+   */
+  private boolean isInvalidTokenError(FirebaseMessagingException e) {
+    if (e.getErrorCode() == null) return false;
+    
+    String errorCode = e.getErrorCode().toString();
+    return "INVALID_ARGUMENT".equals(errorCode) || 
+           "UNREGISTERED".equals(errorCode) ||
+           "INVALID_REGISTRATION".equals(errorCode);
   }
 
   /**
@@ -70,26 +93,25 @@ public class FcmService {
     log.info("Starting FCM retry for user: {}", userId);
 
     try {
-      List<Notification> failedNotifications = notificationRepository.findByUser_UserIdAndFcmSentFalse(userId);
+      List<AppNotification> failedAppNotifications = notificationRepository.findByUser_UserIdAndFcmSentFalse(userId);
 
-      if (failedNotifications.isEmpty()) {
+      if (failedAppNotifications.isEmpty()) {
         log.info("No failed notifications to retry for user: {}", userId);
         return;
       }
 
       int successCount = 0;
-      for (Notification notification : failedNotifications) {
-        if (retrySingleNotification(notification)) {
+      for (AppNotification appNotification : failedAppNotifications) {
+        if (retrySingleNotification(appNotification)) {
           successCount++;
         }
       }
 
       log.info("FCM retry completed: user={}, total={}, success={}",
-          userId, failedNotifications.size(), successCount);
+          userId, failedAppNotifications.size(), successCount);
 
     } catch (Exception e) {
       log.error("FCM retry process failed for user: {}, error={}", userId, e.getMessage(), e);
-      // 재시도 프로세스 실패는 전체 시스템에 영향을 주지 않도록 예외를 다시 던지지 않음
     }
   }
 
@@ -97,61 +119,83 @@ public class FcmService {
   // Private Helper Methods
   // ================================
 
-  private String validateAndGetToken(Notification notification) {
-    String token = notification.getUser().getFcmToken();
+  private String validateAndGetToken(AppNotification appNotification) {
+    String token = appNotification.getUser().getFcmToken();
     if (token == null || token.isBlank()) {
       String errorMsg = String.format("FCM token not found for user: %s",
-          notification.getUser().getUserId());
+          appNotification.getUser().getUserId());
       log.warn(errorMsg);
       throw new IllegalArgumentException(errorMsg);
     }
+    
+    // FCM 토큰 형식 검증
+    if (!isValidFcmToken(token)) {
+      String errorMsg = String.format("Invalid FCM token format for user: %s", 
+          appNotification.getUser().getUserId());
+      log.warn(errorMsg);
+      throw new IllegalArgumentException(errorMsg);
+    }
+    
     return token;
   }
+  
+  /**
+   * FCM 토큰 형식 유효성 검증
+   */
+  private boolean isValidFcmToken(String token) {
+    // FCM 토큰은 152자 이상이고 특정 패턴을 가짐
+    if (token.length() < 140 || token.length() > 165) {
+      return false;
+    }
+    
+    // 기본적인 패턴 검증 (영문자, 숫자, 하이픈, 언더스코어, 콜론만 허용)
+    return token.matches("^[a-zA-Z0-9_-]+:[a-zA-Z0-9_-]+$") || 
+           token.matches("^[a-zA-Z0-9_-]+$");
+  }
 
-  private Message buildMessage(Notification notification, String token) {
+  private Message buildMessage(AppNotification appNotification, String token) {
     try {
       return Message.builder()
           .setToken(token)
-          .setNotification(buildNotificationPayload(notification))
-          .putAllData(buildDataPayload(notification))
+          .setNotification(buildNotificationPayload(appNotification))
+          .putAllData(buildDataPayload(appNotification))
           .build();
     } catch (Exception e) {
       log.error("Failed to build FCM message: notificationId={}, error={}",
-          notification.getNotificationId(), e.getMessage());
+          appNotification.getNotificationId(), e.getMessage());
       throw new IllegalArgumentException("Failed to build FCM message", e);
     }
   }
 
-  private com.google.firebase.messaging.Notification buildNotificationPayload(Notification notification) {
+  private Notification buildNotificationPayload(AppNotification appNotification) {
     return com.google.firebase.messaging.Notification.builder()
-        .setTitle(notification.getNotificationType().getType().name())
-        .setBody(notification.getContent())
+        .setTitle(appNotification.getNotificationType().getType().name())
+        .setBody(appNotification.getContent())
         .build();
   }
 
-  private Map<String, String> buildDataPayload(Notification notification) {
+  private Map<String, String> buildDataPayload(AppNotification appNotification) {
     Map<String, String> dataMap = new HashMap<>();
-    dataMap.put("notificationId", notification.getNotificationId().toString());
-    dataMap.put("type", notification.getNotificationType().getType().name());
-    dataMap.put("content", notification.getContent());
-    dataMap.put("createdAt", notification.getCreatedAt().toString());
+    dataMap.put("notificationId", appNotification.getNotificationId().toString());
+    dataMap.put("type", appNotification.getNotificationType().getType().name());
+    dataMap.put("content", appNotification.getContent());
+    dataMap.put("createdAt", appNotification.getCreatedAt().toString());
     return dataMap;
   }
 
-  private boolean retrySingleNotification(Notification notification) {
+  private boolean retrySingleNotification(AppNotification appNotification) {
     try {
-      sendFcmNotification(notification);
-      notification.markFcmSent(true);
-      log.debug("FCM retry successful: notificationId={}", notification.getNotificationId());
+      sendFcmNotification(appNotification);
+      appNotification.markFcmSent(true);
+      log.debug("FCM retry successful: notificationId={}", appNotification.getNotificationId());
       return true;
     } catch (CustomException e) {
-      // CustomException은 이미 로깅됨
       log.debug("FCM retry failed with CustomException: notificationId={}, errorCode={}",
-          notification.getNotificationId(), e.getErrorCode());
+          appNotification.getNotificationId(), e.getErrorCode());
       return false;
     } catch (Exception e) {
       log.error("FCM retry failed with unexpected error: notificationId={}, error={}",
-          notification.getNotificationId(), e.getMessage());
+          appNotification.getNotificationId(), e.getMessage());
       return false;
     }
   }

@@ -1,11 +1,14 @@
 package com.example.onlyone.domain.feed.service;
 
 import com.example.onlyone.domain.club.entity.Club;
+import com.example.onlyone.domain.club.entity.UserClub;
 import com.example.onlyone.domain.club.repository.ClubRepository;
+import com.example.onlyone.domain.club.repository.UserClubRepository;
 import com.example.onlyone.domain.feed.dto.request.FeedCommentRequestDto;
 import com.example.onlyone.domain.feed.dto.request.FeedRequestDto;
 import com.example.onlyone.domain.feed.dto.response.FeedCommentResponseDto;
 import com.example.onlyone.domain.feed.dto.response.FeedDetailResponseDto;
+import com.example.onlyone.domain.feed.dto.response.FeedOverviewDto;
 import com.example.onlyone.domain.feed.dto.response.FeedSummaryResponseDto;
 import com.example.onlyone.domain.feed.entity.Feed;
 import com.example.onlyone.domain.feed.entity.FeedComment;
@@ -14,12 +17,17 @@ import com.example.onlyone.domain.feed.entity.FeedLike;
 import com.example.onlyone.domain.feed.repository.FeedCommentRepository;
 import com.example.onlyone.domain.feed.repository.FeedLikeRepository;
 import com.example.onlyone.domain.feed.repository.FeedRepository;
+import com.example.onlyone.domain.notification.entity.Type;
+import com.example.onlyone.domain.notification.repository.NotificationRepository;
+import com.example.onlyone.domain.notification.service.NotificationService;
 import com.example.onlyone.domain.user.entity.User;
 import com.example.onlyone.domain.user.service.UserService;
 import com.example.onlyone.global.exception.CustomException;
 import com.example.onlyone.global.exception.ErrorCode;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.log4j.Log4j2;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -37,6 +45,8 @@ public class FeedService {
     private final UserService userService;
     private final FeedLikeRepository feedLikeRepository;
     private final FeedCommentRepository feedCommentRepository;
+    private final UserClubRepository userClubRepository;
+    private final NotificationService notificationService;
 
 
     public void createFeed(Long clubId, FeedRequestDto requestDto) {
@@ -78,23 +88,23 @@ public class FeedService {
     }
 
     @Transactional(readOnly = true)
-    public List<FeedSummaryResponseDto> getFeedList(Long clubId) {
+    public Page<FeedSummaryResponseDto> getFeedList(Long clubId, Pageable pageable) {
         Club club = clubRepository.findById(clubId)
                 .orElseThrow(() -> new CustomException(ErrorCode.CLUB_NOT_FOUND));
 
-        List<Feed> feeds = feedRepository.findAllByClubOrderByCreatedAtDesc(club);
+        Page<Feed> feeds = feedRepository.findByClub(club, pageable);
 
-        return feeds.stream()
-                .map(feed -> {
+        return feeds.map(feed -> {
                     String thumbnailUrl = feed.getFeedImages().get(0).getFeedImage();
 
                     return new FeedSummaryResponseDto(
                             feed.getFeedId(),
                             thumbnailUrl,
-                            feed.getFeedLikes().size()
+                            feed.getFeedLikes().size(),
+                            feed.getFeedComments().size()
                     );
-                })
-                .collect(Collectors.toList());
+                });
+
     }
 
     @Transactional(readOnly = true)
@@ -139,6 +149,12 @@ public class FeedService {
                     .user(currentUser)
                     .build();
             feedLikeRepository.save(feedLike);
+            int likeCount = feedLikeRepository.countByFeed(feed);
+            if(likeCount > 0) likeCount--;
+            // 본인 글에 대한 알림 방지
+            if (!feed.getUser().getUserId().equals(currentUser.getUserId())) {
+                    notificationService.createNotification(feed.getUser(), Type.LIKE, new String[]{ currentUser.getNickname(), String.valueOf(likeCount) });
+            }
             return true;
         }
     }
@@ -152,6 +168,9 @@ public class FeedService {
 
         FeedComment feedComment = requestDto.toEntity(feed, currentUser);
         feedCommentRepository.save(feedComment);
+        if (!feed.getUser().getUserId().equals(currentUser.getUserId())) {
+            notificationService.createNotification(feed.getUser(), Type.COMMENT, new String[]{currentUser.getNickname()});
+        }
     }
 
     public void deleteComment(Long clubId, Long feedId, Long commentId) {
