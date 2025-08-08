@@ -12,6 +12,7 @@ import com.example.onlyone.domain.notification.repository.NotificationRepository
 import com.example.onlyone.domain.notification.repository.NotificationTypeRepository;
 import com.example.onlyone.domain.user.entity.User;
 import com.example.onlyone.domain.user.repository.UserRepository;
+import com.example.onlyone.domain.user.service.UserService;
 import com.example.onlyone.global.exception.CustomException;
 import com.example.onlyone.global.exception.ErrorCode;
 import lombok.RequiredArgsConstructor;
@@ -36,13 +37,14 @@ public class NotificationService {
   private final NotificationRepository notificationRepository;
   private final SseEmittersService sseEmittersService;
   private final FcmService fcmService;
+  private final UserService userService;
 
   /**
    * 알림 생성 및 전송
    */
   @Transactional
   public NotificationCreateResponseDto createNotification(NotificationCreateRequestDto requestDto) {
-    log.debug("Creating notification: userId={}, type={}", requestDto.getUserId(), requestDto.getType());
+    log.debug("Creating notification: userId={}, walletTransactionType={}", requestDto.getUserId(), requestDto.getType());
 
     User user = findUser(requestDto.getUserId());
     NotificationType type = findNotificationType(requestDto.getType());
@@ -53,6 +55,19 @@ public class NotificationService {
     log.info("Notification created: id={}", appNotification.getNotificationId());
     return NotificationCreateResponseDto.from(appNotification);
   }
+
+  /**
+   * 알림 생성 및 전송
+   */
+  @Transactional
+  public NotificationCreateResponseDto createNotification(User user, Type notificationType, String[] args) {
+    NotificationType type = findNotificationType(notificationType);
+    AppNotification appNotification = createAndSaveNotification(user, type, args);
+    sendNotifications(appNotification);
+    log.info("Notification created: id={}", appNotification.getNotificationId());
+    return NotificationCreateResponseDto.from(appNotification);
+  }
+
 
   /**
    * 알림 목록 조회 (커서 기반 페이징)
