@@ -5,6 +5,7 @@ import com.example.onlyone.domain.interest.entity.Interest;
 import com.example.onlyone.domain.interest.repository.InterestRepository;
 import com.example.onlyone.domain.user.dto.request.SignupRequestDto;
 import com.example.onlyone.domain.user.dto.response.MyPageResponse;
+import com.example.onlyone.domain.user.dto.response.SignupResponseDto;
 import com.example.onlyone.domain.user.entity.Gender;
 import com.example.onlyone.domain.user.entity.Status;
 import com.example.onlyone.domain.user.entity.User;
@@ -156,7 +157,7 @@ public class UserService {
     /**
      * 회원가입 처리 - 기존 사용자의 추가 정보 업데이트
      */
-    public User signup(SignupRequestDto signupRequest) {
+    public SignupResponseDto signup(SignupRequestDto signupRequest) {
         // 현재 인증된 사용자 조회
         User user = getCurrentUser();
 
@@ -192,6 +193,11 @@ public class UserService {
         
         walletRepository.save(wallet);
 
-        return user;
+        // SignupResponseDto 반환
+        return SignupResponseDto.builder()
+                .userId(user.getUserId())
+                .nickname(user.getNickname())
+                .message("회원가입이 완료되었습니다.")
+                .build();
     }
 }

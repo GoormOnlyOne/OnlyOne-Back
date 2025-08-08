@@ -2,6 +2,7 @@ package com.example.onlyone.domain.user.controller;
 
 import com.example.onlyone.domain.user.dto.request.SignupRequestDto;
 import com.example.onlyone.domain.user.dto.response.LoginResponse;
+import com.example.onlyone.domain.user.dto.response.SignupResponseDto;
 import com.example.onlyone.domain.user.entity.User;
 import com.example.onlyone.domain.user.service.KakaoService;
 import com.example.onlyone.domain.user.service.UserService;
@@ -63,13 +64,7 @@ public class AuthController {
 
     @PostMapping("/signup")
     public ResponseEntity<?> signup(@Valid @RequestBody SignupRequestDto signupRequest) {
-        User updatedUser = userService.signup(signupRequest);
-
-        Map<String, Object> response = new HashMap<>();
-        response.put("userId", updatedUser.getUserId());
-        response.put("nickname", updatedUser.getNickname());
-        response.put("message", "회원가입이 완료되었습니다.");
-
+        SignupResponseDto response = userService.signup(signupRequest);
         return ResponseEntity.ok(CommonResponse.success(response));
     }
 }
