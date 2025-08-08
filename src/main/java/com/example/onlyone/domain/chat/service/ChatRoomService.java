@@ -5,6 +5,7 @@ import com.example.onlyone.domain.chat.entity.ChatRoom;
 import com.example.onlyone.domain.chat.entity.Message;
 import com.example.onlyone.domain.chat.repository.ChatRoomRepository;
 import com.example.onlyone.domain.chat.repository.MessageRepository;
+import com.example.onlyone.domain.user.entity.User;
 import com.example.onlyone.domain.user.service.UserService;
 import com.example.onlyone.global.exception.CustomException;
 import com.example.onlyone.global.exception.ErrorCode;
@@ -41,8 +42,8 @@ public class ChatRoomService {
 
     // 유저가 특정 모임(club)의 어떤 채팅방들에 참여하고 있는지 조회
     public List<ChatRoomResponse> getChatRoomsUserJoinedInClub(Long clubId) {
-        //Long userId = userService.getCurrentUser().getUserId();
-        Long userId = 1L;
+        User user = userService.getCurrentUser();
+        Long userId = user.getUserId();
 
         List<ChatRoom> chatRooms = chatRoomRepository.findChatRoomsByUserIdAndClubId(userId, clubId);
         List<Long> chatRoomIds = chatRooms.stream()
@@ -64,5 +65,4 @@ public class ChatRoomService {
                 })
                 .collect(Collectors.toList());
     }
-
 }
