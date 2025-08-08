@@ -63,14 +63,14 @@ public interface ClubRepository extends JpaRepository<Club, Long> {
             "COUNT(uc.user_club_id) as member_count " +
             "FROM club c LEFT JOIN user_club uc ON c.club_id = uc.club_id " +
             "LEFT JOIN interest i ON c.interest_id = i.interest_id " +
-            "WHERE (:keyword IS NULL OR MATCH(c.name, c.description) AGAINST(:keyword IN NATURAL LANGUAGE MODE)) " +
+            "WHERE (:keyword IS NULL OR :keyword = '' OR MATCH(c.name, c.description) AGAINST(:keyword IN NATURAL LANGUAGE MODE)) " +
             "AND (:city IS NULL OR c.city = :city) " +
             "AND (:district IS NULL OR c.district = :district) " +
             "AND (:interestId IS NULL OR c.interest_id = :interestId) " +
             "GROUP BY c.club_id " +
             "ORDER BY " +
             "CASE " +
-            "  WHEN :keyword IS NOT NULL THEN MATCH(c.name, c.description) AGAINST(:keyword IN NATURAL LANGUAGE MODE) " +
+            "  WHEN :keyword IS NOT NULL AND :keyword != '' THEN MATCH(c.name, c.description) AGAINST(:keyword IN NATURAL LANGUAGE MODE) " +
             "  WHEN :sortBy = 'LATEST' THEN c.created_at " +
             "  WHEN :sortBy = 'MEMBER_COUNT' THEN COUNT(uc.user_club_id) " +
             "  ELSE COUNT(uc.user_club_id) " +

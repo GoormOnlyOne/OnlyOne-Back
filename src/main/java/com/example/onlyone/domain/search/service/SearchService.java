@@ -92,8 +92,11 @@ public class SearchService {
             district = filter.getDistrict().trim();
         }
         
+        // 키워드가 없으면 null로 전달
+        String keyword = filter.hasKeyword() ? filter.getKeyword().trim() : null;
+        
         List<Object[]> resultList = clubRepository.searchByKeywordWithFilter(
-            filter.getKeyword(),
+            keyword,
             city,
             district,
             filter.getInterestId(),
