@@ -1,6 +1,7 @@
 package com.example.onlyone.domain.notification.repository;
 
-import com.example.onlyone.domain.notification.entity.Notification;
+
+import com.example.onlyone.domain.notification.entity.AppNotification;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -11,12 +12,12 @@ import java.util.List;
 /**
  * 알림 리포지토리 - 네이티브 쿼리 사용
  */
-public interface NotificationRepository extends JpaRepository<Notification, Long> {
+public interface NotificationRepository extends JpaRepository<AppNotification, Long> {
 
   /**
    * 사용자의 읽지 않은 알림 목록 조회 (엔티티 전체)
    */
-  List<Notification> findByUser_UserIdAndIsReadFalse(Long userId);
+  List<AppNotification> findByUser_UserIdAndIsReadFalse(Long userId);
 
   /**
    * 사용자의 읽지 않은 알림 개수 조회
@@ -32,7 +33,7 @@ public interface NotificationRepository extends JpaRepository<Notification, Long
   /**
    * FCM 전송 실패한 알림 목록 조회
    */
-  List<Notification> findByUser_UserIdAndFcmSentFalse(Long userId);
+  List<AppNotification> findByUser_UserIdAndFcmSentFalse(Long userId);
 
   /**
    * 첫 페이지 알림 목록 조회 (네이티브 쿼리)
