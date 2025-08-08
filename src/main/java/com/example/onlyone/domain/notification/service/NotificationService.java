@@ -61,6 +61,23 @@ public class NotificationService {
   }
 
   /**
+   * 알림 생성 편의 메서드 (다른 서비스에서 사용)
+   */
+  @Transactional
+  public NotificationCreateResponseDto createNotification(User user, Type type, String... args) {
+    log.debug("Creating notification via convenience method: userId={}, type={}", user.getUserId(), type);
+
+    NotificationType notificationType = findNotificationType(type);
+    AppNotification appNotification = createAndSaveNotification(user, notificationType, args);
+    
+    // 트랜잭션 커밋 후 알림 전송
+    sendNotificationsAfterCommit(appNotification);
+
+    log.info("Notification created via convenience method: id={}", appNotification.getNotificationId());
+    return NotificationCreateResponseDto.from(appNotification);
+  }
+
+  /**
    * 트랜잭션 커밋 후 실시간 알림 전송
    */
   @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
