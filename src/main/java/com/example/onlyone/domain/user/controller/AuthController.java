@@ -2,7 +2,6 @@ package com.example.onlyone.domain.user.controller;
 
 import com.example.onlyone.domain.user.dto.request.SignupRequestDto;
 import com.example.onlyone.domain.user.dto.response.LoginResponse;
-import com.example.onlyone.domain.user.dto.response.SignupResponseDto;
 import com.example.onlyone.domain.user.entity.User;
 import com.example.onlyone.domain.user.service.KakaoService;
 import com.example.onlyone.domain.user.service.UserService;
@@ -16,7 +15,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import jakarta.validation.Valid;
-import java.util.HashMap;
+
 import java.util.Map;
 
 @Log4j2
@@ -64,7 +63,7 @@ public class AuthController {
 
     @PostMapping("/signup")
     public ResponseEntity<?> signup(@Valid @RequestBody SignupRequestDto signupRequest) {
-        SignupResponseDto response = userService.signup(signupRequest);
-        return ResponseEntity.ok(CommonResponse.success(response));
+        userService.signup(signupRequest);
+        return ResponseEntity.ok(CommonResponse.success(null));
     }
 }
