@@ -9,7 +9,7 @@ import com.example.onlyone.domain.payment.entity.Status;
 import com.example.onlyone.domain.payment.repository.PaymentRepository;
 import com.example.onlyone.domain.user.entity.User;
 import com.example.onlyone.domain.user.service.UserService;
-import com.example.onlyone.domain.wallet.entity.Type;
+import com.example.onlyone.domain.wallet.entity.WalletTransactionType;
 import com.example.onlyone.domain.wallet.entity.Wallet;
 import com.example.onlyone.domain.wallet.entity.WalletTransaction;
 import com.example.onlyone.domain.wallet.entity.WalletTransactionStatus;
@@ -28,9 +28,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Optional;
-import java.util.Set;
-import java.util.UUID;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 
 @Log4j2
@@ -106,7 +103,7 @@ public class PaymentService {
         wallet.updateBalance(wallet.getBalance() + amount);
         // 충전(결제) 기록
         WalletTransaction walletTransaction = WalletTransaction.builder()
-                .type(Type.CHARGE)
+                .walletTransactionType(WalletTransactionType.CHARGE)
                 .amount(amount)
                 .balance(wallet.getBalance())
                 .walletTransactionStatus(WalletTransactionStatus.COMPLETED)

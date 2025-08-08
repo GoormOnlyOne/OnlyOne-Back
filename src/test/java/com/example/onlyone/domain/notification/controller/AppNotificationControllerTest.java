@@ -99,7 +99,7 @@ class AppNotificationControllerTest {
     String json = """
       {
         "userId": 1,
-        "type": "CHAT",
+        "walletTransactionType": "CHAT",
         "args": ["홍길동"]
       }
       """;
@@ -221,19 +221,19 @@ class AppNotificationControllerTest {
   private List<NotificationItemDto> createMockNotificationDtos() {
     return List.of(
         NotificationItemDto.builder()
-            .notificationId(1L).content("A").type(Type.CHAT).isRead(false)
+            .notificationId(1L).content("A").walletTransactionType(Type.CHAT).isRead(false)
             .createdAt(LocalDateTime.now()).build(),
         NotificationItemDto.builder()
-            .notificationId(2L).content("B").type(Type.LIKE).isRead(true)
+            .notificationId(2L).content("B").walletTransactionType(Type.LIKE).isRead(true)
             .createdAt(LocalDateTime.now()).build(),
         NotificationItemDto.builder()
-            .notificationId(3L).content("C").type(Type.COMMENT).isRead(false)
+            .notificationId(3L).content("C").walletTransactionType(Type.COMMENT).isRead(false)
             .createdAt(LocalDateTime.now()).build(),
         NotificationItemDto.builder()
-            .notificationId(4L).content("D").type(Type.SETTLEMENT).isRead(false)
+            .notificationId(4L).content("D").walletTransactionType(Type.SETTLEMENT).isRead(false)
             .createdAt(LocalDateTime.now()).build(),
         NotificationItemDto.builder()
-            .notificationId(5L).content("E").type(Type.CHAT).isRead(true)
+            .notificationId(5L).content("E").walletTransactionType(Type.CHAT).isRead(true)
             .createdAt(LocalDateTime.now()).build()
     );
   }

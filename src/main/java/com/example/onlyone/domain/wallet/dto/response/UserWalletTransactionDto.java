@@ -1,6 +1,6 @@
 package com.example.onlyone.domain.wallet.dto.response;
 
-import com.example.onlyone.domain.wallet.entity.Type;
+import com.example.onlyone.domain.wallet.entity.WalletTransactionType;
 import com.example.onlyone.domain.wallet.entity.WalletTransaction;
 import com.example.onlyone.domain.wallet.entity.WalletTransactionStatus;
 import lombok.AllArgsConstructor;
@@ -13,7 +13,7 @@ import java.time.LocalDateTime;
 @Getter
 @AllArgsConstructor
 public class UserWalletTransactionDto {
-    private Type type;
+    private WalletTransactionType walletTransactionType;
     private String title;
     private WalletTransactionStatus status;
     private String mainImage;
@@ -22,7 +22,7 @@ public class UserWalletTransactionDto {
 
     public static UserWalletTransactionDto from(WalletTransaction walletTransaction, String title, String mainImage) {
         return UserWalletTransactionDto.builder()
-                .type(walletTransaction.getType())
+                .walletTransactionType(walletTransaction.getWalletTransactionType())
                 .title(title)
                 .status(walletTransaction.getWalletTransactionStatus())
                 .mainImage(mainImage)
