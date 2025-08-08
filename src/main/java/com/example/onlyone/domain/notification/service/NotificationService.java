@@ -20,6 +20,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
@@ -60,15 +61,17 @@ public class NotificationService {
    * 알림 생성 및 전송
    */
   @Transactional
-  public NotificationCreateResponseDto createNotification(User user, Type notificationType, String[] args) {
+  public void createNotification(User user, Type notificationType, String[] args) {
     NotificationType type = findNotificationType(notificationType);
-    AppNotification appNotification = createAndSaveNotification(user, type, args);
-    sendNotifications(appNotification);
-    log.info("Notification created: id={}", appNotification.getNotificationId());
-    return NotificationCreateResponseDto.from(appNotification);
+    AppNotification appNotification;
+    try {
+      appNotification = createAndSaveNotification(user, type, args);
+      sendNotifications(appNotification);
+    } catch (Exception e) {
+      log.warn("알림 생성 실패, type={}, args={}", notificationType, Arrays.toString(args), e);
+    }
   }
-
-
+  
   /**
    * 알림 목록 조회 (커서 기반 페이징)
    */

@@ -151,7 +151,10 @@ public class FeedService {
             feedLikeRepository.save(feedLike);
             int likeCount = feedLikeRepository.countByFeed(feed);
             if(likeCount > 0) likeCount--;
-            notificationService.createNotification(feed.getUser(), Type.LIKE, new String[]{currentUser.getNickname(), String.valueOf(likeCount)});
+            // 본인 글에 대한 알림 방지
+            if (!feed.getUser().getUserId().equals(currentUser.getUserId())) {
+                    notificationService.createNotification(feed.getUser(), Type.LIKE, new String[]{ currentUser.getNickname(), String.valueOf(likeCount) });
+            }
             return true;
         }
     }
@@ -165,7 +168,9 @@ public class FeedService {
 
         FeedComment feedComment = requestDto.toEntity(feed, currentUser);
         feedCommentRepository.save(feedComment);
-        notificationService.createNotification(feed.getUser(), Type.COMMENT, new String[]{currentUser.getNickname()});
+        if (!feed.getUser().getUserId().equals(currentUser.getUserId())) {
+            notificationService.createNotification(feed.getUser(), Type.COMMENT, new String[]{currentUser.getNickname()});
+        }
     }
 
     public void deleteComment(Long clubId, Long feedId, Long commentId) {
