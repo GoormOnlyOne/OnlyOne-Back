@@ -21,6 +21,7 @@ public class FirebaseConfig {
 
   @Bean
   public FirebaseApp firebaseApp() throws IOException {
+
     if (FirebaseApp.getApps().stream().noneMatch(app -> app.getName().equals(FirebaseApp.DEFAULT_APP_NAME))) {
       try {
         FirebaseOptions options = FirebaseOptions.builder()

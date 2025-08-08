@@ -12,6 +12,7 @@ import com.example.onlyone.domain.notification.repository.NotificationRepository
 import com.example.onlyone.domain.notification.repository.NotificationTypeRepository;
 import com.example.onlyone.domain.user.entity.User;
 import com.example.onlyone.domain.user.repository.UserRepository;
+import com.example.onlyone.domain.user.service.UserService;
 import com.example.onlyone.global.exception.CustomException;
 import com.example.onlyone.global.exception.ErrorCode;
 import lombok.RequiredArgsConstructor;
@@ -19,6 +20,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
@@ -36,6 +38,7 @@ public class NotificationService {
   private final NotificationRepository notificationRepository;
   private final SseEmittersService sseEmittersService;
   private final FcmService fcmService;
+  private final UserService userService;
 
   /**
    * 알림 생성 및 전송
@@ -52,6 +55,21 @@ public class NotificationService {
 
     log.info("Notification created: id={}", appNotification.getNotificationId());
     return NotificationCreateResponseDto.from(appNotification);
+  }
+
+  /**
+   * 알림 생성 및 전송
+   */
+  @Transactional
+  public void createNotification(User user, Type notificationType, String[] args) {
+    NotificationType type = findNotificationType(notificationType);
+    AppNotification appNotification;
+    try {
+      appNotification = createAndSaveNotification(user, type, args);
+      sendNotifications(appNotification);
+    } catch (Exception e) {
+      log.warn("알림 생성 실패, type={}, args={}", notificationType, Arrays.toString(args), e);
+    }
   }
 
   /**
