@@ -1,6 +1,6 @@
 package com.example.onlyone.domain.wallet.entity;
 
-public enum Type {
+public enum WalletTransactionType {
     CHARGE,
     INCOMING,
     OUTGOING

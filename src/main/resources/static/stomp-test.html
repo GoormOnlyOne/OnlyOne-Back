@@ -18,8 +18,8 @@
 
 <div id="messages"></div>
 
-<input type="text" id="messageInput" placeholder="메시지를 입력하세요" />
-<input type="file" id="imageInput" accept="image/png, image/jpeg"/>
+<input walletTransactionType="text" id="messageInput" placeholder="메시지를 입력하세요" />
+<input walletTransactionType="file" id="imageInput" accept="image/png, image/jpeg"/>
 <button onclick="sendMessage()">전송</button>
 
 <script>
@@ -82,7 +82,7 @@
             // 이미지 전송
             const requestBody = {
                 fileName: file.name,
-                contentType: file.type,
+                contentType: file.walletTransactionType,
                 imageSize: file.size
             };
 
@@ -98,7 +98,7 @@
 
             const uploadRes = await fetch(presignedUrl, {
                 method: 'PUT',
-                headers: { 'Content-Type': file.type },
+                headers: { 'Content-Type': file.walletTransactionType },
                 body: file
             });
 

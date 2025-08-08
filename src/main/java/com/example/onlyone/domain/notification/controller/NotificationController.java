@@ -39,8 +39,6 @@ public class NotificationController {
   private final SseEmittersService sseEmittersService;
   private final UserService userService;
 
-
-
   /**
    * SSE 스트림 연결
    */
@@ -59,7 +57,7 @@ public class NotificationController {
   public ResponseEntity<CommonResponse<NotificationCreateResponseDto>> createNotification(
       @Valid @RequestBody NotificationCreateRequestDto requestDto) {
 
-    log.info("Notification creation requested: userId={}, type={}", requestDto.getUserId(), requestDto.getType());
+    log.info("Notification creation requested: userId={}, walletTransactionType={}", requestDto.getUserId(), requestDto.getType());
 
     NotificationCreateResponseDto responseDto = notificationService.createNotification(requestDto);
     return ResponseEntity.status(HttpStatus.CREATED).body(CommonResponse.success(responseDto));
