@@ -267,4 +267,3 @@ class FcmServiceTest {
     return appNotification;
   }
 }
-}
