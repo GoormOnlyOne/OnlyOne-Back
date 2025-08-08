@@ -9,7 +9,7 @@
 //@AllArgsConstructor
 //public class CancelTossPayResponse {
 //    private String paymentKey;
-//    private String walletTransactionType;
+//    private String type;
 //    private String orderId;
 //    private String orderName;
 //    private String method;

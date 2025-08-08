@@ -42,7 +42,7 @@ public interface NotificationRepository extends JpaRepository<AppNotification, L
         SELECT 
             n.notification_id as notificationId,
             n.content as content,
-            nt.walletTransactionType as walletTransactionType,
+            nt.type as type,
             n.is_read as isRead,
             n.created_at as createdAt
         FROM notification n
@@ -63,7 +63,7 @@ public interface NotificationRepository extends JpaRepository<AppNotification, L
         SELECT 
             n.notification_id as notificationId,
             n.content as content,
-            nt.walletTransactionType as walletTransactionType,
+            nt.type as type,
             n.is_read as isRead,
             n.created_at as createdAt
         FROM notification n

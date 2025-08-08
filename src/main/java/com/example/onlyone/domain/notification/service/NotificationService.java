@@ -44,7 +44,7 @@ public class NotificationService {
    */
   @Transactional
   public NotificationCreateResponseDto createNotification(NotificationCreateRequestDto requestDto) {
-    log.debug("Creating notification: userId={}, walletTransactionType={}", requestDto.getUserId(), requestDto.getType());
+    log.debug("Creating notification: userId={}, type={}", requestDto.getUserId(), requestDto.getType());
 
     User user = findUser(requestDto.getUserId());
     NotificationType type = findNotificationType(requestDto.getType());

@@ -1,7 +1,7 @@
 ---
 name: 칸반 작업 템플릿
 about: 칸반 보드에 새 작업을 추가할 때 사용하는 템플릿입니다
-title: "[walletTransactionType] 작업 이름"
+title: "[type] 작업 이름"
 labels: ''
 assignees: ''
 ---

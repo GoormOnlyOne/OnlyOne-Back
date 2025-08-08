@@ -45,20 +45,20 @@ public class WalletService {
                 .orElseThrow(() -> new CustomException(ErrorCode.WALLET_NOT_FOUND));
         Page<WalletTransaction> transactionPageList = switch (filter) {
             case ALL -> walletTransactionRepository.findByWallet(wallet, pageable);
-            case CHARGE -> walletTransactionRepository.findByWalletAndType(wallet, WalletTransactionType.CHARGE, pageable);
-            case TRANSACTION -> walletTransactionRepository.findByWalletAndTypeNot(wallet, WalletTransactionType.CHARGE, pageable);
+            case CHARGE -> walletTransactionRepository.findByWalletAndType(wallet, Type.CHARGE, pageable);
+            case TRANSACTION -> walletTransactionRepository.findByWalletAndTypeNot(wallet, Type.CHARGE, pageable);
             default -> throw new CustomException(ErrorCode.INVALID_FILTER);
         };
         List<UserWalletTransactionDto> dtoList = transactionPageList.getContent().stream()
-                .map(tx -> convertToDto(tx, tx.getWalletTransactionType()))
+                .map(tx -> convertToDto(tx, tx.getType()))
                 .toList();
         Page<UserWalletTransactionDto> dtoPage = new PageImpl<>(dtoList, pageable, transactionPageList.getTotalElements());
         return WalletTransactionResponseDto.from(dtoPage);
     }
 
     @Transactional(readOnly = true)
-    public UserWalletTransactionDto convertToDto(WalletTransaction walletTransaction, WalletTransactionType walletTransactionType) {
-        if (walletTransactionType == WalletTransactionType.CHARGE) {
+    public UserWalletTransactionDto convertToDto(WalletTransaction walletTransaction, Type type) {
+        if (type == Type.CHARGE) {
             // 충전 거래의 경우
             Payment payment = walletTransaction.getPayment();
             String title = payment.getTotalAmount() + "원";

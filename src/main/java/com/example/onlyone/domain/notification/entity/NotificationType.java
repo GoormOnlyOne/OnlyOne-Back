@@ -42,7 +42,7 @@ public class NotificationType extends BaseTimeEntity {
    * - LIKE: 좋아요 알림
    * - COMMENT: 댓글 알림
    */
-  @Column(name = "walletTransactionType")
+  @Column(name = "type")
   @NotNull
   @Enumerated(EnumType.STRING)
   private Type type;

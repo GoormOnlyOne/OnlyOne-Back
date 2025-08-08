@@ -20,10 +20,10 @@ public class WalletTransaction extends BaseTimeEntity {
     @Column(name = "wallet_transaction_id", updatable = false)
     private Long walletTransactionId;
 
-    @Column(name = "walletTransactionType")
+    @Column(name = "type")
     @NotNull
     @Enumerated(EnumType.STRING)
-    private WalletTransactionType walletTransactionType;
+    private Type type;
 
     @Column(name = "amount")
     @NotNull
