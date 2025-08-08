@@ -61,6 +61,7 @@ public class AuthController {
 
             return ResponseEntity.ok(CommonResponse.success(response));
         } catch (Exception e) {
+            log.info("카카오 로그인 오류 발생: {}", e);
             throw new CustomException(ErrorCode.KAKAO_LOGIN_FAILED);
         }
     }
