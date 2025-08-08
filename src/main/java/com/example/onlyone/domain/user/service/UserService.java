@@ -174,7 +174,7 @@ public class UserService {
         // 사용자 관심사 저장
         List<String> categories = signupRequest.getCategories();
         for (String categoryName : categories) {
-            Interest interest = interestRepository.findByCategory(Category.valueOf(categoryName.toUpperCase()))
+            Interest interest = interestRepository.findByCategory(Category.from(categoryName))
                     .orElseThrow(() -> new CustomException(ErrorCode.INTEREST_NOT_FOUND));
             
             UserInterest userInterest = UserInterest.builder()
