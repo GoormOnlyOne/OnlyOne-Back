@@ -159,7 +159,6 @@ public class UserService {
     public User signup(SignupRequestDto signupRequest) {
         // 현재 인증된 사용자 조회
         User user = getCurrentUser();
-        log.info("user: {}", user);
 
         // 사용자 추가 정보(지역, 프로필, 닉네임, 성별, 생년월일) 업데이트
         user.update(
