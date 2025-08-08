@@ -31,9 +31,11 @@ public class ClubDetailResponseDto {
 
     private String district;
 
-    private Category category;
+    private String category;
 
     private ClubRole clubRole;
+
+    private int userLimit;
 
     public static ClubDetailResponseDto from(Club club, int userCount, ClubRole clubRole) {
         return ClubDetailResponseDto.builder()
@@ -43,8 +45,9 @@ public class ClubDetailResponseDto {
                 .description(club.getDescription())
                 .clubImage(club.getClubImage())
                 .district(club.getDistrict())
-                .category(club.getInterest().getCategory())
+                .category(club.getInterest().getCategory().getKoreanName())
                 .clubRole(clubRole)
+                .userLimit(club.getUserLimit())
                 .build();
     }
 }
