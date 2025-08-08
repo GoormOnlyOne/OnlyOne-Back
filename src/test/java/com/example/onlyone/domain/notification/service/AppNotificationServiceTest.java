@@ -63,11 +63,11 @@ class AppNotificationServiceTest {
   class CreateAppNotificationTests {
 
     @Test
-    @DisplayName("정상적인 알림 생성 - SSE와 FCM 전송 모두 성공")
-    void createNotification_Success() throws FirebaseMessagingException {
+    @DisplayName("정상적인 알림 생성 - 트랜잭션 커밋 후 SSE/FCM 전송")
+    void createNotification_Success() {
       // given
       NotificationCreateRequestDto request = createValidRequest();
-      User mockUser = createMockUser();
+      User mockUser = createMockUserWithValidToken();
       NotificationType mockType = createMockNotificationType();
       AppNotification mockAppNotification = createMockNotification(mockUser);
 
@@ -84,14 +84,13 @@ class AppNotificationServiceTest {
 
         // then
         assertThat(result.getNotificationId()).isEqualTo(1L);
-        then(sseEmittersService).should().sendSseNotification(1L, mockAppNotification);
-        // FCM 호출은 void 메서드이므로 검증만
-        then(fcmService).should().sendFcmNotification(mockAppNotification);
+        then(notificationRepository).should().save(any(AppNotification.class));
+        // 실제 전송은 @TransactionalEventListener에서 비동기로 처리됨
       }
     }
 
     @Test
-    @DisplayName("사용자 없음 - 예외 발생")
+    @DisplayName("사용자 없음 - 예외 발생, 실시간 전송 없음")
     void createNotification_UserNotFound() {
       // given
       NotificationCreateRequestDto request = createValidRequest();
@@ -103,16 +102,15 @@ class AppNotificationServiceTest {
           .hasFieldOrPropertyWithValue("errorCode", ErrorCode.USER_NOT_FOUND);
 
       then(notificationTypeRepository).shouldHaveNoInteractions();
-      then(sseEmittersService).shouldHaveNoInteractions();
-      then(fcmService).shouldHaveNoInteractions();
+      then(notificationRepository).should(never()).save(any());
     }
 
     @Test
-    @DisplayName("알림 타입 없음 - 예외 발생")
+    @DisplayName("알림 타입 없음 - 예외 발생, 저장 및 전송 없음")
     void createNotification_TypeNotFound() {
       // given
       NotificationCreateRequestDto request = createValidRequest();
-      User mockUser = createMockUser();
+      User mockUser = createMockUserWithValidToken();
 
       given(userRepository.findById(1L)).willReturn(Optional.of(mockUser));
       given(notificationTypeRepository.findByType(Type.CHAT)).willReturn(Optional.empty());
@@ -123,43 +121,33 @@ class AppNotificationServiceTest {
           .hasFieldOrPropertyWithValue("errorCode", ErrorCode.NOTIFICATION_TYPE_NOT_FOUND);
 
       then(notificationRepository).shouldHaveNoInteractions();
-      then(sseEmittersService).shouldHaveNoInteractions();
-      then(fcmService).shouldHaveNoInteractions();
     }
 
     @Test
-    @DisplayName("SSE 전송 실패해도 알림 생성은 성공")
-    void createNotification_SseFailureButCreationSuccess() throws Exception {
+    @DisplayName("FCM 토큰 없는 사용자 - 알림은 생성되지만 FCM 전송 스킵")
+    void createNotification_UserWithoutFcmToken() {
       // given
       NotificationCreateRequestDto request = createValidRequest();
-      setupMocksForSuccessfulCreation();
+      User mockUser = createMockUserWithoutToken();
+      NotificationType mockType = createMockNotificationType();
+      AppNotification mockAppNotification = createMockNotification(mockUser);
 
-      willThrow(new RuntimeException("SSE 전송 실패"))
-          .given(sseEmittersService).sendSseNotification(any(), any());
+      given(userRepository.findById(1L)).willReturn(Optional.of(mockUser));
+      given(notificationTypeRepository.findByType(Type.CHAT)).willReturn(Optional.of(mockType));
+      given(notificationRepository.save(any(AppNotification.class))).willReturn(mockAppNotification);
 
-      // when
-      NotificationCreateResponseDto result = service.createNotification(request);
+      try (MockedStatic<AppNotification> mockedStatic = mockStatic(AppNotification.class)) {
+        mockedStatic.when(() -> AppNotification.create(mockUser, mockType, new String[]{"홍길동"}))
+            .thenReturn(mockAppNotification);
 
-      // then
-      assertThat(result.getNotificationId()).isEqualTo(1L);
-      then(fcmService).should().sendFcmNotification(any());
-    }
+        // when
+        NotificationCreateResponseDto result = service.createNotification(request);
 
-    @Test
-    @DisplayName("FCM 전송 실패 시 fcmSent=false로 설정")
-    void createNotification_FcmFailure() throws Exception {
-      // given
-      NotificationCreateRequestDto request = createValidRequest();
-      AppNotification mockAppNotification = setupMocksForSuccessfulCreation();
-
-      willThrow(new RuntimeException("FCM 전송 실패"))
-          .given(fcmService).sendFcmNotification(any());
-
-      // when
-      service.createNotification(request);
-
-      // then
-      then(mockAppNotification).should().markFcmSent(false);
+        // then
+        assertThat(result.getNotificationId()).isEqualTo(1L);
+        then(notificationRepository).should().save(any(AppNotification.class));
+        // FCM 토큰이 없으므로 FCM 전송 시도하지 않음
+      }
     }
   }
 
@@ -330,10 +318,19 @@ class AppNotificationServiceTest {
         .build();
   }
 
-  private User createMockUser() {
+  private User createMockUserWithValidToken() {
     User user = mock(User.class);
     given(user.getUserId()).willReturn(1L);
-    given(user.getFcmToken()).willReturn("test-fcm-token");
+    given(user.getFcmToken()).willReturn("d1234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890:APA91bF123456789012345");
+    given(user.hasFcmToken()).willReturn(true);
+    return user;
+  }
+
+  private User createMockUserWithoutToken() {
+    User user = mock(User.class);
+    given(user.getUserId()).willReturn(1L);
+    given(user.getFcmToken()).willReturn(null);
+    given(user.hasFcmToken()).willReturn(false);
     return user;
   }
 
@@ -353,7 +350,7 @@ class AppNotificationServiceTest {
   }
 
   private AppNotification setupMocksForSuccessfulCreation() {
-    User mockUser = createMockUser();
+    User mockUser = createMockUserWithValidToken();
     NotificationType mockType = createMockNotificationType();
     AppNotification mockAppNotification = createMockNotification(mockUser);
 
