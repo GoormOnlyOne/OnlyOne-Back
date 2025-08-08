@@ -47,15 +47,15 @@ public class ChatMessageResponse {
         String text = rawText;
         String imageUrl = null;
 
-        if (MessageUtils.isImageMessage(rawText)) {
-            imageUrl = rawText.substring(MessageUtils.IMAGE_PREFIX.length());
-            text = null; // 텍스트 메시지 없음
+        if (rawText != null && rawText.startsWith("http")) {
+            imageUrl = rawText;
+            text = null;
         }
 
         return ChatMessageResponse.builder()
                 .messageId(message.getMessageId())
                 .chatRoomId(message.getChatRoom().getChatRoomId())
-                .senderId(message.getUser().getUserId())
+                .senderId(message.getUser().getKakaoId())
                 .senderNickname(message.getUser().getNickname())
                 .profileImage(message.getUser().getProfileImage())
                 .text(text)
