@@ -1,6 +1,8 @@
 package com.example.onlyone.domain.user.controller;
 
+import com.example.onlyone.domain.user.dto.request.SignupRequestDto;
 import com.example.onlyone.domain.user.dto.response.LoginResponse;
+import com.example.onlyone.domain.user.dto.response.MyPageResponse;
 import com.example.onlyone.domain.user.entity.User;
 import com.example.onlyone.domain.user.service.KakaoService;
 import com.example.onlyone.domain.user.service.UserService;
@@ -14,6 +16,7 @@ import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import jakarta.validation.Valid;
 import java.time.Duration;
 import java.util.HashMap;
 import java.util.Map;
@@ -46,9 +49,9 @@ public class AuthController {
             // 4. JWT 토큰 생성 (Access + Refresh)
             Map<String, String> tokens = userService.generateTokenPair(user);
 
-            // 5. refreshToken Redis에 저장
-            redisTemplate.opsForValue()
-                    .set(user.getUserId().toString(), tokens.get("refreshToken"), Duration.ofMillis(REFRESH_TOKEN_EXPIRE_TIME));
+            // 5. refreshToken Redis에 저장 (VITE_API_BASE_URL local 시, 주석)
+            // redisTemplate.opsForValue()
+            //         .set(user.getUserId().toString(), tokens.get("refreshToken"), Duration.ofMillis(REFRESH_TOKEN_EXPIRE_TIME));
 
             // 6. 응답 데이터
             LoginResponse response = new LoginResponse(
@@ -62,6 +65,24 @@ public class AuthController {
             return ResponseEntity.ok(CommonResponse.success(response));
         } catch (Exception e) {
             throw new CustomException(ErrorCode.KAKAO_LOGIN_FAILED);
+        }
+    }
+
+    @PostMapping("/signup")
+    public ResponseEntity<?> signup(@Valid @RequestBody SignupRequestDto signupRequest) {
+        try {
+            User updatedUser = userService.signup(signupRequest);
+            log.info("회원가입 완료 - userId: {}, nickname: {}", updatedUser.getUserId(), updatedUser.getNickname());
+            
+            Map<String, Object> response = new HashMap<>();
+            response.put("userId", updatedUser.getUserId());
+            response.put("nickname", updatedUser.getNickname());
+            response.put("message", "회원가입이 완료되었습니다.");
+            
+            return ResponseEntity.ok(CommonResponse.success(response));
+        } catch (Exception e) {
+            log.error("회원가입 실패: {}", e.getMessage(), e);
+            throw new CustomException(ErrorCode.SIGNUP_FAILED);
         }
     }
 }
