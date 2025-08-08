@@ -1,9 +1,18 @@
 package com.example.onlyone.domain.user.service;
 
+import com.example.onlyone.domain.interest.entity.Category;
+import com.example.onlyone.domain.interest.entity.Interest;
+import com.example.onlyone.domain.interest.repository.InterestRepository;
+import com.example.onlyone.domain.user.dto.request.SignupRequestDto;
+import com.example.onlyone.domain.user.dto.response.MyPageResponse;
 import com.example.onlyone.domain.user.entity.Gender;
 import com.example.onlyone.domain.user.entity.Status;
 import com.example.onlyone.domain.user.entity.User;
+import com.example.onlyone.domain.user.entity.UserInterest;
+import com.example.onlyone.domain.user.repository.UserInterestRepository;
 import com.example.onlyone.domain.user.repository.UserRepository;
+import com.example.onlyone.domain.wallet.entity.Wallet;
+import com.example.onlyone.domain.wallet.repository.WalletRepository;
 import com.example.onlyone.global.exception.CustomException;
 import com.example.onlyone.global.exception.ErrorCode;
 import io.jsonwebtoken.Jwts;
@@ -18,10 +27,8 @@ import org.springframework.security.core.Authentication;
 
 import javax.crypto.SecretKey;
 import java.time.LocalDate;
-import java.util.Date;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.Optional;
+import java.util.*;
+import java.util.stream.Collectors;
 
 @Log4j2
 @Service
@@ -29,6 +36,9 @@ import java.util.Optional;
 @Transactional
 public class UserService {
     private final UserRepository userRepository;
+    private final UserInterestRepository userInterestRepository;
+    private final InterestRepository interestRepository;
+    private final WalletRepository walletRepository;
     
     @Value("${jwt.secret}")
     private String jwtSecret;
@@ -141,5 +151,40 @@ public class UserService {
         tokens.put("accessToken", generateAccessToken(user));
         tokens.put("refreshToken", generateRefreshToken(user));
         return tokens;
+    }
+
+    /**
+     * 회원가입 처리 - 기존 사용자의 추가 정보 업데이트
+     */
+    public User signup(SignupRequestDto signupRequest) {
+        // 현재 인증된 사용자 조회
+        User user = getCurrentUser();
+        log.info("user: {}", user);
+
+        // 사용자 추가 정보(지역, 프로필, 닉네임, 성별, 생년월일) 업데이트
+        user.update(
+                signupRequest.getCity(),
+                signupRequest.getDistrict(),
+                signupRequest.getProfileImage(),
+                signupRequest.getNickname(),
+                signupRequest.getGender(),
+                signupRequest.getBirth()
+        );
+
+        // 사용자 관심사 저장
+        List<String> categories = signupRequest.getCategories();
+        for (String categoryName : categories) {
+            Interest interest = interestRepository.findByCategory(Category.valueOf(categoryName.toUpperCase()))
+                    .orElseThrow(() -> new CustomException(ErrorCode.INTEREST_NOT_FOUND));
+            
+            UserInterest userInterest = UserInterest.builder()
+                    .user(user)
+                    .interest(interest)
+                    .build();
+            
+            userInterestRepository.save(userInterest);
+        }
+
+        return user;
     }
 }

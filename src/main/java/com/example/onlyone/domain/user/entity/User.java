@@ -3,7 +3,10 @@ package com.example.onlyone.domain.user.entity;
 import com.example.onlyone.global.BaseTimeEntity;
 import com.fasterxml.jackson.databind.ser.Serializers;
 import jakarta.persistence.*;
+import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Pattern;
+import jakarta.validation.constraints.Size;
 import lombok.*;
 
 import java.time.*;
@@ -51,4 +54,13 @@ public class User extends BaseTimeEntity {
 
     @Column(name = "fcm_token")
     private String fcmToken;
+
+    public void update(String city, String district, String profileImage, String nickname, Gender gender, LocalDate birth) {
+        this.city = city;
+        this.district = district;
+        this.profileImage = profileImage;
+        this.nickname = nickname;
+        this.gender = gender;
+        this.birth = birth;
+    }
 }
