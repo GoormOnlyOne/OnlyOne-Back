@@ -79,7 +79,7 @@ public class MessageService {
      * TODO: 효율성을 위해 토픽 / bulk / 비동기 방식 등 고려 필요
      */
     private void notifyChatRoomMembers(ChatRoom chatRoom, User sender) {
-        List<UserChatRoom> members = userChatRoomRepository.findAllByChatRoomId(chatRoom.getChatRoomId());
+        List<UserChatRoom> members = userChatRoomRepository.findAllByChatRoom(chatRoom);
         for (UserChatRoom userChatRoom : members) {
             User target = userChatRoom.getUser();
             if (target == null) continue;
