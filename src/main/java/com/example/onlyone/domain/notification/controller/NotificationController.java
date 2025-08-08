@@ -39,8 +39,6 @@ public class NotificationController {
   private final SseEmittersService sseEmittersService;
   private final UserService userService;
 
-
-
   /**
    * SSE 스트림 연결
    */
