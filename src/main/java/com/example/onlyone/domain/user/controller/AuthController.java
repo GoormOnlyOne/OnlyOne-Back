@@ -2,7 +2,6 @@ package com.example.onlyone.domain.user.controller;
 
 import com.example.onlyone.domain.user.dto.request.SignupRequestDto;
 import com.example.onlyone.domain.user.dto.response.LoginResponse;
-import com.example.onlyone.domain.user.dto.response.MyPageResponse;
 import com.example.onlyone.domain.user.entity.User;
 import com.example.onlyone.domain.user.service.KakaoService;
 import com.example.onlyone.domain.user.service.UserService;
@@ -10,14 +9,12 @@ import com.example.onlyone.global.common.CommonResponse;
 import com.example.onlyone.global.exception.CustomException;
 import com.example.onlyone.global.exception.ErrorCode;
 import lombok.RequiredArgsConstructor;
-import lombok.extern.java.Log;
 import lombok.extern.log4j.Log4j2;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import jakarta.validation.Valid;
-import java.time.Duration;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -29,7 +26,6 @@ public class AuthController {
     private final KakaoService kakaoService;
     private final UserService userService;
     private final RedisTemplate<String, Object> redisTemplate;
-    private static final long REFRESH_TOKEN_EXPIRE_TIME = 1000 * 60 * 60 * 25 * 14L; // 2주
 
     @PostMapping("/kakao/callback")
     public ResponseEntity<?> kakaoLogin(@RequestParam String code) {
@@ -67,18 +63,13 @@ public class AuthController {
 
     @PostMapping("/signup")
     public ResponseEntity<?> signup(@Valid @RequestBody SignupRequestDto signupRequest) {
-        try {
-            User updatedUser = userService.signup(signupRequest);
-            
-            Map<String, Object> response = new HashMap<>();
-            response.put("userId", updatedUser.getUserId());
-            response.put("nickname", updatedUser.getNickname());
-            response.put("message", "회원가입이 완료되었습니다.");
-            
-            return ResponseEntity.ok(CommonResponse.success(response));
-        } catch (Exception e) {
-            log.error("회원가입 실패: {}", e.getMessage(), e);
-            throw new CustomException(ErrorCode.SIGNUP_FAILED);
-        }
+        User updatedUser = userService.signup(signupRequest);
+
+        Map<String, Object> response = new HashMap<>();
+        response.put("userId", updatedUser.getUserId());
+        response.put("nickname", updatedUser.getNickname());
+        response.put("message", "회원가입이 완료되었습니다.");
+
+        return ResponseEntity.ok(CommonResponse.success(response));
     }
 }
