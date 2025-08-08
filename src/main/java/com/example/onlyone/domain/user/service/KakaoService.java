@@ -45,7 +45,6 @@ public class KakaoService {
             ResponseEntity<String> response = restTemplate.postForEntity(tokenUrl, request, String.class);
 
             if (!response.getStatusCode().is2xxSuccessful()) {
-                log.error("카카오 토큰 요청 실패 - HTTP 상태: {}", response.getStatusCode());
                 throw new CustomException(ErrorCode.KAKAO_API_ERROR);
             }
 
@@ -53,13 +52,11 @@ public class KakaoService {
             Map<String, Object> responseMap = objectMapper.readValue(response.getBody(), Map.class);
 
             if (responseMap.containsKey("error")) {
-                log.error("카카오 토큰 에러: {}", responseMap.get("error_description"));
                 throw new CustomException(ErrorCode.KAKAO_AUTH_FAILED);
             }
 
             return (String) responseMap.get("access_token");
         } catch (RestClientException e) {
-            log.error("카카오 API 호출 실패", e);
             throw new CustomException(ErrorCode.EXTERNAL_API_ERROR);
         }
     }
@@ -82,7 +79,6 @@ public class KakaoService {
             );
 
             if (!response.getStatusCode().is2xxSuccessful()) {
-                log.error("카카오 사용자 정보 요청 실패 - HTTP 상태: {}", response.getStatusCode());
                 throw new CustomException(ErrorCode.KAKAO_API_ERROR);
             }
 
@@ -90,13 +86,11 @@ public class KakaoService {
             Map<String, Object> responseMap = objectMapper.readValue(response.getBody(), Map.class);
 
             if (responseMap.containsKey("error")) {
-                log.error("카카오 사용자 정보 에러: {}", responseMap.get("error_description"));
                 throw new CustomException(ErrorCode.KAKAO_AUTH_FAILED);
             }
 
             return responseMap;
         } catch (RestClientException e) {
-            log.error("카카오 사용자 정보 API 호출 실패", e);
             throw new CustomException(ErrorCode.EXTERNAL_API_ERROR);
         }
     }

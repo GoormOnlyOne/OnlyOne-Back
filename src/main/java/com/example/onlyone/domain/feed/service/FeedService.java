@@ -17,6 +17,9 @@ import com.example.onlyone.domain.feed.entity.FeedLike;
 import com.example.onlyone.domain.feed.repository.FeedCommentRepository;
 import com.example.onlyone.domain.feed.repository.FeedLikeRepository;
 import com.example.onlyone.domain.feed.repository.FeedRepository;
+import com.example.onlyone.domain.notification.entity.Type;
+import com.example.onlyone.domain.notification.repository.NotificationRepository;
+import com.example.onlyone.domain.notification.service.NotificationService;
 import com.example.onlyone.domain.user.entity.User;
 import com.example.onlyone.domain.user.service.UserService;
 import com.example.onlyone.global.exception.CustomException;
@@ -43,6 +46,7 @@ public class FeedService {
     private final FeedLikeRepository feedLikeRepository;
     private final FeedCommentRepository feedCommentRepository;
     private final UserClubRepository userClubRepository;
+    private final NotificationService notificationService;
 
 
     public void createFeed(Long clubId, FeedRequestDto requestDto) {
@@ -145,6 +149,12 @@ public class FeedService {
                     .user(currentUser)
                     .build();
             feedLikeRepository.save(feedLike);
+            int likeCount = feedLikeRepository.countByFeed(feed);
+            if(likeCount > 0) likeCount--;
+            // 본인 글에 대한 알림 방지
+            if (!feed.getUser().getUserId().equals(currentUser.getUserId())) {
+                    notificationService.createNotification(feed.getUser(), Type.LIKE, new String[]{ currentUser.getNickname(), String.valueOf(likeCount) });
+            }
             return true;
         }
     }
@@ -158,6 +168,9 @@ public class FeedService {
 
         FeedComment feedComment = requestDto.toEntity(feed, currentUser);
         feedCommentRepository.save(feedComment);
+        if (!feed.getUser().getUserId().equals(currentUser.getUserId())) {
+            notificationService.createNotification(feed.getUser(), Type.COMMENT, new String[]{currentUser.getNickname()});
+        }
     }
 
     public void deleteComment(Long clubId, Long feedId, Long commentId) {
