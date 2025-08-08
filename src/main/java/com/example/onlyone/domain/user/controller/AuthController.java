@@ -33,7 +33,6 @@ public class AuthController {
 
     @PostMapping("/kakao/callback")
     public ResponseEntity<?> kakaoLogin(@RequestParam String code) {
-        log.info("▶ kakaoLogin POST 진입, code={}", code);
         try {
             // 1. 인증 코드로 카카오 액세스 토큰 받기
             String kakaoAccessToken = kakaoService.getAccessToken(code);
@@ -60,11 +59,8 @@ public class AuthController {
                     isNewUser
             );
 
-            log.info("카카오 로그인 성공 - userId: {}, isNewUser: {}", user.getUserId(), isNewUser);
-
             return ResponseEntity.ok(CommonResponse.success(response));
         } catch (Exception e) {
-            log.info("카카오 로그인 오류 발생: {}", e);
             throw new CustomException(ErrorCode.KAKAO_LOGIN_FAILED);
         }
     }
@@ -73,7 +69,6 @@ public class AuthController {
     public ResponseEntity<?> signup(@Valid @RequestBody SignupRequestDto signupRequest) {
         try {
             User updatedUser = userService.signup(signupRequest);
-            log.info("회원가입 완료 - userId: {}, nickname: {}", updatedUser.getUserId(), updatedUser.getNickname());
             
             Map<String, Object> response = new HashMap<>();
             response.put("userId", updatedUser.getUserId());
