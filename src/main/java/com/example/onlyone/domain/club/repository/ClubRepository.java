@@ -37,20 +37,25 @@ public interface ClubRepository extends JpaRepository<Club, Long> {
     @Query("SELECT c, COUNT(uc) FROM Club c " +
             "LEFT JOIN UserClub uc ON c.clubId = uc.club.clubId " +
             "WHERE c.interest.interestId IN :interestIds AND c.city = :city AND c.district = :district " +
+            "AND c.clubId NOT IN (SELECT uc2.club.clubId FROM UserClub uc2 WHERE uc2.user.userId = :userId) " +
             "GROUP BY c.clubId " +
             "ORDER BY COUNT(uc) DESC, c.createdAt DESC")
     List<Object[]> searchByUserInterestAndLocation(@Param("interestIds") List<Long> interestIds,
                                                    @Param("city") String city,
                                                    @Param("district") String district,
+                                                   @Param("userId") Long userId,
                                                    Pageable pageable);
 
     // 2단계: 관심사만 일치 (인기순)
     @Query("SELECT c, COUNT(uc) FROM Club c " +
             "LEFT JOIN UserClub uc ON c.clubId = uc.club.clubId " +
             "WHERE c.interest.interestId IN :interestIds " +
+            "AND c.clubId NOT IN (SELECT uc2.club.clubId FROM UserClub uc2 WHERE uc2.user.userId = :userId) " +
             "GROUP BY c.clubId " +
             "ORDER BY COUNT(uc) DESC, c.createdAt DESC")
-    List<Object[]> searchByUserInterests(@Param("interestIds") List<Long> interestIds, Pageable pageable);
+    List<Object[]> searchByUserInterests(@Param("interestIds") List<Long> interestIds, 
+                                        @Param("userId") Long userId, 
+                                        Pageable pageable);
 
     // 통합 검색 (키워드 + 필터)
     @Query(value = "SELECT c.club_id, c.name, c.description, " +
