@@ -142,4 +142,43 @@ public class UserService {
         tokens.put("refreshToken", generateRefreshToken(user));
         return tokens;
     }
+
+    /**
+     * FCM 토큰 상태 확인
+     */
+    public boolean hasFcmToken(Long userId) {
+        User user = getMemberById(userId);
+        return user.hasFcmToken();
+    }
+
+    /**
+     * FCM 토큰 업데이트 (중복 등록 방지)
+     */
+    public void updateFcmToken(Long userId, String fcmToken) {
+        User user = getMemberById(userId);
+        
+        // 동일한 토큰 중복 등록 방지
+        if (fcmToken.equals(user.getFcmToken())) {
+            log.debug("FCM token already registered for user: {}", userId);
+            return;
+        }
+        
+        try {
+            user.updateFcmToken(fcmToken);
+            log.info("FCM token updated for user: {}", userId);
+        } catch (IllegalArgumentException e) {
+            log.error("FCM token validation failed for user: {}, error: {}", userId, e.getMessage());
+            throw new CustomException(ErrorCode.FCM_TOKEN_INVALID);
+        }
+    }
+
+    /**
+     * FCM 토큰 삭제 (로그아웃 시)
+     */
+    public void clearFcmToken(Long userId) {
+        User user = getMemberById(userId);
+        user.clearFcmToken();
+        
+        log.info("FCM token cleared for user: {}", userId);
+    }
 }
