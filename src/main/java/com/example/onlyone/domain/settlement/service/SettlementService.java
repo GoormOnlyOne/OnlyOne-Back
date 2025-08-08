@@ -28,7 +28,6 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import com.example.onlyone.domain.notification.entity.Type;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -66,7 +65,7 @@ public class SettlementService {
                 settlementRepository.save(settlement);
                 settlement.getSchedule().updateStatus(ScheduleStatus.CLOSED);
                 // 정산 리더에게 완료 알림
-                notificationService.createNotification(leader, Type.SETTLEMENT, new String[]{String.valueOf(settlement.getSum())});
+                notificationService.createNotification(leader, com.example.onlyone.domain.notification.entity.Type.SETTLEMENT, new String[]{String.valueOf(settlement.getSum())});
             }
         }
     }
@@ -156,7 +155,7 @@ public class SettlementService {
             userSettlement.updateSettlement(SettlementStatus.COMPLETED, LocalDateTime.now());
             userSettlementRepository.save(userSettlement);
             // 정산 완료 알림
-            notificationService.createNotification(user, Type.SETTLEMENT, new String[]{String.valueOf(amount)});
+            notificationService.createNotification(user, com.example.onlyone.domain.notification.entity.Type.SETTLEMENT, new String[]{String.valueOf(amount)});
         } catch (Exception e) {
             // 리더-멤버의 WalletTransaction 기록
             saveWalletTransactions(wallet, leaderWallet, amount, WalletTransactionStatus.FAILED, userSettlement);
@@ -169,7 +168,7 @@ public class SettlementService {
                                         WalletTransactionStatus status, UserSettlement userSettlement) {
         // WalletTransaction 저장
         WalletTransaction walletTransaction = WalletTransaction.builder()
-                .walletTransactionType(WalletTransactionType.OUTGOING)
+                .type(Type.OUTGOING)
                 .amount(amount)
                 .balance(wallet.getBalance())
                 .walletTransactionStatus(status)
@@ -178,7 +177,7 @@ public class SettlementService {
                 .build();
         walletTransactionRepository.save(walletTransaction);
         WalletTransaction leaderWalletTransaction = WalletTransaction.builder()
-                .walletTransactionType(WalletTransactionType.INCOMING)
+                .type(Type.INCOMING)
                 .amount(amount)
                 .balance(leaderWallet.getBalance())
                 .walletTransactionStatus(status)
