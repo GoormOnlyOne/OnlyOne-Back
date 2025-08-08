@@ -3,8 +3,10 @@ package com.example.onlyone.domain.chat.service;
 import com.example.onlyone.domain.chat.dto.ChatMessageResponse;
 import com.example.onlyone.domain.chat.entity.ChatRoom;
 import com.example.onlyone.domain.chat.entity.Message;
+import com.example.onlyone.domain.chat.entity.UserChatRoom;
 import com.example.onlyone.domain.chat.repository.ChatRoomRepository;
 import com.example.onlyone.domain.chat.repository.MessageRepository;
+import com.example.onlyone.domain.chat.repository.UserChatRoomRepository;
 import com.example.onlyone.domain.notification.entity.Type;
 import com.example.onlyone.domain.notification.service.NotificationService;
 import com.example.onlyone.domain.user.entity.User;
@@ -28,6 +30,7 @@ public class MessageService {
     private final ChatRoomRepository chatRoomRepository;
     private final UserRepository userRepository;
     private final NotificationService notificationService;
+    private final UserChatRoomRepository userChatRoomRepository;
 
     /**
      * 메시지 저장
@@ -47,8 +50,23 @@ public class MessageService {
                 .deleted(false)
                 .build();
         messageRepository.save(message);
-        notificationService.createNotification(user, Type.CHAT, new String[]{user.getNickname()});
+        // 채팅방 멤버들에게 알림 일괄 생성
+        notifyChatRoomMembers(chatRoom, user);
         return ChatMessageResponse.from(message);
+    }
+
+    /**
+     * 채팅방의 모든 멤버에게 CHAt 알림 생성 (보낸 사람은 제외)
+     * TODO: 효율성을 위해 토픽 / bulk / 비동기 방식 등 고려 필요
+     */
+    private void notifyChatRoomMembers(ChatRoom chatRoom, User sender) {
+        List<UserChatRoom> members = userChatRoomRepository.findAllByChatRoomId(chatRoom.getChatRoomId());
+        for (UserChatRoom userChatRoom : members) {
+            User target = userChatRoom.getUser();
+            if (target == null) continue;
+            if (target.getUserId().equals(sender.getUserId())) continue;
+            notificationService.createNotification(target, Type.CHAT, new String[]{sender.getNickname()});
+        }
     }
 
     /**

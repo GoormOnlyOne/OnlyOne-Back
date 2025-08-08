@@ -71,7 +71,7 @@ public class NotificationService {
       log.warn("알림 생성 실패, type={}, args={}", notificationType, Arrays.toString(args), e);
     }
   }
-  
+
   /**
    * 알림 목록 조회 (커서 기반 페이징)
    */
