@@ -22,7 +22,7 @@ import lombok.Setter;
 @Getter
 @Setter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
-public class Notification extends BaseTimeEntity {
+public class AppNotification extends BaseTimeEntity {
 
   @Id
   @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -38,17 +38,17 @@ public class Notification extends BaseTimeEntity {
 
   /**
    * 알림 읽음 상태 false: 읽지 않음 (기본값) true: 읽음 처리됨
-   * <p>
+   *
    * 읽지 않은 알림 개수 계산과 UI 표시에 사용됩니다.
    */
   @Column(name = "is_read")
   @NotNull
-  private Boolean isRead;
+  private Boolean isRead = false;
 
   /**
    * 알림 타입 정보 알림의 종류(채팅, 정산, 좋아요, 댓글)를 나타내며 각 타입별로 다른 템플릿과 처리 로직을 적용합니다.
    */
-  @ManyToOne(fetch = FetchType.LAZY, cascade = CascadeType.ALL)
+  @ManyToOne(fetch = FetchType.LAZY)
   @JoinColumn(name = "type_id")
   @NotNull
   private NotificationType notificationType;
@@ -56,7 +56,7 @@ public class Notification extends BaseTimeEntity {
   /**
    * 알림을 받을 사용자
    */
-  @ManyToOne(fetch = FetchType.LAZY, cascade = CascadeType.ALL)
+  @ManyToOne(fetch = FetchType.LAZY)
   @JoinColumn(name = "user_id", updatable = false)
   @NotNull
   private User user;
@@ -77,9 +77,9 @@ public class Notification extends BaseTimeEntity {
    * @param content          템플릿에 적용할 파라미터들
    * @return 생성된 알림 객체
    */
-  public static Notification create(User user, NotificationType notificationType,
+  public static AppNotification create(User user, NotificationType notificationType,
       String... content) {
-    Notification n = new Notification();
+    AppNotification n = new AppNotification();
     n.user = user;
     n.notificationType = notificationType;
     n.content = notificationType.render(content); // 템플릿 렌더링

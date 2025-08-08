@@ -4,9 +4,7 @@ import com.example.onlyone.domain.club.entity.Club;
 import com.example.onlyone.global.BaseTimeEntity;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.NotNull;
-import lombok.Getter;
-import lombok.NoArgsConstructor;
-import lombok.Setter;
+import lombok.*;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -15,7 +13,9 @@ import java.util.List;
 @Table(name = "interest")
 @Getter
 @Setter
+@Builder
 @NoArgsConstructor
+@AllArgsConstructor
 public class Interest extends BaseTimeEntity {
 
     @Id

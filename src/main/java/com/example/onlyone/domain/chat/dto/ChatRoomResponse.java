@@ -18,6 +18,9 @@ public class ChatRoomResponse {
     @Schema(description = "채팅방 ID", example = "1")
     private Long chatRoomId;
 
+    @Schema(description = "채팅방 이름")
+    private String chatRoomName;
+
     @Schema(description = "클럽 ID", example = "1")
     private Long clubId;
 
@@ -36,15 +39,27 @@ public class ChatRoomResponse {
 
     public static ChatRoomResponse from(ChatRoom chatRoom, Message lastMessage) {
         String messageText = null;
-
         if (lastMessage != null && !lastMessage.isDeleted()) {
             messageText = MessageUtils.getDisplayText(lastMessage.getText());
         }
 
+        String chatRoomName;
+        Long scheduleId = null;
+
+        // SCHEDULE 채팅방일 경우에만 schedule 참조
+        if (chatRoom.getType() == Type.SCHEDULE && chatRoom.getSchedule() != null) {
+            chatRoomName = chatRoom.getSchedule().getName();
+            scheduleId = chatRoom.getSchedule().getScheduleId();
+        } else {
+            // CLUB 채팅방의 경우 club 이름 사용 (또는 기본값 설정)
+            chatRoomName = chatRoom.getClub().getName(); // 또는 "모임 채팅방" 등
+        }
+
         return ChatRoomResponse.builder()
                 .chatRoomId(chatRoom.getChatRoomId())
+                .chatRoomName(chatRoomName)
                 .clubId(chatRoom.getClub().getClubId())
-                .scheduleId(chatRoom.getScheduleId())
+                .scheduleId(scheduleId)
                 .type(chatRoom.getType())
                 .lastMessageText(messageText)
                 .lastMessageTime(lastMessage != null ? lastMessage.getSentAt() : null)
