@@ -47,9 +47,9 @@ public class SearchController {
     )
     @GetMapping
     public ResponseEntity<?> searchClubs(
-            @RequestParam String keyword,
-            @RequestParam(required = false, name = "city") String city,
-            @RequestParam(required = false, name = "district") String district,
+            @RequestParam(required = false) String keyword,
+            @RequestParam(required = false) String city,
+            @RequestParam(required = false) String district,
             @RequestParam(required = false) Long interestId,
             @RequestParam(defaultValue = "MEMBER_COUNT") SearchFilterDto.SortType sortBy,
             @RequestParam(defaultValue = "0") int page) {
