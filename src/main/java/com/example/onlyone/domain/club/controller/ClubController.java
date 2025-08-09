@@ -41,7 +41,7 @@ public class ClubController {
     }
 
     @Operation(summary = "모임 가입", description = "모임에 가입한다.")
-    @GetMapping("/{clubId}/join")
+    @PostMapping("/{clubId}/join")
     public ResponseEntity<?> joinClub(@PathVariable Long clubId) {
         clubService.joinClub(clubId);
         return ResponseEntity.status(HttpStatus.OK).body(CommonResponse.success(null));
