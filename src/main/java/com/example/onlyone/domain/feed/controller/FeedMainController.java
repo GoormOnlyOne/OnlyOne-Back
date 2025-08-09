@@ -58,5 +58,6 @@ public class FeedMainController {
         List<FeedCommentResponseDto> feedCommentResponseDto = feedMainService.getCommentList(feedId, pageable);
         return ResponseEntity.ok(CommonResponse.success(feedCommentResponseDto));
     }
+
 }
 

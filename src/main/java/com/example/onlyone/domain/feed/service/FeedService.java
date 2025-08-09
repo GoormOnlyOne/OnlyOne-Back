@@ -1,6 +1,7 @@
 package com.example.onlyone.domain.feed.service;
 
 import com.example.onlyone.domain.club.entity.Club;
+import com.example.onlyone.domain.club.entity.ClubRole;
 import com.example.onlyone.domain.club.entity.UserClub;
 import com.example.onlyone.domain.club.repository.ClubRepository;
 import com.example.onlyone.domain.club.repository.UserClubRepository;
@@ -192,5 +193,17 @@ public class FeedService {
         }
 
         feedCommentRepository.delete(feedComment);
+    }
+
+    public void deleteFeed(Long clubId, Long feedId) {
+        Club club = clubRepository.findById(clubId)
+                .orElseThrow(() -> new CustomException(ErrorCode.CLUB_NOT_FOUND));
+        Feed feed = feedRepository.findByFeedIdAndClub(feedId, club)
+                .orElseThrow(() -> new CustomException(ErrorCode.FEED_NOT_FOUND));
+        User user = userService.getCurrentUser();
+        if (!(user.getUserId().equals(feed.getUser().getUserId()))) {
+            throw new CustomException(ErrorCode.UNAUTHORIZED_FEED_ACCESS);
+        }
+        feedRepository.delete(feed);
     }
 }
