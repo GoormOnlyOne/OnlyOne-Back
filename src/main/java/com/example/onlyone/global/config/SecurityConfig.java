@@ -55,7 +55,7 @@ public class SecurityConfig {
             "/email/**",
             "/ws/**",          // WebSocket STOMP 엔드포인트 허용
             "/ws/chat/**",      // SockJS는 /info, /websocket, /xhr 등 내부 경로 씀
-            "/subscribe/**",    // SSE 구독 엔드포인트 허용
+            "/sse/subscribe/**",    // SSE 구독 엔드포인트 허용
             "/kakao/**",
             "/auth/**",
     };

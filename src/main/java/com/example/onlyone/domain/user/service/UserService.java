@@ -37,7 +37,7 @@ public class UserService {
     private final UserInterestRepository userInterestRepository;
     private final InterestRepository interestRepository;
     private final WalletRepository walletRepository;
-    
+
     @Value("${jwt.secret}")
     private String jwtSecret;
     
@@ -152,6 +152,45 @@ public class UserService {
     }
 
     /**
+     * FCM 토큰 상태 확인
+     */
+    public boolean hasFcmToken(Long userId) {
+        User user = getMemberById(userId);
+        return user.hasFcmToken();
+    }
+
+    /**
+     * FCM 토큰 업데이트 (중복 등록 방지)
+     */
+    public void updateFcmToken(Long userId, String fcmToken) {
+        User user = getMemberById(userId);
+
+        // 동일한 토큰 중복 등록 방지
+        if (fcmToken.equals(user.getFcmToken())) {
+            log.debug("FCM token already registered for user: {}", userId);
+            return;
+        }
+
+        try {
+            user.updateFcmToken(fcmToken);
+            log.info("FCM token updated for user: {}", userId);
+        } catch (IllegalArgumentException e) {
+            log.error("FCM token validation failed for user: {}, error: {}", userId, e.getMessage());
+            throw new CustomException(ErrorCode.FCM_TOKEN_INVALID);
+        }
+    }
+
+    /**
+     * FCM 토큰 삭제 (로그아웃 시)
+     */
+    public void clearFcmToken(Long userId) {
+        User user = getMemberById(userId);
+        user.clearFcmToken();
+
+        log.info("FCM token cleared for user: {}", userId);
+    }
+
+    /**
      * 회원가입 처리 - 기존 사용자의 추가 정보 업데이트
      */
     public void signup(SignupRequestDto signupRequest) {
@@ -173,12 +212,12 @@ public class UserService {
         for (String categoryName : categories) {
             Interest interest = interestRepository.findByCategory(Category.from(categoryName))
                     .orElseThrow(() -> new CustomException(ErrorCode.INTEREST_NOT_FOUND));
-            
+
             UserInterest userInterest = UserInterest.builder()
                     .user(user)
                     .interest(interest)
                     .build();
-            
+
             userInterestRepository.save(userInterest);
         }
 
@@ -187,7 +226,7 @@ public class UserService {
                 .user(user)
                 .balance(100000)
                 .build();
-        
+
         walletRepository.save(wallet);
     }
 }
