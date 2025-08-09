@@ -60,8 +60,14 @@ public class UserService {
         } catch (NumberFormatException e) {
             throw new  CustomException(ErrorCode.UNAUTHORIZED);
         }
-        return userRepository.findByKakaoId(kakaoId)
-                .orElseThrow(() -> new CustomException(ErrorCode.KAKAO_API_ERROR));
+        
+        Optional<User> userOpt = userRepository.findByKakaoId(kakaoId);
+        if (userOpt.isEmpty()) {
+            throw new CustomException(ErrorCode.USER_NOT_FOUND);
+        }
+        
+        User user = userOpt.get();
+        return user;
     }
 
     public User getMemberById(Long memberId){
@@ -71,9 +77,11 @@ public class UserService {
 
     /**
      * 카카오 로그인 처리: 기존 사용자 조회 또는 신규 사용자 생성
+     * @param kakaoUserInfo 카카오 사용자 정보
+     * @param kakaoAccessToken 카카오 액세스 토큰
      * @return Map containing user and isNewUser flag
      */
-    public Map<String, Object> processKakaoLogin(Map<String, Object> kakaoUserInfo) {
+    public Map<String, Object> processKakaoLogin(Map<String, Object> kakaoUserInfo, String kakaoAccessToken) {
         Long kakaoId = Long.valueOf(kakaoUserInfo.get("id").toString());
 
         // 기존 사용자 조회
@@ -82,17 +90,29 @@ public class UserService {
         Map<String, Object> result = new HashMap<>();
 
         if (existingUser.isPresent()) {
-            // 기존 사용자
-            result.put("user", existingUser.get());
-            result.put("isNewUser", false);
+            User user = existingUser.get();
+            
+            // 탈퇴한 사용자(INACTIVE)는 재로그인 금지
+            if (Status.INACTIVE.name().equals(user.getStatus())) {
+                throw new CustomException(ErrorCode.USER_WITHDRAWN);
+            }
+            
+            // 카카오 액세스 토큰 업데이트
+            user.updateKakaoAccessToken(kakaoAccessToken);
+            userRepository.save(user);
+            
+            // 기존 사용자 - GUEST 상태면 회원가입 필요, ACTIVE면 회원가입 완료
+            result.put("user", user);
+            result.put("isNewUser", Status.GUEST.name().equals(user.getStatus()));
         } else {
-            // 신규 사용자 생성
+            // 신규 사용자 생성 (회원가입 미완료 상태)
             User newUser = User.builder()
                     .kakaoId(kakaoId)
                     .nickname("guest")
                     .birth(LocalDate.now())
-                    .status(Status.ACTIVE)
+                    .status(Status.GUEST.name())
                     .gender(Gender.MALE)
+                    .kakaoAccessToken(kakaoAccessToken)
                     .build();
 
             User savedUser = userRepository.save(newUser);
@@ -168,6 +188,9 @@ public class UserService {
                 signupRequest.getBirth()
         );
 
+        // 회원가입 완료 - GUEST → ACTIVE 상태로 변경
+        user.completeSignup();
+
         // 사용자 관심사 저장
         List<String> categories = signupRequest.getCategories();
         for (String categoryName : categories) {
@@ -189,5 +212,25 @@ public class UserService {
                 .build();
         
         walletRepository.save(wallet);
+    }
+
+    /**
+     * 로그아웃 처리 - 카카오 액세스 토큰 제거
+     */
+    public void logoutUser() {
+        User user = getCurrentUser();
+        if (user.getKakaoAccessToken() != null) {
+            user.clearKakaoAccessToken();
+            userRepository.save(user);
+        }
+    }
+
+    /**
+     * 회원 탈퇴 처리 - 사용자 상태를 INACTIVE로 변경하고 카카오 연결 해제
+     */
+    public void withdrawUser() {
+        User user = getCurrentUser();
+        user.withdraw();
+        userRepository.save(user);
     }
 }

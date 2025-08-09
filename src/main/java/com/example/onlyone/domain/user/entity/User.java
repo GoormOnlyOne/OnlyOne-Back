@@ -31,10 +31,9 @@ public class User extends BaseTimeEntity {
   @Column(name = "birth")
   private LocalDate birth;
 
-  @Column(name = "status")
+  @Column(name = "status", length = 20)
   @NotNull
-  @Enumerated(EnumType.STRING)
-  private Status status;
+  private String status;
 
   @Column(name = "profile_image")
   private String profileImage;
@@ -51,6 +50,9 @@ public class User extends BaseTimeEntity {
 
   @Column(name = "fcm_token")
   private String fcmToken;
+
+  @Column(name = "kakao_access_token")
+  private String kakaoAccessToken;
 
   public void updateFcmToken(String fcmToken) {
     this.fcmToken = fcmToken;
@@ -71,5 +73,26 @@ public class User extends BaseTimeEntity {
     this.nickname = nickname;
     this.gender = gender;
     this.birth = birth;
+  }
+
+  public void updateKakaoAccessToken(String kakaoAccessToken) {
+    this.kakaoAccessToken = kakaoAccessToken;
+  }
+
+  public void clearKakaoAccessToken() {
+    this.kakaoAccessToken = null;
+  }
+
+  public void withdraw() {
+    this.status = Status.INACTIVE.name();
+    this.kakaoAccessToken = null; // 탈퇴 시 카카오 토큰도 제거
+  }
+
+  public void completeSignup() {
+    this.status = Status.ACTIVE.name();
+  }
+
+  public void updateStatus(String status) {
+    this.status = status;
   }
 }
