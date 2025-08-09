@@ -4,6 +4,7 @@ import com.example.onlyone.domain.interest.entity.Category;
 import com.example.onlyone.domain.interest.entity.Interest;
 import com.example.onlyone.domain.interest.repository.InterestRepository;
 import com.example.onlyone.domain.user.dto.request.SignupRequestDto;
+import com.example.onlyone.domain.user.dto.response.MyPageResponse;
 import com.example.onlyone.domain.user.entity.Gender;
 import com.example.onlyone.domain.user.entity.Status;
 import com.example.onlyone.domain.user.entity.User;
@@ -27,6 +28,7 @@ import org.springframework.security.core.Authentication;
 import javax.crypto.SecretKey;
 import java.time.LocalDate;
 import java.util.*;
+import java.util.stream.Collectors;
 
 @Log4j2
 @Service
@@ -232,5 +234,35 @@ public class UserService {
         User user = getCurrentUser();
         user.withdraw();
         userRepository.save(user);
+    }
+
+    /**
+     * 마이페이지 정보 조회
+     */
+    @Transactional
+    public MyPageResponse getMyPage() {
+        User user = getCurrentUser();
+        
+        // 사용자 관심사 카테고리 조회
+        List<Category> categories = userInterestRepository.findCategoriesByUserId(user.getUserId());
+        List<String> interestsList = categories.stream()
+                .map(Category::name)
+                .map(String::toLowerCase)
+                .collect(Collectors.toList());
+        
+        // 사용자 지갑 정보 조회
+        Optional<Wallet> walletOpt = walletRepository.findByUser(user);
+        Integer balance = walletOpt.map(Wallet::getBalance).orElse(0);
+        
+        return MyPageResponse.builder()
+                .nickname(user.getNickname())
+                .profileImage(user.getProfileImage())
+                .city(user.getCity())
+                .district(user.getDistrict())
+                .birth(user.getBirth())
+                .gender(user.getGender())
+                .interestsList(interestsList)
+                .balance(balance)
+                .build();
     }
 }
