@@ -1,5 +1,7 @@
 package com.example.onlyone.domain.feed.controller;
 
+import com.example.onlyone.domain.feed.dto.request.FeedRequestDto;
+import com.example.onlyone.domain.feed.dto.request.RefeedRequestDto;
 import com.example.onlyone.domain.feed.dto.response.FeedCommentResponseDto;
 import com.example.onlyone.domain.feed.dto.response.FeedOverviewDto;
 import com.example.onlyone.domain.feed.dto.response.FeedSummaryResponseDto;
@@ -57,6 +59,13 @@ public class FeedMainController {
         Pageable pageable = PageRequest.of(page, limit, Sort.by(Sort.Direction.DESC, "createdAt"));
         List<FeedCommentResponseDto> feedCommentResponseDto = feedMainService.getCommentList(feedId, pageable);
         return ResponseEntity.ok(CommonResponse.success(feedCommentResponseDto));
+    }
+
+    @Operation(summary = "리피드", description = "피드를 리피드 합니다.")
+    @PostMapping("/{feedId}/{clubId}")
+    public ResponseEntity<?> createRefeed(@PathVariable Long feedId, @PathVariable Long clubId,@RequestBody @Valid RefeedRequestDto requestDto) {
+        feedMainService.createRefeed(feedId, clubId, requestDto);
+        return ResponseEntity.status(HttpStatus.CREATED).body(CommonResponse.success(null));
     }
 
 }
