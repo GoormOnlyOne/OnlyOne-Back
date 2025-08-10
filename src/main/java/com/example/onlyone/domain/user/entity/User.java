@@ -63,4 +63,13 @@ public class User extends BaseTimeEntity {
   public boolean hasFcmToken() {
     return fcmToken != null && !fcmToken.isBlank();
   }
+
+  public void update(String city, String district, String profileImage, String nickname, Gender gender, LocalDate birth) {
+    this.city = city;
+    this.district = district;
+    this.profileImage = profileImage;
+    this.nickname = nickname;
+    this.gender = gender;
+    this.birth = birth;
+  }
 }
