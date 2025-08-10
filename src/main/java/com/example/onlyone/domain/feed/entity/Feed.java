@@ -11,7 +11,14 @@ import java.util.ArrayList;
 import java.util.List;
 
 @Entity
-@Table(name = "feed")
+@Table(
+        name = "feed",
+        uniqueConstraints = {
+                @UniqueConstraint(
+                        name = "uq_refeed_once",
+                        columnNames = {"user_id", "parent_feed_id", "club_id"}
+                )
+        })
 @Getter
 @Builder
 @AllArgsConstructor
@@ -35,6 +42,24 @@ public class Feed extends BaseTimeEntity {
     @JoinColumn(name = "user_id", updatable = false)
     @NotNull
     private User user;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "type")
+    @NotNull
+    @Builder.Default()
+    private FeedType feedType = FeedType.ORIGINAL;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "parent_feed_id")
+    private Feed parent;
+
+    @Column(name = "root_feed_id")
+    private Long rootFeedId;
+
+    @Builder.Default
+    @Column(name = "depth")
+    @NotNull
+    private int depth = 0;
 
     @Builder.Default
     @OneToMany(mappedBy = "feed", cascade = CascadeType.ALL, orphanRemoval = true)
