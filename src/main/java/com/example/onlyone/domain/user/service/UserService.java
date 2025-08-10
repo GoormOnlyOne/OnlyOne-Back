@@ -3,8 +3,10 @@ package com.example.onlyone.domain.user.service;
 import com.example.onlyone.domain.interest.entity.Category;
 import com.example.onlyone.domain.interest.entity.Interest;
 import com.example.onlyone.domain.interest.repository.InterestRepository;
+import com.example.onlyone.domain.user.dto.request.ProfileUpdateRequestDto;
 import com.example.onlyone.domain.user.dto.request.SignupRequestDto;
 import com.example.onlyone.domain.user.dto.response.MyPageResponse;
+import com.example.onlyone.domain.user.dto.response.ProfileResponseDto;
 import com.example.onlyone.domain.user.entity.Gender;
 import com.example.onlyone.domain.user.entity.Status;
 import com.example.onlyone.domain.user.entity.User;
@@ -264,5 +266,65 @@ public class UserService {
                 .interestsList(interestsList)
                 .balance(balance)
                 .build();
+    }
+
+    /**
+     * 사용자 프로필 정보 조회
+     */
+    @Transactional(readOnly = true)
+    public ProfileResponseDto getUserProfile() {
+        User user = getCurrentUser();
+        
+        // 사용자 관심사 카테고리 조회
+        List<Category> categories = userInterestRepository.findCategoriesByUserId(user.getUserId());
+        List<String> interestsList = categories.stream()
+                .map(Category::name)
+                .map(String::toLowerCase)
+                .collect(Collectors.toList());
+        
+        return ProfileResponseDto.builder()
+                .userId(user.getUserId())
+                .nickname(user.getNickname())
+                .birth(user.getBirth())
+                .profileImage(user.getProfileImage())
+                .gender(user.getGender())
+                .city(user.getCity())
+                .district(user.getDistrict())
+                .interestsList(interestsList)
+                .build();
+    }
+
+    /**
+     * 사용자 프로필 정보 업데이트
+     */
+    @Transactional
+    public void updateUserProfile(ProfileUpdateRequestDto request) {
+        User user = getCurrentUser();
+        
+        // 사용자 기본 정보 업데이트
+        user.update(
+                request.getCity(),
+                request.getDistrict(),
+                request.getProfileImage(),
+                request.getNickname(),
+                request.getGender(),
+                request.getBirth()
+        );
+        
+        // 기존 관심사 삭제
+        userInterestRepository.deleteByUserId(user.getUserId());
+        
+        // 새로운 관심사 저장
+        for (String categoryName : request.getInterestsList()) {
+            Interest interest = interestRepository.findByCategory(Category.from(categoryName))
+                    .orElseThrow(() -> new CustomException(ErrorCode.INTEREST_NOT_FOUND));
+            
+            UserInterest userInterest = UserInterest.builder()
+                    .user(user)
+                    .interest(interest)
+                    .build();
+            
+            userInterestRepository.save(userInterest);
+        }
     }
 }
