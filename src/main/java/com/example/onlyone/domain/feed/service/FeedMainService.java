@@ -68,7 +68,7 @@ public class FeedMainService {
         return feeds.stream()
                 .map(feed -> FeedOverviewDto.builder()
                         .feedId(feed.getFeedId())
-                        .thumbnailUrl(feed.getFeedImages().get(0).getFeedImage())
+                        .thumbnailUrl(resolveThumbnail(feed))
                         .likeCount(feed.getFeedLikes().size())
                         .commentCount(feed.getFeedComments().size())
                         .profileImage(feed.getUser().getProfileImage())
@@ -104,7 +104,7 @@ public class FeedMainService {
         return feeds.stream()
                 .map(f -> FeedOverviewDto.builder()
                         .feedId(f.getFeedId())
-                        .thumbnailUrl(f.getFeedImages().get(0).getFeedImage())
+                        .thumbnailUrl(resolveThumbnail(f))
                         .likeCount(f.getFeedLikes().size())
                         .commentCount(f.getFeedComments().size())
                         .profileImage(f.getUser().getProfileImage())
@@ -112,6 +112,14 @@ public class FeedMainService {
                         .build()
                 )
                 .toList();
+    }
+
+    private String resolveThumbnail(Feed feed) {
+        // 1) 본인 이미지가 있으면 그거
+        if (feed.getFeedImages() != null && !feed.getFeedImages().isEmpty()) {
+            return feed.getFeedImages().get(0).getFeedImage();
+        }
+        return (String) "Refeed";
     }
 
     @Transactional(readOnly = true)
