@@ -16,8 +16,9 @@ public class ClubResponseDto {
     private String district;
     private Long memberCount;
     private String image;
+    private boolean isJoined;
 
-    public static ClubResponseDto from(Club club, Long memberCount) {
+    public static ClubResponseDto from(Club club, Long memberCount, boolean isJoined) {
         return ClubResponseDto.builder()
                 .clubId(club.getClubId())
                 .name(club.getName())
@@ -26,6 +27,7 @@ public class ClubResponseDto {
                 .district(club.getDistrict())
                 .memberCount(memberCount)
                 .image(club.getClubImage())
+                .isJoined(isJoined)
                 .build();
     }
 

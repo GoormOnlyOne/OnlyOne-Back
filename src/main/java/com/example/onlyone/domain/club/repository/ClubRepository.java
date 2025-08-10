@@ -37,20 +37,25 @@ public interface ClubRepository extends JpaRepository<Club, Long> {
     @Query("SELECT c, COUNT(uc) FROM Club c " +
             "LEFT JOIN UserClub uc ON c.clubId = uc.club.clubId " +
             "WHERE c.interest.interestId IN :interestIds AND c.city = :city AND c.district = :district " +
+            "AND c.clubId NOT IN (SELECT uc2.club.clubId FROM UserClub uc2 WHERE uc2.user.userId = :userId) " +
             "GROUP BY c.clubId " +
             "ORDER BY COUNT(uc) DESC, c.createdAt DESC")
     List<Object[]> searchByUserInterestAndLocation(@Param("interestIds") List<Long> interestIds,
                                                    @Param("city") String city,
                                                    @Param("district") String district,
+                                                   @Param("userId") Long userId,
                                                    Pageable pageable);
 
     // 2단계: 관심사만 일치 (인기순)
     @Query("SELECT c, COUNT(uc) FROM Club c " +
             "LEFT JOIN UserClub uc ON c.clubId = uc.club.clubId " +
             "WHERE c.interest.interestId IN :interestIds " +
+            "AND c.clubId NOT IN (SELECT uc2.club.clubId FROM UserClub uc2 WHERE uc2.user.userId = :userId) " +
             "GROUP BY c.clubId " +
             "ORDER BY COUNT(uc) DESC, c.createdAt DESC")
-    List<Object[]> searchByUserInterests(@Param("interestIds") List<Long> interestIds, Pageable pageable);
+    List<Object[]> searchByUserInterests(@Param("interestIds") List<Long> interestIds, 
+                                        @Param("userId") Long userId, 
+                                        Pageable pageable);
 
     // 통합 검색 (키워드 + 필터)
     @Query(value = "SELECT c.club_id, c.name, c.description, " +
@@ -58,14 +63,14 @@ public interface ClubRepository extends JpaRepository<Club, Long> {
             "COUNT(uc.user_club_id) as member_count " +
             "FROM club c LEFT JOIN user_club uc ON c.club_id = uc.club_id " +
             "LEFT JOIN interest i ON c.interest_id = i.interest_id " +
-            "WHERE (:keyword IS NULL OR MATCH(c.name, c.description) AGAINST(:keyword IN NATURAL LANGUAGE MODE)) " +
+            "WHERE (:keyword IS NULL OR :keyword = '' OR MATCH(c.name, c.description) AGAINST(:keyword IN NATURAL LANGUAGE MODE)) " +
             "AND (:city IS NULL OR c.city = :city) " +
             "AND (:district IS NULL OR c.district = :district) " +
             "AND (:interestId IS NULL OR c.interest_id = :interestId) " +
             "GROUP BY c.club_id " +
             "ORDER BY " +
             "CASE " +
-            "  WHEN :keyword IS NOT NULL THEN MATCH(c.name, c.description) AGAINST(:keyword IN NATURAL LANGUAGE MODE) " +
+            "  WHEN :keyword IS NOT NULL AND :keyword != '' THEN MATCH(c.name, c.description) AGAINST(:keyword IN NATURAL LANGUAGE MODE) " +
             "  WHEN :sortBy = 'LATEST' THEN c.created_at " +
             "  WHEN :sortBy = 'MEMBER_COUNT' THEN COUNT(uc.user_club_id) " +
             "  ELSE COUNT(uc.user_club_id) " +
