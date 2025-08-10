@@ -4,6 +4,7 @@ import com.example.onlyone.domain.interest.entity.Category;
 import com.example.onlyone.domain.user.entity.User;
 import com.example.onlyone.domain.user.entity.UserInterest;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -18,4 +19,9 @@ public interface UserInterestRepository extends JpaRepository<UserInterest, Long
     // 사용자 관심사 카테고리 목록 조회
     @Query("SELECT ui.interest.category FROM UserInterest ui WHERE ui.user.userId = :userId")
     List<Category> findCategoriesByUserId(@Param("userId") Long userId);
+
+    // 사용자 관심사 삭제
+    @Modifying
+    @Query("DELETE FROM UserInterest ui WHERE ui.user.userId = :userId")
+    void deleteByUserId(@Param("userId") Long userId);
 }
