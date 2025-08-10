@@ -14,7 +14,7 @@ import java.util.Optional;
 public interface FeedRepository extends JpaRepository<Feed,Long> {
     Optional<Feed> findByFeedIdAndClub(Long feedId, Club club);
 
-    Page<Feed> findByClub(Club club, Pageable pageable);
+    Page<Feed> findByClubAndParentIsNull(Club club, Pageable pageable);
 
     Feed findByFeedId(Long feedId);
 
