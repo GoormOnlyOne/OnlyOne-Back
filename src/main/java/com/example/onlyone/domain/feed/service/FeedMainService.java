@@ -115,11 +115,10 @@ public class FeedMainService {
     }
 
     private String resolveThumbnail(Feed feed) {
-        // 1) 본인 이미지가 있으면 그거
         if (feed.getFeedImages() != null && !feed.getFeedImages().isEmpty()) {
             return feed.getFeedImages().get(0).getFeedImage();
         }
-        return (String) "Refeed";
+        return null;
     }
 
     @Transactional(readOnly = true)
