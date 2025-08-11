@@ -176,11 +176,10 @@ public class FeedMainService {
                 notificationService.createNotification(
                     originalAuthor,
                     Type.REFEED,
-                    user.getNickname(),  // 리피드한 사용자 닉네임
-                    club.getName()       // 리피드된 클럽 이름
+                    user.getNickname()   // 리피드한 사용자 닉네임
                 );
-                log.info("Refeed notification sent: originalAuthor={}, refeedUser={}, club={}", 
-                    originalAuthor.getUserId(), user.getUserId(), club.getName());
+                log.info("Refeed notification sent: originalAuthor={}, refeedUser={}", 
+                    originalAuthor.getUserId(), user.getUserId());
             }
             
         } catch (DataIntegrityViolationException e) {
