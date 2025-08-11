@@ -72,7 +72,7 @@ public class NotificationController {
     }
     
     log.info("Notifications fetched for user: {}, count: {}, unreadCount: {}", 
-        userId, dto.getNotifications().size(), dto.getUnreadCount());
+        userId,   dto.getNotifications().size(), dto.getUnreadCount());
     
     return ResponseEntity.ok(CommonResponse.success(dto));
   }
