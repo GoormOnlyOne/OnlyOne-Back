@@ -156,19 +156,19 @@ public class ClubService {
         userClubRepository.delete(userClub);
     }
 
-    /* 가입하고 있는 모임 조회*/
-    public List<ClubNameResponseDto> getClubNames() {
-        Long userId = userService.getCurrentUser().getUserId();
-
-        List<UserClub> userClubs = userClubRepository.findByUserUserId(userId);
-
-        return userClubs.stream()
-                .map(UserClub::getClub)
-                .filter(Objects::nonNull)
-                .map(c -> ClubNameResponseDto.builder()
-                        .clubId(c.getClubId())
-                        .name(c.getName())
-                        .build())
-                .toList();
-    }
+//    /* 가입하고 있는 모임 조회*/
+//    public List<ClubNameResponseDto> getClubNames() {
+//        Long userId = userService.getCurrentUser().getUserId();
+//
+//        List<UserClub> userClubs = userClubRepository.findByUserUs(userId);
+//
+//        return userClubs.stream()
+//                .map(UserClub::getClub)
+//                .filter(Objects::nonNull)
+//                .map(c -> ClubNameResponseDto.builder()
+//                        .clubId(c.getClubId())
+//                        .name(c.getName())
+//                        .build())
+//                .toList();
+//    }
 }
