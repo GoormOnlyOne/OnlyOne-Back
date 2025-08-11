@@ -13,6 +13,7 @@ import java.util.List;
 @AllArgsConstructor
 @JsonInclude(Include.NON_NULL)
 public class FeedOverviewDto {
+    private Long clubId;
     private Long feedId;
     private List<String> imageUrls;
     private int likeCount;
