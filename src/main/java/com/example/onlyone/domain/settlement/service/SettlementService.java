@@ -8,8 +8,6 @@ import com.example.onlyone.domain.schedule.entity.ScheduleStatus;
 import com.example.onlyone.domain.schedule.entity.UserSchedule;
 import com.example.onlyone.domain.schedule.repository.ScheduleRepository;
 import com.example.onlyone.domain.schedule.repository.UserScheduleRepository;
-import com.example.onlyone.domain.settlement.dto.response.MySettlementDto;
-import com.example.onlyone.domain.settlement.dto.response.MySettlementResponseDto;
 import com.example.onlyone.domain.settlement.dto.response.SettlementResponseDto;
 import com.example.onlyone.domain.settlement.dto.response.UserSettlementDto;
 import com.example.onlyone.domain.settlement.entity.*;
@@ -30,7 +28,6 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;

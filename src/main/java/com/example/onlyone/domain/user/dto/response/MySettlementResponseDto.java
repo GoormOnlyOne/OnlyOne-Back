@@ -1,4 +1,4 @@
-package com.example.onlyone.domain.settlement.dto.response;
+package com.example.onlyone.domain.user.dto.response;
 
 import lombok.AllArgsConstructor;
 import lombok.Builder;

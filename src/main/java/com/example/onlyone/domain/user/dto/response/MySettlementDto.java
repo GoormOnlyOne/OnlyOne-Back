@@ -1,10 +1,11 @@
-package com.example.onlyone.domain.settlement.dto.response;
+package com.example.onlyone.domain.user.dto.response;
 
 import com.example.onlyone.domain.settlement.entity.SettlementStatus;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
-import org.springframework.data.domain.Page;
+
+import java.time.LocalDateTime;
 
 @Builder
 @Getter
@@ -15,6 +16,7 @@ public class MySettlementDto {
     private String mainImage;
     private SettlementStatus settlementStatus;
     private String title;
+    private LocalDateTime createdAt;
 
 //    public static MySettlementDto from(Page<MySettlementDto> userSettlement) {
 //        return MySettlementDto.builder()

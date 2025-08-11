@@ -1,7 +1,7 @@
 package com.example.onlyone.domain.settlement.repository;
 
 import com.example.onlyone.domain.schedule.entity.Schedule;
-import com.example.onlyone.domain.settlement.dto.response.MySettlementDto;
+import com.example.onlyone.domain.user.dto.response.MySettlementDto;
 import com.example.onlyone.domain.settlement.dto.response.UserSettlementDto;
 import com.example.onlyone.domain.settlement.entity.Settlement;
 import com.example.onlyone.domain.settlement.entity.SettlementStatus;
@@ -48,12 +48,13 @@ public interface UserSettlementRepository extends JpaRepository<UserSettlement, 
 
     @Query(
             value = """
-    select new com.example.onlyone.domain.settlement.dto.response.MySettlementDto(
+    select new com.example.onlyone.domain.user.dto.response.MySettlementDto(
       c.clubId,                 
       sch.cost,                
       c.clubImage,               
       us.settlementStatus,         
-      concat(c.name, ': ', sch.name) 
+      concat(c.name, ': ', sch.name),
+      us.createdAt
     )
     from UserSettlement us
     join us.settlement st
