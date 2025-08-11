@@ -12,6 +12,8 @@ import com.example.onlyone.domain.feed.entity.Feed;
 import com.example.onlyone.domain.feed.entity.FeedType;
 import com.example.onlyone.domain.feed.repository.FeedCommentRepository;
 import com.example.onlyone.domain.feed.repository.FeedRepository;
+import com.example.onlyone.domain.notification.entity.Type;
+import com.example.onlyone.domain.notification.service.NotificationService;
 import com.example.onlyone.domain.user.entity.User;
 import com.example.onlyone.domain.user.service.UserService;
 import com.example.onlyone.global.exception.CustomException;
@@ -40,6 +42,7 @@ public class FeedMainService {
     private final UserClubRepository userClubRepository;
     private final FeedCommentRepository feedCommentRepository;
     private final ClubRepository clubRepository;
+    private final NotificationService notificationService;
 
     @Transactional(readOnly = true)
     public List<FeedOverviewDto> getPersonalFeed(Pageable pageable) {
@@ -166,6 +169,20 @@ public class FeedMainService {
 
         try {
             feedRepository.save(reFeed);
+            
+            // 원본 피드 작성자에게 리피드 알림 발송 (자신이 리피드한 경우 제외)
+            User originalAuthor = parent.getUser();
+            if (!originalAuthor.getUserId().equals(user.getUserId())) {
+                notificationService.createNotification(
+                    originalAuthor,
+                    Type.REFEED,
+                    user.getNickname(),  // 리피드한 사용자 닉네임
+                    club.getName()       // 리피드된 클럽 이름
+                );
+                log.info("Refeed notification sent: originalAuthor={}, refeedUser={}, club={}", 
+                    originalAuthor.getUserId(), user.getUserId(), club.getName());
+            }
+            
         } catch (DataIntegrityViolationException e) {
             throw new CustomException(ErrorCode.DUPLICATE_REFEED);
         }

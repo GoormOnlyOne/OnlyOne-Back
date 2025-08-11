@@ -9,5 +9,6 @@ public enum Type {
   CHAT,
   SETTLEMENT,
   LIKE,
-  COMMENT;
+  COMMENT,
+  REFEED;
 }
