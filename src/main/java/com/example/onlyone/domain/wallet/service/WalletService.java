@@ -3,6 +3,8 @@ package com.example.onlyone.domain.wallet.service;
 import com.example.onlyone.domain.club.repository.ClubRepository;
 import com.example.onlyone.domain.payment.entity.Payment;
 import com.example.onlyone.domain.schedule.entity.Schedule;
+import com.example.onlyone.domain.settlement.entity.SettlementStatus;
+import com.example.onlyone.domain.settlement.entity.UserSettlement;
 import com.example.onlyone.domain.settlement.repository.TransferRepository;
 import com.example.onlyone.domain.user.entity.User;
 import com.example.onlyone.domain.user.service.UserService;
@@ -19,6 +21,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
@@ -71,5 +74,73 @@ public class WalletService {
             String mainImage = schedule.getClub().getClubImage();
             return UserWalletTransactionDto.from(walletTransaction, title, mainImage);
         }
+    }
+
+    public void createSuccessfulWalletTransactions(Long walletId, Long leaderWalletId, int amount,
+                                                    UserSettlement userSettlement) {
+        Wallet wallet = walletRepository.findById(walletId).orElseThrow();
+        Wallet leaderWallet = walletRepository.findById(leaderWalletId).orElseThrow();
+        // 출금 트랜잭션
+        WalletTransaction walletTransaction = WalletTransaction.builder()
+                .type(Type.OUTGOING)
+                .amount(amount)
+                .balance(wallet.getBalance())
+                .walletTransactionStatus(WalletTransactionStatus.COMPLETED)
+                .wallet(wallet)
+                .targetWallet(leaderWallet)
+                .build();
+        // 입금 트랜잭션
+        WalletTransaction leaderWalletTransaction = WalletTransaction.builder()
+                .type(Type.INCOMING)
+                .amount(amount)
+                .balance(leaderWallet.getBalance())
+                .walletTransactionStatus(WalletTransactionStatus.COMPLETED)
+                .wallet(leaderWallet)
+                .targetWallet(wallet)
+                .build();
+        walletTransactionRepository.save(walletTransaction);
+        walletTransactionRepository.save(leaderWalletTransaction);
+        // Transfer 생성 및 연결
+        createAndSaveTransfers(userSettlement, walletTransaction, leaderWalletTransaction);
+        // COMPLETED 마킹 필요
+        userSettlement.updateStatus(SettlementStatus.COMPLETED);
+    }
+
+    public void createAndSaveTransfers(UserSettlement userSettlement, WalletTransaction walletTransaction, WalletTransaction leaderWalletTransaction) {
+        // Transfer 저장
+        Transfer transfer = Transfer.builder()
+                .userSettlement(userSettlement)
+                .walletTransaction(walletTransaction)
+                .build();
+        transferRepository.save(transfer);
+    }
+
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void createFailedWalletTransactions(Long walletId, Long leaderWalletId, int amount,
+                                                  UserSettlement userSettlement) {
+        Wallet wallet = walletRepository.findById(walletId).orElseThrow();
+        Wallet leaderWallet = walletRepository.findById(leaderWalletId).orElseThrow();
+        // 실패한 트랜잭션
+        WalletTransaction failedOutgoing = WalletTransaction.builder()
+                .type(Type.OUTGOING)
+                .amount(amount)
+                .balance(wallet.getBalance()) // 잔액 변경 없음
+                .walletTransactionStatus(WalletTransactionStatus.FAILED)
+                .wallet(wallet)
+                .targetWallet(leaderWallet)
+                .build();
+        WalletTransaction failedIncoming = WalletTransaction.builder()
+                .type(Type.INCOMING)
+                .amount(amount)
+                .balance(leaderWallet.getBalance()) // 잔액 변경 없음
+                .walletTransactionStatus(WalletTransactionStatus.FAILED)
+                .wallet(leaderWallet)
+                .targetWallet(wallet)
+                .build();
+        walletTransactionRepository.save(failedOutgoing);
+        walletTransactionRepository.save(failedIncoming);
+        createAndSaveTransfers(userSettlement, failedOutgoing, failedIncoming);
+        // FAILED 마킹 필요
+        userSettlement.updateStatus(SettlementStatus.FAILED);
     }
 }
