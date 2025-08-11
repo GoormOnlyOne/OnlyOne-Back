@@ -55,7 +55,8 @@ public class KakaoService {
                 throw new CustomException(ErrorCode.KAKAO_AUTH_FAILED);
             }
 
-            return (String) responseMap.get("access_token");
+            String accessToken = (String) responseMap.get("access_token");
+            return accessToken;
         } catch (RestClientException e) {
             throw new CustomException(ErrorCode.EXTERNAL_API_ERROR);
         }
@@ -93,5 +94,45 @@ public class KakaoService {
         } catch (RestClientException e) {
             throw new CustomException(ErrorCode.EXTERNAL_API_ERROR);
         }
+    }
+
+    /**
+     * 카카오 로그아웃 - 카카오 세션 해제
+     */
+    public void logout(String accessToken) {
+        String logoutUrl = "https://kapi.kakao.com/v1/user/logout";
+
+        // 헤더에 액세스 토큰 추가
+        HttpHeaders headers = new HttpHeaders();
+        headers.set("Authorization", "Bearer " + accessToken);
+
+        // 요청 보내기
+        HttpEntity<String> request = new HttpEntity<>(headers);
+        ResponseEntity<String> response = restTemplate.exchange(
+                logoutUrl,
+                HttpMethod.POST,
+                request,
+                String.class
+        );
+    }
+
+    /**
+     * 카카오 연결끊기 - 브라우저 세션까지 완전히 해제
+     */
+    public void unlink(String accessToken) {
+        String unlinkUrl = "https://kapi.kakao.com/v1/user/unlink";
+
+        // 헤더에 액세스 토큰 추가
+        HttpHeaders headers = new HttpHeaders();
+        headers.set("Authorization", "Bearer " + accessToken);
+
+        // 요청 보내기
+        HttpEntity<String> request = new HttpEntity<>(headers);
+        ResponseEntity<String> response = restTemplate.exchange(
+                unlinkUrl,
+                HttpMethod.POST,
+                request,
+                String.class
+        );
     }
 }
