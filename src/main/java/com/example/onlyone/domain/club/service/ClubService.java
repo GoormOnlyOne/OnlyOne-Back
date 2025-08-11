@@ -9,6 +9,7 @@ import com.example.onlyone.domain.chat.repository.UserChatRoomRepository;
 import com.example.onlyone.domain.club.dto.request.ClubRequestDto;
 import com.example.onlyone.domain.club.dto.response.ClubCreateResponseDto;
 import com.example.onlyone.domain.club.dto.response.ClubDetailResponseDto;
+import com.example.onlyone.domain.club.dto.response.ClubNameResponseDto;
 import com.example.onlyone.domain.club.entity.Club;
 import com.example.onlyone.domain.club.entity.ClubRole;
 import com.example.onlyone.domain.club.entity.UserClub;
@@ -27,6 +28,8 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.log4j.Log4j2;
 import org.springframework.stereotype.Service;
 
+import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
 
 @Log4j2
@@ -142,5 +145,21 @@ public class ClubService {
             throw new CustomException(ErrorCode.CLUB_LEADER_NOT_LEAVE);
         }
         userClubRepository.delete(userClub);
+    }
+
+    /* 가입하고 있는 모임 조회*/
+    public List<ClubNameResponseDto> getClubNames() {
+        Long userId = userService.getCurrentUser().getUserId();
+
+        List<UserClub> userClubs = userClubRepository.findByUserUserId(userId);
+
+        return userClubs.stream()
+                .map(UserClub::getClub)
+                .filter(Objects::nonNull)
+                .map(c -> ClubNameResponseDto.builder()
+                        .clubId(c.getClubId())
+                        .name(c.getName())
+                        .build())
+                .toList();
     }
 }
