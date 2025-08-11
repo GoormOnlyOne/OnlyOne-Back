@@ -46,7 +46,7 @@ public class Feed extends BaseTimeEntity {
     @Enumerated(EnumType.STRING)
     @Column(name = "type")
     @NotNull
-    @Builder.Default()
+    @Builder.Default
     private FeedType feedType = FeedType.ORIGINAL;
 
     @ManyToOne(fetch = FetchType.LAZY)
