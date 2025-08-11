@@ -30,8 +30,8 @@ public interface UserClubRepository extends JpaRepository<UserClub,Long> {
              where uc2.club = c)
     from UserClub uc
       join uc.club c
-   where uc.user.userId = :userId
-   group by c
-""")
+    where uc.user.userId = :userId
+    order by c.modifiedAt desc
+    """)
     List<Object[]> findMyClubsWithMemberCount(@Param("userId") Long userId);
 }
