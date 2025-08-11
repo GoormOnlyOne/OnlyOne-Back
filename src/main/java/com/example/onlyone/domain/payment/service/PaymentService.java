@@ -85,6 +85,7 @@ public class PaymentService {
                 .orElseGet(() -> {
                     Payment p = Payment.builder()
                             .tossOrderId(req.getOrderId())
+                            .tossOrderId(req.getOrderId())
                             .status(Status.IN_PROGRESS)
                             .totalAmount(req.getAmount())
                             .build();
@@ -121,7 +122,7 @@ public class PaymentService {
                 .targetWallet(wallet)
                 .build();
         walletTransactionRepository.save(walletTransaction);
-        payment.updateStatus(Status.DONE);
+        payment.updateOnConfirm(response.getStatus(), response.getMethod());
         walletTransaction.updatePayment(payment);
         return response;
     }
