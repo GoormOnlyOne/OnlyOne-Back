@@ -129,6 +129,15 @@ public class ClubService {
                 .clubRole(ClubRole.MEMBER)
                 .build();
         userClubRepository.save(userClub);
+
+        ChatRoom chatRoom = chatRoomRepository.findByTypeAndClub_ClubId(Type.CLUB, clubId)
+                .orElseThrow(() -> new CustomException(ErrorCode.CHAT_ROOM_NOT_FOUND));
+        UserChatRoom userChatRoom = UserChatRoom.builder()
+                .user(user)
+                .chatRoom(chatRoom)
+                .chatRole(ChatRole.MEMBER)
+                .build();
+        userChatRoomRepository.save(userChatRoom);
     }
 
     /* 모임 탈퇴*/
