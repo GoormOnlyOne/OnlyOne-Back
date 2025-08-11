@@ -12,15 +12,17 @@ import com.example.onlyone.domain.notification.repository.NotificationRepository
 import com.example.onlyone.domain.notification.repository.NotificationTypeRepository;
 import com.example.onlyone.domain.user.entity.User;
 import com.example.onlyone.domain.user.repository.UserRepository;
-import com.example.onlyone.domain.user.service.UserService;
 import com.example.onlyone.global.exception.CustomException;
 import com.example.onlyone.global.exception.ErrorCode;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.event.TransactionPhase;
+import org.springframework.transaction.event.TransactionalEventListener;
 
-import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
@@ -38,7 +40,7 @@ public class NotificationService {
   private final NotificationRepository notificationRepository;
   private final SseEmittersService sseEmittersService;
   private final FcmService fcmService;
-  private final UserService userService;
+  private final ApplicationEventPublisher eventPublisher;
 
   /**
    * 알림 생성 및 전송
@@ -51,25 +53,42 @@ public class NotificationService {
     NotificationType type = findNotificationType(requestDto.getType());
 
     AppNotification appNotification = createAndSaveNotification(user, type, requestDto.getArgs());
-    sendNotifications(appNotification);
+    
+    // 이벤트 발행 (트랜잭션 커밋 후 자동 처리)
+    eventPublisher.publishEvent(new NotificationCreatedEvent(appNotification));
 
-    log.info("Notification created: id={}", appNotification.getNotificationId());
+    log.info("Notification created and event published: id={}", appNotification.getNotificationId());
     return NotificationCreateResponseDto.from(appNotification);
   }
 
   /**
-   * 알림 생성 및 전송
+   * 알림 생성 편의 메서드 (다른 서비스에서 사용)
    */
   @Transactional
-  public void createNotification(User user, Type notificationType, String[] args) {
-    NotificationType type = findNotificationType(notificationType);
-    AppNotification appNotification;
-    try {
-      appNotification = createAndSaveNotification(user, type, args);
-      sendNotifications(appNotification);
-    } catch (Exception e) {
-      log.warn("알림 생성 실패, type={}, args={}", notificationType, Arrays.toString(args), e);
-    }
+  public NotificationCreateResponseDto createNotification(User user, Type type, String... args) {
+    log.debug("Creating notification via convenience method: userId={}, type={}", user.getUserId(), type);
+
+    NotificationType notificationType = findNotificationType(type);
+    AppNotification appNotification = createAndSaveNotification(user, notificationType, args);
+    
+    // 이벤트 발행 (트랜잭션 커밋 후 자동 처리)
+    eventPublisher.publishEvent(new NotificationCreatedEvent(appNotification));
+
+    log.info("Notification created via convenience method and event published: id={}", appNotification.getNotificationId());
+    return NotificationCreateResponseDto.from(appNotification);
+  }
+
+  /**
+   * 트랜잭션 커밋 후 실시간 알림 전송 이벤트 처리
+   */
+  @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
+  @Async
+  public void handleNotificationCreated(NotificationCreatedEvent event) {
+    AppNotification appNotification = event.getNotification();
+    log.debug("Handling notification created event: id={}", appNotification.getNotificationId());
+    
+    sendSseNotificationSafely(appNotification);
+    sendFcmNotificationAsyncSafely(appNotification);
   }
 
   /**
@@ -130,19 +149,7 @@ public class NotificationService {
     log.info("Notification deleted: id={}", notificationId);
   }
 
-  /**
-   * 알림 생성 이벤트 처리
-   */
-  public void sendCreated(AppNotification appNotification) {
-    sendSseNotificationSafely(appNotification);
-  }
 
-  /**
-   * 알림 읽음 이벤트 처리
-   */
-  public void sendRead(AppNotification appNotification) {
-    sendUnreadCountUpdate(appNotification.getUser().getUserId());
-  }
 
   // ================================
   // Private Helper Methods
@@ -183,7 +190,7 @@ public class NotificationService {
 
   private void sendNotifications(AppNotification appNotification) {
     sendSseNotificationSafely(appNotification);
-    sendFcmNotificationSafely(appNotification);
+    sendFcmNotificationAsyncSafely(appNotification);
   }
 
   private void sendSseNotificationSafely(AppNotification appNotification) {
@@ -194,54 +201,63 @@ public class NotificationService {
     );
   }
 
-  private void sendFcmNotificationSafely(AppNotification appNotification) {
+  private void sendFcmNotificationAsyncSafely(AppNotification appNotification) {
     Long userId = appNotification.getUser().getUserId();
     String fcmToken = appNotification.getUser().getFcmToken();
     
-    // FCM 토큰 상태 로깅
-    log.info("FCM notification attempt: userId={}, notificationId={}, hasToken={}, tokenLength={}", 
+    // FCM 토큰 상태 상세 로깅
+    log.info("FCM notification attempt: userId={}, notificationId={}, hasToken={}, tokenLength={}, tokenPrefix={}", 
         userId, appNotification.getNotificationId(), 
-        fcmToken != null, fcmToken != null ? fcmToken.length() : 0);
+        fcmToken != null, fcmToken != null ? fcmToken.length() : 0,
+        fcmToken != null ? fcmToken.substring(0, Math.min(20, fcmToken.length())) + "..." : "null");
     
     if (fcmToken == null || fcmToken.isBlank()) {
       log.warn("FCM token is null or empty for user: {}, skipping FCM notification", userId);
-      appNotification.markFcmSent(false);
+      updateFcmSentStatus(appNotification, false);
       return;
     }
     
     try {
       fcmService.sendFcmNotification(appNotification);
-      appNotification.markFcmSent(true);
+      updateFcmSentStatus(appNotification, true);
       log.debug("FCM notification sent successfully: id={}", appNotification.getNotificationId());
 
     } catch (CustomException e) {
       // FCM 관련 CustomException은 이미 FcmService에서 적절히 로깅됨
-      appNotification.markFcmSent(false);
+      updateFcmSentStatus(appNotification, false);
       log.debug("FCM notification failed with CustomException: id={}, errorCode={}",
           appNotification.getNotificationId(), e.getErrorCode());
 
-      // FCM 토큰 관련 에러인 경우 추가 처리 가능
+      // FCM 토큰 관련 에러인 경우 로깅만 수행
       if (e.getErrorCode() == ErrorCode.FCM_TOKEN_NOT_FOUND) {
-        handleInvalidFcmToken(appNotification.getUser());
+        log.warn("FCM token not found for user: {}, client should refresh token", 
+            appNotification.getUser().getUserId());
+      } else if (e.getErrorCode() == ErrorCode.FCM_TOKEN_REFRESH_REQUIRED) {
+        log.warn("FCM token refresh required for user: {}, client should re-register token", 
+            appNotification.getUser().getUserId());
       }
 
     } catch (Exception e) {
       // 예상치 못한 예외 (FcmService에서 모든 예외를 CustomException으로 변환하므로 발생하지 않아야 함)
-      appNotification.markFcmSent(false);
+      updateFcmSentStatus(appNotification, false);
       log.error("Unexpected FCM error: id={}, error={}",
           appNotification.getNotificationId(), e.getMessage(), e);
     }
   }
 
-  private void handleInvalidFcmToken(User user) {
+  @Transactional
+  private void updateFcmSentStatus(AppNotification appNotification, boolean sent) {
     try {
-      // FCM 토큰이 무효한 경우 처리 로직
-      log.info("Handling invalid FCM token for user: {}", user.getUserId());
-      user.clearFcmToken(); // 무효한 토큰 제거
-      log.info("Cleared invalid FCM token for user: {}", user.getUserId());
+      // 새로운 트랜잭션에서 FCM 전송 상태 업데이트
+      AppNotification managedNotification = notificationRepository.findById(appNotification.getNotificationId())
+          .orElse(null);
+      if (managedNotification != null) {
+        managedNotification.markFcmSent(sent);
+        notificationRepository.save(managedNotification);
+      }
     } catch (Exception e) {
-      log.error("Failed to handle invalid FCM token for user: {}, error={}",
-          user.getUserId(), e.getMessage());
+      log.error("Failed to update FCM sent status: notificationId={}, error={}", 
+          appNotification.getNotificationId(), e.getMessage());
     }
   }
 
@@ -294,5 +310,20 @@ public class NotificationService {
         .hasMore(hasMore)
         .unreadCount(unreadCount)
         .build();
+  }
+
+  /**
+   * 알림 생성 이벤트 클래스
+   */
+  public static class NotificationCreatedEvent {
+    private final AppNotification notification;
+
+    public NotificationCreatedEvent(AppNotification notification) {
+      this.notification = notification;
+    }
+
+    public AppNotification getNotification() {
+      return notification;
+    }
   }
 }
