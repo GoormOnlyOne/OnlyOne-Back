@@ -103,7 +103,7 @@ public class UserController {
   }
 
   @Operation(summary = "유저 정산 요청 조회", description = "최근 처리된 정산 / 아직 처리되지 않은 정산 목록을 조회합니다.")
-  @GetMapping("/me")
+  @GetMapping("/settlement")
   public ResponseEntity<?> getMySettlementList(@PageableDefault(size = 20, sort = "createdAt", direction = Sort.Direction.DESC)
                                                Pageable pageable) {
     return ResponseEntity.ok(CommonResponse.success(userService.getMySettlementList(pageable)));
