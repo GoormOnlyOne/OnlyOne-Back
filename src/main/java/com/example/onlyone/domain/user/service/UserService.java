@@ -98,7 +98,7 @@ public class UserService {
             User user = existingUser.get();
 
             // 탈퇴한 사용자(INACTIVE)는 재로그인 금지
-            if (Status.INACTIVE.name().equals(user.getStatus())) {
+            if (Status.INACTIVE.equals(user.getStatus())) {
                 throw new CustomException(ErrorCode.USER_WITHDRAWN);
             }
 
@@ -108,7 +108,7 @@ public class UserService {
 
             // 기존 사용자 - GUEST 상태면 회원가입 필요, ACTIVE면 회원가입 완료
             result.put("user", user);
-            result.put("isNewUser", Status.GUEST().equals(user.getStatus()));
+            result.put("isNewUser", Status.GUEST.equals(user.getStatus()));
         } else {
             // 신규 사용자 생성
             User newUser = User.builder()

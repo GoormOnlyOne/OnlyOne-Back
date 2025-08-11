@@ -86,16 +86,12 @@ public class User extends BaseTimeEntity {
   }
 
   public void withdraw() {
-    this.status = Status.INACTIVE.name();
-    this.kakaoAccessToken = null; // 탈퇴 시 카카오 토큰도 제거
+    this.status = Status.INACTIVE;
+    this.kakaoAccessToken = null;
   }
 
   public void completeSignup() {
-    this.status = Status.ACTIVE.name();
-  }
-
-  public void updateStatus(String status) {
-    this.status = status;
+    this.status = Status.ACTIVE;
   }
 
   /**
