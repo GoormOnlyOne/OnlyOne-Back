@@ -112,6 +112,15 @@ public class NotificationService {
   }
 
   /**
+   * 읽지 않은 알림 개수 조회
+   */
+  @Transactional(readOnly = true)
+  public Long getUnreadCount(Long userId) {
+    log.debug("Fetching unread count: userId={}", userId);
+    return notificationRepository.countByUser_UserIdAndIsReadFalse(userId);
+  }
+
+  /**
    * 모든 알림 읽음 처리
    */
   @Transactional
