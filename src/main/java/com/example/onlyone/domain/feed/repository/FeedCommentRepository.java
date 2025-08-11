@@ -8,5 +8,5 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import java.util.List;
 
 public interface FeedCommentRepository extends JpaRepository<FeedComment, Long> {
-    List<FeedComment> findByFeedOrderByCreatedAtDesc(Feed feed, Pageable pageable);
+    List<FeedComment> findByFeedOrderByCreatedAt(Feed feed, Pageable pageable);
 }
