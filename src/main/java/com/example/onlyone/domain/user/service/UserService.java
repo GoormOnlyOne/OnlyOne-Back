@@ -3,6 +3,9 @@ package com.example.onlyone.domain.user.service;
 import com.example.onlyone.domain.interest.entity.Category;
 import com.example.onlyone.domain.interest.entity.Interest;
 import com.example.onlyone.domain.interest.repository.InterestRepository;
+import com.example.onlyone.domain.settlement.dto.response.MySettlementDto;
+import com.example.onlyone.domain.settlement.dto.response.MySettlementResponseDto;
+import com.example.onlyone.domain.settlement.repository.UserSettlementRepository;
 import com.example.onlyone.domain.user.dto.request.ProfileUpdateRequestDto;
 import com.example.onlyone.domain.user.dto.request.SignupRequestDto;
 import com.example.onlyone.domain.user.dto.response.MyPageResponse;
@@ -15,6 +18,7 @@ import com.example.onlyone.domain.user.repository.UserInterestRepository;
 import com.example.onlyone.domain.user.repository.UserRepository;
 import com.example.onlyone.domain.wallet.entity.Wallet;
 import com.example.onlyone.domain.wallet.repository.WalletRepository;
+import com.example.onlyone.domain.wallet.service.WalletService;
 import com.example.onlyone.global.exception.CustomException;
 import com.example.onlyone.global.exception.ErrorCode;
 import io.jsonwebtoken.Jwts;
@@ -22,6 +26,8 @@ import io.jsonwebtoken.security.Keys;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.log4j.Log4j2;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -29,6 +35,7 @@ import org.springframework.security.core.Authentication;
 
 import javax.crypto.SecretKey;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.*;
 import java.util.stream.Collectors;
 import java.util.Objects;
@@ -42,6 +49,7 @@ public class UserService {
     private final UserInterestRepository userInterestRepository;
     private final InterestRepository interestRepository;
     private final WalletRepository walletRepository;
+    private final UserSettlementRepository userSettlementRepository;
 
     @Value("${jwt.secret}")
     private String jwtSecret;
@@ -372,4 +380,10 @@ public class UserService {
         log.info("FCM token cleared for user: {}", userId);
     }
 
+    @Transactional(readOnly = true)
+    public MySettlementResponseDto getMySettlementList(Pageable pageable) {
+        User user = getCurrentUser();
+        Page<MySettlementDto> userSettlementList = userSettlementRepository.findMyRecentOrRequested(user, LocalDateTime.now().minusDays(10), pageable);
+        return MySettlementResponseDto.from(userSettlementList);
+    }
 }
