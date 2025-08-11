@@ -226,7 +226,7 @@ public class FeedMainService {
                         .orElseThrow(() -> new CustomException(ErrorCode.FEED_NOT_FOUND));
         Long userId = userService.getCurrentUser().getUserId();
 
-        return  feedCommentRepository.findByFeedOrderByCreatedAtDesc(feed,pageable)
+        return  feedCommentRepository.findByFeedOrderByCreatedAt(feed,pageable)
                 .stream()
                 .map(c -> FeedCommentResponseDto.from(c,userId))
                 .toList();

@@ -56,7 +56,7 @@ public class FeedMainController {
     public ResponseEntity<?> getCommentList(@PathVariable Long feedId,
                                             @RequestParam(name = "page", defaultValue = "0")  int page,
                                             @RequestParam(name = "limit", defaultValue = "20") int limit) {
-        Pageable pageable = PageRequest.of(page, limit, Sort.by(Sort.Direction.DESC, "createdAt"));
+        Pageable pageable = PageRequest.of(page, limit, Sort.by(Sort.Direction.ASC, "createdAt"));
         List<FeedCommentResponseDto> feedCommentResponseDto = feedMainService.getCommentList(feedId, pageable);
         return ResponseEntity.ok(CommonResponse.success(feedCommentResponseDto));
     }
