@@ -27,49 +27,53 @@ public class UserController {
   private final UserService userService;
 
   /**
-   * FCM 토큰 상태 조회
+   * FCM 토큰 상태 조회 - 인증된 사용자 본인만
    */
-  @Operation(summary = "FCM 토큰 상태 조회", description = "사용자의 FCM 토큰 등록 여부를 확인합니다")
-  @GetMapping("/{userId}/fcm-token/status")
-  public ResponseEntity<CommonResponse<Map<String, Object>>> getFcmTokenStatus(@PathVariable Long userId) {
+  @Operation(summary = "FCM 토큰 상태 조회", description = "현재 로그인한 사용자의 FCM 토큰 등록 여부를 확인합니다")
+  @GetMapping("/fcm-token/status")
+  public ResponseEntity<CommonResponse<Map<String, Object>>> getFcmTokenStatus() {
     
-    User user = userService.getMemberById(userId);
+    // JWT에서 사용자 정보 추출
+    User currentUser = userService.getCurrentUser();
     
     Map<String, Object> status = new HashMap<>();
-    status.put("hasToken", user.hasFcmToken());
-    status.put("tokenLength", user.getFcmToken() != null ? user.getFcmToken().length() : 0);
+    status.put("hasToken", currentUser.hasFcmToken());
+    status.put("tokenLength", currentUser.getFcmToken() != null ? currentUser.getFcmToken().length() : 0);
     
-    log.debug("FCM token status checked for user: {}, hasToken: {}", userId, user.hasFcmToken());
+    log.debug("FCM token status checked for user: {}", currentUser.getUserId());
     
     return ResponseEntity.ok(CommonResponse.success(status));
   }
 
   /**
-   * FCM 토큰 등록/업데이트
+   * FCM 토큰 등록/업데이트 - 인증된 사용자 본인만
    */
-  @Operation(summary = "FCM 토큰 등록", description = "사용자의 FCM 토큰을 등록하거나 업데이트합니다")
-  @PutMapping("/{userId}/fcm-token")
-  @Transactional
+  @Operation(summary = "FCM 토큰 등록", description = "현재 로그인한 사용자의 FCM 토큰을 등록하거나 업데이트합니다")
+  @PutMapping("/fcm-token")
   public ResponseEntity<CommonResponse<Void>> updateFcmToken(
-      @PathVariable Long userId,
       @RequestParam String fcmToken) {
 
-    userService.updateFcmToken(userId, fcmToken);
-    log.info("FCM token updated successfully for user: {}", userId);
+    // JWT에서 사용자 정보 추출
+    User currentUser = userService.getCurrentUser();
+    
+    userService.updateFcmToken(currentUser.getUserId(), fcmToken);
+    log.info("FCM token updated successfully for user: {}", currentUser.getUserId());
 
     return ResponseEntity.ok(CommonResponse.success(null));
   }
 
   /**
-   * FCM 토큰 삭제
+   * FCM 토큰 삭제 - 인증된 사용자 본인만
    */
-  @Operation(summary = "FCM 토큰 삭제", description = "사용자의 FCM 토큰을 삭제합니다 (로그아웃 시 사용)")
-  @DeleteMapping("/{userId}/fcm-token")
-  @Transactional
-  public ResponseEntity<CommonResponse<Void>> deleteFcmToken(@PathVariable Long userId) {
+  @Operation(summary = "FCM 토큰 삭제", description = "현재 로그인한 사용자의 FCM 토큰을 삭제합니다 (로그아웃 시 사용)")
+  @DeleteMapping("/fcm-token")
+  public ResponseEntity<CommonResponse<Void>> deleteFcmToken() {
 
-    userService.clearFcmToken(userId);
-    log.info("FCM token deleted successfully for user: {}", userId);
+    // JWT에서 사용자 정보 추출
+    User currentUser = userService.getCurrentUser();
+    
+    userService.clearFcmToken(currentUser.getUserId());
+    log.info("FCM token deleted successfully for user: {}", currentUser.getUserId());
 
     return ResponseEntity.ok(CommonResponse.success(null));
   }

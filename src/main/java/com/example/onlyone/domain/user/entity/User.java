@@ -75,21 +75,16 @@ public class User extends BaseTimeEntity {
   }
 
   /**
-   * FCM 토큰 형식 유효성 검증
+   * FCM 토큰 형식 유효성 검증 (MVP용 - 최소한의 검증)
+   * 실제 Firebase 전송 결과로 유효성 최종 판단
    */
   private void validateFcmTokenFormat(String fcmToken) {
     if (fcmToken == null || fcmToken.isBlank()) {
       throw new IllegalArgumentException("FCM token cannot be null or empty");
     }
 
-    // FCM 토큰 길이 검증 (140-165자)
-    if (fcmToken.length() < 140 || fcmToken.length() > 165) {
-      throw new IllegalArgumentException("Invalid FCM token length");
-    }
-
-    // FCM 토큰 패턴 검증 (영문자, 숫자, 하이픈, 언더스코어, 콜론만 허용)
-    if (!fcmToken.matches("^[a-zA-Z0-9_:-]+$")) {
-      throw new IllegalArgumentException("Invalid FCM token format");
-    }
+    // MVP 단계에서는 null/빈값 체크만 수행
+    // 길이, 패턴 검증은 실제 FCM 전송 결과로 판단
+    // 프로덕션에서는 실제 토큰 샘플 기반으로 검증 로직 추가 예정
   }
 }
