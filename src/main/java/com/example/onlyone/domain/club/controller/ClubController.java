@@ -56,12 +56,4 @@ public class ClubController {
         clubService.leaveClub(clubId);
         return ResponseEntity.status(HttpStatus.OK).body(CommonResponse.success(null));
     }
-
-    @Operation(summary = "가입하고 있는 모임 조회", description = "가입하고 있는 모임을 조회한다.")
-    @GetMapping
-    public ResponseEntity<?> getClubNames() {
-        List<ClubNameResponseDto> clubNameResponseDto = clubService.getClubNames();
-        return ResponseEntity.status(HttpStatus.OK).body(CommonResponse.success(clubNameResponseDto));
-    }
-
 }

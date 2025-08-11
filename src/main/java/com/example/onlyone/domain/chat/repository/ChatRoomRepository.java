@@ -26,4 +26,6 @@ public interface ChatRoomRepository extends JpaRepository<ChatRoom,Long> {
     // 정기 모임 관련 채팅 목록 중 정기 모임
     Optional<ChatRoom> findByTypeAndScheduleId(Type type, Long scheduleId);
 
+    // 전체 채팅 조회
+    Optional<ChatRoom> findByTypeAndClub_ClubId(Type type, Long clubId);
 }

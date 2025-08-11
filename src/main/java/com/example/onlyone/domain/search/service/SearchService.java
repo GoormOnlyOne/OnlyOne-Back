@@ -1,6 +1,7 @@
 package com.example.onlyone.domain.search.service;
 
 import com.example.onlyone.domain.club.entity.Club;
+import com.example.onlyone.domain.club.entity.UserClub;
 import com.example.onlyone.domain.club.repository.ClubRepository;
 import com.example.onlyone.domain.club.repository.UserClubRepository;
 import com.example.onlyone.domain.interest.entity.Category;
@@ -177,4 +178,16 @@ public class SearchService {
             return ClubResponseDto.from(club, memberCount, isJoined);
         }).toList();
     }
+
+    // 내 모임 목록 조회
+    public List<ClubResponseDto> getMyClubs() {
+        Long userId = userService.getCurrentUser().getUserId();
+        List<Object[]> rows = userClubRepository.findMyClubsWithMemberCount(userId);
+        return rows.stream().map(row -> {
+            Club club = (Club) row[0];
+            Long memberCount = (Long) row[1];
+            return ClubResponseDto.from(club, memberCount, true);
+        }).toList();
+    }
+
 }
