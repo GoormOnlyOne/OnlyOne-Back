@@ -112,26 +112,6 @@ public class NotificationService {
   }
 
   /**
-   * 전체 알림 목록 조회 (커서 기반 페이징) - 읽은 알림 포함
-   */
-  @Transactional(readOnly = true)
-  public NotificationListResponseDto getAllNotifications(Long userId, Long cursor, int size) {
-    log.debug("Fetching all notifications: userId={}, cursor={}, size={}", userId, cursor, size);
-
-    size = Math.min(size, 100); // 최대 100개 제한
-
-    List<NotificationListProjection> projections = (cursor == null)
-        ? notificationRepository.findAllFirstPageByUserId(userId, size)
-        : notificationRepository.findAllAfterCursorByUserId(userId, cursor, size);
-
-    List<NotificationItemDto> notifications = projections.stream()
-        .map(this::toNotificationItemDto)
-        .collect(Collectors.toList());
-
-    return buildNotificationListResponse(userId, notifications);
-  }
-
-  /**
    * 모든 알림 읽음 처리
    */
   @Transactional

@@ -87,50 +87,6 @@ public interface NotificationRepository extends JpaRepository<AppNotification, L
   );
 
   /**
-   * 첫 페이지 전체 알림 목록 조회 (읽은 알림 포함)
-   */
-  @Query(value = """
-        SELECT 
-            n.notification_id as notificationId,
-            n.content as content,
-            nt.type as type,
-            n.is_read as isRead,
-            n.created_at as createdAt
-        FROM notification n
-        INNER JOIN notification_type nt ON n.type_id = nt.type_id
-        WHERE n.user_id = :userId
-        ORDER BY n.notification_id DESC
-        LIMIT :limit
-        """, nativeQuery = true)
-  List<NotificationListProjection> findAllFirstPageByUserId(
-      @Param("userId") Long userId,
-      @Param("limit") int limit
-  );
-
-  /**
-   * 커서 이후 전체 알림 목록 조회 (읽은 알림 포함)
-   */
-  @Query(value = """
-        SELECT 
-            n.notification_id as notificationId,
-            n.content as content,
-            nt.type as type,
-            n.is_read as isRead,
-            n.created_at as createdAt
-        FROM notification n
-        INNER JOIN notification_type nt ON n.type_id = nt.type_id
-        WHERE n.user_id = :userId
-          AND n.notification_id < :cursor
-        ORDER BY n.notification_id DESC
-        LIMIT :limit
-        """, nativeQuery = true)
-  List<NotificationListProjection> findAllAfterCursorByUserId(
-      @Param("userId") Long userId,
-      @Param("cursor") Long cursor,
-      @Param("limit") int limit
-  );
-
-  /**
    * 네이티브 쿼리 결과를 위한 프로젝션 인터페이스
    */
   interface NotificationListProjection {
