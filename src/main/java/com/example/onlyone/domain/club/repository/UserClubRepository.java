@@ -22,4 +22,16 @@ public interface UserClubRepository extends JpaRepository<UserClub,Long> {
     List<Long> findUserIdByClubIds(@Param("clubIds") List<Long> clubIds);
 
     List<UserClub> findByUserUserIdIn(Collection<Long> userIds);
+
+    @Query("""
+    select c,
+           (select count(uc2)
+              from UserClub uc2
+             where uc2.club = c)
+    from UserClub uc
+      join uc.club c
+    where uc.user.userId = :userId
+    order by c.modifiedAt desc
+    """)
+    List<Object[]> findMyClubsWithMemberCount(@Param("userId") Long userId);
 }
