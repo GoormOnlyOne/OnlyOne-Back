@@ -1,5 +1,6 @@
 package com.example.onlyone.global.filter;
 
+import com.example.onlyone.domain.user.entity.Status;
 import com.example.onlyone.domain.user.entity.User;
 import com.example.onlyone.domain.user.repository.UserRepository;
 import com.example.onlyone.global.exception.CustomException;
@@ -60,8 +61,8 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             Optional<User> userOpt = userRepository.findByKakaoId(kakaoId);
             if (userOpt.isPresent()) {
                 User user = userOpt.get();
-                
-                if ("INACTIVE".equals(user.getStatus())) {
+
+                if (Status.INACTIVE.name().equals(user.getStatus())) {
                     // 로그아웃 요청은 탈퇴한 사용자도 허용 (토큰 정리를 위해)
                     if (!"/auth/logout".equals(request.getRequestURI())) {
                         throw new CustomException(ErrorCode.USER_WITHDRAWN);
