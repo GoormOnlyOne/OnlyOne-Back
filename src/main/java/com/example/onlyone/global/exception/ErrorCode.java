@@ -68,6 +68,7 @@ public enum ErrorCode {
     SETTLEMENT_NOT_FOUND(404, "SETTLEMENT_404_1", "정산을 찾을 수 없습니다."),
     USER_SETTLEMENT_NOT_FOUND(404, "SETTLEMENT_404_2", "정산 참여자를 찾을 수 없습니다."),
     ALREADY_SETTLED_USER(409, "SETTLEMENT_409_1", "이미 해당 정기 모임에 대해 정산한 유저입니다."),
+    SETTLEMENT_PROCESS_FAILED(500, "SETTLEMENT_500_1", "정산 처리 중 오류가 발생했습니다. 다시 시도해 주세요."),
 
     // Wallet
     INVALID_FILTER(400, "WALLET_400_1", "유효하지 않은 필터입니다."),

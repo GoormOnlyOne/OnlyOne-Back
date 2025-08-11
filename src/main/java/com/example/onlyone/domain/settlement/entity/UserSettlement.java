@@ -43,4 +43,8 @@ public class UserSettlement extends BaseTimeEntity {
         this.settlementStatus = settlementStatus;
         this.completedTime = completedTime;
     }
+
+    public void updateStatus(SettlementStatus settlementStatus) {
+        this.settlementStatus = settlementStatus;
+    }
 }
