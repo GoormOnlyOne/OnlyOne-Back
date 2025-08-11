@@ -55,6 +55,8 @@ class AppNotificationServiceTest {
   private SseEmittersService sseEmittersService;
   @Mock
   private FcmService fcmService;
+  @Mock
+  private org.springframework.context.ApplicationEventPublisher eventPublisher;
   @InjectMocks
   private NotificationService service;
 
@@ -161,7 +163,7 @@ class AppNotificationServiceTest {
       // given
       Long userId = 1L;
       Long notificationId = 10L;
-      User mockUser = createMockUser();
+      User mockUser = createMockUserWithValidToken();
       AppNotification mockAppNotification = createMockNotification(mockUser);
 
       given(mockAppNotification.getIsRead()).willReturn(false);
@@ -182,7 +184,7 @@ class AppNotificationServiceTest {
       // given
       Long userId = 1L;
       Long notificationId = 10L;
-      User mockUser = createMockUser();
+      User mockUser = createMockUserWithValidToken();
       AppNotification mockAppNotification = createMockNotification(mockUser);
 
       given(mockAppNotification.getIsRead()).willReturn(true);
@@ -278,31 +280,20 @@ class AppNotificationServiceTest {
   class EventHandlingTests {
 
     @Test
-    @DisplayName("알림 생성 이벤트 - SSE 전송")
-    void sendCreated_Success() {
+    @DisplayName("알림 생성 이벤트 처리 - SSE 및 FCM 전송")
+    void handleNotificationCreated_Success() {
       // given
-      User mockUser = createMockUser();
+      User mockUser = createMockUserWithValidToken();
       AppNotification mockAppNotification = createMockNotification(mockUser);
+      NotificationService.NotificationCreatedEvent event = 
+          new NotificationService.NotificationCreatedEvent(mockAppNotification);
 
       // when
-      service.sendCreated(mockAppNotification);
+      service.handleNotificationCreated(event);
 
       // then
       then(sseEmittersService).should().sendSseNotification(1L, mockAppNotification);
-    }
-
-    @Test
-    @DisplayName("알림 읽음 이벤트 - 읽지 않은 개수 업데이트")
-    void sendRead_Success() {
-      // given
-      User mockUser = createMockUser();
-      AppNotification mockAppNotification = createMockNotification(mockUser);
-
-      // when
-      service.sendRead(mockAppNotification);
-
-      // then
-      then(sseEmittersService).should().sendUnreadCountUpdate(1L);
+      then(fcmService).should().sendFcmNotification(mockAppNotification);
     }
   }
 

@@ -16,7 +16,7 @@ import com.example.onlyone.global.exception.CustomException;
 import com.example.onlyone.global.exception.ErrorCode;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.context.event.EventListener;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -40,6 +40,7 @@ public class NotificationService {
   private final NotificationRepository notificationRepository;
   private final SseEmittersService sseEmittersService;
   private final FcmService fcmService;
+  private final ApplicationEventPublisher eventPublisher;
 
   /**
    * 알림 생성 및 전송
@@ -53,10 +54,10 @@ public class NotificationService {
 
     AppNotification appNotification = createAndSaveNotification(user, type, requestDto.getArgs());
     
-    // 트랜잭션 커밋 후 알림 전송
-    sendNotificationsAfterCommit(appNotification);
+    // 이벤트 발행 (트랜잭션 커밋 후 자동 처리)
+    eventPublisher.publishEvent(new NotificationCreatedEvent(appNotification));
 
-    log.info("Notification created: id={}", appNotification.getNotificationId());
+    log.info("Notification created and event published: id={}", appNotification.getNotificationId());
     return NotificationCreateResponseDto.from(appNotification);
   }
 
@@ -70,20 +71,21 @@ public class NotificationService {
     NotificationType notificationType = findNotificationType(type);
     AppNotification appNotification = createAndSaveNotification(user, notificationType, args);
     
-    // 트랜잭션 커밋 후 알림 전송
-    sendNotificationsAfterCommit(appNotification);
+    // 이벤트 발행 (트랜잭션 커밋 후 자동 처리)
+    eventPublisher.publishEvent(new NotificationCreatedEvent(appNotification));
 
-    log.info("Notification created via convenience method: id={}", appNotification.getNotificationId());
+    log.info("Notification created via convenience method and event published: id={}", appNotification.getNotificationId());
     return NotificationCreateResponseDto.from(appNotification);
   }
 
   /**
-   * 트랜잭션 커밋 후 실시간 알림 전송
+   * 트랜잭션 커밋 후 실시간 알림 전송 이벤트 처리
    */
   @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
   @Async
-  public void sendNotificationsAfterCommit(AppNotification appNotification) {
-    log.debug("Sending notifications after transaction commit: id={}", appNotification.getNotificationId());
+  public void handleNotificationCreated(NotificationCreatedEvent event) {
+    AppNotification appNotification = event.getNotification();
+    log.debug("Handling notification created event: id={}", appNotification.getNotificationId());
     
     sendSseNotificationSafely(appNotification);
     sendFcmNotificationAsyncSafely(appNotification);
@@ -308,5 +310,20 @@ public class NotificationService {
         .hasMore(hasMore)
         .unreadCount(unreadCount)
         .build();
+  }
+
+  /**
+   * 알림 생성 이벤트 클래스
+   */
+  public static class NotificationCreatedEvent {
+    private final AppNotification notification;
+
+    public NotificationCreatedEvent(AppNotification notification) {
+      this.notification = notification;
+    }
+
+    public AppNotification getNotification() {
+      return notification;
+    }
   }
 }

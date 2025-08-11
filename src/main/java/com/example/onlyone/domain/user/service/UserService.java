@@ -27,6 +27,7 @@ import org.springframework.security.core.Authentication;
 import javax.crypto.SecretKey;
 import java.time.LocalDate;
 import java.util.*;
+import java.util.Objects;
 
 @Log4j2
 @Service
@@ -160,13 +161,14 @@ public class UserService {
     }
 
     /**
-     * FCM 토큰 업데이트 (중복 등록 방지)
+     * FCM 토큰 업데이트 (중복 등록 방지, Null-safe 비교)
      */
+    @Transactional
     public void updateFcmToken(Long userId, String fcmToken) {
         User user = getMemberById(userId);
 
-        // 동일한 토큰 중복 등록 방지
-        if (fcmToken.equals(user.getFcmToken())) {
+        // Null-safe 비교로 중복 등록 방지
+        if (Objects.equals(fcmToken, user.getFcmToken())) {
             log.debug("FCM token already registered for user: {}", userId);
             return;
         }
@@ -183,6 +185,7 @@ public class UserService {
     /**
      * FCM 토큰 삭제 (로그아웃 시)
      */
+    @Transactional
     public void clearFcmToken(Long userId) {
         User user = getMemberById(userId);
         user.clearFcmToken();
