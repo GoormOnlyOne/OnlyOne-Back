@@ -78,16 +78,24 @@ public class PaymentService {
 //        session.removeAttribute(dto.getOrderId());
     }
 
-    /* 토스페이먼츠 결제 승인 */
+    @Transactional
     public ConfirmTossPayResponse confirm(ConfirmTossPayRequest req) {
-        // 멱등성 체크: 이미 처리된 주문인지 확인
-        Optional<Payment> existingPayment = paymentRepository.findByTossOrderId(req.getOrderId());
-        if (existingPayment.isPresent()) {
+        // 멱등성, 동시성 보호: paymentKey로 행 잠금
+        Payment payment = paymentRepository.findByTossPaymentKey(req.getPaymentKey())
+                .orElseGet(() -> {
+                    Payment p = Payment.builder()
+                            .tossOrderId(req.getOrderId())
+                            .status(Status.IN_PROGRESS)
+                            .totalAmount(req.getAmount())
+                            .build();
+                    return paymentRepository.save(p);
+                });
+        if (payment.getStatus() == Status.DONE) {
             throw new CustomException(ErrorCode.ALREADY_COMPLETED_PAYMENT);
         }
-        ConfirmTossPayResponse response;
+        // 토스페이먼츠 승인 API 호출
+        final ConfirmTossPayResponse response;
         try {
-            // tossPaymentClient를 통해 호출
             response = tossPaymentClient.confirmPayment(req);
         } catch (FeignException.BadRequest e) {
             throw new CustomException(ErrorCode.INVALID_PAYMENT_INFO);
@@ -96,13 +104,14 @@ public class PaymentService {
         } catch (Exception e) {
             throw new CustomException(ErrorCode.INTERNAL_SERVER_ERROR);
         }
+        // 지갑/거래 업데이트
         User user = userService.getCurrentUser();
         Wallet wallet = walletRepository.findByUser(user)
                 .orElseThrow(() -> new CustomException(ErrorCode.WALLET_NOT_FOUND));
-        int amount = Math.toIntExact(req.getAmount());
-        // 포인트 업데이트
+        int amount = Math.toIntExact(response.getTotalAmount());
+        // 지갑 증액
         wallet.updateBalance(wallet.getBalance() + amount);
-        // 충전(결제) 기록
+        // 거래 기록
         WalletTransaction walletTransaction = WalletTransaction.builder()
                 .type(Type.CHARGE)
                 .amount(amount)
@@ -112,26 +121,36 @@ public class PaymentService {
                 .targetWallet(wallet)
                 .build();
         walletTransactionRepository.save(walletTransaction);
-        Payment payment = Payment.builder()
-                .tossPaymentKey(response.getPaymentKey())
-                .tossOrderId(response.getOrderId())
-                .totalAmount(response.getTotalAmount())
-                .method(Method.from(response.getMethod()))
-                .status(Status.from(response.getStatus()))
-                .walletTransaction(walletTransaction)
-                .build();
+        payment.updateStatus(Status.DONE);
         walletTransaction.updatePayment(payment);
         return response;
     }
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void reportFail(ConfirmTossPayRequest req) {
+        // 멱등성, 동시성 보호: paymentKey로 행 잠금
+        Payment payment = paymentRepository.findByTossPaymentKey(req.getPaymentKey())
+                .orElseGet(() -> {
+                    Payment p = Payment.builder()
+                            .tossOrderId(req.getOrderId())
+                            .totalAmount(req.getAmount())
+                            .status(Status.IN_PROGRESS)
+                            .build();
+                    return paymentRepository.save(p);
+                });
+        // 이미 완료된 결제면 기록하지 않음
+        if (payment.getStatus() == Status.DONE) {
+            return;
+        }
+        if (req.getPaymentKey() != null &&
+                payment.getTossPaymentKey() != null &&
+                payment.getTossPaymentKey().equals(req.getPaymentKey())) {
+            return;
+        }
+        // 실패 기록
         User user = userService.getCurrentUser();
         Wallet wallet = walletRepository.findByUser(user)
                 .orElseThrow(() -> new CustomException(ErrorCode.WALLET_NOT_FOUND));
-        // 멱등성 처리
-        if (paymentRepository.existsByTossPaymentKey(req.getPaymentKey())) return;
-        // 실패 기록
         WalletTransaction walletTransaction = WalletTransaction.builder()
                 .type(Type.CHARGE)
                 .amount(Math.toIntExact(req.getAmount()))
@@ -141,13 +160,8 @@ public class PaymentService {
                 .targetWallet(wallet)
                 .build();
         walletTransactionRepository.save(walletTransaction);
-        Payment payment = Payment.builder()
-                .tossPaymentKey(req.getPaymentKey())
-                .tossOrderId(req.getOrderId())
-                .totalAmount(req.getAmount())
-                .status(Status.CANCELED)
-                .walletTransaction(walletTransaction)
-                .build();
+        // Payment 갱신
+        payment.updateStatus(Status.CANCELED);
         walletTransaction.updatePayment(payment);
     }
 }
