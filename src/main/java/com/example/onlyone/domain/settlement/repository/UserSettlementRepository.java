@@ -10,6 +10,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
 import java.util.List;
 import java.util.Optional;
@@ -30,6 +31,41 @@ public interface UserSettlementRepository extends JpaRepository<UserSettlement,L
     where us.settlement = :settlement
     """)
     Page<UserSettlementDto> findAllDtoBySettlement(Settlement settlement, Pageable pageable);
+
+    @Query(
+            value = """
+  select new com.example.onlyone.domain.settlement.dto.response.UserSettlementDto(
+    u.userId, u.nickname, u.profileImage, us.settlementStatus
+  )
+  from UserSettlement us
+  join us.user u
+  where us.user = :user
+    and (
+      us.settlementStatus = com.example.onlyone.domain.settlement.entity.SettlementStatus.REQUESTED
+      or (
+        us.settlementStatus = com.example.onlyone.domain.settlement.entity.SettlementStatus.COMPLETED
+        and us.completedTime >= :cutoff
+      )
+    )
+  """,
+            countQuery = """
+  select count(us)
+  from UserSettlement us
+  where us.user = :user
+    and (
+      us.settlementStatus = com.example.onlyone.domain.settlement.entity.SettlementStatus.REQUESTED
+      or (
+        us.settlementStatus = com.example.onlyone.domain.settlement.entity.SettlementStatus.COMPLETED
+        and us.completedTime >= :cutoff
+      )
+    )
+  """
+    )
+    Page<UserSettlementDto> findRecentOrRequestedByUser(
+            @Param("user") User user,
+            @Param("cutoff") java.time.LocalDateTime cutoff,
+            Pageable pageable
+    );
 
     @Query("""
     SELECT us FROM UserSettlement us
