@@ -92,17 +92,37 @@ public class NotificationService {
   }
 
   /**
-   * 알림 목록 조회 (커서 기반 페이징)
+   * 알림 목록 조회 (커서 기반 페이징) - 읽지 않은 알림만
    */
   @Transactional(readOnly = true)
   public NotificationListResponseDto getNotifications(Long userId, Long cursor, int size) {
-    log.debug("Fetching notifications: userId={}, cursor={}, size={}", userId, cursor, size);
+    log.debug("Fetching unread notifications: userId={}, cursor={}, size={}", userId, cursor, size);
 
     size = Math.min(size, 100); // 최대 100개 제한
 
     List<NotificationListProjection> projections = (cursor == null)
         ? notificationRepository.findFirstPageByUserId(userId, size)
         : notificationRepository.findAfterCursorByUserId(userId, cursor, size);
+
+    List<NotificationItemDto> notifications = projections.stream()
+        .map(this::toNotificationItemDto)
+        .collect(Collectors.toList());
+
+    return buildNotificationListResponse(userId, notifications);
+  }
+
+  /**
+   * 전체 알림 목록 조회 (커서 기반 페이징) - 읽은 알림 포함
+   */
+  @Transactional(readOnly = true)
+  public NotificationListResponseDto getAllNotifications(Long userId, Long cursor, int size) {
+    log.debug("Fetching all notifications: userId={}, cursor={}, size={}", userId, cursor, size);
+
+    size = Math.min(size, 100); // 최대 100개 제한
+
+    List<NotificationListProjection> projections = (cursor == null)
+        ? notificationRepository.findAllFirstPageByUserId(userId, size)
+        : notificationRepository.findAllAfterCursorByUserId(userId, cursor, size);
 
     List<NotificationItemDto> notifications = projections.stream()
         .map(this::toNotificationItemDto)
