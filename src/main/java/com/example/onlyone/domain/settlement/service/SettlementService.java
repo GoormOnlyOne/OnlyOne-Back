@@ -8,6 +8,8 @@ import com.example.onlyone.domain.schedule.entity.ScheduleStatus;
 import com.example.onlyone.domain.schedule.entity.UserSchedule;
 import com.example.onlyone.domain.schedule.repository.ScheduleRepository;
 import com.example.onlyone.domain.schedule.repository.UserScheduleRepository;
+import com.example.onlyone.domain.settlement.dto.response.MySettlementDto;
+import com.example.onlyone.domain.settlement.dto.response.MySettlementResponseDto;
 import com.example.onlyone.domain.settlement.dto.response.SettlementResponseDto;
 import com.example.onlyone.domain.settlement.dto.response.UserSettlementDto;
 import com.example.onlyone.domain.settlement.entity.*;
@@ -195,9 +197,9 @@ public class SettlementService {
     }
 
     @Transactional(readOnly = true)
-    public SettlementResponseDto getMySettlementList(Pageable pageable) {
+    public MySettlementResponseDto getMySettlementList(Pageable pageable) {
         User user = userService.getCurrentUser();
-        Page<UserSettlementDto> userSettlementList = userSettlementRepository.findRecentOrRequestedByUser(user, LocalDateTime.now().minusDays(10), pageable);
-        return SettlementResponseDto.from(userSettlementList);
+        Page<MySettlementDto> userSettlementList = userSettlementRepository.findMyRecentOrRequested(user, LocalDateTime.now().minusDays(10), pageable);
+        return MySettlementResponseDto.from(userSettlementList);
     }
 }
