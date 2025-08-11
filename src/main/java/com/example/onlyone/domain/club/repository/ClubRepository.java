@@ -108,4 +108,6 @@ public interface ClubRepository extends JpaRepository<Club, Long> {
         ORDER BY COUNT(uc) DESC, c.createdAt DESC
     """)
     List<Object[]> findClubsByTeammates(@Param("userId") Long userId, Pageable pageable);
+
+    Club findByClubId(Long clubId);
 }

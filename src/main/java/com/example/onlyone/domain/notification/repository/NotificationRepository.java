@@ -31,6 +31,11 @@ public interface NotificationRepository extends JpaRepository<AppNotification, L
   long countByUser_UserIdAndIsReadFalse(@Param("userId") Long userId);
 
   /**
+   * 특정 시간 이후 생성된 알림 목록 조회 (SSE Last-Event-ID용)
+   */
+  List<AppNotification> findByUser_UserIdAndCreatedAtAfterOrderByCreatedAtAsc(Long userId, LocalDateTime after);
+
+  /**
    * FCM 전송 실패한 알림 목록 조회
    */
   List<AppNotification> findByUser_UserIdAndFcmSentFalse(Long userId);
