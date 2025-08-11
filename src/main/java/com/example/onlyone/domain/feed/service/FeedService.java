@@ -93,7 +93,7 @@ public class FeedService {
         Club club = clubRepository.findById(clubId)
                 .orElseThrow(() -> new CustomException(ErrorCode.CLUB_NOT_FOUND));
 
-        Page<Feed> feeds = feedRepository.findByClub(club, pageable);
+        Page<Feed> feeds = feedRepository.findByClubAndParentIsNull(club, pageable);
 
         return feeds.map(feed -> {
                     String thumbnailUrl = feed.getFeedImages().get(0).getFeedImage();

@@ -17,6 +17,7 @@ public enum ErrorCode {
 
     // User
     USER_NOT_FOUND(404, "USER_404_1", "유저를 찾을 수 없습니다."),
+    USER_WITHDRAWN(403, "USER_403_1", "탈퇴한 사용자입니다."),
     KAKAO_AUTH_FAILED(401, "USER_401_1", "카카오 인가 코드가 유효하지 않습니다."),
     KAKAO_LOGIN_FAILED(502, "USER_502_1", "카카오 로그인 처리 중 오류가 발생했습니다."),
     KAKAO_API_ERROR(502, "USER_502_2", "카카오 API 응답에 실패했습니다."),
@@ -41,6 +42,7 @@ public enum ErrorCode {
     SSE_SEND_FAILED(503, "NOTIFY_503_2", "SSE 메시지 전송에 실패했습니다."),
     UNREAD_COUNT_UPDATE_FAILED    (500, "NOTIFY_500_1", "읽지 않은 알림 개수 업데이트에 실패했습니다."),
     FCM_TOKEN_NOT_FOUND           (404, "NOTIFY_404_3", "FCM 토큰을 찾을 수 없습니다."),
+    FCM_TOKEN_REFRESH_REQUIRED    (409, "NOTIFY_409_1", "FCM 토큰을 새로 등록해야 합니다."),
     FCM_INITIALIZATION_FAILED     (500, "NOTIFY_500_2", "Firebase 초기화에 실패했습니다."),
     FCM_MESSAGE_SEND_FAILED       (502, "NOTIFY_502_1", "FCM 메시지 전송에 실패했습니다."),
     FCM_TOKEN_INVALID(400, "NOTIFY_400_1", "FCM 토큰이 유효하지 않습니다."),
@@ -103,10 +105,13 @@ public enum ErrorCode {
 
     // Feed
     FEED_NOT_FOUND(404, "FEED_404_1","피드를 찾을 수 없습니다."),
+    REFEED_DEPTH_LIMIT(409, "FEED_409_1", "리피드는 두 번까지만 가능합니다."),
+    DUPLICATE_REFEED(409,"FEED_409_2", "같은 피드를 이미 공유한 클럽으로 리피드 할 수 없습니다."),
 
     UNAUTHORIZED_FEED_ACCESS(403, "FEED_403_1", "해당 피드에 대한 권한이 없습니다."),
     COMMENT_NOT_FOUND(404, "FEED_404_2", "댓글을 찾을 수 없습니다."),
     UNAUTHORIZED_COMMENT_ACCESS(403, "FEED_403_2", "해당 댓글에 대한 권한이 없습니다."),
+    CLUB_NOT_JOIN(409,"FEED_409_3","모임에 가입돼 있지 않습니다."),
 
     // Image
     INVALID_IMAGE_FOLDER_TYPE(400, "IMAGE_400_1", "유효하지 않은 이미지 폴더 타입입니다."),
