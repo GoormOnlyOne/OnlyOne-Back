@@ -29,7 +29,7 @@ import java.util.List;
 public class FeedMainController {
     private final FeedMainService feedMainService;
 
-    @Operation(summary = "전체 피드 목록 조회", description = "유저와 관련된 모든 피드들을 조회합니다.")
+    @Operation(summary = "최신순 피드 목록 조회", description = "유저와 관련된 모든 피드들을 조회합니다.")
     @GetMapping
     public ResponseEntity<?> getAllFeeds(
             @RequestParam(name = "page", defaultValue = "0") int page,
