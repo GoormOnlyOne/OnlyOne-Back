@@ -9,6 +9,8 @@ import com.example.onlyone.domain.feed.dto.request.RefeedRequestDto;
 import com.example.onlyone.domain.feed.dto.response.FeedCommentResponseDto;
 import com.example.onlyone.domain.feed.dto.response.FeedOverviewDto;
 import com.example.onlyone.domain.feed.entity.Feed;
+import com.example.onlyone.domain.feed.entity.FeedImage;
+import com.example.onlyone.domain.feed.entity.FeedLike;
 import com.example.onlyone.domain.feed.entity.FeedType;
 import com.example.onlyone.domain.feed.repository.FeedCommentRepository;
 import com.example.onlyone.domain.feed.repository.FeedRepository;
@@ -23,9 +25,9 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.ArrayList;
-import java.util.List;
-
+import java.util.*;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 
 @Log4j2
@@ -44,17 +46,13 @@ public class FeedMainService {
     @Transactional(readOnly = true)
     public List<FeedOverviewDto> getPersonalFeed(Pageable pageable) {
         Long userId = userService.getCurrentUser().getUserId();
-
         List<UserClub> myJoinClubs = userClubRepository.findByUserUserId(userId);
-
         List<Long> myClubIds = myJoinClubs.stream()
                 .map(uc -> uc.getClub().getClubId())
                 .toList();
 
         List<Long> memberIds = userClubRepository.findUserIdByClubIds(myClubIds);
-
         List<UserClub> friendMemberJoinClubs = userClubRepository.findByUserUserIdIn(memberIds);
-
         List<Long> friendClubIds = friendMemberJoinClubs.stream()
                 .map(uc -> uc.getClub().getClubId())
                 .filter(id -> !myClubIds.contains(id))
@@ -65,32 +63,44 @@ public class FeedMainService {
 
         List<Feed> feeds = feedRepository.findByClubIds(allClubIds, pageable);
 
+        // 5) 부모/루트 미리 벌크 로드해서 N+1 방지
+        Set<Long> parentIds = feeds.stream()
+                .map(f -> f.getParent() != null ? f.getParent().getFeedId() : null)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toSet());
+
+        Set<Long> rootIds = feeds.stream()
+                .map(Feed::getRootFeedId)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toSet());
+
+        Map<Long, Feed> parentMap = parentIds.isEmpty()
+                ? Collections.emptyMap()
+                : feedRepository.findAllById(parentIds).stream()
+                .collect(Collectors.toMap(Feed::getFeedId, Function.identity()));
+
+        Map<Long, Feed> rootMap = rootIds.isEmpty()
+                ? Collections.emptyMap()
+                : feedRepository.findAllById(rootIds).stream()
+                .collect(Collectors.toMap(Feed::getFeedId, Function.identity()));
+
+       Set<Long> likedFeedIds = Collections.emptySet();
+
         return feeds.stream()
-                .map(feed -> FeedOverviewDto.builder()
-                        .feedId(feed.getFeedId())
-                        .thumbnailUrl(resolveThumbnail(feed))
-                        .likeCount(feed.getFeedLikes().size())
-                        .commentCount(feed.getFeedComments().size())
-                        .profileImage(feed.getUser().getProfileImage())
-                        .build()
-                )
+                .map(f -> toOverviewDto(f, userId, likedFeedIds, parentMap, rootMap))
                 .toList();
     }
 
     @Transactional(readOnly = true)
     public List<FeedOverviewDto> getPopularFeed(Pageable pageable) {
         Long userId = userService.getCurrentUser().getUserId();
-
         List<UserClub> myJoinClubs = userClubRepository.findByUserUserId(userId);
-
         List<Long> myClubIds = myJoinClubs.stream()
                 .map(uc -> uc.getClub().getClubId())
                 .toList();
 
         List<Long> memberIds = userClubRepository.findUserIdByClubIds(myClubIds);
-
         List<UserClub> friendMemberJoinClubs = userClubRepository.findByUserUserIdIn(memberIds);
-
         List<Long> friendClubIds = friendMemberJoinClubs.stream()
                 .map(uc -> uc.getClub().getClubId())
                 .filter(id -> !myClubIds.contains(id))
@@ -101,24 +111,113 @@ public class FeedMainService {
 
         List<Feed> feeds = feedRepository.findPopularByClubIds(allClubIds, pageable);
 
+        // 5) 부모/루트 미리 벌크 로드해서 N+1 방지
+        Set<Long> parentIds = feeds.stream()
+                .map(f -> f.getParent() != null ? f.getParent().getFeedId() : null)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toSet());
+
+        Set<Long> rootIds = feeds.stream()
+                .map(Feed::getRootFeedId)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toSet());
+
+        Map<Long, Feed> parentMap = parentIds.isEmpty()
+                ? Collections.emptyMap()
+                : feedRepository.findAllById(parentIds).stream()
+                .collect(Collectors.toMap(Feed::getFeedId, Function.identity()));
+
+        Map<Long, Feed> rootMap = rootIds.isEmpty()
+                ? Collections.emptyMap()
+                : feedRepository.findAllById(rootIds).stream()
+                .collect(Collectors.toMap(Feed::getFeedId, Function.identity()));
+
+        Set<Long> likedFeedIds = Collections.emptySet();
+
+        // 7) 매핑
         return feeds.stream()
-                .map(f -> FeedOverviewDto.builder()
-                        .feedId(f.getFeedId())
-                        .thumbnailUrl(resolveThumbnail(f))
-                        .likeCount(f.getFeedLikes().size())
-                        .commentCount(f.getFeedComments().size())
-                        .profileImage(f.getUser().getProfileImage())
-                        .created(f.getCreatedAt())
-                        .build()
-                )
+                .map(f -> toOverviewDto(f, userId, likedFeedIds, parentMap, rootMap))
                 .toList();
     }
 
-    private String resolveThumbnail(Feed feed) {
-        if (feed.getFeedImages() != null && !feed.getFeedImages().isEmpty()) {
-            return feed.getFeedImages().get(0).getFeedImage();
+    /** parent/root 용 얕은 매핑(안에 parentFeed/rootFeed는 세팅 안 함) */
+    private FeedOverviewDto toShallowDto(Feed f, Long currentUserId, Set<Long> likedFeedIds) {
+        return FeedOverviewDto.builder()
+                .clubId(f.getClub() != null ? f.getClub().getClubId() : null)
+                .feedId(f.getFeedId())
+                .imageUrls(resolveImages(f))
+                .likeCount(safeSize(f.getFeedLikes()))
+                .commentCount(safeSize(f.getFeedComments()))
+                .profileImage(f.getUser() != null ? f.getUser().getProfileImage() : null)
+                .nickname(f.getUser() != null ? f.getUser().getNickname() : null)
+                .content(f.getContent())
+                .isLiked(isLiked(f, currentUserId, likedFeedIds))
+                .isFeedMine(f.getUser() != null && Objects.equals(f.getUser().getUserId(), currentUserId))
+                .created(f.getCreatedAt())
+                .parentFeed(null)
+                .rootFeed(null)
+                .build();
+    }
+
+    private FeedOverviewDto toOverviewDto(
+            Feed f,
+            Long currentUserId,
+            Set<Long> likedFeedIds,
+            Map<Long, Feed> parentMap,
+            Map<Long, Feed> rootMap
+    ) {
+        // 기본 필드
+        FeedOverviewDto.FeedOverviewDtoBuilder b = FeedOverviewDto.builder()
+                .clubId(f.getClub() != null ? f.getClub().getClubId() : null)
+                .feedId(f.getFeedId())
+                .imageUrls(resolveImages(f))
+                .likeCount(safeSize(f.getFeedLikes()))
+                .commentCount(safeSize(f.getFeedComments()))
+                .profileImage(f.getUser() != null ? f.getUser().getProfileImage() : null)
+                .nickname(f.getUser() != null ? f.getUser().getNickname() : null)
+                .content(f.getContent())
+                .isLiked(isLiked(f, currentUserId, likedFeedIds))
+                .isFeedMine(f.getUser() != null && Objects.equals(f.getUser().getUserId(), currentUserId))
+                .created(f.getCreatedAt());
+
+        Feed parent = f.getParent();
+        if (parent != null) {
+            Feed p = parentMap.getOrDefault(parent.getFeedId(), parent); // 영속성 컨텍스트에 이미 있을 수도
+            b.parentFeed(toShallowDto(p, currentUserId, likedFeedIds));
         }
-        return null;
+
+        Long rootId = f.getRootFeedId();
+        if (rootId != null) {
+            Feed r = rootMap.get(rootId);
+            if (r != null) {
+                b.rootFeed(toShallowDto(r, currentUserId, likedFeedIds));
+            }
+        }
+
+        return b.build();
+    }
+
+    private List<String> resolveImages(Feed f) {
+        List<FeedImage> imgs = f.getFeedImages();
+        if (imgs == null || imgs.isEmpty()) return Collections.emptyList();
+        return imgs.stream()
+                .map(FeedImage::getFeedImage)
+                .filter(Objects::nonNull)
+                .toList();
+    }
+
+    private int safeSize(Collection<?> c) {
+        return c == null ? 0 : c.size();
+    }
+
+    private boolean isLiked(Feed f, Long userId, Set<Long> likedFeedIds) {
+        if (likedFeedIds != null && !likedFeedIds.isEmpty()) {
+            return likedFeedIds.contains(f.getFeedId());
+        }
+
+        List<FeedLike> likes = f.getFeedLikes();
+        if (likes == null) return false;
+        return likes.stream().anyMatch(l -> l.getUser() != null && Objects.equals(l.getUser().getUserId(), userId));
     }
 
     @Transactional(readOnly = true)
@@ -127,7 +226,7 @@ public class FeedMainService {
                         .orElseThrow(() -> new CustomException(ErrorCode.FEED_NOT_FOUND));
         Long userId = userService.getCurrentUser().getUserId();
 
-        return  feedCommentRepository.findByFeedOrderByCreatedAtDesc(feed,pageable)
+        return  feedCommentRepository.findByFeedOrderByCreatedAt(feed,pageable)
                 .stream()
                 .map(c -> FeedCommentResponseDto.from(c,userId))
                 .toList();
