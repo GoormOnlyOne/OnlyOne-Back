@@ -1,10 +1,7 @@
 package com.example.onlyone.domain.user.dto.request;
 
 import com.example.onlyone.domain.user.entity.Gender;
-import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.NotNull;
-import jakarta.validation.constraints.Pattern;
-import jakarta.validation.constraints.Size;
+import jakarta.validation.constraints.*;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
@@ -21,6 +18,7 @@ public class SignupRequestDto {
     private String nickname;
 
     @NotNull(message = "생년월일은 필수입니다.")
+    @Past(message = "생년월일은 과거 날짜여야 합니다.")
     private LocalDate birth;
 
     @NotNull(message = "성별은 필수입니다.")
