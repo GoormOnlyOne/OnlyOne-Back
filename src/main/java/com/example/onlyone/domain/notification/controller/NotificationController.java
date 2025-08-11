@@ -4,7 +4,6 @@ import com.example.onlyone.domain.notification.dto.requestDto.NotificationCreate
 import com.example.onlyone.domain.notification.dto.responseDto.NotificationCreateResponseDto;
 import com.example.onlyone.domain.notification.dto.responseDto.NotificationListResponseDto;
 import com.example.onlyone.domain.notification.service.NotificationService;
-import com.example.onlyone.domain.notification.service.SseEmittersService;
 import com.example.onlyone.domain.user.entity.User;
 import com.example.onlyone.domain.user.service.UserService;
 import com.example.onlyone.global.common.CommonResponse;
@@ -36,18 +35,7 @@ public class NotificationController {
   private static final int DEFAULT_PAGE_SIZE = 20;
 
   private final NotificationService notificationService;
-  private final SseEmittersService sseEmittersService;
   private final UserService userService;
-
-  /**
-   * SSE 스트림 연결
-   */
-  @Operation(summary = "알림 실시간 스트림", description = "Server-Sent Events를 통한 실시간 알림 수신")
-  @GetMapping(value = "/stream/{userId}", produces = {MediaType.TEXT_EVENT_STREAM_VALUE, MediaType.APPLICATION_JSON_VALUE})
-  public SseEmitter streamNotifications(@PathVariable Long userId) {
-    log.info("SSE stream connection requested: userId={}", userId);
-    return sseEmittersService.createSseConnection(userId);
-  }
 
   /**
    * 알림 생성
@@ -66,7 +54,7 @@ public class NotificationController {
   /**
    * 알림 목록 조회 (커서 기반 페이징)
    */
-  @Operation(summary = "알림 목록 조회", description = "커서 기반 페이징으로 알림 목록을 조회합니다")
+  @Operation(summary = "알림 목록 조회", description = "커서 기반 페이징으로 알림 목록을 조회하며, 첫 페이지 조회 시 자동으로 모든 알림을 읽음 처리합니다")
   @GetMapping
   public ResponseEntity<CommonResponse<NotificationListResponseDto>> getNotifications(
       @RequestParam Long userId,
@@ -74,18 +62,20 @@ public class NotificationController {
       @RequestParam(defaultValue = "20") int size) {
 
     size = validatePageSize(size);
+    
+    // 첫 페이지 조회 시 자동 읽음 처리
+    if (cursor == null) {
+      log.info("Auto marking all notifications as read for user: {}", userId);
+      notificationService.markAllAsRead(userId);
+    }
+    
+    // 읽음 처리 후 최신 상태로 목록 조회
     NotificationListResponseDto dto = notificationService.getNotifications(userId, cursor, size);
+    
+    log.info("Notifications fetched for user: {}, count: {}, unreadCount: {}", 
+        userId, dto.getNotifications().size(), dto.getUnreadCount());
+    
     return ResponseEntity.ok(CommonResponse.success(dto));
-  }
-
-  /**
-   * 모든 알림 읽음 처리
-   */
-  @Operation(summary = "모든 알림 읽음 처리", description = "모든 읽지 않은 알림을 읽음 처리합니다")
-  @PatchMapping("/read-all")
-  public ResponseEntity<CommonResponse<Void>> markAllNotificationsAsRead(@RequestParam Long userId) {
-    notificationService.markAllAsRead(userId);
-    return ResponseEntity.ok(CommonResponse.success(null));
   }
 
   /**
@@ -101,24 +91,7 @@ public class NotificationController {
     return ResponseEntity.noContent().build();
   }
 
-  @Operation(summary = "fcm-token 관리", description = "fcm-token을 업데이트합니다")
-  @PostMapping("/fcm-token")
-  @Transactional
-  public ResponseEntity<CommonResponse<Void>> updateFcmToken(
-      @RequestParam Long userId,
-      @RequestParam String fcmToken) {
 
-    // 기본 null/blank 체크만 수행 (상세 검증은 FcmService에서)
-    if (fcmToken == null || fcmToken.isBlank()) {
-      throw new CustomException(ErrorCode.FCM_TOKEN_NOT_FOUND);
-    }
-
-    User user = userService.getMemberById(userId);
-    user.updateFcmToken(fcmToken);
-    
-    log.info("FCM token updated successfully for user: {}", userId);
-    return ResponseEntity.ok(CommonResponse.success(null));
-  }
 
   // ================================
   // Private Helper Methods
