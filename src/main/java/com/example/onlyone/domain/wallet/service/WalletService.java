@@ -113,6 +113,11 @@ public class WalletService {
                 .walletTransaction(walletTransaction)
                 .build();
         transferRepository.save(transfer);
+        Transfer leaderTransfer = Transfer.builder()
+                .userSettlement(userSettlement)
+                .walletTransaction(leaderWalletTransaction)
+                .build();
+        transferRepository.save(leaderTransfer);
     }
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
@@ -140,7 +145,5 @@ public class WalletService {
         walletTransactionRepository.save(failedOutgoing);
         walletTransactionRepository.save(failedIncoming);
         createAndSaveTransfers(userSettlement, failedOutgoing, failedIncoming);
-        // FAILED 마킹 필요
-        userSettlement.updateStatus(SettlementStatus.FAILED);
     }
 }
