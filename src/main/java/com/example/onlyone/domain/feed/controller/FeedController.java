@@ -43,6 +43,13 @@ public class FeedController {
         return ResponseEntity.status(HttpStatus.OK).body(CommonResponse.success(null));
     }
 
+    @Operation(summary = "피드 삭제", description = "피드를 삭제합니다.")
+    @DeleteMapping("/{feedId}")
+    public ResponseEntity<?> deleteFeed(@PathVariable("clubId") Long clubId, @PathVariable("feedId") Long feedId) {
+        feedService.deleteFeed(clubId, feedId);
+        return ResponseEntity.status(HttpStatus.OK).body(CommonResponse.success(null));
+    }
+
     @Operation(summary = "모임 피드 목록 조회", description = "모임의 피드 목록을 조회합니다.")
     @GetMapping
     public ResponseEntity<?> getFeedList(@PathVariable("clubId") Long clubId,

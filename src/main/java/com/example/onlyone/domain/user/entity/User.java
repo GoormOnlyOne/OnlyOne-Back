@@ -52,6 +52,9 @@ public class User extends BaseTimeEntity {
   @Column(name = "fcm_token")
   private String fcmToken;
 
+  @Column(name = "kakao_access_token")
+  private String kakaoAccessToken;
+
   public void updateFcmToken(String fcmToken) {
     validateFcmTokenFormat(fcmToken);
     this.fcmToken = fcmToken;
@@ -72,6 +75,23 @@ public class User extends BaseTimeEntity {
     this.nickname = nickname;
     this.gender = gender;
     this.birth = birth;
+  }
+
+  public void updateKakaoAccessToken(String kakaoAccessToken) {
+    this.kakaoAccessToken = kakaoAccessToken;
+  }
+
+  public void clearKakaoAccessToken() {
+    this.kakaoAccessToken = null;
+  }
+
+  public void withdraw() {
+    this.status = Status.INACTIVE;
+    this.kakaoAccessToken = null;
+  }
+
+  public void completeSignup() {
+    this.status = Status.ACTIVE;
   }
 
   /**
