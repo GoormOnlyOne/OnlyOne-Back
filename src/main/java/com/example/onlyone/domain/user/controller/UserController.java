@@ -29,18 +29,25 @@ public class UserController {
 
   private final UserService userService;
 
+  @GetMapping("/mypage")
+  public ResponseEntity<?> getMyPage() {
+    MyPageResponse myPageResponse = userService.getMyPage();
+    return ResponseEntity.ok(CommonResponse.success(myPageResponse));
+  }
+
+    @GetMapping("/profile")
+    public ResponseEntity<?> getUserProfile() {
+        ProfileResponseDto profileResponse = userService.getUserProfile();
+        return ResponseEntity.ok(CommonResponse.success(profileResponse));
+    }
+
   /**
    * FCM 토큰 상태 조회 - 인증된 사용자 본인만
    */
   @Operation(summary = "FCM 토큰 상태 조회", description = "현재 로그인한 사용자의 FCM 토큰 등록 여부를 확인합니다")
   @GetMapping("/fcm-token/status")
   public ResponseEntity<CommonResponse<Map<String, Object>>> getFcmTokenStatus() {
-    
-    @GetMapping("/mypage")
-    public ResponseEntity<?> getMyPage() {
-        MyPageResponse myPageResponse = userService.getMyPage();
-        return ResponseEntity.ok(CommonResponse.success(myPageResponse));
-    }
+
 
     // JWT에서 사용자 정보 추출
     User currentUser = userService.getCurrentUser();
@@ -54,11 +61,6 @@ public class UserController {
     return ResponseEntity.ok(CommonResponse.success(status));
   }
 
-    @GetMapping("/profile")
-    public ResponseEntity<?> getUserProfile() {
-        ProfileResponseDto profileResponse = userService.getUserProfile();
-        return ResponseEntity.ok(CommonResponse.success(profileResponse));
-    }
   /**
    * FCM 토큰 등록/업데이트 - 인증된 사용자 본인만
    */
