@@ -195,11 +195,4 @@ public class SettlementService {
                 .findAllDtoBySettlement(settlement, pageable);
         return SettlementResponseDto.from(userSettlementList);
     }
-
-    @Transactional(readOnly = true)
-    public MySettlementResponseDto getMySettlementList(Pageable pageable) {
-        User user = userService.getCurrentUser();
-        Page<MySettlementDto> userSettlementList = userSettlementRepository.findMyRecentOrRequested(user, LocalDateTime.now().minusDays(10), pageable);
-        return MySettlementResponseDto.from(userSettlementList);
-    }
 }
