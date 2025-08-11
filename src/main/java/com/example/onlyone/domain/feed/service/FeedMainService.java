@@ -148,6 +148,8 @@ public class FeedMainService {
 
         Club club = clubRepository.findById(targetClubId)
                 .orElseThrow(() -> new CustomException(ErrorCode.CLUB_NOT_FOUND));
+        userClubRepository.findByUserAndClub(user, club)
+                .orElseThrow(() -> new CustomException(ErrorCode.CLUB_NOT_JOIN));
 
         Long rootId = (parent.getRootFeedId() != null)
                 ? parent.getRootFeedId()
