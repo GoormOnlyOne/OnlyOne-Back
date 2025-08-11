@@ -1,5 +1,6 @@
 package com.example.onlyone.domain.payment.entity;
 
+import com.example.onlyone.domain.payment.dto.response.ConfirmTossPayResponse;
 import com.example.onlyone.domain.wallet.entity.WalletTransaction;
 import com.example.onlyone.global.BaseTimeEntity;
 import jakarta.persistence.*;
@@ -22,14 +23,14 @@ public class Payment extends BaseTimeEntity {
     @Column(name = "toss_payment_key", nullable = false, unique = true)
     private String tossPaymentKey;
 
-    @Column(name = "toss_order_id", nullable = false)
+    @Column(name = "toss_order_id", nullable = false, unique = true)
     private String tossOrderId;
 
     @Column(name = "total_amount", nullable = false)
     private Long totalAmount;
 
     @Enumerated(EnumType.STRING)
-    @Column(name = "method", nullable = false)
+    @Column(name = "method")
     private Method method;
 
     @Enumerated(value = EnumType.STRING)
@@ -39,4 +40,12 @@ public class Payment extends BaseTimeEntity {
     @OneToOne(mappedBy = "payment", fetch = FetchType.LAZY)
     private WalletTransaction walletTransaction;
 
+    public void updateStatus(Status status) {
+        this.status = status;
+    }
+
+    public void updateOnConfirm(String status, String method) {
+        this.status = Status.valueOf(status);
+        this.method = Method.valueOf(method);
+    }
 }
