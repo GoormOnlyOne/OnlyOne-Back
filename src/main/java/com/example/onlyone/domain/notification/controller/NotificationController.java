@@ -54,7 +54,7 @@ public class NotificationController {
   /**
    * 알림 목록 조회 (커서 기반 페이징)
    */
-  @Operation(summary = "알림 목록 조회", description = "커서 기반 페이징으로 알림 목록을 조회하며, 첫 페이지 조회 시 자동으로 모든 알림을 읽음 처리합니다")
+  @Operation(summary = "알림 목록 조회", description = "커서 기반 페이징으로 모든 알림 목록을 조회합니다 (읽음/읽지않음 포함). 첫 페이지 조회 시 자동으로 모든 알림을 읽음 처리합니다")
   @GetMapping
   public ResponseEntity<CommonResponse<NotificationListResponseDto>> getNotifications(
       @RequestParam Long userId,
@@ -63,14 +63,13 @@ public class NotificationController {
 
     size = validatePageSize(size);
     
+    NotificationListResponseDto dto = notificationService.getNotifications(userId, cursor, size);
+    
     // 첫 페이지 조회 시 자동 읽음 처리
     if (cursor == null) {
       log.info("Auto marking all notifications as read for user: {}", userId);
       notificationService.markAllAsRead(userId);
     }
-    
-    // 읽음 처리 후 읽지 않은 알림만 조회
-    NotificationListResponseDto dto = notificationService.getNotifications(userId, cursor, size);
     
     log.info("Notifications fetched for user: {}, count: {}, unreadCount: {}", 
         userId, dto.getNotifications().size(), dto.getUnreadCount());

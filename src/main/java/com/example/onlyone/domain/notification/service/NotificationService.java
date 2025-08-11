@@ -92,11 +92,11 @@ public class NotificationService {
   }
 
   /**
-   * 알림 목록 조회 (커서 기반 페이징) - 읽지 않은 알림만
+   * 알림 목록 조회 (커서 기반 페이징) - 모든 알림 (읽음/읽지않음 포함)
    */
   @Transactional(readOnly = true)
   public NotificationListResponseDto getNotifications(Long userId, Long cursor, int size) {
-    log.debug("Fetching unread notifications: userId={}, cursor={}, size={}", userId, cursor, size);
+    log.debug("Fetching all notifications: userId={}, cursor={}, size={}", userId, cursor, size);
 
     size = Math.min(size, 100); // 최대 100개 제한
 
