@@ -39,4 +39,7 @@ public class Payment extends BaseTimeEntity {
     @OneToOne(mappedBy = "payment", fetch = FetchType.LAZY)
     private WalletTransaction walletTransaction;
 
+    public void updateStatus(Status status) {
+        this.status = status;
+    }
 }
