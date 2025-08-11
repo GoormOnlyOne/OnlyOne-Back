@@ -82,10 +82,11 @@ public class NotificationController {
    */
   @Operation(summary = "알림 삭제", description = "특정 알림을 삭제합니다")
   @DeleteMapping("/{notificationId}")
-  public ResponseEntity<Void> deleteNotification(
-      @RequestParam Long userId,
-      @PathVariable Long notificationId) {
+  public ResponseEntity<Void> deleteNotification(@PathVariable Long notificationId) {
 
+    User currentUser = userService.getCurrentUser();
+    Long userId = currentUser.getUserId();
+    
     notificationService.deleteNotification(userId, notificationId);
     return ResponseEntity.noContent().build();
   }
