@@ -25,6 +25,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.log4j.Log4j2;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Optional;
@@ -121,5 +122,32 @@ public class PaymentService {
                 .build();
         walletTransaction.updatePayment(payment);
         return response;
+    }
+
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void reportFail(ConfirmTossPayRequest req) {
+        User user = userService.getCurrentUser();
+        Wallet wallet = walletRepository.findByUser(user)
+                .orElseThrow(() -> new CustomException(ErrorCode.WALLET_NOT_FOUND));
+        // 멱등성 처리
+        if (paymentRepository.existsByTossPaymentKey(req.getPaymentKey())) return;
+        // 실패 기록
+        WalletTransaction walletTransaction = WalletTransaction.builder()
+                .type(Type.CHARGE)
+                .amount(Math.toIntExact(req.getAmount()))
+                .balance(wallet.getBalance())
+                .walletTransactionStatus(WalletTransactionStatus.FAILED)
+                .wallet(wallet)
+                .targetWallet(wallet)
+                .build();
+        walletTransactionRepository.save(walletTransaction);
+        Payment payment = Payment.builder()
+                .tossPaymentKey(req.getPaymentKey())
+                .tossOrderId(req.getOrderId())
+                .totalAmount(req.getAmount())
+                .status(Status.CANCELED)
+                .walletTransaction(walletTransaction)
+                .build();
+        walletTransaction.updatePayment(payment);
     }
 }

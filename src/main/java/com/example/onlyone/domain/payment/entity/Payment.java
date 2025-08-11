@@ -22,7 +22,7 @@ public class Payment extends BaseTimeEntity {
     @Column(name = "toss_payment_key", nullable = false, unique = true)
     private String tossPaymentKey;
 
-    @Column(name = "toss_order_id", nullable = false)
+    @Column(name = "toss_order_id", nullable = false,  unique = true)
     private String tossOrderId;
 
     @Column(name = "total_amount", nullable = false)

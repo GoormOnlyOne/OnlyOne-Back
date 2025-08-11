@@ -44,6 +44,13 @@ public class PaymentController {
         return ResponseEntity.ok(CommonResponse.success(response));
     }
 
+    @Operation(summary = "결제 실패 기록", description = "토스페이먼츠 결제 요청의 최종 실패를 기록합니다.")
+    @PostMapping(value = "/fail")
+    public ResponseEntity<?> failPayment(@RequestBody ConfirmTossPayRequest req) {
+        paymentService.reportFail(req);
+        return ResponseEntity.ok(CommonResponse.success(null));
+    }
+
 //    // 결제 취소 요청
 //    @PostMapping("/cancel/{paymentKey}")
 //    public ResponseEntity<?> cancelPayment(
