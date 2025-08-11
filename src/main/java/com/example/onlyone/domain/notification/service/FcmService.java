@@ -54,12 +54,11 @@ public class FcmService {
       log.error("FCM message send failed: notificationId={}, errorCode={}, error={}",
           appNotification.getNotificationId(), errorCode, e.getMessage());
       
-      // 특정 에러 코드에 따른 처리
+      // 특정 에러 코드에 따른 로깅 및 적절한 에러 반환
       if (isInvalidTokenError(e)) {
-        // 무효한 토큰인 경우 사용자의 토큰을 정리
-        log.warn("Invalid FCM token detected for user: {}, clearing token", 
+        log.warn("Invalid FCM token detected for user: {}, client should refresh token", 
             appNotification.getUser().getUserId());
-        appNotification.getUser().clearFcmToken();
+        throw new CustomException(ErrorCode.FCM_TOKEN_REFRESH_REQUIRED);
       }
       
       throw new CustomException(ErrorCode.FCM_MESSAGE_SEND_FAILED);
@@ -128,29 +127,7 @@ public class FcmService {
       throw new IllegalArgumentException(errorMsg);
     }
     
-    // FCM 토큰 형식 검증
-    if (!isValidFcmToken(token)) {
-      String errorMsg = String.format("Invalid FCM token format for user: %s", 
-          appNotification.getUser().getUserId());
-      log.warn(errorMsg);
-      throw new IllegalArgumentException(errorMsg);
-    }
-    
     return token;
-  }
-  
-  /**
-   * FCM 토큰 형식 유효성 검증
-   */
-  private boolean isValidFcmToken(String token) {
-    // FCM 토큰은 152자 이상이고 특정 패턴을 가짐
-    if (token.length() < 140 || token.length() > 165) {
-      return false;
-    }
-    
-    // 기본적인 패턴 검증 (영문자, 숫자, 하이픈, 언더스코어, 콜론만 허용)
-    return token.matches("^[a-zA-Z0-9_-]+:[a-zA-Z0-9_-]+$") || 
-           token.matches("^[a-zA-Z0-9_-]+$");
   }
 
   private Message buildMessage(AppNotification appNotification, String token) {

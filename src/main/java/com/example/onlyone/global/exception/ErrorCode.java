@@ -41,6 +41,7 @@ public enum ErrorCode {
     SSE_SEND_FAILED(503, "NOTIFY_503_2", "SSE 메시지 전송에 실패했습니다."),
     UNREAD_COUNT_UPDATE_FAILED    (500, "NOTIFY_500_1", "읽지 않은 알림 개수 업데이트에 실패했습니다."),
     FCM_TOKEN_NOT_FOUND           (404, "NOTIFY_404_3", "FCM 토큰을 찾을 수 없습니다."),
+    FCM_TOKEN_REFRESH_REQUIRED    (409, "NOTIFY_409_1", "FCM 토큰을 새로 등록해야 합니다."),
     FCM_INITIALIZATION_FAILED     (500, "NOTIFY_500_2", "Firebase 초기화에 실패했습니다."),
     FCM_MESSAGE_SEND_FAILED       (502, "NOTIFY_502_1", "FCM 메시지 전송에 실패했습니다."),
     FCM_TOKEN_INVALID(400, "NOTIFY_400_1", "FCM 토큰이 유효하지 않습니다."),
