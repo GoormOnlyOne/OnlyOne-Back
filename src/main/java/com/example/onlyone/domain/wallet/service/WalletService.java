@@ -102,8 +102,6 @@ public class WalletService {
         walletTransactionRepository.save(leaderWalletTransaction);
         // Transfer 생성 및 연결
         createAndSaveTransfers(userSettlement, walletTransaction, leaderWalletTransaction);
-        // COMPLETED 마킹 필요
-        userSettlement.updateStatus(SettlementStatus.COMPLETED);
     }
 
     public void createAndSaveTransfers(UserSettlement userSettlement, WalletTransaction walletTransaction, WalletTransaction leaderWalletTransaction) {
