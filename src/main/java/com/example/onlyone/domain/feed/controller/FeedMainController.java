@@ -40,16 +40,16 @@ public class FeedMainController {
         return ResponseEntity.status(HttpStatus.OK).body(CommonResponse.success(feeds));
     }
 
-    @Operation(summary = "인기순 피드 목록 조회", description = "전체 피드 목록 조회 기반으로 인기순 페이징 조회")
-    @GetMapping("/popular")
-    public ResponseEntity<?> getPopularFeeds(
-            @RequestParam(name = "page", defaultValue = "0")  int page,
-            @RequestParam(name = "limit", defaultValue = "20") int limit
-    ) {
-        Pageable pageable = PageRequest.of(page, limit, Sort.unsorted());
-        List<FeedOverviewDto> popularFeeds = feedMainService.getPopularFeed(pageable);
-        return ResponseEntity.ok(CommonResponse.success(popularFeeds));
-    }
+//    @Operation(summary = "인기순 피드 목록 조회", description = "전체 피드 목록 조회 기반으로 인기순 페이징 조회")
+//    @GetMapping("/popular")
+//    public ResponseEntity<?> getPopularFeeds(
+//            @RequestParam(name = "page", defaultValue = "0")  int page,
+//            @RequestParam(name = "limit", defaultValue = "20") int limit
+//    ) {
+//        Pageable pageable = PageRequest.of(page, limit, Sort.unsorted());
+//        List<FeedOverviewDto> popularFeeds = feedMainService.getPopularFeed(pageable);
+//        return ResponseEntity.ok(CommonResponse.success(popularFeeds));
+//    }
 
     @Operation(summary = "댓글 목록 조회", description = "해당 피드에 댓글 목록을 조회합니다.")
     @GetMapping("/{feedId}/comments")
