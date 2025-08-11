@@ -49,7 +49,11 @@ public interface UserSettlementRepository extends JpaRepository<UserSettlement, 
     @Query(
             value = """
     select new com.example.onlyone.domain.settlement.dto.response.MySettlementDto(
-      c.clubId, st.settlementId, sch.cost, c.clubImage, us.settlementStatus
+      c.clubId,                 
+      sch.cost,                
+      c.clubImage,               
+      us.settlementStatus,         
+      concat(c.name, ': ', sch.name) 
     )
     from UserSettlement us
     join us.settlement st
@@ -83,7 +87,6 @@ public interface UserSettlementRepository extends JpaRepository<UserSettlement, 
             @Param("cutoff") java.time.LocalDateTime cutoff,
             Pageable pageable
     );
-
 
     @Query("""
     select us

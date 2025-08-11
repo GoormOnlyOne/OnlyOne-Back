@@ -11,10 +11,10 @@ import org.springframework.data.domain.Page;
 @AllArgsConstructor
 public class MySettlementDto {
     private Long clubId;
-    private Long settlementId;
     private int amount;
     private String mainImage;
     private SettlementStatus settlementStatus;
+    private String title;
 
 //    public static MySettlementDto from(Page<MySettlementDto> userSettlement) {
 //        return MySettlementDto.builder()
