@@ -62,6 +62,11 @@ public class FeedMainService {
         allClubIds.addAll(friendClubIds);
 
         List<Feed> feeds = feedRepository.findByClubIds(allClubIds, pageable);
+        List<Long> ids = feeds.stream().map(Feed::getFeedId).toList();
+
+        Map<Long, Long> cntMap = feedRepository.countDirectRepostsIn(ids).stream()
+                .collect(Collectors.toMap(FeedRepository.ParentRepostCount::getParentId,
+                        FeedRepository.ParentRepostCount::getCnt));
 
         // 5) 부모/루트 미리 벌크 로드해서 N+1 방지
         Set<Long> parentIds = feeds.stream()
@@ -87,7 +92,7 @@ public class FeedMainService {
        Set<Long> likedFeedIds = Collections.emptySet();
 
         return feeds.stream()
-                .map(f -> toOverviewDto(f, userId, likedFeedIds, parentMap, rootMap))
+                .map(f -> toOverviewDto(f, userId, likedFeedIds, parentMap, rootMap, cntMap.getOrDefault(f.getFeedId(), 0L)))
                 .toList();
     }
 
@@ -110,6 +115,11 @@ public class FeedMainService {
         allClubIds.addAll(friendClubIds);
 
         List<Feed> feeds = feedRepository.findPopularByClubIds(allClubIds, pageable);
+        List<Long> ids = feeds.stream().map(Feed::getFeedId).toList();
+
+        Map<Long, Long> cntMap = feedRepository.countDirectRepostsIn(ids).stream()
+                .collect(Collectors.toMap(FeedRepository.ParentRepostCount::getParentId,
+                        FeedRepository.ParentRepostCount::getCnt));
 
         // 5) 부모/루트 미리 벌크 로드해서 N+1 방지
         Set<Long> parentIds = feeds.stream()
@@ -136,7 +146,7 @@ public class FeedMainService {
 
         // 7) 매핑
         return feeds.stream()
-                .map(f -> toOverviewDto(f, userId, likedFeedIds, parentMap, rootMap))
+                .map(f -> toOverviewDto(f, userId, likedFeedIds, parentMap, rootMap, cntMap.getOrDefault(f.getFeedId(), 0L)))
                 .toList();
     }
 
@@ -164,7 +174,8 @@ public class FeedMainService {
             Long currentUserId,
             Set<Long> likedFeedIds,
             Map<Long, Feed> parentMap,
-            Map<Long, Feed> rootMap
+            Map<Long, Feed> rootMap,
+            long refeedCount
     ) {
         // 기본 필드
         FeedOverviewDto.FeedOverviewDtoBuilder b = FeedOverviewDto.builder()
@@ -178,7 +189,8 @@ public class FeedMainService {
                 .content(f.getContent())
                 .isLiked(isLiked(f, currentUserId, likedFeedIds))
                 .isFeedMine(f.getUser() != null && Objects.equals(f.getUser().getUserId(), currentUserId))
-                .created(f.getCreatedAt());
+                .created(f.getCreatedAt())
+                .repostCount(refeedCount);
 
         Feed parent = f.getParent();
         if (parent != null) {

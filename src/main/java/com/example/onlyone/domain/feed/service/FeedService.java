@@ -131,8 +131,9 @@ public class FeedService {
         List<FeedCommentResponseDto> commentResponseDtos = feed.getFeedComments().stream()
                 .map(comment -> FeedCommentResponseDto.from(comment, currentUserId))
                 .collect(Collectors.toList());
+        long repostCount = feedRepository.countByParent_FeedId(feedId);
 
-        return FeedDetailResponseDto.from(feed, imageUrls, isLiked, isMine, commentResponseDtos);
+        return FeedDetailResponseDto.from(feed, imageUrls, isLiked, isMine, commentResponseDtos, repostCount);
     }
 
     public boolean toggleLike(Long clubId, Long feedId) {

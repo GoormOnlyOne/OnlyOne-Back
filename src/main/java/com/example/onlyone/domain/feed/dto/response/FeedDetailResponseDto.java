@@ -16,6 +16,7 @@ public class FeedDetailResponseDto {
     private List<String> imageUrls;
     private int likeCount;
     private int commentCount;
+    private Long repostCount;
 
     private Long userId;
     private String nickname;
@@ -28,12 +29,13 @@ public class FeedDetailResponseDto {
 
     private List<FeedCommentResponseDto> comments;
 
-    public static FeedDetailResponseDto from(Feed feed, List<String> imageUrls, boolean isLiked, boolean isFeedMine, List<FeedCommentResponseDto> comments) {
+    public static FeedDetailResponseDto from(Feed feed, List<String> imageUrls, boolean isLiked, boolean isFeedMine, List<FeedCommentResponseDto> comments, long repostCount) {
         return FeedDetailResponseDto.builder()
                 .content(feed.getContent())
                 .imageUrls(imageUrls)
                 .likeCount(feed.getFeedLikes().size())
                 .commentCount(feed.getFeedComments().size())
+                .repostCount(repostCount)
                 .userId(feed.getUser().getUserId())
                 .nickname(feed.getUser().getNickname())
                 .profileImage(feed.getUser().getProfileImage())
