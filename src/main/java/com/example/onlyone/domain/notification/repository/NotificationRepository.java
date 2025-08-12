@@ -41,7 +41,7 @@ public interface NotificationRepository extends JpaRepository<AppNotification, L
   List<AppNotification> findByUser_UserIdAndFcmSentFalse(Long userId);
 
   /**
-   * 첫 페이지 알림 목록 조회 (네이티브 쿼리)
+   * 첫 페이지 모든 알림 목록 조회 (읽음/읽지않음 포함) (네이티브 쿼리)
    */
   @Query(value = """
         SELECT 
@@ -62,7 +62,7 @@ public interface NotificationRepository extends JpaRepository<AppNotification, L
   );
 
   /**
-   * 커서 이후 알림 목록 조회 (네이티브 쿼리)
+   * 커서 이후 모든 알림 목록 조회 (읽음/읽지않음 포함) (네이티브 쿼리)
    */
   @Query(value = """
         SELECT 
