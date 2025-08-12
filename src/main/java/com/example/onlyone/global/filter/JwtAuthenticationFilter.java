@@ -42,10 +42,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         String requestURI = request.getRequestURI();
         String header = request.getHeader("Authorization");
         
-        log.debug("JWT Filter - URI: {}, Authorization header: {}", requestURI, header != null ? "present" : "missing");
-        
         if (header == null || !header.startsWith("Bearer ")) {
-            log.debug("JWT Filter - No valid Authorization header, proceeding without authentication");
             filterChain.doFilter(request, response);
             return;
         }
@@ -82,9 +79,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                             Collections.emptyList()  // 권한 목록
                     );
             SecurityContextHolder.getContext().setAuthentication(auth);
-            log.debug("JWT Filter - Authentication successful for kakaoId: {}", kakaoId);
         } catch (JwtException | IllegalArgumentException e) {
-            log.error("JWT Filter - Authentication failed for URI: {}, error: {}", requestURI, e.getMessage());
             throw new CustomException(ErrorCode.UNAUTHORIZED);
         }
         filterChain.doFilter(request, response);
