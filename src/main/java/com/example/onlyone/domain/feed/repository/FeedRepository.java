@@ -12,6 +12,21 @@ import java.util.List;
 import java.util.Optional;
 
 public interface FeedRepository extends JpaRepository<Feed,Long> {
+    long countByParent_FeedId(Long feedId);
+
+    @Query("""
+      select f.parent.feedId as parentId, count(f) as cnt
+      from Feed f
+      where f.parent.feedId in :feedIds
+      group by f.parent.feedId
+    """)
+    List<ParentRepostCount> countDirectRepostsIn(@Param("feedIds") List<Long> feedIds);
+
+    interface ParentRepostCount {
+        Long getParentId();
+        Long getCnt();
+    }
+
     Optional<Feed> findByFeedIdAndClub(Long feedId, Club club);
 
     Page<Feed> findByClubAndParentIsNull(Club club, Pageable pageable);
