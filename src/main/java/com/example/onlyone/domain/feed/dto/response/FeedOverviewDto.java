@@ -18,6 +18,7 @@ public class FeedOverviewDto {
     private List<String> imageUrls;
     private int likeCount;
     private int commentCount;
+    private Long repostCount;
     private String profileImage;
     private String nickname;
     private String content;
