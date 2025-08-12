@@ -47,8 +47,6 @@ public class NotificationService {
    */
   @Transactional
   public NotificationCreateResponseDto createNotification(NotificationCreateRequestDto requestDto) {
-    log.debug("Creating notification: userId={}, type={}", requestDto.getUserId(), requestDto.getType());
-
     User user = findUser(requestDto.getUserId());
     NotificationType type = findNotificationType(requestDto.getType());
 
@@ -57,7 +55,6 @@ public class NotificationService {
     // 이벤트 발행 (트랜잭션 커밋 후 자동 처리)
     eventPublisher.publishEvent(new NotificationCreatedEvent(appNotification));
 
-    log.info("Notification created and event published: id={}", appNotification.getNotificationId());
     return NotificationCreateResponseDto.from(appNotification);
   }
 
@@ -66,15 +63,12 @@ public class NotificationService {
    */
   @Transactional
   public NotificationCreateResponseDto createNotification(User user, Type type, String... args) {
-    log.debug("Creating notification via convenience method: userId={}, type={}", user.getUserId(), type);
-
     NotificationType notificationType = findNotificationType(type);
     AppNotification appNotification = createAndSaveNotification(user, notificationType, args);
     
     // 이벤트 발행 (트랜잭션 커밋 후 자동 처리)
     eventPublisher.publishEvent(new NotificationCreatedEvent(appNotification));
 
-    log.info("Notification created via convenience method and event published: id={}", appNotification.getNotificationId());
     return NotificationCreateResponseDto.from(appNotification);
   }
 
@@ -85,18 +79,16 @@ public class NotificationService {
   @Async
   public void handleNotificationCreated(NotificationCreatedEvent event) {
     AppNotification appNotification = event.getNotification();
-    log.debug("Handling notification created event: id={}", appNotification.getNotificationId());
     
     sendSseNotificationSafely(appNotification);
     sendFcmNotificationAsyncSafely(appNotification);
   }
 
   /**
-   * 알림 목록 조회 (커서 기반 페이징)
+   * 알림 목록 조회 (커서 기반 페이징) - 모든 알림 (읽음/읽지않음 포함)
    */
   @Transactional(readOnly = true)
   public NotificationListResponseDto getNotifications(Long userId, Long cursor, int size) {
-    log.debug("Fetching notifications: userId={}, cursor={}, size={}", userId, cursor, size);
 
     size = Math.min(size, 100); // 최대 100개 제한
 
@@ -112,11 +104,19 @@ public class NotificationService {
   }
 
   /**
+   * 읽지 않은 알림 개수 조회
+   */
+  @Transactional(readOnly = true)
+  public Long getUnreadCount(Long userId) {
+    return notificationRepository.countByUser_UserIdAndIsReadFalse(userId);
+  }
+
+  /**
    * 모든 알림 읽음 처리
    */
   @Transactional
   public void markAllAsRead(Long userId) {
-    log.debug("Marking all notifications as read: userId={}", userId);
+
 
     List<AppNotification> unreadAppNotifications = notificationRepository.findByUser_UserIdAndIsReadFalse(userId);
     if (unreadAppNotifications.isEmpty()) {
@@ -134,7 +134,7 @@ public class NotificationService {
    */
   @Transactional
   public void deleteNotification(Long userId, Long notificationId) {
-    log.debug("Deleting notification: userId={}, notificationId={}", userId, notificationId);
+
 
     AppNotification appNotification = findNotification(notificationId);
     validateNotificationOwnership(appNotification, userId);
@@ -220,13 +220,12 @@ public class NotificationService {
     try {
       fcmService.sendFcmNotification(appNotification);
       updateFcmSentStatus(appNotification, true);
-      log.debug("FCM notification sent successfully: id={}", appNotification.getNotificationId());
+
 
     } catch (CustomException e) {
       // FCM 관련 CustomException은 이미 FcmService에서 적절히 로깅됨
       updateFcmSentStatus(appNotification, false);
-      log.debug("FCM notification failed with CustomException: id={}, errorCode={}",
-          appNotification.getNotificationId(), e.getErrorCode());
+
 
       // FCM 토큰 관련 에러인 경우 로깅만 수행
       if (e.getErrorCode() == ErrorCode.FCM_TOKEN_NOT_FOUND) {
@@ -264,7 +263,7 @@ public class NotificationService {
   private void executeNotificationSafely(Runnable task, String type, Long id) {
     try {
       task.run();
-      log.debug("{} notification sent: id={}", type, id);
+
     } catch (Exception e) {
       log.error("{} notification failed: id={}, error={}", type, id, e.getMessage());
     }

@@ -44,7 +44,6 @@ public class SseEmittersService {
    * SSE 연결 생성 - Last-Event-ID 지원
    */
   public SseEmitter createSseConnection(Long userId, String lastEventId) {
-    log.debug("Creating SSE connection for user: {}, lastEventId: {}", userId, lastEventId);
 
     cleanupExistingConnection(userId);
     SseEmitter emitter = createNewEmitter(userId);
@@ -65,7 +64,6 @@ public class SseEmittersService {
   public void sendSseNotification(Long userId, AppNotification appNotification) {
     SseEmitter emitter = sseEmitters.get(userId);
     if (emitter == null) {
-      log.debug("No SSE connection for user: {}", userId);
       return;
     }
 
@@ -78,10 +76,7 @@ public class SseEmittersService {
           .name("notification")
           .data(sseDto));
 
-      log.debug("SSE notification sent: userId={}, notificationId={}, eventId={}", 
-          userId, appNotification.getNotificationId(), eventId);
     } catch (IOException e) {
-      log.error("Failed to send SSE notification: userId={}, error={}", userId, e.getMessage());
       cleanupConnection(userId, "send_failure");
     }
   }
@@ -92,7 +87,6 @@ public class SseEmittersService {
   public void sendUnreadCountUpdate(Long userId) {
     SseEmitter emitter = sseEmitters.get(userId);
     if (emitter == null) {
-      log.debug("No SSE connection for unread count update: userId={}", userId);
       return;
     }
 
@@ -108,9 +102,7 @@ public class SseEmittersService {
           .name("unread_count")
           .data(countData));
 
-      log.debug("Unread count update sent: userId={}, count={}, eventId={}", userId, unreadCount, eventId);
     } catch (IOException e) {
-      log.error("Failed to send unread count update: userId={}, error={}", userId, e.getMessage());
       cleanupConnection(userId, "count_update_failure");
     }
   }
@@ -122,7 +114,6 @@ public class SseEmittersService {
   private void cleanupExistingConnection(Long userId) {
     SseEmitter existingEmitter = sseEmitters.get(userId);
     if (existingEmitter != null) {
-      log.debug("Cleaning up existing SSE connection for user: {}", userId);
       existingEmitter.complete();
       sseEmitters.remove(userId);
     }
@@ -132,13 +123,11 @@ public class SseEmittersService {
     SseEmitter emitter = new SseEmitter(sseTimeoutMillis);
     sseEmitters.put(userId, emitter);
     
-    log.debug("SSE emitter created: userId={}, timeout={}ms", userId, sseTimeoutMillis);
     return emitter;
   }
 
   private void registerConnectionCallbacks(SseEmitter emitter, Long userId) {
     emitter.onCompletion(() -> {
-      log.debug("SSE connection completed normally: userId={}", userId);
       cleanupConnection(userId, "completion");
     });
     
@@ -148,7 +137,6 @@ public class SseEmittersService {
     });
     
     emitter.onError((ex) -> {
-      log.error("SSE connection error for user {}: {}", userId, ex.getMessage());
       cleanupConnection(userId, "error");
     });
   }
@@ -160,10 +148,8 @@ public class SseEmittersService {
           .id(eventId)
           .name("heartbeat")
           .data("connected"));
-      log.debug("Initial heartbeat sent to user: {}, eventId: {}", userId, eventId);
       return true;
     } catch (IOException e) {
-      log.error("Failed to send initial heartbeat to user {}: {}", userId, e.getMessage());
       sseEmitters.remove(userId);
       throw new CustomException(ErrorCode.SSE_CONNECTION_FAILED);
     }
@@ -174,7 +160,6 @@ public class SseEmittersService {
    */
   private void sendMissedNotifications(SseEmitter emitter, Long userId, String lastEventId) {
     if (lastEventId == null || lastEventId.isBlank()) {
-      log.debug("No lastEventId provided, skipping missed notifications for user: {}", userId);
       return;
     }
 
@@ -197,24 +182,18 @@ public class SseEmittersService {
                 .name("missed_notification")
                 .data(sseDto));
 
-            log.debug("Missed notification sent: userId={}, notificationId={}, eventId={}", 
-                userId, notification.getNotificationId(), eventId);
           } catch (IOException e) {
-            log.error("Failed to send missed notification: userId={}, notificationId={}, error={}", 
-                userId, notification.getNotificationId(), e.getMessage());
             break; // 전송 실패 시 중단
           }
         }
       }
     } catch (Exception e) {
-      log.error("Failed to process missed notifications for user {}: {}", userId, e.getMessage());
+      // 놓친 알림 처리 실패 시 무시
     }
   }
 
   private void cleanupConnection(Long userId, String reason) {
     sseEmitters.remove(userId);
-    log.debug("SSE connection cleaned up: userId={}, reason={}, remaining={}",
-        userId, reason, sseEmitters.size());
   }
 
   // ================================
@@ -256,7 +235,7 @@ public class SseEmittersService {
         return LocalDateTime.parse(timestampPart);
       }
     } catch (DateTimeParseException e) {
-      log.warn("Invalid eventId format for parsing timestamp: {}", eventId);
+      // 파싱 실패 시 무시
     }
     return null;
   }
