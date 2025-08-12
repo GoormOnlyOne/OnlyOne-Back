@@ -45,8 +45,6 @@ public class NotificationController {
   public ResponseEntity<CommonResponse<NotificationCreateResponseDto>> createNotification(
       @Valid @RequestBody NotificationCreateRequestDto requestDto) {
 
-    log.info("Notification creation requested: userId={}, type={}", requestDto.getUserId(), requestDto.getType());
-
     NotificationCreateResponseDto responseDto = notificationService.createNotification(requestDto);
     return ResponseEntity.status(HttpStatus.CREATED).body(CommonResponse.success(responseDto));
   }
@@ -69,12 +67,8 @@ public class NotificationController {
     
     // 첫 페이지 조회 시 자동 읽음 처리
     if (cursor == null) {
-      log.info("Auto marking all notifications as read for user: {}", userId);
       notificationService.markAllAsRead(userId);
     }
-    
-    log.info("Notifications fetched for user: {}, count: {}, unreadCount: {}", 
-        userId, dto.getNotifications().size(), dto.getUnreadCount());
     
     return ResponseEntity.ok(CommonResponse.success(dto));
   }
@@ -90,8 +84,6 @@ public class NotificationController {
     Long userId = currentUser.getUserId();
     
     Long unreadCount = notificationService.getUnreadCount(userId);
-    
-    log.info("Unread count fetched for user: {}, count: {}", userId, unreadCount);
     
     return ResponseEntity.ok(CommonResponse.success(unreadCount));
   }
@@ -118,7 +110,6 @@ public class NotificationController {
 
   private int validatePageSize(int size) {
     if (size > MAX_PAGE_SIZE) {
-      log.warn("Page size exceeded maximum: requested={}, using={}", size, MAX_PAGE_SIZE);
       return MAX_PAGE_SIZE;
     }
     return size;
