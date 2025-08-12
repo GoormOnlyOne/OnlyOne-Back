@@ -11,6 +11,7 @@ import lombok.Getter;
 @Getter
 @AllArgsConstructor
 public class UserSettlementDto {
+    private Long clubId;
     private Long userId;
     private String nickname;
     private String profileImage;
@@ -18,6 +19,7 @@ public class UserSettlementDto {
 
     public static UserSettlementDto from(UserSettlement userSettlement) {
         return UserSettlementDto.builder()
+                .clubId(userSettlement.getSettlement().getSchedule().getClub().getClubId())
                 .userId(userSettlement.getUser().getUserId())
                 .nickname(userSettlement.getUser().getNickname())
                 .profileImage(userSettlement.getUser().getProfileImage())

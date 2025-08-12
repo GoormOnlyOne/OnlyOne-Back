@@ -11,10 +11,7 @@ import com.example.onlyone.domain.feed.dto.response.FeedCommentResponseDto;
 import com.example.onlyone.domain.feed.dto.response.FeedDetailResponseDto;
 import com.example.onlyone.domain.feed.dto.response.FeedOverviewDto;
 import com.example.onlyone.domain.feed.dto.response.FeedSummaryResponseDto;
-import com.example.onlyone.domain.feed.entity.Feed;
-import com.example.onlyone.domain.feed.entity.FeedComment;
-import com.example.onlyone.domain.feed.entity.FeedImage;
-import com.example.onlyone.domain.feed.entity.FeedLike;
+import com.example.onlyone.domain.feed.entity.*;
 import com.example.onlyone.domain.feed.repository.FeedCommentRepository;
 import com.example.onlyone.domain.feed.repository.FeedLikeRepository;
 import com.example.onlyone.domain.feed.repository.FeedRepository;
@@ -54,6 +51,8 @@ public class FeedService {
         Club club = clubRepository.findById(clubId)
                 .orElseThrow(() -> new CustomException(ErrorCode.CLUB_NOT_FOUND));
         User user = userService.getCurrentUser();
+        UserClub userClub = userClubRepository.findByUserAndClub(user, club)
+                .orElseThrow(() -> new CustomException(ErrorCode.CLUB_NOT_JOIN));
         Feed feed = requestDto.toEntity(club, user);
 
         requestDto.getFeedUrls().stream()
@@ -96,7 +95,11 @@ public class FeedService {
         Page<Feed> feeds = feedRepository.findByClubAndParentIsNull(club, pageable);
 
         return feeds.map(feed -> {
-                    String thumbnailUrl = feed.getFeedImages().get(0).getFeedImage();
+                    String thumbnailUrl = null;
+                    List<FeedImage> imgs = feed.getFeedImages();
+                    if (imgs != null && !imgs.isEmpty()) {           // ★ 빈 리스트 가드
+                        thumbnailUrl = imgs.get(0).getFeedImage();
+                    }
 
                     return new FeedSummaryResponseDto(
                             feed.getFeedId(),
