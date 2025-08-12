@@ -67,6 +67,7 @@ public class SecurityConfig {
         configuration.setAllowedOriginPatterns(List.of(
                 "http://localhost:8080",
                 "http://localhost:5173",
+                "https://only-one-front-delta.vercel.app",
                 baseUrl
         ));
         configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"));
