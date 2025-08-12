@@ -45,8 +45,6 @@ public class NotificationController {
   public ResponseEntity<CommonResponse<NotificationCreateResponseDto>> createNotification(
       @Valid @RequestBody NotificationCreateRequestDto requestDto) {
 
-    log.info("Notification creation requested: userId={}, type={}", requestDto.getUserId(), requestDto.getType());
-
     NotificationCreateResponseDto responseDto = notificationService.createNotification(requestDto);
     return ResponseEntity.status(HttpStatus.CREATED).body(CommonResponse.success(responseDto));
   }
@@ -54,28 +52,40 @@ public class NotificationController {
   /**
    * 알림 목록 조회 (커서 기반 페이징)
    */
-  @Operation(summary = "알림 목록 조회", description = "커서 기반 페이징으로 알림 목록을 조회하며, 첫 페이지 조회 시 자동으로 모든 알림을 읽음 처리합니다")
+  @Operation(summary = "알림 목록 조회", description = "커서 기반 페이징으로 모든 알림 목록을 조회합니다 (읽음/읽지않음 포함). 첫 페이지 조회 시 자동으로 모든 알림을 읽음 처리합니다")
   @GetMapping
   public ResponseEntity<CommonResponse<NotificationListResponseDto>> getNotifications(
-      @RequestParam Long userId,
       @RequestParam(required = false) Long cursor,
       @RequestParam(defaultValue = "20") int size) {
 
+    User currentUser = userService.getCurrentUser();
+    Long userId = currentUser.getUserId();
+    
     size = validatePageSize(size);
+    
+    NotificationListResponseDto dto = notificationService.getNotifications(userId, cursor, size);
     
     // 첫 페이지 조회 시 자동 읽음 처리
     if (cursor == null) {
-      log.info("Auto marking all notifications as read for user: {}", userId);
       notificationService.markAllAsRead(userId);
     }
     
-    // 읽음 처리 후 최신 상태로 목록 조회
-    NotificationListResponseDto dto = notificationService.getNotifications(userId, cursor, size);
-    
-    log.info("Notifications fetched for user: {}, count: {}, unreadCount: {}", 
-        userId, dto.getNotifications().size(), dto.getUnreadCount());
-    
     return ResponseEntity.ok(CommonResponse.success(dto));
+  }
+
+  /**
+   * 읽지 않은 알림 개수 조회
+   */
+  @Operation(summary = "읽지 않은 알림 개수 조회", description = "현재 인증된 사용자의 읽지 않은 알림 개수를 조회합니다")
+  @GetMapping("/unread-count")
+  public ResponseEntity<CommonResponse<Long>> getUnreadCount() {
+    
+    User currentUser = userService.getCurrentUser();
+    Long userId = currentUser.getUserId();
+    
+    Long unreadCount = notificationService.getUnreadCount(userId);
+    
+    return ResponseEntity.ok(CommonResponse.success(unreadCount));
   }
 
   /**
@@ -83,10 +93,11 @@ public class NotificationController {
    */
   @Operation(summary = "알림 삭제", description = "특정 알림을 삭제합니다")
   @DeleteMapping("/{notificationId}")
-  public ResponseEntity<Void> deleteNotification(
-      @RequestParam Long userId,
-      @PathVariable Long notificationId) {
+  public ResponseEntity<Void> deleteNotification(@PathVariable Long notificationId) {
 
+    User currentUser = userService.getCurrentUser();
+    Long userId = currentUser.getUserId();
+    
     notificationService.deleteNotification(userId, notificationId);
     return ResponseEntity.noContent().build();
   }
@@ -99,7 +110,6 @@ public class NotificationController {
 
   private int validatePageSize(int size) {
     if (size > MAX_PAGE_SIZE) {
-      log.warn("Page size exceeded maximum: requested={}, using={}", size, MAX_PAGE_SIZE);
       return MAX_PAGE_SIZE;
     }
     return size;
