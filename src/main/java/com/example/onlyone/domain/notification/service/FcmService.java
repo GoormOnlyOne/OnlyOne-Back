@@ -44,20 +44,13 @@ public class FcmService {
 
     } catch (IllegalArgumentException e) {
       // FCM 토큰 관련 예외
-      log.error("FCM token validation failed: notificationId={}, error={}",
-          appNotification.getNotificationId(), e.getMessage());
       throw new CustomException(ErrorCode.FCM_TOKEN_NOT_FOUND);
 
     } catch (FirebaseMessagingException e) {
       // Firebase 서비스 예외
-      String errorCode = e.getErrorCode() != null ? e.getErrorCode().toString() : "UNKNOWN";
-      log.error("FCM message send failed: notificationId={}, errorCode={}, error={}",
-          appNotification.getNotificationId(), errorCode, e.getMessage());
       
-      // 특정 에러 코드에 따른 로깅 및 적절한 에러 반환
+      // 특정 에러 코드에 따른 적절한 에러 반환
       if (isInvalidTokenError(e)) {
-        log.warn("Invalid FCM token detected for user: {}, client should refresh token", 
-            appNotification.getUser().getUserId());
         throw new CustomException(ErrorCode.FCM_TOKEN_REFRESH_REQUIRED);
       }
       
@@ -65,8 +58,6 @@ public class FcmService {
 
     } catch (Exception e) {
       // 기타 예상치 못한 예외
-      log.error("Unexpected FCM error: notificationId={}, error={}",
-          appNotification.getNotificationId(), e.getMessage(), e);
       throw new CustomException(ErrorCode.FCM_MESSAGE_SEND_FAILED);
     }
   }
@@ -110,7 +101,7 @@ public class FcmService {
           userId, failedAppNotifications.size(), successCount);
 
     } catch (Exception e) {
-      log.error("FCM retry process failed for user: {}, error={}", userId, e.getMessage(), e);
+      throw new CustomException(ErrorCode.FCM_MESSAGE_SEND_FAILED);
     }
   }
 
@@ -123,7 +114,6 @@ public class FcmService {
     if (token == null || token.isBlank()) {
       String errorMsg = String.format("FCM token not found for user: %s",
           appNotification.getUser().getUserId());
-      log.warn(errorMsg);
       throw new IllegalArgumentException(errorMsg);
     }
     
@@ -138,8 +128,6 @@ public class FcmService {
           .putAllData(buildDataPayload(appNotification))
           .build();
     } catch (Exception e) {
-      log.error("Failed to build FCM message: notificationId={}, error={}",
-          appNotification.getNotificationId(), e.getMessage());
       throw new IllegalArgumentException("Failed to build FCM message", e);
     }
   }
