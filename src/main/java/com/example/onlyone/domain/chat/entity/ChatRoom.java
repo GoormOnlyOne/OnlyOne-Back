@@ -24,7 +24,7 @@ public class ChatRoom extends BaseTimeEntity {
     @Column(name = "chat_room_id", updatable = false, nullable = false)
     private Long chatRoomId;
 
-    @ManyToOne(fetch = FetchType.LAZY, cascade = CascadeType.ALL)
+    @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "club_id", updatable = false)
     @NotNull
     @JsonIgnore
