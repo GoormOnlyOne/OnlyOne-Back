@@ -122,7 +122,7 @@ public class FeedMainService {
 
     private Map<Long, Feed> bulkLoadParents(List<Feed> feeds) {
         Set<Long> parentIds = feeds.stream()
-                .map(f -> f.getParent() != null ? f.getParent().getFeedId() : null)
+                .map(Feed::getParentFeedId )
                 .filter(Objects::nonNull)
                 .collect(Collectors.toSet());
         if (parentIds.isEmpty()) return Collections.emptyMap();
@@ -185,11 +185,13 @@ public class FeedMainService {
                 .created(f.getCreatedAt())
                 .repostCount(selfRepostCount);
 
-        Feed parent = f.getParent();
-        if (parent != null) {
-            long parentRepostCount = repostCntMap.getOrDefault(parent.getFeedId(), 0L);
-            Feed p = parentMap.getOrDefault(parent.getFeedId(), parent); // 영속성 컨텍스트에 이미 있을 수도
-            b.parentFeed(toShallowDto(p, currentUserId, likedFeedIds, parentRepostCount));
+        Long parentId = f.getParentFeedId();
+        if (parentId != null) {
+            Feed p = parentMap.get(parentId);
+            if (p != null) {
+                long parentRepostCount = repostCntMap.getOrDefault(parentId, 0L);
+                b.parentFeed(toShallowDto(p, currentUserId, likedFeedIds, parentRepostCount));
+            }
         }
 
         Long rootId = f.getRootFeedId();
@@ -246,10 +248,10 @@ public class FeedMainService {
         Feed parent = feedRepository.findById(parentFeedId)
                 .orElseThrow(() -> new CustomException(ErrorCode.FEED_NOT_FOUND));
 
-        int newDepth = parent.getDepth() + 1;
-        if (newDepth > MAX_REFEED_DEPTH) {
-            throw new CustomException(ErrorCode.REFEED_DEPTH_LIMIT);
-        }
+//        int newDepth = parent.getDepth() + 1;
+//        if (newDepth > MAX_REFEED_DEPTH) {
+//            throw new CustomException(ErrorCode.REFEED_DEPTH_LIMIT);
+//        }
 
         Club club = clubRepository.findById(targetClubId)
                 .orElseThrow(() -> new CustomException(ErrorCode.CLUB_NOT_FOUND));
@@ -263,9 +265,9 @@ public class FeedMainService {
         Feed reFeed = Feed.builder()
                 .content(requestDto.getContent())
                 .feedType(FeedType.REFEED)
-                .parent(parent)
+                .parentFeedId(parentFeedId)
                 .rootFeedId(rootId)
-                .depth(newDepth)
+//                .depth(newDepth)
                 .club(club)
                 .user(user)
                 .build();
