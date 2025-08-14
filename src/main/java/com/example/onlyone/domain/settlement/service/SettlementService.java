@@ -28,7 +28,6 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
@@ -118,11 +117,10 @@ public class SettlementService {
         userSettlementRepository.saveAll(userSettlements);
     }
 
-    /* 참여자의 정산 수행 */
-    @Transactional(rollbackFor = Exception.class)
     public void updateUserSettlement(Long clubId, Long scheduleId) {
         User user = userService.getCurrentUser();
-        // 검증 로직
+//        User user = userService.getCurrentUser();
+        // 유효성 검증
         clubRepository.findById(clubId)
                 .orElseThrow(() -> new CustomException(ErrorCode.CLUB_NOT_FOUND));
         Schedule schedule = scheduleRepository.findById(scheduleId)
@@ -131,53 +129,78 @@ public class SettlementService {
                 .orElseThrow(() -> new CustomException(ErrorCode.USER_SETTLEMENT_NOT_FOUND));
         userScheduleRepository.findByUserAndSchedule(user, schedule)
                 .orElseThrow(() -> new CustomException(ErrorCode.USER_SCHEDULE_NOT_FOUND));
-        if (userSettlement.getSettlement().getTotalStatus() == TotalStatus.COMPLETED ||
-                userSettlement.getSettlementStatus() == SettlementStatus.COMPLETED) {
+        if (userSettlement.getSettlement().getTotalStatus() != TotalStatus.REQUESTED ||
+                userSettlement.getSettlementStatus() != SettlementStatus.REQUESTED) {
             throw new CustomException(ErrorCode.ALREADY_SETTLED_USER);
         }
         User leader = userScheduleRepository.findLeaderByScheduleAndScheduleRole(schedule, ScheduleRole.LEADER)
                 .orElseThrow(() -> new CustomException(ErrorCode.LEADER_NOT_FOUND));
-        // 비관적 락으로 Wallet 조회
+        // Wallet 조회 (비관적 락 적용)
         Wallet wallet = walletRepository.findByUser(user)
                 .orElseThrow(() -> new CustomException(ErrorCode.WALLET_NOT_FOUND));
         Wallet leaderWallet = walletRepository.findByUser(leader)
                 .orElseThrow(() -> new CustomException(ErrorCode.WALLET_NOT_FOUND));
+
         int amount = schedule.getCost();
-        // 잔액 부족 확인
-        if (wallet.getBalance() < amount) {
-            throw new CustomException(ErrorCode.WALLET_BALANCE_NOT_ENOUGH);
-        }
         try {
-            // 1. 잔액 변경 전 상태 저장
-            int beforeBalance = wallet.getBalance();
-            int leaderBeforeBalance = leaderWallet.getBalance();
-            // 2. 실제 잔액 변경
-            wallet.updateBalance(beforeBalance - amount);
-            leaderWallet.updateBalance(leaderBeforeBalance + amount);
-            // 3. 변경된 잔액으로 WalletTransaction 생성
-            walletService.createSuccessfulWalletTransactions(
-                    wallet.getWalletId(), leaderWallet.getWalletId(), amount,
-                    userSettlement
-            );
-            // 4. UserSettlement 상태 변경
-            userSettlement.updateSettlement(SettlementStatus.COMPLETED, LocalDateTime.now()); // PENDING -> COMPLETED
-            // 5. 모든 변경사항 저장
-            walletRepository.save(wallet);
-            walletRepository.save(leaderWallet);
+            // 잔액 부족 확인
+            if (wallet.getBalance() < amount) {
+                throw new CustomException(ErrorCode.WALLET_BALANCE_NOT_ENOUGH);
+            }
+            // 포인트 이동
+            wallet.updateBalance(wallet.getBalance() - amount);
+            leaderWallet.updateBalance(leaderWallet.getBalance() + amount);
+            // 리더-멤버의 WalletTransaction, Transfer 기록
+            saveWalletTransactions(wallet, leaderWallet, amount, WalletTransactionStatus.COMPLETED, userSettlement);
+            // 정산 상태 변경
+            userSettlement.updateSettlement(SettlementStatus.COMPLETED, LocalDateTime.now());
             userSettlementRepository.save(userSettlement);
-            // 6. 알림
             notificationService.createNotification(user,
                     com.example.onlyone.domain.notification.entity.Type.SETTLEMENT,
                     new String[]{String.valueOf(amount)});
         } catch (Exception e) {
-            log.error("정산 처리 실패: userId={}, scheduleId={}, amount={}", user.getUserId(), scheduleId, amount, e);
-            // 실패 기록
-            walletService.createFailedWalletTransactions(wallet.getWalletId(), leaderWallet.getWalletId(), amount, userSettlement);
-            // UserSettlement 상태를 FAILED로 변경
-            userSettlement.updateSettlement(SettlementStatus.FAILED, LocalDateTime.now());
-            userSettlementRepository.save(userSettlement);
-            throw new CustomException(ErrorCode.SETTLEMENT_PROCESS_FAILED);
+            // 리더-멤버의 WalletTransaction 기록
+            saveWalletTransactions(wallet, leaderWallet, amount, WalletTransactionStatus.FAILED, userSettlement);
+            throw e;
         }
+        // [TODO] Notification 생성 및 유저에게 알림 전송
+    }
+
+    /* WalletTransaction 저장 로직 */
+    private void saveWalletTransactions(Wallet wallet, Wallet leaderWallet, int amount,
+                                        WalletTransactionStatus status, UserSettlement userSettlement) {
+        // WalletTransaction 저장
+        WalletTransaction walletTransaction = WalletTransaction.builder()
+                .type(Type.OUTGOING)
+                .amount(amount)
+                .balance(wallet.getBalance())
+                .walletTransactionStatus(status)
+                .wallet(wallet)
+                .targetWallet(leaderWallet)
+                .build();
+        walletTransactionRepository.save(walletTransaction);
+        WalletTransaction leaderWalletTransaction = WalletTransaction.builder()
+                .type(Type.INCOMING)
+                .amount(amount)
+                .balance(leaderWallet.getBalance())
+                .walletTransactionStatus(status)
+                .wallet(leaderWallet)
+                .targetWallet(wallet)
+                .build();
+        walletTransactionRepository.save(leaderWalletTransaction);
+        // Transfer 저장
+        Transfer transfer = Transfer.builder()
+                .userSettlement(userSettlement)
+                .walletTransaction(walletTransaction)
+                .build();
+        transferRepository.save(transfer);
+        walletTransaction.updateTransfer(transfer);
+        Transfer leaderTransfer = Transfer.builder()
+                .userSettlement(userSettlement)
+                .walletTransaction(leaderWalletTransaction)
+                .build();
+        transferRepository.save(leaderTransfer);
+        leaderWalletTransaction.updateTransfer(leaderTransfer);
     }
 
     /* 스케줄 참여자 정산 목록 조회 */
@@ -191,13 +214,6 @@ public class SettlementService {
                 .orElseThrow(() -> new CustomException(ErrorCode.SETTLEMENT_NOT_FOUND));
         Page<UserSettlementDto> userSettlementList = userSettlementRepository
                 .findAllDtoBySettlement(settlement, pageable);
-        return SettlementResponseDto.from(userSettlementList);
-    }
-
-    @Transactional(readOnly = true)
-    public SettlementResponseDto getMySettlementList(Pageable pageable) {
-        User user = userService.getCurrentUser();
-        Page<UserSettlementDto> userSettlementList = userSettlementRepository.findRecentOrRequestedByUser(user, LocalDateTime.now().minusDays(10), pageable);
         return SettlementResponseDto.from(userSettlementList);
     }
 }

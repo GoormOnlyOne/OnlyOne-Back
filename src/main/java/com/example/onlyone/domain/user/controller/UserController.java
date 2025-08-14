@@ -10,6 +10,9 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.web.PageableDefault;
 import org.springframework.http.ResponseEntity;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
@@ -97,5 +100,12 @@ public class UserController {
     log.info("FCM token deleted successfully for user: {}", currentUser.getUserId());
 
     return ResponseEntity.ok(CommonResponse.success(null));
+  }
+
+  @Operation(summary = "유저 정산 요청 조회", description = "최근 처리된 정산 / 아직 처리되지 않은 정산 목록을 조회합니다.")
+  @GetMapping("/settlement")
+  public ResponseEntity<?> getMySettlementList(@PageableDefault(size = 20, sort = "createdAt", direction = Sort.Direction.DESC)
+                                               Pageable pageable) {
+    return ResponseEntity.ok(CommonResponse.success(userService.getMySettlementList(pageable)));
   }
 }
