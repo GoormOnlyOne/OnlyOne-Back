@@ -30,6 +30,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
@@ -92,7 +93,7 @@ public class FeedService {
         Club club = clubRepository.findById(clubId)
                 .orElseThrow(() -> new CustomException(ErrorCode.CLUB_NOT_FOUND));
 
-        Page<Feed> feeds = feedRepository.findByClubAndParentIsNull(club, pageable);
+        Page<Feed> feeds = feedRepository.findByClubAndParentFeedIdIsNull(club, pageable);
 
         return feeds.map(feed -> {
                     String thumbnailUrl = null;
@@ -131,7 +132,7 @@ public class FeedService {
         List<FeedCommentResponseDto> commentResponseDtos = feed.getFeedComments().stream()
                 .map(comment -> FeedCommentResponseDto.from(comment, currentUserId))
                 .collect(Collectors.toList());
-        long repostCount = feedRepository.countByParent_FeedId(feedId);
+        long repostCount = feedRepository.countByParentFeedId(feedId);
 
         return FeedDetailResponseDto.from(feed, imageUrls, isLiked, isMine, commentResponseDtos, repostCount);
     }
@@ -209,5 +210,30 @@ public class FeedService {
             throw new CustomException(ErrorCode.UNAUTHORIZED_FEED_ACCESS);
         }
         feedRepository.delete(feed);
+    }
+
+    public void softDeleteFeed(Long clubId, Long feedId) {
+        Club club = clubRepository.findById(clubId)
+                .orElseThrow(() -> new CustomException(ErrorCode.CLUB_NOT_FOUND));
+        Feed target = feedRepository.findByFeedIdAndClub(feedId, club)
+                .orElseThrow(() -> new CustomException(ErrorCode.FEED_NOT_FOUND));
+
+        // 권한 체크
+        Long me = userService.getCurrentUser().getUserId();
+        if (!Objects.equals(target.getUser().getUserId(), me)) {
+            throw new CustomException(ErrorCode.UNAUTHORIZED_FEED_ACCESS);
+        }
+
+        // 1) 중간 노드 삭제 대비: 나를 parent로 참조하던 '직계 자식'들의 parent/root를 NULL
+        feedRepository.clearParentAndRootForChildren(target.getFeedId());
+
+        // 2) 루트 노드 삭제 대비: 나를 root로 참조하던 모든 후손들의 root를 NULL
+        feedRepository.clearRootForDescendants(target.getFeedId());
+
+        // 3) 내 행 소프트 삭제
+        int affected = feedRepository.softDeleteById(target.getFeedId());
+        if (affected == 0) {
+            throw new CustomException(ErrorCode.FEED_NOT_FOUND); // 동시성 등으로 이미 삭제된 경우
+        }
     }
 }

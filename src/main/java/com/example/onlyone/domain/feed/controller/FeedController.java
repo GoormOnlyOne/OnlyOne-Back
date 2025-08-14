@@ -46,7 +46,7 @@ public class FeedController {
     @Operation(summary = "피드 삭제", description = "피드를 삭제합니다.")
     @DeleteMapping("/{feedId}")
     public ResponseEntity<?> deleteFeed(@PathVariable("clubId") Long clubId, @PathVariable("feedId") Long feedId) {
-        feedService.deleteFeed(clubId, feedId);
+        feedService.softDeleteFeed(clubId, feedId);
         return ResponseEntity.status(HttpStatus.OK).body(CommonResponse.success(null));
     }
 
