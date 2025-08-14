@@ -49,7 +49,8 @@ public interface UserSettlementRepository extends JpaRepository<UserSettlement, 
     @Query(
             value = """
     select new com.example.onlyone.domain.user.dto.response.MySettlementDto(
-      c.clubId,                 
+      c.clubId,
+          sch.scheduleId,                 
       sch.cost,                
       c.clubImage,               
       us.settlementStatus,         
@@ -99,4 +100,5 @@ public interface UserSettlementRepository extends JpaRepository<UserSettlement, 
             @Param("user") User user,
             @Param("schedule") Schedule schedule
     );
+    boolean existsByUserAndSettlementStatusNot(User user, SettlementStatus settlementStatus);
 }
