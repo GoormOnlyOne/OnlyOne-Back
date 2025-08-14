@@ -36,8 +36,10 @@ public class SseNotificationDto {
   private LocalDateTime createdAt;
 
   public static SseNotificationDto from(AppNotification appNotification) {
+    java.util.Objects.requireNonNull(appNotification, "알림은 null일 수 없습니다");
+    
     return SseNotificationDto.builder()
-        .notificationId(appNotification.getNotificationId())
+        .notificationId(appNotification.getId())
         .content(appNotification.getContent())
         .type(appNotification.getNotificationType().getType())
         .createdAt(appNotification.getCreatedAt())
