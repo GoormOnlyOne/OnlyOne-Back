@@ -1,6 +1,7 @@
 package com.example.onlyone.domain.notification.dto.responseDto;
 
 import com.example.onlyone.domain.notification.entity.Type;
+import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
 
@@ -13,6 +14,7 @@ import java.time.LocalDateTime;
  */
 @Getter
 @Builder
+@AllArgsConstructor
 public class NotificationItemDto {
 
   /**
