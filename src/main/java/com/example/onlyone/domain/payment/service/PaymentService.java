@@ -70,57 +70,34 @@ public class PaymentService {
             throw new CustomException(ErrorCode.INVALID_PAYMENT_INFO);
         }
         // 검증 완료 후에는 Redis에서 제거
+        log.info("REDIS key 등록 완료");
         redisTemplate.delete(redisKey);
     }
 
     /* 토스페이먼츠 결제 승인 */
     public ConfirmTossPayResponse confirm(ConfirmTossPayRequest req) {
-        // 멱등성 체크: 이미 처리된 주문인지 확인
-        Optional<Payment> existingPayment = paymentRepository.findByTossOrderId(req.getOrderId());
-        if (existingPayment.isPresent()) {
-            switch (existingPayment.get().getStatus()) {
-                case DONE -> throw new CustomException(ErrorCode.ALREADY_COMPLETED_PAYMENT);
-                case IN_PROGRESS -> throw new CustomException(ErrorCode.PAYMENT_IN_PROGRESS);
-                case CANCELED -> {existingPayment.get().updateStatus(Status.IN_PROGRESS);}
-            }
-        } else {
-            try {
-                Payment payment = Payment.builder()
-                        .tossOrderId(req.getOrderId())
-                        .status(Status.IN_PROGRESS)
-                        .totalAmount(req.getAmount())
-                        .build();
-                paymentRepository.saveAndFlush(payment);
-            } catch (DataIntegrityViolationException e) {
-                // 다른 스레드가 이미 클레임 생성에 성공한 경우
-                Payment payment = paymentRepository.findByTossOrderId(req.getOrderId())
-                        .orElseThrow(() -> new CustomException(ErrorCode.INTERNAL_SERVER_ERROR));
-                if (payment.getStatus() == Status.DONE)
-                    throw new CustomException(ErrorCode.ALREADY_COMPLETED_PAYMENT);
-                if (payment.getStatus() == Status.IN_PROGRESS)
-                    throw new CustomException(ErrorCode.PAYMENT_IN_PROGRESS);
-                if (payment.getStatus() == Status.CANCELED)
-                    payment.updateStatus(Status.IN_PROGRESS);
-            }
-        }
-        ConfirmTossPayResponse response;
+        // 1) 단일 Payment 객체 확보(생성 또는 재사용)
+        Payment payment = claimPayment(req.getOrderId(), req.getAmount());
+        // 2) 토스페이먼츠 결제 호출
+        final ConfirmTossPayResponse response;
         try {
-            // tossPaymentClient를 통해 호출
             response = tossPaymentClient.confirmPayment(req);
         } catch (FeignException.BadRequest e) {
+            // 실패 기록은 reportFail에서 일괄 처리
             throw new CustomException(ErrorCode.INVALID_PAYMENT_INFO);
         } catch (FeignException e) {
             throw new CustomException(ErrorCode.TOSS_PAYMENT_FAILED);
         } catch (Exception e) {
             throw new CustomException(ErrorCode.INTERNAL_SERVER_ERROR);
         }
+        // 3) 지갑 반영 + 트랜잭션 기록
         User user = userService.getCurrentUser();
         Wallet wallet = walletRepository.findByUser(user)
                 .orElseThrow(() -> new CustomException(ErrorCode.WALLET_NOT_FOUND));
+
         int amount = Math.toIntExact(req.getAmount());
-        // 포인트 업데이트
         wallet.updateBalance(wallet.getBalance() + amount);
-        // 충전(결제) 기록
+
         WalletTransaction walletTransaction = WalletTransaction.builder()
                 .type(Type.CHARGE)
                 .amount(amount)
@@ -130,22 +107,50 @@ public class PaymentService {
                 .targetWallet(wallet)
                 .build();
         walletTransactionRepository.save(walletTransaction);
-        payment.updateOnConfirm(response.getStatus(), response.getMethod(), walletTransaction);
+        // 4) 단일 객체 업데이트 (상태/수단/연결)
+        payment.updateOnConfirm(response.getPaymentKey(), Status.from(response.getStatus()), Method.from(response.getMethod()), walletTransaction);
         walletTransaction.updatePayment(payment);
         return response;
-//
-//
-//        Payment payment = Payment.builder()
-//                .tossPaymentKey(response.getPaymentKey())
-//                .tossOrderId(response.getOrderId())
-//                .totalAmount(response.getTotalAmount())
-//                .method(Method.from(response.getMethod()))
-//                .status(Status.from(response.getStatus()))
-//                .walletTransaction(walletTransaction)
-//                .build();
-//        walletTransaction.updatePayment(payment);
-//        return response;
+    }
 
+    /* 동일 주문을 단일 Payment 엔티티로 선점/반환 */
+    private Payment claimPayment(String orderId, long amount) {
+        // 비관적 락 사용
+        Optional<Payment> found = paymentRepository.findByTossOrderId(orderId);
+        if (found.isPresent()) {
+            Payment p = found.get();
+            switch (p.getStatus()) {
+                case DONE -> throw new CustomException(ErrorCode.ALREADY_COMPLETED_PAYMENT);
+                case IN_PROGRESS -> throw new CustomException(ErrorCode.PAYMENT_IN_PROGRESS);
+                case CANCELED -> {
+                    p.updateStatus(Status.IN_PROGRESS);
+                    return p;
+                }
+                default -> { return p; }
+            }
+        } else {
+            try {
+                Payment p = Payment.builder()
+                        .tossOrderId(orderId)
+                        .status(Status.IN_PROGRESS)
+                        .totalAmount(amount)
+                        .build();
+                return paymentRepository.saveAndFlush(p);
+            } catch (DataIntegrityViolationException dup) {
+                // 다른 트랜잭션이 먼저 만들었다면 재조회 후 동일 분기 처리
+                Payment p = paymentRepository.findByTossOrderId(orderId)
+                        .orElseThrow(() -> new CustomException(ErrorCode.INTERNAL_SERVER_ERROR));
+                switch (p.getStatus()) {
+                    case DONE -> throw new CustomException(ErrorCode.ALREADY_COMPLETED_PAYMENT);
+                    case IN_PROGRESS -> throw new CustomException(ErrorCode.PAYMENT_IN_PROGRESS);
+                    case CANCELED -> {
+                        p.updateStatus(Status.IN_PROGRESS);
+                        return p;
+                    }
+                    default -> { return p; }
+                }
+            }
+        }
     }
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
@@ -155,6 +160,7 @@ public class PaymentService {
                 .orElseGet(() -> {
                     Payment p = Payment.builder()
                             .tossOrderId(req.getOrderId())
+                            .tossPaymentKey(req.getPaymentKey())
                             .totalAmount(req.getAmount())
                             .status(Status.IN_PROGRESS)
                             .build();
