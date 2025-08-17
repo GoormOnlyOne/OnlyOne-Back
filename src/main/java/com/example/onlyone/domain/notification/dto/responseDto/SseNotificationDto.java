@@ -35,6 +35,10 @@ public class SseNotificationDto {
 
   private LocalDateTime createdAt;
 
+  private final String targetType;
+
+  private final Long targetId;
+
   public static SseNotificationDto from(AppNotification appNotification) {
     java.util.Objects.requireNonNull(appNotification, "알림은 null일 수 없습니다");
     
@@ -43,6 +47,8 @@ public class SseNotificationDto {
         .content(appNotification.getContent())
         .type(appNotification.getNotificationType().getType())
         .createdAt(appNotification.getCreatedAt())
+        .targetType(appNotification.getTargetType())
+        .targetId(appNotification.getTargetId())
         .build();
   }
 }
