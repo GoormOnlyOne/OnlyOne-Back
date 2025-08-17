@@ -64,7 +64,7 @@ public class ScheduleService {
     }
 
     /* 정기 모임 생성*/
-    public void createSchedule(Long clubId, @Valid ScheduleRequestDto requestDto) {
+    public void createSchedule(Long clubId, ScheduleRequestDto requestDto) {
         Club club = clubRepository.findById(clubId)
                 .orElseThrow(() -> new CustomException(ErrorCode.CLUB_NOT_FOUND));
         Schedule schedule = requestDto.toEntity(club);
