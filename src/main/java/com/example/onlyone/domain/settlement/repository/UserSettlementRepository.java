@@ -10,6 +10,7 @@ import com.example.onlyone.domain.user.entity.User;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -101,4 +102,9 @@ public interface UserSettlementRepository extends JpaRepository<UserSettlement, 
             @Param("schedule") Schedule schedule
     );
     boolean existsByUserAndSettlementStatusNot(User user, SettlementStatus settlementStatus);
+
+    @Modifying
+    @Query("update UserSettlement us set us.settlementStatus = :status " +
+            "where us.userSettlementId = :id")
+    void updateStatusIfRequested(@Param("id") Long userSettlementId, @Param("status") SettlementStatus settlementStatus);
 }
