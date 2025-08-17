@@ -65,6 +65,8 @@ public interface UserSettlementRepository extends JpaRepository<UserSettlement, 
     where us.user = :user
       and (
         us.settlementStatus = com.example.onlyone.domain.settlement.entity.SettlementStatus.REQUESTED
+        or
+        us.settlementStatus = com.example.onlyone.domain.settlement.entity.SettlementStatus.FAILED
         or (
           us.settlementStatus = com.example.onlyone.domain.settlement.entity.SettlementStatus.COMPLETED
           and us.completedTime >= :cutoff
@@ -78,6 +80,8 @@ public interface UserSettlementRepository extends JpaRepository<UserSettlement, 
     where us.user = :user
       and (
         us.settlementStatus = com.example.onlyone.domain.settlement.entity.SettlementStatus.REQUESTED
+        or
+        us.settlementStatus = com.example.onlyone.domain.settlement.entity.SettlementStatus.FAILED
         or (
           us.settlementStatus = com.example.onlyone.domain.settlement.entity.SettlementStatus.COMPLETED
           and us.completedTime >= :cutoff
