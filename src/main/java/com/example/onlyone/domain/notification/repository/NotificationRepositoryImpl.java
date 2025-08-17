@@ -36,7 +36,9 @@ public class NotificationRepositoryImpl implements NotificationRepositoryCustom 
                         appNotification.content,
                         notificationType.type,
                         appNotification.isRead,
-                        appNotification.createdAt
+                        appNotification.createdAt,
+                        appNotification.targetType,
+                        appNotification.targetId
                 ))
                 .from(appNotification)
                 .join(appNotification.notificationType, notificationType)
@@ -62,7 +64,9 @@ public class NotificationRepositoryImpl implements NotificationRepositoryCustom 
                         appNotification.content,
                         notificationType.type,
                         appNotification.isRead,
-                        appNotification.createdAt
+                        appNotification.createdAt,
+                        appNotification.targetType,
+                        appNotification.targetId
                 ))
                 .from(appNotification)
                 .join(appNotification.notificationType, notificationType)

@@ -72,6 +72,25 @@ public class NotificationService {
   }
 
   /**
+   * 타겟 정보를 포함한 알림 생성 (클릭 시 이동 가능)
+   * 타겟 타입은 알림 Type에서 자동으로 결정됨
+   */
+  @Transactional
+  public NotificationCreateResponseDto createNotificationWithTarget(User user, Type type, 
+                                                                    Long targetId, 
+                                                                    String... args) {
+    NotificationType notificationType = findNotificationType(type);
+    String targetType = type.getTargetType(); // Type enum에서 타겟 타입 가져오기
+    AppNotification appNotification = createAndSaveNotificationWithTarget(
+        user, notificationType, targetType, targetId, args);
+    
+    // 트랜잭션 커밋 후 실시간 알림 전송을 위한 이벤트 발행
+    eventPublisher.publishEvent(new NotificationCreatedEvent(appNotification));
+
+    return NotificationCreateResponseDto.from(appNotification);
+  }
+
+  /**
    * 트랜잭션 커밋 후 알림 타입별 전송 방식 적용
    */
   @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
@@ -212,6 +231,15 @@ public class NotificationService {
   // 알림 생성 및 저장
   private AppNotification createAndSaveNotification(User user, NotificationType type, String... args) {
     AppNotification appNotification = AppNotification.create(user, type, args);
+    return notificationRepository.save(appNotification);
+  }
+
+  // 타겟 정보를 포함한 알림 생성 및 저장
+  private AppNotification createAndSaveNotificationWithTarget(User user, NotificationType type, 
+                                                              String targetType, Long targetId, 
+                                                              String... args) {
+    AppNotification appNotification = AppNotification.createWithTarget(
+        user, type, targetType, targetId, args);
     return notificationRepository.save(appNotification);
   }
 
