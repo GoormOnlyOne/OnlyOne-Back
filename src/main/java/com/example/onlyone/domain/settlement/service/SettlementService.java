@@ -60,16 +60,12 @@ public class SettlementService {
     @Scheduled(cron = "0 55 17 * * *")
     @Transactional
     public void updateTotalStatusIfAllCompleted() {
-        log.info("스케쥴링 진입이요");
         List<Settlement> settlements = settlementRepository.findAllByTotalStatus(TotalStatus.REQUESTED);
         for (Settlement settlement : settlements) {
             long totalCount = userSettlementRepository.countBySettlement(settlement);
             long completedCount = userSettlementRepository.countBySettlementAndSettlementStatus(settlement, SettlementStatus.COMPLETED);
             User leader = userScheduleRepository.findLeaderByScheduleAndScheduleRole(settlement.getSchedule(), ScheduleRole.LEADER)
                     .orElseThrow(() -> new CustomException(ErrorCode.LEADER_NOT_FOUND));
-            log.info("totalCount: {}", totalCount);
-            log.info("completedCount: {}", completedCount);
-            log.info("schedule: {}", settlement.getSchedule());
             // 모든 정산이 완료된 경우
             if (totalCount > 0 && totalCount == completedCount) {
                 settlement.update(TotalStatus.COMPLETED, LocalDateTime.now());
