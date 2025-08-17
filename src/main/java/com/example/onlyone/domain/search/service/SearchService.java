@@ -196,5 +196,4 @@ public class SearchService {
                 userSettlementRepository.existsByUserAndSettlementStatusNot(user, SettlementStatus.COMPLETED);
         return new MyMeetingListResponseDto(isUnsettledScheduleExist, clubResponseDtoList);
     }
-
 }
