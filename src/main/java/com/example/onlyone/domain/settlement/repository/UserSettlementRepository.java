@@ -10,6 +10,7 @@ import com.example.onlyone.domain.user.entity.User;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -49,7 +50,8 @@ public interface UserSettlementRepository extends JpaRepository<UserSettlement, 
     @Query(
             value = """
     select new com.example.onlyone.domain.user.dto.response.MySettlementDto(
-      c.clubId,                 
+      c.clubId,
+          sch.scheduleId,                 
       sch.cost,                
       c.clubImage,               
       us.settlementStatus,         
@@ -63,6 +65,8 @@ public interface UserSettlementRepository extends JpaRepository<UserSettlement, 
     where us.user = :user
       and (
         us.settlementStatus = com.example.onlyone.domain.settlement.entity.SettlementStatus.REQUESTED
+        or
+        us.settlementStatus = com.example.onlyone.domain.settlement.entity.SettlementStatus.FAILED
         or (
           us.settlementStatus = com.example.onlyone.domain.settlement.entity.SettlementStatus.COMPLETED
           and us.completedTime >= :cutoff
@@ -76,6 +80,8 @@ public interface UserSettlementRepository extends JpaRepository<UserSettlement, 
     where us.user = :user
       and (
         us.settlementStatus = com.example.onlyone.domain.settlement.entity.SettlementStatus.REQUESTED
+        or
+        us.settlementStatus = com.example.onlyone.domain.settlement.entity.SettlementStatus.FAILED
         or (
           us.settlementStatus = com.example.onlyone.domain.settlement.entity.SettlementStatus.COMPLETED
           and us.completedTime >= :cutoff
@@ -99,4 +105,10 @@ public interface UserSettlementRepository extends JpaRepository<UserSettlement, 
             @Param("user") User user,
             @Param("schedule") Schedule schedule
     );
+    boolean existsByUserAndSettlementStatusNot(User user, SettlementStatus settlementStatus);
+
+    @Modifying
+    @Query("update UserSettlement us set us.settlementStatus = :status " +
+            "where us.userSettlementId = :id")
+    void updateStatusIfRequested(@Param("id") Long userSettlementId, @Param("status") SettlementStatus settlementStatus);
 }

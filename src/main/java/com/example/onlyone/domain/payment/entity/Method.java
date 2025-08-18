@@ -33,7 +33,7 @@ public enum Method {
         return korean;
     }
 
-    public static Method from (String value) {
+    public static Method from(String value) {
         if (value == null || value.isBlank()) {
             throw new CustomException(ErrorCode.INVALID_PAYMENT_INFO);
         }

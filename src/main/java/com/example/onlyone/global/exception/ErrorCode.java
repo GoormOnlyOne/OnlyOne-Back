@@ -53,12 +53,14 @@ public enum ErrorCode {
     FCM_AUTHENTICATION_FAILED(401, "NOTIFY_401_2", "Firebase 인증에 실패했습니다."),
 
     // Schedule
+    INVALID_SCHEDULE_DELETE(400, "SCHEDULE_400_1", "이미 시작한 스케줄은 삭제할 수 없습니다."),
+    MEMBER_CANNOT_MODIFY_SCHEDULE(403, "SCHEDULE_403_1", "리더만 정기 모임을 수정할 수 있습니다,"),
+    MEMBER_CANNOT_DELETE_SCHEDULE(403, "SCHEDULE_403_2", "리더만 정기 모임을 삭제할 수 있습니다,"),
     SCHEDULE_NOT_FOUND(404, "SCHEDULE_404_1", "정기 모임을 찾을 수 없습니다."),
     USER_SCHEDULE_NOT_FOUND(404, "SCHEDULE_404_2", "정기 모임 참여자를 찾을 수 없습니다."),
     LEADER_NOT_FOUND(404, "SCHEDULE_404_3", "정기 모임 리더를 찾을 수 없습니다."),
     ALREADY_JOINED_SCHEDULE(409, "SCHEDULE_409_1", "이미 참여하고 있는 정기 모임입니다."),
     LEADER_CANNOT_LEAVE_SCHEDULE(409, "SCHEDULE_409_2", "리더는 정기 모임 참여를 취소할 수 없습니다."),
-    MEMBER_CANNOT_MODIFY_SCHEDULE(403, "SCHEDULE_403_1", "리더만 정기 모임을 수정할 수 있습니다,"),
     ALREADY_ENDED_SCHEDULE(409, "SCHEDULE_409_4", "이미 종료된 정기 모임입니다."),
     BEFORE_SCHEDULE_START(409, "SCHEDULE_409_5", "아직 진행되지 않은 정기 모임입니다."),
     ALREADY_EXCEEDED_SCHEDULE(409, "SCHEDULE_409_6", "이미 정원이 마감된 정기 모임입니다."),
@@ -76,6 +78,7 @@ public enum ErrorCode {
     WALLET_BALANCE_NOT_ENOUGH(409, "WALLET_409_1", "사용자의 잔액이 부족합니다."),
 
     // Payment
+    PAYMENT_IN_PROGRESS(202, "PAYMENT_202_1", "결제가 처리 중입니다. 잠시 후 다시 조회해 주세요."),
     INVALID_PAYMENT_INFO(400, "PAYMENT_400_1", "결제 정보가 유효하지 않습니다."),
     ALREADY_COMPLETED_PAYMENT(409, "PAYMENT_409_1", "이미 결제가 완료되었습니다."),
     TOSS_PAYMENT_FAILED(502, "PAYMENT_502_1", "토스페이먼츠 결제 승인에 실패했습니다."),
