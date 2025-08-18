@@ -6,6 +6,7 @@ import com.example.onlyone.domain.schedule.entity.Schedule;
 import com.example.onlyone.domain.settlement.entity.SettlementStatus;
 import com.example.onlyone.domain.settlement.entity.UserSettlement;
 import com.example.onlyone.domain.settlement.repository.TransferRepository;
+import com.example.onlyone.domain.settlement.repository.UserSettlementRepository;
 import com.example.onlyone.domain.user.entity.User;
 import com.example.onlyone.domain.user.service.UserService;
 import com.example.onlyone.domain.wallet.dto.response.UserWalletTransactionDto;
@@ -15,6 +16,8 @@ import com.example.onlyone.domain.wallet.repository.WalletRepository;
 import com.example.onlyone.domain.wallet.repository.WalletTransactionRepository;
 import com.example.onlyone.global.exception.CustomException;
 import com.example.onlyone.global.exception.ErrorCode;
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.PersistenceContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.log4j.Log4j2;
 import org.springframework.data.domain.Page;
@@ -37,6 +40,7 @@ public class WalletService {
     private final TransferRepository transferRepository;
     private final UserService userService;
     private final ClubRepository clubRepository;
+    private final UserSettlementRepository userSettlementRepository;
 
     /* 사용자 정산/거래 내역 목록 조회 */
     public WalletTransactionResponseDto getWalletTransactionList(Filter filter, Pageable pageable) {
@@ -47,9 +51,9 @@ public class WalletService {
         Wallet wallet = walletRepository.findByUser(user)
                 .orElseThrow(() -> new CustomException(ErrorCode.WALLET_NOT_FOUND));
         Page<WalletTransaction> transactionPageList = switch (filter) {
-            case ALL -> walletTransactionRepository.findByWallet(wallet, pageable);
-            case CHARGE -> walletTransactionRepository.findByWalletAndType(wallet, Type.CHARGE, pageable);
-            case TRANSACTION -> walletTransactionRepository.findByWalletAndTypeNot(wallet, Type.CHARGE, pageable);
+            case ALL -> walletTransactionRepository.findByWalletAndWalletTransactionStatus(wallet, WalletTransactionStatus.COMPLETED, pageable);
+            case CHARGE -> walletTransactionRepository.findByWalletAndTypeAndWalletTransactionStatus(wallet, Type.CHARGE, WalletTransactionStatus.COMPLETED, pageable);
+            case TRANSACTION -> walletTransactionRepository.findByWalletAndTypeNotAndWalletTransactionStatus(wallet, Type.CHARGE, WalletTransactionStatus.COMPLETED, pageable);
             default -> throw new CustomException(ErrorCode.INVALID_FILTER);
         };
         List<UserWalletTransactionDto> dtoList = transactionPageList.getContent().stream()
@@ -111,23 +115,33 @@ public class WalletService {
                 .walletTransaction(walletTransaction)
                 .build();
         transferRepository.save(transfer);
+        walletTransaction.updateTransfer(transfer);
         Transfer leaderTransfer = Transfer.builder()
                 .userSettlement(userSettlement)
                 .walletTransaction(leaderWalletTransaction)
                 .build();
         transferRepository.save(leaderTransfer);
+        leaderWalletTransaction.updateTransfer(leaderTransfer);
     }
+
+
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void createFailedWalletTransactions(Long walletId, Long leaderWalletId, int amount,
-                                                  UserSettlement userSettlement) {
-        Wallet wallet = walletRepository.findById(walletId).orElseThrow();
-        Wallet leaderWallet = walletRepository.findById(leaderWalletId).orElseThrow();
+                                                  Long userSettlementId, int walletBalance, int leaderWalletBalance) {
+        log.info("createFailedWalletTransactions은 진입했음.");
+        Wallet wallet = walletRepository.getReferenceById(walletId);
+        Wallet leaderWallet   = walletRepository.getReferenceById(leaderWalletId);
+        UserSettlement userSettlement = userSettlementRepository.getReferenceById(userSettlementId);
+
+        // 실패 중복 로그 방지
+        if (userSettlement.getSettlementStatus() != SettlementStatus.REQUESTED) return;
+
         // 실패한 트랜잭션
         WalletTransaction failedOutgoing = WalletTransaction.builder()
                 .type(Type.OUTGOING)
                 .amount(amount)
-                .balance(wallet.getBalance()) // 잔액 변경 없음
+                .balance(walletBalance) // 잔액 변경 없음
                 .walletTransactionStatus(WalletTransactionStatus.FAILED)
                 .wallet(wallet)
                 .targetWallet(leaderWallet)
@@ -135,13 +149,16 @@ public class WalletService {
         WalletTransaction failedIncoming = WalletTransaction.builder()
                 .type(Type.INCOMING)
                 .amount(amount)
-                .balance(leaderWallet.getBalance()) // 잔액 변경 없음
+                .balance(leaderWalletBalance) // 잔액 변경 없음
                 .walletTransactionStatus(WalletTransactionStatus.FAILED)
                 .wallet(leaderWallet)
                 .targetWallet(wallet)
                 .build();
         walletTransactionRepository.save(failedOutgoing);
         walletTransactionRepository.save(failedIncoming);
+//        userSettlement.updateStatus(SettlementStatus.FAILED);
+//        userSettlementRepository.save(userSettlement);
+        userSettlementRepository.updateStatusIfRequested(userSettlementId, SettlementStatus.FAILED);
         createAndSaveTransfers(userSettlement, failedOutgoing, failedIncoming);
     }
 }
