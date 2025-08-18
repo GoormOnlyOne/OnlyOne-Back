@@ -28,10 +28,15 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.time.LocalDateTime;
 import java.util.List;
+
+import static org.springframework.transaction.support.TransactionSynchronization.STATUS_ROLLED_BACK;
 
 @Log4j2
 @Service
@@ -52,7 +57,7 @@ public class SettlementService {
 
 
     /* 정산 Status를 REQUESTED -> COMPLETED로 스케줄링 (낙관적 락 적용)*/
-    @Scheduled(cron = "0 0 0 * * *")
+    @Scheduled(cron = "0 55 17 * * *")
     @Transactional
     public void updateTotalStatusIfAllCompleted() {
         List<Settlement> settlements = settlementRepository.findAllByTotalStatus(TotalStatus.REQUESTED);
@@ -83,7 +88,6 @@ public class SettlementService {
         if (!(schedule.getScheduleStatus() == ScheduleStatus.ENDED || schedule.getScheduleTime().isBefore(LocalDateTime.now()))) {
             throw new CustomException(ErrorCode.BEFORE_SCHEDULE_START);
         }
-
         UserSchedule leaderUserSchedule = userScheduleRepository.findByUserAndSchedule(user, schedule)
                 .orElseThrow(() -> new CustomException(ErrorCode.USER_SCHEDULE_NOT_FOUND));
         // 리더가 호출하고 있는지 확인
@@ -117,10 +121,11 @@ public class SettlementService {
         userSettlementRepository.saveAll(userSettlements);
     }
 
+    /* 참여자의 정산 수행 */
+    @Transactional(rollbackFor = Exception.class)
     public void updateUserSettlement(Long clubId, Long scheduleId) {
         User user = userService.getCurrentUser();
-//        User user = userService.getCurrentUser();
-        // 유효성 검증
+        // 검증 로직
         clubRepository.findById(clubId)
                 .orElseThrow(() -> new CustomException(ErrorCode.CLUB_NOT_FOUND));
         Schedule schedule = scheduleRepository.findById(scheduleId)
@@ -129,78 +134,63 @@ public class SettlementService {
                 .orElseThrow(() -> new CustomException(ErrorCode.USER_SETTLEMENT_NOT_FOUND));
         userScheduleRepository.findByUserAndSchedule(user, schedule)
                 .orElseThrow(() -> new CustomException(ErrorCode.USER_SCHEDULE_NOT_FOUND));
-        if (userSettlement.getSettlement().getTotalStatus() != TotalStatus.REQUESTED ||
-                userSettlement.getSettlementStatus() != SettlementStatus.REQUESTED) {
+        if (userSettlement.getSettlement().getTotalStatus() == TotalStatus.COMPLETED ||
+                userSettlement.getSettlementStatus() == SettlementStatus.COMPLETED) {
             throw new CustomException(ErrorCode.ALREADY_SETTLED_USER);
         }
         User leader = userScheduleRepository.findLeaderByScheduleAndScheduleRole(schedule, ScheduleRole.LEADER)
                 .orElseThrow(() -> new CustomException(ErrorCode.LEADER_NOT_FOUND));
-        // Wallet 조회 (비관적 락 적용)
+        // 비관적 락으로 Wallet 조회
         Wallet wallet = walletRepository.findByUser(user)
                 .orElseThrow(() -> new CustomException(ErrorCode.WALLET_NOT_FOUND));
         Wallet leaderWallet = walletRepository.findByUser(leader)
                 .orElseThrow(() -> new CustomException(ErrorCode.WALLET_NOT_FOUND));
-
         int amount = schedule.getCost();
         try {
             // 잔액 부족 확인
             if (wallet.getBalance() < amount) {
                 throw new CustomException(ErrorCode.WALLET_BALANCE_NOT_ENOUGH);
             }
-            // 포인트 이동
-            wallet.updateBalance(wallet.getBalance() - amount);
-            leaderWallet.updateBalance(leaderWallet.getBalance() + amount);
-            // 리더-멤버의 WalletTransaction, Transfer 기록
-            saveWalletTransactions(wallet, leaderWallet, amount, WalletTransactionStatus.COMPLETED, userSettlement);
-            // 정산 상태 변경
-            userSettlement.updateSettlement(SettlementStatus.COMPLETED, LocalDateTime.now());
+            // 1. 잔액 변경 전 상태 저장
+            int beforeBalance = wallet.getBalance();
+            int leaderBeforeBalance = leaderWallet.getBalance();
+            // 2. 실제 잔액 변경
+            wallet.updateBalance(beforeBalance - amount);
+            leaderWallet.updateBalance(leaderBeforeBalance + amount);
+            // 3. 변경된 잔액으로 WalletTransaction 생성
+            walletService.createSuccessfulWalletTransactions(
+                    wallet.getWalletId(), leaderWallet.getWalletId(), amount,
+                    userSettlement
+            );
+            // 4. UserSettlement 상태 변경
+            userSettlement.updateSettlement(SettlementStatus.COMPLETED, LocalDateTime.now()); // PENDING -> COMPLETED
+            // 5. 모든 변경사항 저장
+            walletRepository.save(wallet);
+            walletRepository.save(leaderWallet);
             userSettlementRepository.save(userSettlement);
+            // 6. 알림
             notificationService.createNotification(user,
                     com.example.onlyone.domain.notification.entity.Type.SETTLEMENT,
                     new String[]{String.valueOf(amount)});
-        } catch (Exception e) {
-            // 리더-멤버의 WalletTransaction 기록
-            saveWalletTransactions(wallet, leaderWallet, amount, WalletTransactionStatus.FAILED, userSettlement);
+        } catch (CustomException e) {
+            registerFailureLogAfterRollback(wallet.getWalletId(), leaderWallet.getWalletId(), amount, userSettlement.getUserSettlementId(), wallet.getBalance(), leaderWallet.getBalance());
             throw e;
+        } catch (Exception e) {
+            registerFailureLogAfterRollback(wallet.getWalletId(), leaderWallet.getWalletId(), amount, userSettlement.getUserSettlementId(), wallet.getBalance(), leaderWallet.getBalance());
+            throw new CustomException(ErrorCode.SETTLEMENT_PROCESS_FAILED);
         }
-        // [TODO] Notification 생성 및 유저에게 알림 전송
     }
 
-    /* WalletTransaction 저장 로직 */
-    private void saveWalletTransactions(Wallet wallet, Wallet leaderWallet, int amount,
-                                        WalletTransactionStatus status, UserSettlement userSettlement) {
-        // WalletTransaction 저장
-        WalletTransaction walletTransaction = WalletTransaction.builder()
-                .type(Type.OUTGOING)
-                .amount(amount)
-                .balance(wallet.getBalance())
-                .walletTransactionStatus(status)
-                .wallet(wallet)
-                .targetWallet(leaderWallet)
-                .build();
-        walletTransactionRepository.save(walletTransaction);
-        WalletTransaction leaderWalletTransaction = WalletTransaction.builder()
-                .type(Type.INCOMING)
-                .amount(amount)
-                .balance(leaderWallet.getBalance())
-                .walletTransactionStatus(status)
-                .wallet(leaderWallet)
-                .targetWallet(wallet)
-                .build();
-        walletTransactionRepository.save(leaderWalletTransaction);
-        // Transfer 저장
-        Transfer transfer = Transfer.builder()
-                .userSettlement(userSettlement)
-                .walletTransaction(walletTransaction)
-                .build();
-        transferRepository.save(transfer);
-        walletTransaction.updateTransfer(transfer);
-        Transfer leaderTransfer = Transfer.builder()
-                .userSettlement(userSettlement)
-                .walletTransaction(leaderWalletTransaction)
-                .build();
-        transferRepository.save(leaderTransfer);
-        leaderWalletTransaction.updateTransfer(leaderTransfer);
+    /* 트랜잭션 롤백 후 실패 로그를 기록하기 위한 메서드*/
+    private void registerFailureLogAfterRollback(long wId, long lwId, int amount,
+                                                 long usId, int wBal, int lwBal) {
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override public void afterCompletion(int status) {
+                if (status == STATUS_ROLLED_BACK) {
+                    walletService.createFailedWalletTransactions(wId, lwId, amount, usId, wBal, lwBal);
+                }
+            }
+        });
     }
 
     /* 스케줄 참여자 정산 목록 조회 */
