@@ -48,10 +48,6 @@ public class Schedule extends BaseTimeEntity {
     @Enumerated(EnumType.STRING)
     private ScheduleStatus scheduleStatus;
 
-    @Column(name = "schedule_limit")
-    @NotNull
-    private int scheduleLimit;
-
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "club_id")
     @NotNull

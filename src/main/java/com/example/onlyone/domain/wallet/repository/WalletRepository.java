@@ -54,4 +54,5 @@ public interface WalletRepository extends JpaRepository<Wallet,Long> {
        WHERE user_id = :userId
     """, nativeQuery = true)
     int creditByUserId(@Param("userId") Long userId, @Param("amount") long amount);
+
 }
