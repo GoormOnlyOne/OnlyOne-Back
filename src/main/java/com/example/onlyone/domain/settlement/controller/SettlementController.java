@@ -24,12 +24,13 @@ public class SettlementController {
     @Operation(summary = "정산 요청 생성", description = "정기 모임의 정산 요청을 생성합니다.")
     @PostMapping
     public ResponseEntity<?> createSettlement(@PathVariable("clubId") final Long clubId, @PathVariable("scheduleId") final Long scheduleId) {
-        settlementService.createSettlement(clubId, scheduleId);
+        settlementService.automaticSettlement(clubId, scheduleId);
         return ResponseEntity.status(HttpStatus.CREATED).body(CommonResponse.success(null));
     }
 
     @Operation(summary = "스케줄 참여자 정산", description = "정기 모임의 참여자가 정산을 진행합니다.")
     @PostMapping("/user")
+    @Deprecated
     public ResponseEntity<?> updateUserSettlement(@PathVariable("clubId") final Long clubId, @PathVariable("scheduleId") final Long scheduleId) {
         settlementService.updateUserSettlement(clubId, scheduleId);
         return ResponseEntity.ok(CommonResponse.success(null));

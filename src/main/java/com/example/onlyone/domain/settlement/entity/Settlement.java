@@ -48,4 +48,12 @@ public class Settlement extends BaseTimeEntity {
         this.totalStatus = totalStatus;
         this.completedTime = completedTime;
     }
+
+    public void updateSum(int sum) {
+        this.sum = sum;
+    }
+
+    public void updateTotalStatus(TotalStatus totalStatus) {
+        this.totalStatus = totalStatus;
+    }
 }
