@@ -25,12 +25,16 @@ import com.example.onlyone.global.exception.CustomException;
 import com.example.onlyone.global.exception.ErrorCode;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.log4j.Log4j2;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.event.TransactionPhase;
+import org.springframework.transaction.event.TransactionalEventListener;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 
@@ -56,6 +60,7 @@ public class SettlementService {
     private final TransferRepository transferRepository;
     private final NotificationService notificationService;
     private final WalletService walletService;
+    private final ApplicationEventPublisher eventPublisher;
 
 
     /* 정산 Status를 REQUESTED -> COMPLETED로 스케줄링 (낙관적 락 적용)*/
@@ -159,14 +164,22 @@ public class SettlementService {
                 userSettlementRepository.save(userSettlement);
 
                 // 2-5) 알림
-                notificationService.createNotification(
-                        userSettlement.getUser(),
-                        Type.SETTLEMENT,
-                        new String[]{String.valueOf(schedule.getCost())});
+//                notificationService.createNotification(
+//                        userSettlement.getUser(),
+//                        Type.SETTLEMENT,
+//                        new String[]{String.valueOf(schedule.getCost())});
             }
             // 3. 모두 성공한 경우
-            settlement.update(TotalStatus.COMPLETED, LocalDateTime.now());
-            schedule.updateStatus(ScheduleStatus.CLOSED);
+            Schedule completedSchedule = scheduleRepository.findById(scheduleId)
+                    .orElseThrow(() -> new CustomException(ErrorCode.SETTLEMENT_NOT_FOUND));
+            Settlement completedSettlement = settlementRepository.findBySchedule(completedSchedule)
+                    .orElseThrow(() -> new CustomException(ErrorCode.SETTLEMENT_NOT_FOUND));
+            completedSettlement.update(TotalStatus.COMPLETED, LocalDateTime.now());
+            completedSchedule.updateStatus(ScheduleStatus.CLOSED);
+//            notificationService.createNotification(
+//                    user,
+//                    Type.SETTLEMENT,
+//                    new String[]{String.valueOf(settlement.getSum())});
         // 4. 예외를 잡아 별도 실패 기록
         } catch (CustomException e) {
             settlement.updateTotalStatus(TotalStatus.REQUESTED);
