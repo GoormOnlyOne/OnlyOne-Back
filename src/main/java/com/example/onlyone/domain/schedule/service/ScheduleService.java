@@ -18,9 +18,17 @@ import com.example.onlyone.domain.schedule.entity.ScheduleStatus;
 import com.example.onlyone.domain.schedule.entity.UserSchedule;
 import com.example.onlyone.domain.schedule.repository.ScheduleRepository;
 import com.example.onlyone.domain.schedule.repository.UserScheduleRepository;
+import com.example.onlyone.domain.settlement.entity.Settlement;
+import com.example.onlyone.domain.settlement.entity.SettlementStatus;
+import com.example.onlyone.domain.settlement.entity.TotalStatus;
+import com.example.onlyone.domain.settlement.entity.UserSettlement;
+import com.example.onlyone.domain.settlement.repository.SettlementRepository;
+import com.example.onlyone.domain.settlement.repository.UserSettlementRepository;
 import com.example.onlyone.domain.user.entity.User;
 import com.example.onlyone.domain.user.repository.UserRepository;
 import com.example.onlyone.domain.user.service.UserService;
+import com.example.onlyone.domain.wallet.entity.Wallet;
+import com.example.onlyone.domain.wallet.repository.WalletRepository;
 import com.example.onlyone.global.exception.CustomException;
 import jakarta.validation.Valid;
 import com.example.onlyone.global.exception.ErrorCode;
@@ -49,6 +57,9 @@ public class ScheduleService {
     private final ChatRoomRepository chatRoomRepository;
     private final UserService userService;
     private final UserRepository userRepository;
+    private final SettlementRepository settlementRepository;
+    private final UserSettlementRepository userSettlementRepository;
+    private final WalletRepository walletRepository;
 
     /* 스케줄 Status를 READY -> ENDED로 변경하는 스케줄링 */
     @Scheduled(cron = "0 0 0 * * *")
@@ -88,6 +99,13 @@ public class ScheduleService {
                 .chatRole(ChatRole.LEADER)
                 .build();
         userChatRoomRepository.save(userChatRoom);
+        Settlement settlement = Settlement.builder()
+                .schedule(schedule)
+                .sum(0) // 정산 시작 시 참여자 수 * COST
+                .totalStatus(TotalStatus.HOLDING)
+                .receiver(user) // 리더가 receiver
+                .build();
+        settlementRepository.save(settlement);
     }
 
     /* 정기 모임 수정 */
@@ -124,6 +142,14 @@ public class ScheduleService {
         if (schedule.getScheduleStatus() != ScheduleStatus.READY || schedule.getScheduleTime().isBefore(LocalDateTime.now())) {
             throw new CustomException(ErrorCode.ALREADY_ENDED_SCHEDULE);
         }
+        Settlement settlement = settlementRepository.findBySchedule(schedule)
+                .orElseThrow(() -> new CustomException(ErrorCode.SETTLEMENT_NOT_FOUND));
+        // 잔액 체크 + wallet에 예약금 홀드
+        int flag = walletRepository.holdBalanceIfEnough(user.getUserId(), schedule.getCost());
+        // 사용자의 잔액이 부족한 경우
+        if (flag == 0) {
+            throw new CustomException(ErrorCode.WALLET_BALANCE_NOT_ENOUGH);
+        }
         UserSchedule userSchedule = UserSchedule.builder()
                 .user(user)
                 .schedule(schedule)
@@ -138,6 +164,13 @@ public class ScheduleService {
                 .chatRole(ChatRole.MEMBER)
                 .build();
         userChatRoomRepository.save(userChatRoom);
+        // 예약금 홀드
+        UserSettlement userSettlement = UserSettlement.builder()
+                .user(userSchedule.getUser())
+                .settlement(settlement)
+                .settlementStatus(SettlementStatus.HOLD_ACTIVE)
+                .build();
+        userSettlementRepository.save(userSettlement);
     }
 
     /* 정기 모임 참여 취소 */
@@ -157,6 +190,20 @@ public class ScheduleService {
         if (userSchedule.getScheduleRole() == ScheduleRole.LEADER) {
             throw new CustomException(ErrorCode.LEADER_CANNOT_LEAVE_SCHEDULE);
         }
+        Settlement settlement = settlementRepository.findBySchedule(schedule)
+                .orElseThrow(() -> new CustomException(ErrorCode.SETTLEMENT_NOT_FOUND));
+        UserSettlement userSettlement = userSettlementRepository.findByUserAndSettlement(user, settlement)
+                .orElseThrow(() -> new CustomException(ErrorCode.USER_SETTLEMENT_NOT_FOUND));
+
+        // 이미 해제/완료한 경우엔 멱등 처리
+        if (userSettlement.getSettlementStatus() != SettlementStatus.HOLD_ACTIVE) {
+            return;
+        }
+        final int amount = schedule.getCost();
+        int flag = walletRepository.releaseHoldBalance(user.getUserId(), amount);
+        if (flag == 0) throw new CustomException(ErrorCode.WALLET_HOLD_STATE_CONFLICT);
+
+        userSettlementRepository.delete(userSettlement);
         userScheduleRepository.delete(userSchedule);
         ChatRoom chatRoom = chatRoomRepository.findByTypeAndScheduleId(Type.SCHEDULE, schedule.getScheduleId())
                 .orElseThrow(() -> new CustomException(ErrorCode.CHAT_ROOM_NOT_FOUND));

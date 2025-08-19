@@ -14,6 +14,8 @@ import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 public interface UserSettlementRepository extends JpaRepository<UserSettlement, Long> {
@@ -111,4 +113,8 @@ public interface UserSettlementRepository extends JpaRepository<UserSettlement, 
     @Query("update UserSettlement us set us.settlementStatus = :status " +
             "where us.userSettlementId = :id")
     void updateStatusIfRequested(@Param("id") Long userSettlementId, @Param("status") SettlementStatus settlementStatus);
+
+    List<UserSettlement> findAllBySettlement_SettlementId(Long settlementId);
+    List<UserSettlement> findAllBySettlement_SettlementIdAndSettlementStatus(
+            Long settlementId, SettlementStatus settlementStatus);
 }
