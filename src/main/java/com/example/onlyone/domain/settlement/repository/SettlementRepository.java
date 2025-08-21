@@ -20,7 +20,7 @@ public interface SettlementRepository extends JpaRepository<Settlement,Long> {
         UPDATE settlement
            SET total_status = 'IN_PROGRESS'
          WHERE settlement_id = :id
-           AND total_status = 'REQUESTED'
+           AND total_status = 'ENDED'
     """, nativeQuery = true)
     int markProcessing(@Param("id") Long settlementId);
 }
