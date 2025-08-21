@@ -1,5 +1,8 @@
 package com.example.onlyone.domain.notification.dto.responseDto;
 
+import jakarta.validation.Valid;
+import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.PositiveOrZero;
 import lombok.Builder;
 import lombok.Getter;
 
@@ -15,11 +18,17 @@ import java.util.List;
 @Builder
 public class NotificationListResponseDto {
 
+  @NotNull(message = "알림 목록은 필수입니다")
+  @Valid
   private final List<NotificationItemDto> notifications;
 
+  @PositiveOrZero(message = "커서는 0 이상이어야 합니다")
   private final Long cursor;
 
+  @NotNull(message = "다음 페이지 존재 여부는 필수입니다")
   private final boolean hasMore;
 
+  @NotNull(message = "읽지 않은 개수는 필수입니다")
+  @PositiveOrZero(message = "읽지 않은 개수는 0 이상이어야 합니다")
   private final Long unreadCount;
 }

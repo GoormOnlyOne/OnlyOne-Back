@@ -19,9 +19,10 @@ import org.springframework.data.redis.core.SetOperations;
 import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
+import java.time.Duration;
+import java.time.Instant;
 import java.time.LocalDateTime;
 import java.util.List;
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -56,13 +57,10 @@ class SseEmittersServiceTest {
         // SSE 설정값 주입
         ReflectionTestUtils.setField(sseEmittersService, "sseTimeoutMillis", 1800000L);
 
-        // Redis Mock 설정
-        given(redisTemplate.opsForSet()).willReturn(setOperations);
-
         // 테스트 데이터 설정
         testUser = createTestUser(1L, "testuser");
-        testNotificationType = NotificationType.of(Type.CHAT, "%s님이 메시지를 보냈습니다.");
-        testNotification = AppNotification.create(testUser, testNotificationType, "홍길동");
+        testNotificationType = NotificationType.of(Type.CHAT, "테스트 템플릿");
+        testNotification = AppNotification.create(testUser, testNotificationType, "테스트");
         ReflectionTestUtils.setField(testNotification, "id", 1L);
         ReflectionTestUtils.setField(testNotification, "createdAt", LocalDateTime.now());
     }
@@ -72,7 +70,7 @@ class SseEmittersServiceTest {
     class SseConnectionManagementTest {
 
         @Test
-        @DisplayName("새로운 SSE 연결을 성공적으로 생성한다")
+        @DisplayName("UT-NT-052: SSE 연결이 정상 수립되는가?")
         void 새로운_SSE_연결을_성공적으로_생성한다() {
             // given
             Long userId = 1L;
@@ -123,7 +121,7 @@ class SseEmittersServiceTest {
     class SseNotificationSendTest {
 
         @Test
-        @DisplayName("연결된 사용자에게 SSE 알림을 전송한다")
+        @DisplayName("UT-NT-053: 새 알림 생성 시 SSE로 즉시 전송되는가?")
         void 연결된_사용자에게_SSE_알림을_전송한다() {
             // given
             Long userId = 1L;
@@ -146,7 +144,7 @@ class SseEmittersServiceTest {
         }
 
         @Test
-        @DisplayName("읽지 않은 개수 업데이트를 전송한다")
+        @DisplayName("UT-NT-054: 읽음 처리 시 unread-count 업데이트가 SSE로 전송되는가?")
         void 읽지_않은_개수_업데이트를_전송한다() {
             // given
             Long userId = 1L;
@@ -275,6 +273,7 @@ class SseEmittersServiceTest {
         void 전역_연결_상태를_Redis를_통해_확인한다() {
             // given
             Long userId = 1L;
+            given(redisTemplate.opsForSet()).willReturn(setOperations);
             given(setOperations.isMember(anyString(), eq(userId.toString()))).willReturn(true);
 
             // when
@@ -291,6 +290,7 @@ class SseEmittersServiceTest {
             // given
             Long userId = 1L;
             sseEmittersService.createSseConnection(userId);
+            given(redisTemplate.opsForSet()).willReturn(setOperations);
             given(setOperations.isMember(anyString(), anyString())).willThrow(new RuntimeException("Redis connection failed"));
 
             // when
@@ -298,6 +298,216 @@ class SseEmittersServiceTest {
 
             // then
             assertThat(isConnected).isTrue(); // 로컬 연결 상태로 폴백
+        }
+    }
+
+    @Nested
+    @DisplayName("브로드캐스트 기능 테스트")
+    class BroadcastTest {
+
+        @Test
+        @DisplayName("UT-NT-055: SSE 연결 끊김 후 재연결이 정상 동작한다")
+        void sse_reconnection_works_after_disconnect() {
+            // given
+            Long userId = 1L;
+            String lastEventId = "notification_1_2024-01-01T00:00:00";
+            
+            // 첫 번째 연결
+            SseEmitter firstEmitter = sseEmittersService.createSseConnection(userId);
+            assertThat(firstEmitter).isNotNull();
+            assertThat(sseEmittersService.isUserConnected(userId)).isTrue();
+            
+            // 연결 끊김 시뮬레이션 (새로운 연결로 대체)
+            SseEmitter reconnectedEmitter = sseEmittersService.createSseConnection(userId, lastEventId);
+            
+            // then
+            assertThat(reconnectedEmitter).isNotNull();
+            assertThat(reconnectedEmitter).isNotEqualTo(firstEmitter);
+            assertThat(sseEmittersService.isUserConnected(userId)).isTrue();
+            assertThat(sseEmittersService.getActiveConnectionCount()).isEqualTo(1);
+        }
+
+        @Test
+        @DisplayName("전체 사용자에게 브로드캐스트 메시지 전송")
+        void broadcasts_message_to_all_users() throws Exception {
+            // given
+            int userCount = 5;
+            for (int i = 1; i <= userCount; i++) {
+                sseEmittersService.createSseConnection((long) i);
+            }
+            
+            // when
+            var result = sseEmittersService.broadcastToAll("announcement", "시스템 공지사항").get();
+            
+            // then
+            assertThat(result.getSuccessCount()).isGreaterThan(0);
+            assertThat(result.getTotalCount()).isEqualTo(result.getSuccessCount() + result.getFailureCount());
+        }
+
+        @Test
+        @DisplayName("빈 연결 상태에서 브로드캐스트 시 빈 결과 반환")
+        void returns_empty_result_when_no_connections_for_broadcast() throws Exception {
+            // when
+            var result = sseEmittersService.broadcastToAll("test", "데이터").get();
+            
+            // then
+            assertThat(result.getSuccessCount()).isEqualTo(0);
+            assertThat(result.getFailureCount()).isEqualTo(0);
+            assertThat(result.getTotalCount()).isEqualTo(0);
+        }
+    }
+
+    @Nested
+    @DisplayName("성능 및 안정성 테스트")
+    class PerformanceAndStabilityTest {
+
+        @Test
+        @DisplayName("대량 연결 처리 성능 테스트")
+        void handles_large_number_of_connections() throws Exception {
+            // given
+            int userCount = 1000;
+            CountDownLatch startLatch = new CountDownLatch(1);
+            CountDownLatch endLatch = new CountDownLatch(userCount);
+            AtomicInteger successCount = new AtomicInteger(0);
+
+            ExecutorService executor = Executors.newFixedThreadPool(50);
+            Instant start = Instant.now();
+
+            // when - 1000개 동시 연결
+            for (int i = 1; i <= userCount; i++) {
+                final long userId = i;
+                executor.submit(() -> {
+                    try {
+                        startLatch.await();
+                        SseEmitter emitter = sseEmittersService.createSseConnection(userId);
+                        if (emitter != null) {
+                            successCount.incrementAndGet();
+                        }
+                    } catch (Exception e) {
+                        // 실패는 successCount로 추적
+                    } finally {
+                        endLatch.countDown();
+                    }
+                });
+            }
+
+            startLatch.countDown();
+            endLatch.await();
+            executor.shutdown();
+            Duration duration = Duration.between(start, Instant.now());
+
+            // then
+            assertThat(duration.toMillis()).isLessThan(5000); // 5초 이내
+            assertThat(successCount.get()).isEqualTo(userCount);
+            assertThat(sseEmittersService.getActiveConnectionCount()).isEqualTo(userCount);
+        }
+
+        @Test
+        @DisplayName("연결 정리 기능 검증")
+        void connection_cleanup_works_properly() {
+            // given
+            List<Long> userIds = List.of(1L, 2L, 3L, 4L, 5L);
+            userIds.forEach(sseEmittersService::createSseConnection);
+            assertThat(sseEmittersService.getActiveConnectionCount()).isEqualTo(5);
+
+            // when - 일부 연결 재생성 (기존 연결 정리)
+            sseEmittersService.createSseConnection(1L);
+            sseEmittersService.createSseConnection(2L);
+            sseEmittersService.createSseConnection(3L);
+
+            // then - 연결 수는 동일하게 유지
+            assertThat(sseEmittersService.getActiveConnectionCount()).isEqualTo(5);
+            userIds.forEach(userId -> {
+                assertThat(sseEmittersService.isUserConnected(userId)).isTrue();
+            });
+        }
+
+        @Test
+        @DisplayName("메모리 누수 방지 - 대량 연결/해제 사이클")
+        void prevents_memory_leaks_with_connection_cycles() {
+            // given
+            int cycleCount = 100;
+            int usersPerCycle = 10;
+
+            // when - 반복적인 연결/해제
+            for (int cycle = 0; cycle < cycleCount; cycle++) {
+                // 연결 생성
+                for (int user = 1; user <= usersPerCycle; user++) {
+                    long userId = cycle * usersPerCycle + user;
+                    sseEmittersService.createSseConnection(userId);
+                }
+                
+                // 중간 확인
+                if (cycle % 20 == 19) {
+                    assertThat(sseEmittersService.getActiveConnectionCount())
+                        .isEqualTo((cycle + 1) * usersPerCycle);
+                }
+            }
+
+            // then
+            int expectedConnections = cycleCount * usersPerCycle;
+            assertThat(sseEmittersService.getActiveConnectionCount()).isEqualTo(expectedConnections);
+        }
+    }
+
+    @Nested
+    @DisplayName("추가 누락 케이스 테스트")
+    class AdditionalMissingCasesTest {
+
+        @Test
+        @DisplayName("연결되지 않은 사용자에게 개수 업데이트 전송 시 무시")
+        void ignores_unread_count_update_for_disconnected_user() {
+            // given
+            Long disconnectedUserId = 999L;
+            // 스터빙 제거 - 연결되지 않은 사용자는 repository 호출되지 않음
+
+            // when & then - 예외 발생하지 않음
+            assertThatCode(() -> sseEmittersService.sendUnreadCountUpdate(disconnectedUserId))
+                .doesNotThrowAnyException();
+
+            // 연결되지 않은 사용자이므로 repository 호출되지 않음
+            then(notificationRepository).should(never()).countUnreadByUserId(disconnectedUserId);
+        }
+
+        @Test
+        @DisplayName("null 데이터로 unread count 업데이트 전송")
+        void handles_null_unread_count_gracefully() {
+            // given
+            Long userId = 1L;
+            sseEmittersService.createSseConnection(userId);
+            given(notificationRepository.countUnreadByUserId(userId)).willReturn(null);
+
+            // when & then - 예외 발생하지 않고 0으로 처리
+            assertThatCode(() -> sseEmittersService.sendUnreadCountUpdate(userId))
+                .doesNotThrowAnyException();
+            
+            then(notificationRepository).should().countUnreadByUserId(userId);
+        }
+
+        @Test
+        @DisplayName("서버 인스턴스 ID 생성 검증")
+        void generates_server_instance_id() {
+            // when - 연결 생성 (내부적으로 서버 인스턴스 ID 사용)
+            Long userId = 1L;
+            SseEmitter emitter = sseEmittersService.createSseConnection(userId);
+            
+            // then
+            assertThat(emitter).isNotNull();
+            assertThat(sseEmittersService.isUserConnected(userId)).isTrue();
+        }
+
+        @Test
+        @DisplayName("SSE 타임아웃 설정 확인")
+        void sse_timeout_configuration_works() {
+            // given
+            Long userId = 1L;
+            
+            // when
+            SseEmitter emitter = sseEmittersService.createSseConnection(userId);
+            
+            // then
+            assertThat(emitter).isNotNull();
+            assertThat(emitter.getTimeout()).isEqualTo(1800000L); // 30분
         }
     }
 

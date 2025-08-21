@@ -37,37 +37,22 @@ public class AppNotification extends BaseTimeEntity {
     @Column(name = "fcm_sent", nullable = false)
     private boolean fcmSent;
 
-    @Column(name = "target_type")
-    private String targetType;
-
-    @Column(name = "target_id")
-    private Long targetId;
-
     private AppNotification(User user, NotificationType notificationType, String content) {
-        this.user = Objects.requireNonNull(user, "user cannot be null");
-        this.notificationType = Objects.requireNonNull(notificationType, "notificationType cannot be null");
-        this.content = Objects.requireNonNull(content, "content cannot be null");
+        this.user = user;
+        this.notificationType = notificationType;
+        this.content = content;
         this.isRead = false;
         this.fcmSent = false;
-        this.targetType = null;
-        this.targetId = null;
     }
 
-    private AppNotification(User user, NotificationType notificationType, String content, String targetType, Long targetId) {
-        this(user, notificationType, content);
-        this.targetType = targetType;
-        this.targetId = targetId;
-    }
-
-    public static AppNotification create(User user, NotificationType notificationType, String... args) {
+    public static AppNotification create(User user, NotificationType notificationType, 
+                                         String... args) {
         String renderedContent = notificationType.render(args);
         return new AppNotification(user, notificationType, renderedContent);
     }
 
-    public static AppNotification createWithTarget(User user, NotificationType notificationType, 
-                                                   String targetType, Long targetId, String... args) {
-        String renderedContent = notificationType.render(args);
-        return new AppNotification(user, notificationType, renderedContent, targetType, targetId);
+    public String getTargetType() {
+        return notificationType.getType().getTargetType();
     }
 
     public void markAsRead() {

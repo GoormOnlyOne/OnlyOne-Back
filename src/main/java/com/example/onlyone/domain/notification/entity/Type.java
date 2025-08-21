@@ -8,10 +8,10 @@ package com.example.onlyone.domain.notification.entity;
  */
 public enum Type {
   CHAT("CHAT"),           // 채팅방으로 이동
-  SETTLEMENT("POST"),     // 정산 관련 게시글로 이동
+  SETTLEMENT("SETTLEMENT"), // 정산 페이지로 이동
   LIKE("POST"),          // 좋아요 받은 게시글로 이동
   COMMENT("POST"),       // 댓글 달린 게시글로 이동
-  REFEED("POST");        // 리피드된 게시글로 이동
+  REFEED("FEED");        // 리피드된 피드로 이동
 
   private final String targetType;
 

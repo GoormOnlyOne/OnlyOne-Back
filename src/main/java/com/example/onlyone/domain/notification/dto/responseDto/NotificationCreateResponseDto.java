@@ -1,6 +1,9 @@
 package com.example.onlyone.domain.notification.dto.responseDto;
 
 import com.example.onlyone.domain.notification.entity.AppNotification;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Positive;
 import lombok.Builder;
 import lombok.Getter;
 
@@ -16,12 +19,17 @@ import java.time.LocalDateTime;
 @Builder
 public class NotificationCreateResponseDto {
 
+  @NotNull(message = "알림 ID는 필수입니다")
+  @Positive(message = "알림 ID는 양수여야 합니다")
   private final Long notificationId;
 
+  @NotBlank(message = "알림 내용은 필수입니다")
   private final String content;
 
+  @NotNull(message = "FCM 전송 상태는 필수입니다")
   private final Boolean fcmSent;
 
+  @NotNull(message = "생성 시간은 필수입니다")
   private LocalDateTime createdAt;
 
   public static NotificationCreateResponseDto from(AppNotification appNotification) {

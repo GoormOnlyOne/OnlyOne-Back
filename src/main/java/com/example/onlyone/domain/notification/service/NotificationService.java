@@ -7,6 +7,7 @@ import com.example.onlyone.domain.notification.dto.responseDto.NotificationListR
 import com.example.onlyone.domain.notification.entity.AppNotification;
 import com.example.onlyone.domain.notification.entity.DeliveryMethod;
 import com.example.onlyone.domain.notification.entity.NotificationType;
+import com.example.onlyone.domain.notification.entity.QAppNotification;
 import com.example.onlyone.domain.notification.entity.Type;
 import com.example.onlyone.domain.notification.repository.NotificationRepository;
 import com.example.onlyone.domain.notification.repository.NotificationTypeRepository;
@@ -14,6 +15,7 @@ import com.example.onlyone.domain.user.entity.User;
 import com.example.onlyone.domain.user.repository.UserRepository;
 import com.example.onlyone.global.exception.CustomException;
 import com.example.onlyone.global.exception.ErrorCode;
+import com.querydsl.jpa.impl.JPAQueryFactory;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationEventPublisher;
@@ -40,6 +42,7 @@ public class NotificationService {
   private final SseEmittersService sseEmittersService;
   private final FcmService fcmService;
   private final ApplicationEventPublisher eventPublisher;
+  private final JPAQueryFactory queryFactory;
 
   /**
    * 알림 생성 및 전송 (이벤트 발행으로 SSE/FCM 처리)
@@ -50,7 +53,7 @@ public class NotificationService {
     NotificationType type = findNotificationType(requestDto.getType());
 
     AppNotification appNotification = createAndSaveNotification(user, type, requestDto.getArgs());
-    
+
     // 트랜잭션 커밋 후 실시간 알림 전송을 위한 이벤트 발행
     eventPublisher.publishEvent(new NotificationCreatedEvent(appNotification));
 
@@ -58,37 +61,20 @@ public class NotificationService {
   }
 
   /**
-   * 알림 생성 편의 메서드 (다른 서비스에서 사용)
+   * 알림 생성 편의 메서드 (다른 서비스에서 사용) - 하위 호환성
    */
   @Transactional
   public NotificationCreateResponseDto createNotification(User user, Type type, String... args) {
     NotificationType notificationType = findNotificationType(type);
     AppNotification appNotification = createAndSaveNotification(user, notificationType, args);
-    
+
     // 트랜잭션 커밋 후 실시간 알림 전송을 위한 이벤트 발행
     eventPublisher.publishEvent(new NotificationCreatedEvent(appNotification));
 
     return NotificationCreateResponseDto.from(appNotification);
   }
 
-  /**
-   * 타겟 정보를 포함한 알림 생성 (클릭 시 이동 가능)
-   * 타겟 타입은 알림 Type에서 자동으로 결정됨
-   */
-  @Transactional
-  public NotificationCreateResponseDto createNotificationWithTarget(User user, Type type, 
-                                                                    Long targetId, 
-                                                                    String... args) {
-    NotificationType notificationType = findNotificationType(type);
-    String targetType = type.getTargetType(); // Type enum에서 타겟 타입 가져오기
-    AppNotification appNotification = createAndSaveNotificationWithTarget(
-        user, notificationType, targetType, targetId, args);
-    
-    // 트랜잭션 커밋 후 실시간 알림 전송을 위한 이벤트 발행
-    eventPublisher.publishEvent(new NotificationCreatedEvent(appNotification));
 
-    return NotificationCreateResponseDto.from(appNotification);
-  }
 
   /**
    * 트랜잭션 커밋 후 알림 타입별 전송 방식 적용
@@ -98,17 +84,17 @@ public class NotificationService {
   public void handleNotificationCreated(NotificationCreatedEvent event) {
     AppNotification appNotification = event.getNotification();
     DeliveryMethod deliveryMethod = appNotification.getNotificationType().getDeliveryMethod();
-    
-    log.info("알림 전송 시작: id={}, type={}, method={}", 
-        appNotification.getId(), 
-        appNotification.getNotificationType().getType(), 
+
+    log.info("알림 전송 시작: id={}, type={}, method={}",
+        appNotification.getId(),
+        appNotification.getNotificationType().getType(),
         deliveryMethod);
-    
+
     // 전송 방식에 따라 선택적 전송
     if (deliveryMethod.shouldSendSse()) {
         sendSseNotificationSafely(appNotification);
     }
-    
+
     if (deliveryMethod.shouldSendFcm()) {
         sendFcmNotificationAsyncSafely(appNotification);
     }
@@ -120,11 +106,12 @@ public class NotificationService {
   @Transactional(readOnly = true)
   public NotificationListResponseDto getNotifications(Long userId, Long cursor, int size) {
     size = Math.min(size, 100); // 최대 100개 제한
+    
+    // hasMore 체크를 위해 size + 1 개를 조회
+    List<NotificationItemDto> notifications =
+        notificationRepository.findNotificationsByUserId(userId, cursor, size + 1);
 
-    List<NotificationItemDto> notifications = 
-        notificationRepository.findNotificationsByUserId(userId, cursor, size);
-
-    return buildNotificationListResponse(userId, notifications);
+    return buildNotificationListResponse(userId, notifications, size);
   }
 
   /**
@@ -134,10 +121,11 @@ public class NotificationService {
   public NotificationListResponseDto getNotificationsByType(Long userId, Type type, Long cursor, int size) {
     size = Math.min(size, 100); // 최대 100개 제한
     
-    List<NotificationItemDto> notifications = 
-        notificationRepository.findNotificationsByUserIdAndType(userId, type, cursor, size);
-    
-    return buildNotificationListResponse(userId, notifications);
+    // hasMore 체크를 위해 size + 1 개를 조회
+    List<NotificationItemDto> notifications =
+        notificationRepository.findNotificationsByUserIdAndType(userId, type, cursor, size + 1);
+
+    return buildNotificationListResponseByType(userId, notifications, size);
   }
 
   /**
@@ -154,20 +142,15 @@ public class NotificationService {
    */
   @Transactional
   public void markAsRead(Long notificationId, Long userId) {
-    AppNotification notification = notificationRepository.findById(notificationId)
-        .orElseThrow(() -> new CustomException(ErrorCode.NOTIFICATION_NOT_FOUND));
-
-    if (!notification.getUser().getUserId().equals(userId)) {
-      throw new CustomException(ErrorCode.UNAUTHORIZED);
-    }
-
+    AppNotification notification = findNotification(notificationId);
+    validateNotificationOwnership(notification, userId);
     notification.markAsRead();
   }
 
   @Transactional
   public void markAllAsRead(Long userId) {
     long markedCount = notificationRepository.markAllAsReadByUserId(userId);
-    
+
     if (markedCount > 0) {
       sendUnreadCountUpdate(userId); // SSE로 읽지 않은 개수 업데이트 전송
       log.info("Marked {} notifications as read for user: {}", markedCount, userId);
@@ -212,12 +195,14 @@ public class NotificationService {
     );
   }
 
-  // 알림 조회 (예외 처리 포함)
+  // 알림 조회 (fetchJoin 포함, 예외 처리 포함)
   private AppNotification findNotification(Long notificationId) {
-    return findEntityOrThrow(
-        notificationRepository.findById(notificationId),
-        "Notification", notificationId, ErrorCode.NOTIFICATION_NOT_FOUND
-    );
+    AppNotification notification = notificationRepository.findByIdWithFetchJoin(notificationId);
+    if (notification == null) {
+      log.error("Notification not found: id={}", notificationId);
+      throw new CustomException(ErrorCode.NOTIFICATION_NOT_FOUND);
+    }
+    return notification;
   }
 
   // 공통 엔티티 조회 메서드 (Optional → Entity 변환)
@@ -234,15 +219,6 @@ public class NotificationService {
     return notificationRepository.save(appNotification);
   }
 
-  // 타겟 정보를 포함한 알림 생성 및 저장
-  private AppNotification createAndSaveNotificationWithTarget(User user, NotificationType type, 
-                                                              String targetType, Long targetId, 
-                                                              String... args) {
-    AppNotification appNotification = AppNotification.createWithTarget(
-        user, type, targetType, targetId, args);
-    return notificationRepository.save(appNotification);
-  }
-
   // SSE 알림 전송 (예외 안전)
   private void sendSseNotificationSafely(AppNotification appNotification) {
     executeNotificationSafely(
@@ -256,19 +232,19 @@ public class NotificationService {
   private void sendFcmNotificationAsyncSafely(AppNotification appNotification) {
     Long userId = appNotification.getUser().getUserId();
     String fcmToken = appNotification.getUser().getFcmToken();
-    
+
     // FCM 토큰 상태 상세 로깅
-    log.info("FCM notification attempt: userId={}, notificationId={}, hasToken={}, tokenLength={}, tokenPrefix={}", 
-        userId, appNotification.getId(), 
+    log.info("FCM notification attempt: userId={}, notificationId={}, hasToken={}, tokenLength={}, tokenPrefix={}",
+        userId, appNotification.getId(),
         fcmToken != null, fcmToken != null ? fcmToken.length() : 0,
         fcmToken != null ? fcmToken.substring(0, Math.min(20, fcmToken.length())) + "..." : "null");
-    
+
     if (fcmToken == null || fcmToken.isBlank()) {
       log.warn("FCM token is null or empty for user: {}, skipping FCM notification", userId);
       updateFcmSentStatus(appNotification, false);
       return;
     }
-    
+
     try {
       fcmService.sendFcmNotification(appNotification);
       updateFcmSentStatus(appNotification, true);
@@ -279,10 +255,10 @@ public class NotificationService {
 
       // FCM 토큰 관련 에러 로깅
       if (e.getErrorCode() == ErrorCode.FCM_TOKEN_NOT_FOUND) {
-        log.warn("FCM token not found for user: {}, client should refresh token", 
+        log.warn("FCM token not found for user: {}, client should refresh token",
             appNotification.getUser().getUserId());
       } else if (e.getErrorCode() == ErrorCode.FCM_TOKEN_REFRESH_REQUIRED) {
-        log.warn("FCM token refresh required for user: {}, client should re-register token", 
+        log.warn("FCM token refresh required for user: {}, client should re-register token",
             appNotification.getUser().getUserId());
       }
 
@@ -294,18 +270,22 @@ public class NotificationService {
     }
   }
 
-  // FCM 전송 상태 업데이트 (별도 트랜잭션)
+  // FCM 전송 상태 업데이트 (최적화된 직접 업데이트)
   @Transactional
   private void updateFcmSentStatus(AppNotification appNotification, boolean sent) {
     try {
-      AppNotification managedNotification = notificationRepository.findById(appNotification.getId())
-          .orElse(null);
-      if (managedNotification != null) {
-        managedNotification.markFcmSent();
-        notificationRepository.save(managedNotification);
+      // QueryDSL로 직접 업데이트하여 재조회 방지
+      long updated = queryFactory
+          .update(QAppNotification.appNotification)
+          .set(QAppNotification.appNotification.fcmSent, sent)
+          .where(QAppNotification.appNotification.id.eq(appNotification.getId()))
+          .execute();
+      
+      if (updated > 0) {
+        log.debug("FCM status updated: notificationId={}, sent={}", appNotification.getId(), sent);
       }
     } catch (Exception e) {
-      log.error("Failed to update FCM sent status: notificationId={}, error={}", 
+      log.error("Failed to update FCM sent status: notificationId={}, error={}",
           appNotification.getId(), e.getMessage());
     }
   }
@@ -337,18 +317,42 @@ public class NotificationService {
   }
 
 
-  // NotificationListResponseDto 빌드
-  private NotificationListResponseDto buildNotificationListResponse(Long userId, List<NotificationItemDto> notifications) {
-    Long nextCursor = notifications.isEmpty() ? null :
-        notifications.get(notifications.size() - 1).getNotificationId();
-
-    boolean hasMore = nextCursor != null &&
-        !notificationRepository.findNotificationsByUserId(userId, nextCursor, 1).isEmpty();
+  // NotificationListResponseDto 빌드 (최적화된 hasMore 체크)
+  private NotificationListResponseDto buildNotificationListResponse(Long userId, List<NotificationItemDto> notifications, int requestedSize) {
+    boolean hasMore = notifications.size() > requestedSize;
+    
+    // 실제 반환할 데이터는 요청된 크기만큼만
+    List<NotificationItemDto> actualNotifications = hasMore ? 
+        notifications.subList(0, requestedSize) : notifications;
+    
+    Long nextCursor = actualNotifications.isEmpty() ? null :
+        actualNotifications.get(actualNotifications.size() - 1).getNotificationId();
 
     Long unreadCount = notificationRepository.countUnreadByUserId(userId);
 
     return NotificationListResponseDto.builder()
-        .notifications(notifications)
+        .notifications(actualNotifications)
+        .cursor(nextCursor)
+        .hasMore(hasMore)
+        .unreadCount(unreadCount != null ? unreadCount : 0L)
+        .build();
+  }
+  
+  // 타입별 조회용 별도 메서드
+  private NotificationListResponseDto buildNotificationListResponseByType(Long userId, List<NotificationItemDto> notifications, int requestedSize) {
+    boolean hasMore = notifications.size() > requestedSize;
+    
+    // 실제 반환할 데이터는 요청된 크기만큼만
+    List<NotificationItemDto> actualNotifications = hasMore ? 
+        notifications.subList(0, requestedSize) : notifications;
+    
+    Long nextCursor = actualNotifications.isEmpty() ? null :
+        actualNotifications.get(actualNotifications.size() - 1).getNotificationId();
+
+    Long unreadCount = notificationRepository.countUnreadByUserId(userId);
+
+    return NotificationListResponseDto.builder()
+        .notifications(actualNotifications)
         .cursor(nextCursor)
         .hasMore(hasMore)
         .unreadCount(unreadCount != null ? unreadCount : 0L)

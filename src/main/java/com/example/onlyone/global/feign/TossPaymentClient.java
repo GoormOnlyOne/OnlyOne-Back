@@ -9,7 +9,7 @@ import com.example.onlyone.global.config.TossFeignConfig;
 
 @FeignClient(
         name = "tossClient",
-        url = "${payment.toss.base-url}",
+        url = "${payment.toss.base_url}",
         configuration = TossFeignConfig.class
 )
 public interface TossPaymentClient {
