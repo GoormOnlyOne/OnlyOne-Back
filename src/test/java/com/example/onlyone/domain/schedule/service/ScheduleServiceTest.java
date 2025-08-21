@@ -67,6 +67,7 @@ public class ScheduleServiceTest {
     @Autowired
     private SettlementRepository settlementRepository;
 
+    /* 정기모임 생성 */
     @Test
     void READY이면서_스케줄_시간이_지난_스케줄은_ENDED로_일괄_변경된다() {
         // given
@@ -264,6 +265,8 @@ public class ScheduleServiceTest {
         assertEquals(ErrorCode.MEMBER_CANNOT_CREATE_SCHEDULE, exception.getErrorCode());
     }
 
+
+    /* 정기모임 수정 */
     @Test
     void 리더는_정기_모임을_정상_수정한다() {
         // given
@@ -347,7 +350,7 @@ public class ScheduleServiceTest {
                 "역삼역",
                 100,
                 100,
-                LocalDateTime.now().minusHours(2)
+                LocalDateTime.now().plusHours(2)
         );
 
         // when & then
@@ -358,6 +361,101 @@ public class ScheduleServiceTest {
         );
         assertEquals(ErrorCode.MEMBER_CANNOT_MODIFY_SCHEDULE, exception.getErrorCode());
     }
+
+    @Test
+    void 상태가_READY인_정모만_수정이_가능하다() {
+        // given
+        User leader = userRepository.findById(1L).orElse(null);
+        Mockito.when(userService.getCurrentUser()).thenReturn(leader);
+
+        ClubRequestDto clubRequestDto = new ClubRequestDto(
+                "온리원 첫 번째 모임",
+                10,
+                "테스트 설명...",
+                null,
+                "서울특별시",
+                "강남구",
+                "EXERCISE"
+        );
+        ClubCreateResponseDto responseDto = clubService.createClub(clubRequestDto);
+        ScheduleRequestDto scheduleRequestDto = new ScheduleRequestDto(
+                "온리원의 정모",
+                "구름스퀘어 강남",
+                100,
+                100,
+                LocalDateTime.now().plusHours(2)
+        );
+        scheduleService.createSchedule(responseDto.getClubId(), scheduleRequestDto);
+
+        ScheduleRequestDto updateScheduleRequestDto = new ScheduleRequestDto(
+                "온리원의 정모 수정본",
+                "역삼역",
+                150,
+                50,
+                LocalDateTime.now().plusHours(2)
+        );
+
+        // when
+        Schedule schedule = scheduleRepository.findByNameAndClub_ClubId("온리원의 정모", responseDto.getClubId()).orElseThrow();
+        schedule.updateStatus(ScheduleStatus.READY);
+        scheduleService.updateSchedule(responseDto.getClubId(), schedule.getScheduleId(), updateScheduleRequestDto);
+
+        // then
+        assertThat(schedule.getScheduleId()).isNotNull();
+        assertThat(schedule.getScheduleStatus()).isEqualTo(ScheduleStatus.READY);
+        assertThat(schedule.getName()).isEqualTo(updateScheduleRequestDto.getName());
+        assertThat(schedule.getLocation()).isEqualTo(updateScheduleRequestDto.getLocation());
+        assertThat(schedule.getCost()).isEqualTo(updateScheduleRequestDto.getCost());
+        assertThat(schedule.getUserLimit()).isEqualTo(updateScheduleRequestDto.getUserLimit());
+        assertThat(schedule.getScheduleTime()).isEqualTo(updateScheduleRequestDto.getScheduleTime());
+    }
+
+    @Test
+    void 상태가_READY가_아닌_정모는_수정_불가능하다() throws Exception {
+        // given
+        User leader = userRepository.findById(1L).orElse(null);
+        Mockito.when(userService.getCurrentUser()).thenReturn(leader);
+
+        ClubRequestDto clubRequestDto = new ClubRequestDto(
+                "온리원 첫 번째 모임",
+                10,
+                "테스트 설명...",
+                null,
+                "서울특별시",
+                "강남구",
+                "EXERCISE"
+        );
+        ClubCreateResponseDto responseDto = clubService.createClub(clubRequestDto);
+        ScheduleRequestDto scheduleRequestDto = new ScheduleRequestDto(
+                "온리원의 정모",
+                "구름스퀘어 강남",
+                100,
+                100,
+                LocalDateTime.now().plusHours(2)
+        );
+        scheduleService.createSchedule(responseDto.getClubId(), scheduleRequestDto);
+
+        ScheduleRequestDto updateScheduleRequestDto = new ScheduleRequestDto(
+                "온리원의 정모 수정본",
+                "역삼역",
+                150,
+                50,
+                LocalDateTime.now().plusHours(2)
+        );
+
+        // when & then
+        Schedule schedule = scheduleRepository.findByNameAndClub_ClubId("온리원의 정모", responseDto.getClubId()).orElseThrow();
+        schedule.updateStatus(ScheduleStatus.ENDED);
+
+        CustomException exception = assertThrows(CustomException.class, () ->
+                scheduleService.updateSchedule(responseDto.getClubId(), schedule.getScheduleId(), updateScheduleRequestDto)
+        );
+        assertEquals(ErrorCode.ALREADY_ENDED_SCHEDULE, exception.getErrorCode());
+    }
+
+    /* 정기모임 참여 */
+    
+
 
 
 }
