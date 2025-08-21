@@ -1,6 +1,7 @@
 package com.example.onlyone.domain.settlement.repository;
 
 import com.example.onlyone.domain.schedule.entity.Schedule;
+import com.example.onlyone.domain.user.dto.response.MySettlementDto;
 import com.example.onlyone.domain.settlement.dto.response.UserSettlementDto;
 import com.example.onlyone.domain.settlement.entity.Settlement;
 import com.example.onlyone.domain.settlement.entity.SettlementStatus;
@@ -9,6 +10,7 @@ import com.example.onlyone.domain.user.entity.User;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -25,13 +27,12 @@ public interface UserSettlementRepository extends JpaRepository<UserSettlement, 
     @Query(
             value = """
         select new com.example.onlyone.domain.settlement.dto.response.UserSettlementDto(
-          c.clubId, u.userId, u.nickname, u.profileImage, us.settlementStatus
+          u.userId, u.nickname, u.profileImage, us.settlementStatus
         )
         from UserSettlement us
         join us.user u
         join us.settlement st
         join st.schedule sch
-        join sch.club c
         where us.settlement = :settlement
         order by us.createdAt desc
         """,
@@ -48,38 +49,47 @@ public interface UserSettlementRepository extends JpaRepository<UserSettlement, 
 
     @Query(
             value = """
-        select new com.example.onlyone.domain.settlement.dto.response.UserSettlementDto(
-          c.clubId, u.userId, u.nickname, u.profileImage, us.settlementStatus
-        )
-        from UserSettlement us
-        join us.user u
-        join us.settlement st
-        join st.schedule sch
-        join sch.club c
-        where us.user = :user
-          and (
-            us.settlementStatus = com.example.onlyone.domain.settlement.entity.SettlementStatus.REQUESTED
-            or (
-              us.settlementStatus = com.example.onlyone.domain.settlement.entity.SettlementStatus.COMPLETED
-              and us.completedTime >= :cutoff
-            )
-          )
-        order by us.createdAt desc
-        """,
-            countQuery = """
-        select count(us)
-        from UserSettlement us
-        where us.user = :user
-          and (
-            us.settlementStatus = com.example.onlyone.domain.settlement.entity.SettlementStatus.REQUESTED
-            or (
-              us.settlementStatus = com.example.onlyone.domain.settlement.entity.SettlementStatus.COMPLETED
-              and us.completedTime >= :cutoff
-            )
-          )
-        """
+    select new com.example.onlyone.domain.user.dto.response.MySettlementDto(
+      c.clubId,
+          sch.scheduleId,                 
+      sch.cost,                
+      c.clubImage,               
+      us.settlementStatus,         
+      concat(c.name, ': ', sch.name),
+      us.createdAt
     )
-    Page<UserSettlementDto> findRecentOrRequestedByUser(
+    from UserSettlement us
+    join us.settlement st
+    join st.schedule sch
+    join sch.club c
+    where us.user = :user
+      and (
+        us.settlementStatus = com.example.onlyone.domain.settlement.entity.SettlementStatus.REQUESTED
+        or
+        us.settlementStatus = com.example.onlyone.domain.settlement.entity.SettlementStatus.FAILED
+        or (
+          us.settlementStatus = com.example.onlyone.domain.settlement.entity.SettlementStatus.COMPLETED
+          and us.completedTime >= :cutoff
+        )
+      )
+    order by us.createdAt desc
+    """,
+            countQuery = """
+    select count(us)
+    from UserSettlement us
+    where us.user = :user
+      and (
+        us.settlementStatus = com.example.onlyone.domain.settlement.entity.SettlementStatus.REQUESTED
+        or
+        us.settlementStatus = com.example.onlyone.domain.settlement.entity.SettlementStatus.FAILED
+        or (
+          us.settlementStatus = com.example.onlyone.domain.settlement.entity.SettlementStatus.COMPLETED
+          and us.completedTime >= :cutoff
+        )
+      )
+    """
+    )
+    Page<MySettlementDto> findMyRecentOrRequested(
             @Param("user") User user,
             @Param("cutoff") java.time.LocalDateTime cutoff,
             Pageable pageable
@@ -95,4 +105,10 @@ public interface UserSettlementRepository extends JpaRepository<UserSettlement, 
             @Param("user") User user,
             @Param("schedule") Schedule schedule
     );
+    boolean existsByUserAndSettlementStatusNot(User user, SettlementStatus settlementStatus);
+
+    @Modifying
+    @Query("update UserSettlement us set us.settlementStatus = :status " +
+            "where us.userSettlementId = :id")
+    void updateStatusIfRequested(@Param("id") Long userSettlementId, @Param("status") SettlementStatus settlementStatus);
 }

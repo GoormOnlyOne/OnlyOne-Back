@@ -7,6 +7,8 @@ import jakarta.validation.constraints.NotNull;
 import lombok.*;
 
 import java.time.*;
+import java.util.ArrayList;
+import java.util.List;
 
 @Entity
 @Table(name = "schedule")
@@ -54,6 +56,9 @@ public class Schedule extends BaseTimeEntity {
     @JoinColumn(name = "club_id")
     @NotNull
     private Club club;
+
+    @OneToMany(mappedBy = "schedule", cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<UserSchedule> userSchedules = new ArrayList<>();
 
     public void update(String name, String location, int cost, int userLimit, LocalDateTime scheduleTime) {
         this.name = name;
