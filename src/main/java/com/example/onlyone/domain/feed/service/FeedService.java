@@ -171,7 +171,11 @@ public class FeedService {
         Feed feed = feedRepository.findByFeedIdAndClub(feedId, club)
                 .orElseThrow(() -> new CustomException(ErrorCode.FEED_NOT_FOUND));
         User currentUser = userService.getCurrentUser();
-
+        Long userId = currentUser.getUserId();
+        boolean isMember = userClubRepository.existsByUser_UserIdAndClub_ClubId(userId, clubId);
+        if(!isMember) {
+            throw new CustomException(ErrorCode.CLUB_NOT_JOIN);
+        }
         FeedComment feedComment = requestDto.toEntity(feed, currentUser);
         feedCommentRepository.save(feedComment);
         if (!feed.getUser().getUserId().equals(currentUser.getUserId())) {
