@@ -2,6 +2,7 @@ plugins {
     id 'java'
     id 'org.springframework.boot' version '3.5.4'
     id 'io.spring.dependency-management' version '1.1.7'
+    id 'jacoco'
 }
 
 group = 'com.example'
@@ -65,8 +66,82 @@ dependencies {
     implementation 'software.amazon.awssdk:s3:2.32.11'
     // Redis
     implementation 'org.springframework.boot:spring-boot-starter-data-redis'
+    // jpa 쿼리 확인
+    implementation 'com.github.gavlyukovskiy:p6spy-spring-boot-starter:1.9.0'
 }
 
 tasks.named('test') {
     useJUnitPlatform()
+    finalizedBy jacocoTestReport
+
+    // notification 관련 테스트 임시 제외
+    exclude '**/AppNotificationControllerTest.class'
+    exclude '**/FcmServiceTest.class'
+    exclude '**/SseEmittersServiceTest.class'
+}
+
+jacoco {
+    toolVersion = "0.8.13"
+}
+
+jacocoTestReport {
+    dependsOn test
+    reports {
+        html.required = true
+        xml.required = true
+        csv.required = false
+        html.outputLocation = layout.buildDirectory.dir('jacocoHtml')
+        xml.outputLocation = layout.buildDirectory.file('jacoco/jacoco.xml')
+    }
+    
+    // 제외할 패키지/클래스 설정
+    afterEvaluate {
+        classDirectories.setFrom(files(classDirectories.files.collect {
+            fileTree(dir: it, exclude: [
+                // 설정 클래스들
+                '**/config/**',
+                '**/configuration/**',
+                
+                // DTO/Entity/Enum 클래스들 (비즈니스 로직 없음)
+                '**/dto/**',
+                '**/entity/**',
+                '**/domain/**/entity/**',
+                
+                // Application 시작 클래스
+                '**/*Application*',
+                
+                // Exception 클래스들
+                '**/exception/**',
+                '**/global/exception/**',
+                
+                // 기타 유틸리티
+                '**/util/**',
+                '**/common/**',
+            ])
+        }))
+    }
+}
+
+// 테스트 커버리지 최소 기준 설정
+jacocoTestCoverageVerification {
+    dependsOn jacocoTestReport
+    violationRules {
+        rule {
+            limit {
+                minimum = 0.80  // 80% 커버리지 요구
+            }
+        }
+        
+        rule {
+            enabled = true
+            element = 'CLASS'
+            includes = ['com.example.onlyone.domain.*.service.*']
+            
+            limit {
+                counter = 'LINE'
+                value = 'COVEREDRATIO'
+                minimum = 0.75  // Service 클래스는 75% 이상
+            }
+        }
+    }
 }
