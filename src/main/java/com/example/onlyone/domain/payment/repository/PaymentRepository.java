@@ -10,7 +10,5 @@ import java.util.Optional;
 
 public interface PaymentRepository extends JpaRepository<Payment, Long> {
     @Lock(LockModeType.PESSIMISTIC_WRITE)
-    Optional<Payment> findByTossPaymentKey(String tossPaymentKey);
-
-    boolean existsByTossPaymentKey(String paymentKey);
+    Optional<Payment> findByTossOrderId(String orderId);
 }

@@ -30,9 +30,13 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.time.LocalDateTime;
 import java.util.List;
+
+import static org.springframework.transaction.support.TransactionSynchronization.STATUS_ROLLED_BACK;
 
 @Log4j2
 @Service
@@ -53,7 +57,7 @@ public class SettlementService {
 
 
     /* 정산 Status를 REQUESTED -> COMPLETED로 스케줄링 (낙관적 락 적용)*/
-    @Scheduled(cron = "0 0 0 * * *")
+    @Scheduled(cron = "0 55 17 * * *")
     @Transactional
     public void updateTotalStatusIfAllCompleted() {
         List<Settlement> settlements = settlementRepository.findAllByTotalStatus(TotalStatus.REQUESTED);
@@ -84,7 +88,6 @@ public class SettlementService {
         if (!(schedule.getScheduleStatus() == ScheduleStatus.ENDED || schedule.getScheduleTime().isBefore(LocalDateTime.now()))) {
             throw new CustomException(ErrorCode.BEFORE_SCHEDULE_START);
         }
-
         UserSchedule leaderUserSchedule = userScheduleRepository.findByUserAndSchedule(user, schedule)
                 .orElseThrow(() -> new CustomException(ErrorCode.USER_SCHEDULE_NOT_FOUND));
         // 리더가 호출하고 있는지 확인
@@ -143,11 +146,11 @@ public class SettlementService {
         Wallet leaderWallet = walletRepository.findByUser(leader)
                 .orElseThrow(() -> new CustomException(ErrorCode.WALLET_NOT_FOUND));
         int amount = schedule.getCost();
-        // 잔액 부족 확인
-        if (wallet.getBalance() < amount) {
-            throw new CustomException(ErrorCode.WALLET_BALANCE_NOT_ENOUGH);
-        }
         try {
+            // 잔액 부족 확인
+            if (wallet.getBalance() < amount) {
+                throw new CustomException(ErrorCode.WALLET_BALANCE_NOT_ENOUGH);
+            }
             // 1. 잔액 변경 전 상태 저장
             int beforeBalance = wallet.getBalance();
             int leaderBeforeBalance = leaderWallet.getBalance();
@@ -169,15 +172,25 @@ public class SettlementService {
             notificationService.createNotification(user,
                     com.example.onlyone.domain.notification.entity.Type.SETTLEMENT,
                     new String[]{String.valueOf(amount)});
+        } catch (CustomException e) {
+            registerFailureLogAfterRollback(wallet.getWalletId(), leaderWallet.getWalletId(), amount, userSettlement.getUserSettlementId(), wallet.getBalance(), leaderWallet.getBalance());
+            throw e;
         } catch (Exception e) {
-            log.error("정산 처리 실패: userId={}, scheduleId={}, amount={}", user.getUserId(), scheduleId, amount, e);
-            // 실패 기록
-            walletService.createFailedWalletTransactions(wallet.getWalletId(), leaderWallet.getWalletId(), amount, userSettlement);
-            // UserSettlement 상태를 FAILED로 변경
-            userSettlement.updateSettlement(SettlementStatus.FAILED, LocalDateTime.now());
-            userSettlementRepository.save(userSettlement);
+            registerFailureLogAfterRollback(wallet.getWalletId(), leaderWallet.getWalletId(), amount, userSettlement.getUserSettlementId(), wallet.getBalance(), leaderWallet.getBalance());
             throw new CustomException(ErrorCode.SETTLEMENT_PROCESS_FAILED);
         }
+    }
+
+    /* 트랜잭션 롤백 후 실패 로그를 기록하기 위한 메서드*/
+    private void registerFailureLogAfterRollback(long wId, long lwId, int amount,
+                                                 long usId, int wBal, int lwBal) {
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override public void afterCompletion(int status) {
+                if (status == STATUS_ROLLED_BACK) {
+                    walletService.createFailedWalletTransactions(wId, lwId, amount, usId, wBal, lwBal);
+                }
+            }
+        });
     }
 
     /* 스케줄 참여자 정산 목록 조회 */
@@ -191,13 +204,6 @@ public class SettlementService {
                 .orElseThrow(() -> new CustomException(ErrorCode.SETTLEMENT_NOT_FOUND));
         Page<UserSettlementDto> userSettlementList = userSettlementRepository
                 .findAllDtoBySettlement(settlement, pageable);
-        return SettlementResponseDto.from(userSettlementList);
-    }
-
-    @Transactional(readOnly = true)
-    public SettlementResponseDto getMySettlementList(Pageable pageable) {
-        User user = userService.getCurrentUser();
-        Page<UserSettlementDto> userSettlementList = userSettlementRepository.findRecentOrRequestedByUser(user, LocalDateTime.now().minusDays(10), pageable);
         return SettlementResponseDto.from(userSettlementList);
     }
 }

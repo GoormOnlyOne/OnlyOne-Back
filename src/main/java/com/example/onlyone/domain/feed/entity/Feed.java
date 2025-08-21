@@ -6,7 +6,11 @@ import com.example.onlyone.global.BaseTimeEntity;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.NotNull;
 import lombok.*;
+import org.hibernate.annotations.SQLDelete;
+import org.hibernate.annotations.SQLRestriction;
+import org.hibernate.annotations.SoftDelete;
 
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -23,6 +27,8 @@ import java.util.List;
 @Builder
 @AllArgsConstructor
 @NoArgsConstructor
+@SQLDelete(sql = "UPDATE feed SET deleted = true, deleted_at = now() WHERE feed_id = ?")
+@SQLRestriction("deleted = false")
 public class Feed extends BaseTimeEntity {
 
     @Id
@@ -49,17 +55,16 @@ public class Feed extends BaseTimeEntity {
     @Builder.Default
     private FeedType feedType = FeedType.ORIGINAL;
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "parent_feed_id")
-    private Feed parent;
+    @Column(name = "parent_feed_id")
+    private Long parentFeedId;
 
     @Column(name = "root_feed_id")
     private Long rootFeedId;
 
-    @Builder.Default
-    @Column(name = "depth")
-    @NotNull
-    private int depth = 0;
+//    @Builder.Default
+//    @Column(name = "depth")
+//    @NotNull
+//    private int depth = 0;
 
     @Builder.Default
     @OneToMany(mappedBy = "feed", cascade = CascadeType.ALL, orphanRemoval = true)
@@ -76,4 +81,11 @@ public class Feed extends BaseTimeEntity {
     public void update(String content) {
         this.content = content;
     }
+
+    @Column(name = "deleted", nullable = false)
+    private boolean deleted = false;
+
+    @Column(name = "deleted_at")
+    private LocalDateTime deletedAt;
+
 }

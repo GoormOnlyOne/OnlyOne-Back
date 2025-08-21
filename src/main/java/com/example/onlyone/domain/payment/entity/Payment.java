@@ -44,8 +44,10 @@ public class Payment extends BaseTimeEntity {
         this.status = status;
     }
 
-    public void updateOnConfirm(String status, String method) {
-        this.status = Status.valueOf(status);
-        this.method = Method.valueOf(method);
+    public void updateOnConfirm(String paymentKey, Status status, Method method, WalletTransaction walletTransaction) {
+        this.tossPaymentKey = paymentKey;
+        this.status = status;
+        this.method = method;
+        this.walletTransaction = walletTransaction;
     }
 }
