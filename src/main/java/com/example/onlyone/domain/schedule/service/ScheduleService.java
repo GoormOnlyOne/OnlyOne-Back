@@ -137,7 +137,7 @@ public class ScheduleService {
 
     /* 정기 모임 참여 */
     public void joinSchedule(Long clubId, Long scheduleId) {
-        clubRepository.findById(clubId)
+        Club club = clubRepository.findById(clubId)
                 .orElseThrow(() -> new CustomException(ErrorCode.CLUB_NOT_FOUND));
         Schedule schedule = scheduleRepository.findById(scheduleId)
                 .orElseThrow(() -> new CustomException(ErrorCode.SCHEDULE_NOT_FOUND));
@@ -153,6 +153,10 @@ public class ScheduleService {
         // 이미 종료된 스케줄인 경우
         if (schedule.getScheduleStatus() != ScheduleStatus.READY || schedule.getScheduleTime().isBefore(LocalDateTime.now())) {
             throw new CustomException(ErrorCode.ALREADY_ENDED_SCHEDULE);
+        }
+        // 모임 멤버가 아닌 경우
+        if (userClubRepository.findByUserAndClub(user, club).isEmpty()){
+            throw new CustomException(ErrorCode.USER_CLUB_NOT_FOUND);
         }
         Settlement settlement = settlementRepository.findBySchedule(schedule)
                 .orElseThrow(() -> new CustomException(ErrorCode.SETTLEMENT_NOT_FOUND));
