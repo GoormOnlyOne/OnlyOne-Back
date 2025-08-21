@@ -74,4 +74,11 @@ public class ScheduleController {
         List<ScheduleUserResponseDto> scheduleUserList = scheduleService.getScheduleUserList(clubId, scheduleId);
         return ResponseEntity.ok(CommonResponse.success(scheduleUserList));
     }
+
+    @Operation(summary = "스케줄 삭제", description = "스케줄(정기 모임)과 연관된 데이터를 모두 삭제합니다.")
+    @DeleteMapping("/{scheduleId}")
+    public ResponseEntity<?> deleteSchedule(@PathVariable("clubId") final Long clubId, @PathVariable("scheduleId") final Long scheduleId) {
+        scheduleService.deleteSchedule(clubId, scheduleId);
+        return ResponseEntity.ok(CommonResponse.success(null));
+    }
 }
