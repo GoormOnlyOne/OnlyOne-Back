@@ -1,6 +1,7 @@
 package com.example.onlyone.domain.notification.dto.requestDto;
 
-import jakarta.validation.constraints.NotEmpty;
+import jakarta.validation.constraints.NotNull;
+import jakarta.validation.Valid;
 import java.util.List;
 import lombok.Builder;
 import lombok.Getter;
@@ -15,7 +16,8 @@ import lombok.Getter;
 @Builder
 public class NotificationReadRequestDto {
 
-  @NotEmpty
-  private final List<Long> notificationIds;
+  @NotNull(message = "알림 ID 목록은 필수입니다")
+  @Valid
+  private final List<@NotNull(message = "알림 ID는 null일 수 없습니다") Long> notificationIds;
 
 }

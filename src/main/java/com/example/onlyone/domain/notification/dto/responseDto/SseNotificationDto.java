@@ -2,6 +2,9 @@ package com.example.onlyone.domain.notification.dto.responseDto;
 
 import com.example.onlyone.domain.notification.entity.AppNotification;
 import com.example.onlyone.domain.notification.entity.Type;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Positive;
 import java.time.LocalDateTime;
 import lombok.Builder;
 import lombok.Getter;
@@ -27,16 +30,23 @@ import lombok.Getter;
 @Builder
 public class SseNotificationDto {
 
+  @NotNull(message = "알림 ID는 필수입니다")
+  @Positive(message = "알림 ID는 양수여야 합니다")
   private final Long notificationId;
 
+  @NotBlank(message = "알림 내용은 필수입니다")
   private final String content;
 
+  @NotNull(message = "알림 타입은 필수입니다")
   private final Type type;
 
+  @NotNull(message = "생성 시간은 필수입니다")
   private LocalDateTime createdAt;
 
+  @NotBlank(message = "타겟 타입은 필수입니다")
   private final String targetType;
 
+  @Positive(message = "타겟 ID는 양수여야 합니다")
   private final Long targetId;
 
   public static SseNotificationDto from(AppNotification appNotification) {
@@ -48,7 +58,7 @@ public class SseNotificationDto {
         .type(appNotification.getNotificationType().getType())
         .createdAt(appNotification.getCreatedAt())
         .targetType(appNotification.getTargetType())
-        .targetId(appNotification.getTargetId())
+        .targetId(null) // targetId는 DTO 레벨에서만 처리
         .build();
   }
 }

@@ -5,6 +5,8 @@ import com.example.onlyone.domain.notification.entity.AppNotification;
 import com.example.onlyone.domain.notification.entity.Type;
 import com.querydsl.core.types.Projections;
 import com.querydsl.core.types.dsl.BooleanExpression;
+import com.querydsl.core.types.dsl.CaseBuilder;
+import com.querydsl.core.types.dsl.Expressions;
 import com.querydsl.jpa.impl.JPAQueryFactory;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Repository;
@@ -37,8 +39,14 @@ public class NotificationRepositoryImpl implements NotificationRepositoryCustom 
                         notificationType.type,
                         appNotification.isRead,
                         appNotification.createdAt,
-                        appNotification.targetType,
-                        appNotification.targetId
+                        new CaseBuilder()
+                                .when(notificationType.type.eq(Type.CHAT)).then("CHAT")
+                                .when(notificationType.type.eq(Type.SETTLEMENT)).then("SETTLEMENT")
+                                .when(notificationType.type.eq(Type.LIKE)).then("POST")
+                                .when(notificationType.type.eq(Type.COMMENT)).then("POST")
+                                .when(notificationType.type.eq(Type.REFEED)).then("FEED")
+                                .otherwise("UNKNOWN"),
+                        Expressions.nullExpression(Long.class) // targetId 제거
                 ))
                 .from(appNotification)
                 .join(appNotification.notificationType, notificationType)
@@ -65,8 +73,14 @@ public class NotificationRepositoryImpl implements NotificationRepositoryCustom 
                         notificationType.type,
                         appNotification.isRead,
                         appNotification.createdAt,
-                        appNotification.targetType,
-                        appNotification.targetId
+                        new CaseBuilder()
+                                .when(notificationType.type.eq(Type.CHAT)).then("CHAT")
+                                .when(notificationType.type.eq(Type.SETTLEMENT)).then("SETTLEMENT")
+                                .when(notificationType.type.eq(Type.LIKE)).then("POST")
+                                .when(notificationType.type.eq(Type.COMMENT)).then("POST")
+                                .when(notificationType.type.eq(Type.REFEED)).then("FEED")
+                                .otherwise("UNKNOWN"),
+                        Expressions.nullExpression(Long.class) // targetId 제거
                 ))
                 .from(appNotification)
                 .join(appNotification.notificationType, notificationType)
@@ -139,6 +153,16 @@ public class NotificationRepositoryImpl implements NotificationRepositoryCustom 
                 )
                 .orderBy(appNotification.createdAt.asc())
                 .fetch();
+    }
+    
+    @Override
+    public AppNotification findByIdWithFetchJoin(Long notificationId) {
+        return queryFactory
+                .selectFrom(appNotification)
+                .join(appNotification.notificationType, notificationType).fetchJoin()
+                .join(appNotification.user, user).fetchJoin()
+                .where(appNotification.id.eq(notificationId))
+                .fetchOne();
     }
     
     @Override

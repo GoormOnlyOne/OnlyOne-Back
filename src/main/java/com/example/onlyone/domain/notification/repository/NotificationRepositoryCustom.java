@@ -52,6 +52,11 @@ public interface NotificationRepositoryCustom {
     );
     
     /**
+     * ID로 단일 알림 조회 (fetchJoin 포함)
+     */
+    AppNotification findByIdWithFetchJoin(Long notificationId);
+    
+    /**
      * 알림 통계 정보 조회
      */
     NotificationStats getNotificationStats(Long userId);

@@ -32,18 +32,15 @@ public class NotificationType extends BaseTimeEntity {
 
 
     private NotificationType(Type type, String template, DeliveryMethod deliveryMethod) {
-        this.type = Objects.requireNonNull(type, "type cannot be null");
-        this.template = Objects.requireNonNull(template, "template cannot be null");
-        this.deliveryMethod = Objects.requireNonNull(deliveryMethod, "deliveryMethod cannot be null");
+        this.type = type;
+        this.template = template;
+        this.deliveryMethod = deliveryMethod;
     }
 
     public static NotificationType of(Type type, String template) {
         return new NotificationType(type, template, DeliveryMethod.getOptimalMethod(type));
     }
 
-    public static NotificationType of(Type type, String template, DeliveryMethod deliveryMethod) {
-        return new NotificationType(type, template, deliveryMethod);
-    }
 
     public String render(String... args) {
         if (args == null || args.length == 0) {

@@ -5,134 +5,35 @@ import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.*;
 
-/**
- * DeliveryMethod enum 클래식 단위 테스트
- * - 순수 enum 로직 테스트
- * - 비즈니스 규칙 검증
- */
 @DisplayName("DeliveryMethod 테스트")
 class DeliveryMethodTest {
 
     @Test
-    @DisplayName("FCM_ONLY는 FCM만 전송한다")
-    void fcm_only_sends_fcm_only() {
-        // given
-        DeliveryMethod method = DeliveryMethod.FCM_ONLY;
-
-        // then
-        assertThat(method.shouldSendFcm()).isTrue();
-        assertThat(method.shouldSendSse()).isFalse();
+    @DisplayName("UT-NT-045: 전송 방식(DeliveryMethod)에 따라 올바르게 전송되는가?")
+    void delivery_methods_work_correctly() {
+        // FCM_ONLY
+        assertThat(DeliveryMethod.FCM_ONLY.shouldSendFcm()).isTrue();
+        assertThat(DeliveryMethod.FCM_ONLY.shouldSendSse()).isFalse();
+        
+        // SSE_ONLY
+        assertThat(DeliveryMethod.SSE_ONLY.shouldSendFcm()).isFalse();
+        assertThat(DeliveryMethod.SSE_ONLY.shouldSendSse()).isTrue();
+        
+        // BOTH
+        assertThat(DeliveryMethod.BOTH.shouldSendFcm()).isTrue();
+        assertThat(DeliveryMethod.BOTH.shouldSendSse()).isTrue();
     }
 
     @Test
-    @DisplayName("SSE_ONLY는 SSE만 전송한다")
-    void sse_only_sends_sse_only() {
-        // given
-        DeliveryMethod method = DeliveryMethod.SSE_ONLY;
-
-        // then
-        assertThat(method.shouldSendFcm()).isFalse();
-        assertThat(method.shouldSendSse()).isTrue();
-    }
-
-    @Test
-    @DisplayName("BOTH는 FCM과 SSE 모두 전송한다")
-    void both_sends_both_fcm_and_sse() {
-        // given
-        DeliveryMethod method = DeliveryMethod.BOTH;
-
-        // then
-        assertThat(method.shouldSendFcm()).isTrue();
-        assertThat(method.shouldSendSse()).isTrue();
-    }
-
-    @Test
-    @DisplayName("CHAT 타입은 FCM_ONLY가 최적이다")
-    void chat_type_optimal_method_is_fcm_only() {
-        // when
-        DeliveryMethod optimal = DeliveryMethod.getOptimalMethod(Type.CHAT);
-
-        // then
-        assertThat(optimal).isEqualTo(DeliveryMethod.FCM_ONLY);
-    }
-
-    @Test
-    @DisplayName("SETTLEMENT 타입은 FCM_ONLY가 최적이다")
-    void settlement_type_optimal_method_is_fcm_only() {
-        // when
-        DeliveryMethod optimal = DeliveryMethod.getOptimalMethod(Type.SETTLEMENT);
-
-        // then
-        assertThat(optimal).isEqualTo(DeliveryMethod.FCM_ONLY);
-    }
-
-    @Test
-    @DisplayName("LIKE 타입은 SSE_ONLY가 최적이다")
-    void like_type_optimal_method_is_sse_only() {
-        // when
-        DeliveryMethod optimal = DeliveryMethod.getOptimalMethod(Type.LIKE);
-
-        // then
-        assertThat(optimal).isEqualTo(DeliveryMethod.SSE_ONLY);
-    }
-
-    @Test
-    @DisplayName("COMMENT 타입은 SSE_ONLY가 최적이다")
-    void comment_type_optimal_method_is_sse_only() {
-        // when
-        DeliveryMethod optimal = DeliveryMethod.getOptimalMethod(Type.COMMENT);
-
-        // then
-        assertThat(optimal).isEqualTo(DeliveryMethod.SSE_ONLY);
-    }
-
-    @Test
-    @DisplayName("REFEED 타입은 SSE_ONLY가 최적이다")
-    void refeed_type_optimal_method_is_sse_only() {
-        // when
-        DeliveryMethod optimal = DeliveryMethod.getOptimalMethod(Type.REFEED);
-
-        // then
-        assertThat(optimal).isEqualTo(DeliveryMethod.SSE_ONLY);
-    }
-
-    @Test
-    @DisplayName("모든 알림 타입에 대해 최적 전달방식이 정의되어 있다")
-    void all_notification_types_have_optimal_delivery_method() {
-        // when & then - 모든 Type enum 값에 대해 최적 방식이 정의되어 있는지 확인
-        for (Type type : Type.values()) {
-            assertThatCode(() -> DeliveryMethod.getOptimalMethod(type))
-                .doesNotThrowAnyException();
-                
-            DeliveryMethod optimal = DeliveryMethod.getOptimalMethod(type);
-            assertThat(optimal).isNotNull();
-        }
-    }
-
-    @Test
-    @DisplayName("긴급 알림 타입들은 FCM을 사용한다")
-    void urgent_notification_types_use_fcm() {
-        // given - 긴급한 알림 타입들
-        Type[] urgentTypes = {Type.CHAT, Type.SETTLEMENT};
-
-        // then - 모두 FCM을 사용해야 함
-        for (Type type : urgentTypes) {
-            DeliveryMethod method = DeliveryMethod.getOptimalMethod(type);
-            assertThat(method.shouldSendFcm()).isTrue();
-        }
-    }
-
-    @Test
-    @DisplayName("일반 알림 타입들은 SSE를 사용한다")
-    void general_notification_types_use_sse() {
-        // given - 일반 알림 타입들
-        Type[] generalTypes = {Type.LIKE, Type.COMMENT, Type.REFEED};
-
-        // then - 모두 SSE를 사용해야 함
-        for (Type type : generalTypes) {
-            DeliveryMethod method = DeliveryMethod.getOptimalMethod(type);
-            assertThat(method.shouldSendSse()).isTrue();
-            assertThat(method.shouldSendFcm()).isFalse(); // 일반 알림은 FCM 사용하지 않음
-        }
+    @DisplayName("UT-NT-045: 전송 방식별 SSE/FCM 전송 선택 올바른가?")
+    void optimal_delivery_method_by_type_is_correct() {
+        // 채팅, 전송은 fcm
+        assertThat(DeliveryMethod.getOptimalMethod(Type.CHAT)).isEqualTo(DeliveryMethod.FCM_ONLY);
+        assertThat(DeliveryMethod.getOptimalMethod(Type.SETTLEMENT)).isEqualTo(DeliveryMethod.FCM_ONLY);
+        
+        // 좋아요, 댓글, 리피드는 SSE
+        assertThat(DeliveryMethod.getOptimalMethod(Type.LIKE)).isEqualTo(DeliveryMethod.SSE_ONLY);
+        assertThat(DeliveryMethod.getOptimalMethod(Type.COMMENT)).isEqualTo(DeliveryMethod.SSE_ONLY);
+        assertThat(DeliveryMethod.getOptimalMethod(Type.REFEED)).isEqualTo(DeliveryMethod.SSE_ONLY);
     }
 }
