@@ -129,6 +129,9 @@ public class ScheduleService {
         if (userSchedule.getScheduleRole() != ScheduleRole.LEADER) {
             throw new CustomException(ErrorCode.MEMBER_CANNOT_MODIFY_SCHEDULE);
         }
+        if (schedule.getScheduleStatus() != ScheduleStatus.READY) {
+            throw new CustomException(ErrorCode.ALREADY_ENDED_SCHEDULE);
+        }
         schedule.update(requestDto.getName(), requestDto.getLocation(), requestDto.getCost(), requestDto.getUserLimit(), requestDto.getScheduleTime());
     }
 
