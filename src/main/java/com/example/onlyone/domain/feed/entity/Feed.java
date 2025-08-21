@@ -6,6 +6,7 @@ import com.example.onlyone.global.BaseTimeEntity;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.NotNull;
 import lombok.*;
+import org.hibernate.annotations.BatchSize;
 import org.hibernate.annotations.SQLDelete;
 import org.hibernate.annotations.SQLRestriction;
 import org.hibernate.annotations.SoftDelete;
@@ -17,12 +18,10 @@ import java.util.List;
 @Entity
 @Table(
         name = "feed",
-        uniqueConstraints = {
-                @UniqueConstraint(
-                        name = "uq_refeed_once",
-                        columnNames = {"user_id", "parent_feed_id", "club_id"}
-                )
-        })
+        indexes = {
+                @Index(name = "uq_refeed_once_alive", columnList = "user_id, club_id, active_parent", unique = true)
+        }
+)
 @Getter
 @Builder
 @AllArgsConstructor
@@ -61,21 +60,19 @@ public class Feed extends BaseTimeEntity {
     @Column(name = "root_feed_id")
     private Long rootFeedId;
 
-//    @Builder.Default
-//    @Column(name = "depth")
-//    @NotNull
-//    private int depth = 0;
-
     @Builder.Default
     @OneToMany(mappedBy = "feed", cascade = CascadeType.ALL, orphanRemoval = true)
+    @BatchSize(size = 50)
     private List<FeedComment> feedComments = new ArrayList<>();
 
     @Builder.Default
     @OneToMany(mappedBy = "feed", cascade = CascadeType.ALL, orphanRemoval = true)
+    @BatchSize(size = 50)
     private List<FeedLike> feedLikes = new ArrayList<>();
 
     @Builder.Default
     @OneToMany(mappedBy = "feed", cascade = CascadeType.ALL, orphanRemoval = true)
+    @BatchSize(size = 50)
     private List<FeedImage> feedImages = new ArrayList<>();
 
     public void update(String content) {
@@ -87,5 +84,17 @@ public class Feed extends BaseTimeEntity {
 
     @Column(name = "deleted_at")
     private LocalDateTime deletedAt;
+
+    @Column(
+            name = "active_parent",
+            insertable = false, updatable = false,
+            columnDefinition =
+                    "BIGINT GENERATED ALWAYS AS (" +
+                            "  CASE WHEN deleted = 0 AND parent_feed_id IS NOT NULL THEN parent_feed_id " +
+                            "       ELSE NULL " +
+                            "  END" +
+                            ") STORED"
+    )
+    private Long activeParent;
 
 }
