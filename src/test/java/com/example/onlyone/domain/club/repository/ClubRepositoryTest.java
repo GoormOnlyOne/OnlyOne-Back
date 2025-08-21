@@ -15,16 +15,13 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.jdbc.AutoConfigureTestDatabase;
-import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
-import org.springframework.test.annotation.Commit;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.test.context.jdbc.Sql;
+
 
 import java.time.LocalDate;
 import java.util.List;
@@ -32,9 +29,7 @@ import java.util.List;
 import static org.assertj.core.api.Assertions.assertThat;
 
 @ActiveProfiles("test")
-// @DataJpaTest
 @SpringBootTest
-// @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
 class ClubRepositoryTest {
 
     @Autowired private ClubRepository clubRepository;
@@ -175,6 +170,7 @@ class ClubRepositoryTest {
     }
 
     @Test
+    @Transactional
     @DisplayName("관심사로 클럽을 검색할 수 있다")
     void searchByInterest() {
         // when
@@ -216,6 +212,7 @@ class ClubRepositoryTest {
     }
 
     @Test
+    @Transactional
     @DisplayName("사용자 관심사와 지역으로 맞춤 클럽을 추천할 수 있다")
     void searchByUserInterestAndLocation() {
         // given
@@ -239,6 +236,7 @@ class ClubRepositoryTest {
     }
 
     @Test
+    @Transactional
     @DisplayName("사용자 관심사로 클럽을 추천할 수 있다")
     void searchByUserInterests() {
         // given
@@ -300,6 +298,7 @@ class ClubRepositoryTest {
     }
 
     @Test
+    @Transactional
     @DisplayName("클럽 ID로 클럽을 조회할 수 있다")
     void findByClubId() {
         // when
