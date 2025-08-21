@@ -7,6 +7,9 @@ import com.example.onlyone.domain.club.repository.UserClubRepository;
 import com.example.onlyone.domain.interest.entity.Category;
 import com.example.onlyone.domain.search.dto.request.SearchFilterDto;
 import com.example.onlyone.domain.search.dto.response.ClubResponseDto;
+import com.example.onlyone.domain.search.dto.response.MyMeetingListResponseDto;
+import com.example.onlyone.domain.settlement.entity.SettlementStatus;
+import com.example.onlyone.domain.settlement.repository.UserSettlementRepository;
 import com.example.onlyone.domain.user.entity.User;
 import com.example.onlyone.domain.user.repository.UserInterestRepository;
 import com.example.onlyone.domain.user.service.UserService;
@@ -31,6 +34,7 @@ public class SearchService {
     private final UserClubRepository userClubRepository;
     private final UserService userService;
     private final UserInterestRepository userInterestRepository;
+    private final UserSettlementRepository userSettlementRepository;
 
     // 사용자 맞춤 추천
     public List<ClubResponseDto> recommendedClubs(int page, int size) {
@@ -180,14 +184,16 @@ public class SearchService {
     }
 
     // 내 모임 목록 조회
-    public List<ClubResponseDto> getMyClubs() {
-        Long userId = userService.getCurrentUser().getUserId();
-        List<Object[]> rows = userClubRepository.findMyClubsWithMemberCount(userId);
-        return rows.stream().map(row -> {
+    public MyMeetingListResponseDto getMyClubs() {
+        User user = userService.getCurrentUser();
+        List<Object[]> rows = userClubRepository.findMyClubsWithMemberCount(user.getUserId());
+        List<ClubResponseDto> clubResponseDtoList = rows.stream().map(row -> {
             Club club = (Club) row[0];
             Long memberCount = (Long) row[1];
             return ClubResponseDto.from(club, memberCount, true);
         }).toList();
+        boolean isUnsettledScheduleExist =
+                userSettlementRepository.existsByUserAndSettlementStatusNot(user, SettlementStatus.COMPLETED);
+        return new MyMeetingListResponseDto(isUnsettledScheduleExist, clubResponseDtoList);
     }
-
 }

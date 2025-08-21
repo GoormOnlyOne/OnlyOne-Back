@@ -12,6 +12,7 @@ import java.time.LocalDateTime;
 @AllArgsConstructor
 public class MySettlementDto {
     private Long clubId;
+    private Long scheduleId;
     private int amount;
     private String mainImage;
     private SettlementStatus settlementStatus;

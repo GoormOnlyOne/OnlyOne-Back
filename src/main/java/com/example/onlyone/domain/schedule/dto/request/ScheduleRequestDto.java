@@ -3,10 +3,7 @@ package com.example.onlyone.domain.schedule.dto.request;
 import com.example.onlyone.domain.club.entity.Club;
 import com.example.onlyone.domain.schedule.entity.Schedule;
 import com.example.onlyone.domain.schedule.entity.ScheduleStatus;
-import jakarta.validation.constraints.Min;
-import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.NotNull;
-import jakarta.validation.constraints.Size;
+import jakarta.validation.constraints.*;
 import lombok.Getter;
 
 import java.time.LocalDateTime;
@@ -23,6 +20,7 @@ public class ScheduleRequestDto {
     @NotNull
     private int userLimit;
     @NotNull
+    @FutureOrPresent(message = "현재 시간 이후만 선택할 수 있습니다.")
     private LocalDateTime scheduleTime;
 
     public Schedule toEntity(Club club) {

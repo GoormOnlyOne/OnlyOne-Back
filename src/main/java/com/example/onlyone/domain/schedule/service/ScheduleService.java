@@ -64,7 +64,7 @@ public class ScheduleService {
     }
 
     /* 정기 모임 생성*/
-    public void createSchedule(Long clubId, @Valid ScheduleRequestDto requestDto) {
+    public void createSchedule(Long clubId, ScheduleRequestDto requestDto) {
         Club club = clubRepository.findById(clubId)
                 .orElseThrow(() -> new CustomException(ErrorCode.CLUB_NOT_FOUND));
         Schedule schedule = requestDto.toEntity(club);
@@ -206,5 +206,29 @@ public class ScheduleService {
         Schedule schedule = scheduleRepository.findById(scheduleId)
                 .orElseThrow(() -> new CustomException(ErrorCode.SCHEDULE_NOT_FOUND));
         return ScheduleDetailResponseDto.from(schedule);
+    }
+
+
+    public void deleteSchedule(Long clubId, Long scheduleId) {
+        Club club = clubRepository.findById(clubId)
+                .orElseThrow(() -> new CustomException(ErrorCode.CLUB_NOT_FOUND));
+        Schedule schedule = scheduleRepository.findById(scheduleId)
+                .orElseThrow(() -> new CustomException(ErrorCode.SCHEDULE_NOT_FOUND));
+        // 상태가 READY이고 시작 날짜가 지나지 않은 스케줄만 삭제 가능
+        if (schedule.getScheduleStatus() != ScheduleStatus.READY || schedule.getScheduleTime().isBefore(LocalDateTime.now())) {
+            throw new CustomException(ErrorCode.INVALID_SCHEDULE_DELETE);
+        }
+        // 리더인 유저만 스케줄 삭제 가능
+        User user = userService.getCurrentUser();
+        UserSchedule userSchedule = userScheduleRepository.findByUserAndSchedule(user, schedule)
+                .orElseThrow(() -> new CustomException(ErrorCode.USER_SCHEDULE_NOT_FOUND));
+        if (userSchedule.getScheduleRole() != ScheduleRole.LEADER) {
+            throw new CustomException(ErrorCode.MEMBER_CANNOT_DELETE_SCHEDULE);
+        }
+        ChatRoom chatRoom = chatRoomRepository.findByTypeAndScheduleId(Type.SCHEDULE, scheduleId)
+                .orElseThrow(() -> new CustomException(ErrorCode.CHAT_ROOM_NOT_FOUND));
+        club.getSchedules().remove(schedule);
+        chatRoomRepository.delete(chatRoom);
+        scheduleRepository.delete(schedule);
     }
 }
