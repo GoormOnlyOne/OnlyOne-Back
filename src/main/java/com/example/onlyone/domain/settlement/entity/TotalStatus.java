@@ -4,5 +4,6 @@ public enum TotalStatus {
     HOLDING,
     REQUESTED,
     IN_PROGRESS,
-    COMPLETED
+    COMPLETED,
+    FAILED
 }

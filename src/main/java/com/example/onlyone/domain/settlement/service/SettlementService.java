@@ -64,7 +64,7 @@ public class SettlementService {
 
 
     /* 정산 Status를 REQUESTED -> COMPLETED로 스케줄링 (낙관적 락 적용)*/
-    @Scheduled(cron = "0 55 17 * * *")
+    @Scheduled(cron = "0 0 0 * * *")
     @Transactional
     public void updateTotalStatusIfAllCompleted() {
         List<Settlement> settlements = settlementRepository.findAllByTotalStatus(TotalStatus.REQUESTED);
@@ -117,8 +117,6 @@ public class SettlementService {
         // 정산의 sum 업데이트 (count할 때는 리더 제외)
         int totalAmount = (userCount - 1) * schedule.getCost();
         settlement.updateSum(totalAmount);
-
-        settlement.updateTotalStatus(TotalStatus.REQUESTED);
         schedule.updateStatus(ScheduleStatus.SETTLING);
 
         User leader = userScheduleRepository.findLeaderByScheduleAndScheduleRole(schedule, ScheduleRole.LEADER)
@@ -131,7 +129,7 @@ public class SettlementService {
 
         // 자동 정산 수행
         try {
-            // 1. 멱등성 보장 & 진행 선점: REQUESTED → IN_PROGRESS 선점
+            // 1. 멱등성 보장 & 진행 선점: ENDED → IN_PROGRESS 선점
             if (settlementRepository.markProcessing(settlement.getSettlementId()) != 1) {
                 throw new CustomException(ErrorCode.ALREADY_SETTLING_SCHEDULE);
             }
@@ -182,11 +180,19 @@ public class SettlementService {
 //                    new String[]{String.valueOf(settlement.getSum())});
         // 4. 예외를 잡아 별도 실패 기록
         } catch (CustomException e) {
-            settlement.updateTotalStatus(TotalStatus.REQUESTED);
+            Schedule failedSchedule = scheduleRepository.findById(scheduleId)
+                    .orElseThrow(() -> new CustomException(ErrorCode.SETTLEMENT_NOT_FOUND));
+            Settlement faildSettlement = settlementRepository.findBySchedule(failedSchedule)
+                    .orElseThrow(() -> new CustomException(ErrorCode.SETTLEMENT_NOT_FOUND));
+            faildSettlement.updateTotalStatus(TotalStatus.FAILED);
             registerFailureLogAfterRollback(failWallet.getWalletId(), leaderWallet.getWalletId(), schedule.getCost(), failUserSettlementId, failWallet.getPostedBalance(), leaderWallet.getPostedBalance());
             throw e;
         } catch (Exception e) {
-            settlement.updateTotalStatus(TotalStatus.REQUESTED);
+            Schedule failedSchedule = scheduleRepository.findById(scheduleId)
+                    .orElseThrow(() -> new CustomException(ErrorCode.SETTLEMENT_NOT_FOUND));
+            Settlement faildSettlement = settlementRepository.findBySchedule(failedSchedule)
+                    .orElseThrow(() -> new CustomException(ErrorCode.SETTLEMENT_NOT_FOUND));
+            faildSettlement.updateTotalStatus(TotalStatus.FAILED);
             registerFailureLogAfterRollback(failWallet.getWalletId(), leaderWallet.getWalletId(), schedule.getCost(), failUserSettlementId, failWallet.getPostedBalance(), leaderWallet.getPostedBalance());
             throw new CustomException(ErrorCode.SETTLEMENT_PROCESS_FAILED);
         }

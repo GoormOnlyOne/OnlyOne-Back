@@ -7,7 +7,10 @@ import com.example.onlyone.domain.chat.entity.UserChatRoom;
 import com.example.onlyone.domain.chat.repository.ChatRoomRepository;
 import com.example.onlyone.domain.chat.repository.UserChatRoomRepository;
 import com.example.onlyone.domain.club.entity.Club;
+import com.example.onlyone.domain.club.entity.ClubRole;
+import com.example.onlyone.domain.club.entity.UserClub;
 import com.example.onlyone.domain.club.repository.ClubRepository;
+import com.example.onlyone.domain.club.repository.UserClubRepository;
 import com.example.onlyone.domain.schedule.dto.request.ScheduleRequestDto;
 import com.example.onlyone.domain.schedule.dto.response.ScheduleDetailResponseDto;
 import com.example.onlyone.domain.schedule.dto.response.ScheduleResponseDto;
@@ -60,6 +63,7 @@ public class ScheduleService {
     private final SettlementRepository settlementRepository;
     private final UserSettlementRepository userSettlementRepository;
     private final WalletRepository walletRepository;
+    private final UserClubRepository userClubRepository;
 
     /* 스케줄 Status를 READY -> ENDED로 변경하는 스케줄링 */
     @Scheduled(cron = "0 0 0 * * *")
@@ -81,6 +85,11 @@ public class ScheduleService {
         Schedule schedule = requestDto.toEntity(club);
         scheduleRepository.save(schedule);
         User user = userService.getCurrentUser();
+        UserClub userClub = userClubRepository.findByUserAndClub(user, club)
+                .orElseThrow(() -> new CustomException(ErrorCode.USER_CLUB_NOT_FOUND));
+        if (userClub.getClubRole() != ClubRole.LEADER) {
+            throw new CustomException(ErrorCode.MEMBER_CANNOT_CREATE_SCHEDULE);
+        }
         UserSchedule userSchedule = UserSchedule.builder()
                 .user(user)
                 .schedule(schedule)
@@ -218,7 +227,8 @@ public class ScheduleService {
         Club club = clubRepository.findById(clubId)
                 .orElseThrow(() -> new CustomException(ErrorCode.CLUB_NOT_FOUND));
         User currentUser = userService.getCurrentUser();
-        return scheduleRepository.findByClubAndScheduleStatusNot(club, ScheduleStatus.CLOSED).stream()
+//        return scheduleRepository.findByClubAndScheduleStatusNot(club, ScheduleStatus.CLOSED).stream()
+        return scheduleRepository.findAllByClub(club).stream()
                 .map(schedule -> {
                     int userCount = userScheduleRepository.countBySchedule(schedule);
                     Optional<UserSchedule> userScheduleOpt = userScheduleRepository
