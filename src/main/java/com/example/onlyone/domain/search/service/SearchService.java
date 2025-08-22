@@ -81,7 +81,7 @@ public class SearchService {
 
     // 모임 검색 (지역)
     public List<ClubResponseDto> searchClubByLocation(String city, String district, int page) {
-        if (city == null || district == null) {
+        if (city == null || district == null || city.trim().isEmpty() || district.trim().isEmpty()) {
             throw new CustomException(ErrorCode.INVALID_LOCATION);
         }
 
