@@ -16,13 +16,16 @@ import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicLong;
 
+import org.springframework.beans.factory.DisposableBean;
+import org.springframework.beans.factory.InitializingBean;
+
 /**
  * FCM 서비스 - Firebase Cloud Messaging 푸시 알림 전송 및 토큰 관리
  */
 @Service
 @RequiredArgsConstructor
 @Slf4j
-public class FcmService {
+public class FcmService implements InitializingBean, DisposableBean {
 
   @Value("${app.notification.fcm.batch-size:500}")
   private int batchSize;
@@ -34,6 +37,7 @@ public class FcmService {
   private final NotificationRepository notificationRepository;
   private final PriorityBlockingQueue<FcmNotificationTask> priorityQueue = new PriorityBlockingQueue<>();
   private final ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(3);
+  private final ExecutorService queueProcessor = Executors.newFixedThreadPool(2); // 우선순위 큐 소비자 스레드
 
   /**
    * FCM 알림 전송 - 모든 예외를 CustomException으로 변환하여 글로벌 예외 처리
@@ -147,6 +151,73 @@ public class FcmService {
 
     } catch (Exception e) {
       log.error("FCM retry failed for user: {}", userId, e);
+    }
+  }
+
+  /**
+   * 서비스 초기화 시 우선순위 큐 소비자 스레드 시작
+   */
+  @Override
+  public void afterPropertiesSet() {
+    // 우선순위 큐 소비자 스레드 시작
+    for (int i = 0; i < 2; i++) {
+      queueProcessor.submit(this::processQueuedNotifications);
+    }
+    log.info("FCM priority queue processors started");
+  }
+
+  /**
+   * 서비스 종료 시 스레드풀 정리
+   */
+  @Override
+  public void destroy() {
+    log.info("Shutting down FCM service...");
+    
+    queueProcessor.shutdown();
+    scheduler.shutdown();
+    
+    try {
+      if (!queueProcessor.awaitTermination(10, TimeUnit.SECONDS)) {
+        queueProcessor.shutdownNow();
+      }
+      if (!scheduler.awaitTermination(10, TimeUnit.SECONDS)) {
+        scheduler.shutdownNow();
+      }
+    } catch (InterruptedException e) {
+      queueProcessor.shutdownNow();
+      scheduler.shutdownNow();
+      Thread.currentThread().interrupt();
+    }
+    
+    log.info("FCM service shutdown completed");
+  }
+
+  /**
+   * 우선순위 큐에서 FCM 작업을 지속적으로 처리
+   */
+  private void processQueuedNotifications() {
+    while (!Thread.currentThread().isInterrupted()) {
+      try {
+        // 우선순위에 따라 작업 가져오기 (블로킹)
+        FcmNotificationTask task = priorityQueue.take();
+        
+        // FCM 전송 처리
+        sendFcmNotification(task.getNotification());
+        
+      } catch (InterruptedException e) {
+        log.info("FCM queue processor interrupted");
+        Thread.currentThread().interrupt();
+        break;
+      } catch (Exception e) {
+        log.error("Error processing FCM queue", e);
+        // 에러 발생 시 잠시 대기 후 재시도
+        try {
+          Thread.sleep(1000);
+        } catch (InterruptedException ie) {
+          Thread.currentThread().interrupt();
+          break;
+        }
+      }
     }
   }
 
