@@ -1,30 +1,28 @@
 spring:
   datasource:
-    url: jdbc:h2:mem:testdb;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE;MODE=MySQL
     driver-class-name: org.h2.Driver
+    url: jdbc:h2:mem:testdb;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE;MODE=MySQL
     username: sa
     password:
-
   jpa:
     hibernate:
       ddl-auto: create-drop
     generate-ddl: true
     show-sql: false
-    properties:
-      hibernate:
-        format_sql: false
-        dialect: org.hibernate.dialect.H2Dialect
-        
   data:
     redis:
       host: localhost
       port: 6379
       password: password
-
-# Profile is set via @ActiveProfiles annotation
+      repositories:
+        enabled: false
+  cache:
+    type: none
+  main:
+    allow-bean-definition-overriding: true
 
 server:
-  port: 0
+  port: 8080
 
 aws:
   s3:
@@ -53,7 +51,7 @@ jwt:
 
 payment:
   toss:
-    test_secret_api_key: test_api_key  
+    test_secret_api_key: test_api_key
     base_url: https://api.tosspayments.com/v1/payments
 
 app:
@@ -67,12 +65,10 @@ app:
 
 firebase:
   service-account:
-    path: firebase/test-service-account.json
+    path: firebase/service-account.json
   web:
     vapid-key: "test-vapid-key"
 
 logging:
   level:
-    com.example.onlyone: DEBUG
-    org.springframework.web: INFO
-    org.hibernate.SQL: INFO
+    com.example.onlyone: INFO

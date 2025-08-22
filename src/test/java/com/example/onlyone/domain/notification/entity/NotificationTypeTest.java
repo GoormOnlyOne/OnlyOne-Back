@@ -10,7 +10,7 @@ class NotificationTypeTest {
 
     @Test
     @DisplayName("UT-NT-040: 알림 타입별 템플릿이 올바르게 적용되는가?")
-    void creates_notification_type_with_auto_delivery_method() {
+    void UT_NT_040_creates_notification_type_with_auto_delivery_method() {
         // when
         NotificationType chatType = NotificationType.of(Type.CHAT, "테스트 템플릿");
         NotificationType likeType = NotificationType.of(Type.LIKE, "테스트 템플릿");

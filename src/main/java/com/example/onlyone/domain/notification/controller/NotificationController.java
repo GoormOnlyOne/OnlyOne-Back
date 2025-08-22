@@ -17,6 +17,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import jakarta.validation.Valid;
+import org.springframework.util.StopWatch;
 
 @Tag(name = "알림", description = "알림 관리 API")
 @RestController
@@ -31,8 +32,16 @@ public class NotificationController {
     @Operation(summary = "읽지 않은 알림 개수", description = "현재 사용자의 읽지 않은 알림 개수를 조회합니다")
     @GetMapping("/unread-count")
     public ResponseEntity<CommonResponse<Long>> getUnreadCount() {
+        StopWatch stopWatch = new StopWatch();
+        stopWatch.start();
+        
         User currentUser = userService.getCurrentUser();
         Long unreadCount = notificationService.getUnreadCount(currentUser.getUserId());
+        
+        stopWatch.stop();
+        log.info("UnreadCount query completed in {}ms for user: {}", 
+                stopWatch.getTotalTimeMillis(), currentUser.getUserId());
+        
         return ResponseEntity.ok(CommonResponse.success(unreadCount));
     }
 
@@ -68,9 +77,17 @@ public class NotificationController {
         @Parameter(description = "페이지 크기 (최대 100)")
         @RequestParam(defaultValue = "20") int size) {
         
+        StopWatch stopWatch = new StopWatch();
+        stopWatch.start();
+        
         User currentUser = userService.getCurrentUser();
         NotificationListResponseDto response = notificationService.getNotifications(
             currentUser.getUserId(), cursor, size);
+        
+        stopWatch.stop();
+        log.info("Notification list query completed in {}ms: userId={}, size={}, results={}", 
+                stopWatch.getTotalTimeMillis(), currentUser.getUserId(), size, 
+                response.getNotifications().size());
         
         return ResponseEntity.ok(CommonResponse.success(response));
     }

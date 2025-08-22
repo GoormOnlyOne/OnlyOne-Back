@@ -1,59 +1,71 @@
 package com.example.onlyone.global.sse;
 
+import com.example.onlyone.config.TestConfig;
 import com.example.onlyone.domain.notification.service.SseEmittersService;
 import com.example.onlyone.domain.user.entity.Status;
 import com.example.onlyone.domain.user.entity.User;
-import com.example.onlyone.domain.user.service.UserService;
+import com.example.onlyone.domain.user.repository.UserRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.InjectMocks;
-import org.mockito.Mock;
-import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
+import org.springframework.security.test.context.support.WithMockUser;
+import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
-import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.context.WebApplicationContext;
 
-import static org.mockito.BDDMockito.given;
-import static org.mockito.Mockito.verify;
+import static org.springframework.security.test.web.servlet.setup.SecurityMockMvcConfigurers.springSecurity;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultHandlers.print;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 /**
- * SSE 스트림 컨트롤러 단위 테스트
- * - 순수 Mockito 기반으로 SSE 연결 로직 검증
- * - 실제 스트리밍은 SseEmittersService에서 처리
+ * SSE 스트림 컨트롤러 통합 테스트
+ * - Spring Boot 통합 테스트로 실제 SSE 연결 동작 검증
+ * - Mock 의존성 제거하고 실제 서비스 사용
  */
-@ExtendWith(MockitoExtension.class)
+@SpringBootTest
+@Import(TestConfig.class)
+@ActiveProfiles("test")
+@Transactional
 @DisplayName("SSE 스트림 컨트롤러 테스트")
 class SseStreamControllerTest {
 
-    @Mock
+    @Autowired
+    private WebApplicationContext context;
+    
+    @Autowired
     private SseEmittersService sseEmittersService;
-
-    @Mock
-    private UserService userService;
-
-    @InjectMocks
-    private SseStreamController sseStreamController;
+    
+    @Autowired
+    private UserRepository userRepository;
 
     private MockMvc mockMvc;
     private User testUser;
 
     @BeforeEach
     void setUp() {
-        mockMvc = MockMvcBuilders.standaloneSetup(sseStreamController).build();
+        mockMvc = MockMvcBuilders
+                .webAppContextSetup(context)
+                .apply(springSecurity())
+                .build();
         
+        // SSE 연결 상태 초기화
+        sseEmittersService.clearAllConnections();
+        
+        // 테스트용 사용자 생성
         testUser = User.builder()
-                .userId(1L)
                 .kakaoId(12345L)
                 .nickname("SSE테스트유저")
                 .status(Status.ACTIVE)
                 .build();
+        testUser = userRepository.save(testUser);
     }
 
     @Nested
@@ -61,31 +73,23 @@ class SseStreamControllerTest {
     class SseSubscribe {
 
         @Test
-        @DisplayName("정상: 기본 SSE 연결")
-        void success_basic_sse_connection() throws Exception {
-            // given
-            given(userService.getCurrentUser()).willReturn(testUser);
-            SseEmitter mockEmitter = new SseEmitter();
-            given(sseEmittersService.createSseConnection(1L, null)).willReturn(mockEmitter);
-
+        @WithMockUser(username = "12345")
+        @DisplayName("UT-NT-052: SSE 연결이 정상 수립되는가?")
+        void UT_NT_052_establishes_sse_connection_successfully() throws Exception {
             // when & then
             mockMvc.perform(get("/sse/subscribe")
                     .accept(MediaType.TEXT_EVENT_STREAM_VALUE))
                 .andDo(print())
                 .andExpect(status().isOk())
                 .andExpect(request().asyncStarted());
-
-            verify(sseEmittersService).createSseConnection(1L, null);
         }
 
         @Test
-        @DisplayName("정상: Last-Event-ID와 함께 재연결")
-        void success_reconnection_with_last_event_id() throws Exception {
+        @WithMockUser(username = "12345")
+        @DisplayName("UT-NT-055: 연결 끊김 후 재연결이 정상 동작하는가?")
+        void UT_NT_055_handles_reconnection_with_last_event_id() throws Exception {
             // given
-            String lastEventId = "12345";
-            given(userService.getCurrentUser()).willReturn(testUser);
-            SseEmitter mockEmitter = new SseEmitter();
-            given(sseEmittersService.createSseConnection(1L, lastEventId)).willReturn(mockEmitter);
+            String lastEventId = "notification_1_2024-01-01T00:00:00";
 
             // when & then
             mockMvc.perform(get("/sse/subscribe")
@@ -94,25 +98,17 @@ class SseStreamControllerTest {
                 .andDo(print())
                 .andExpect(status().isOk())
                 .andExpect(request().asyncStarted());
-
-            verify(sseEmittersService).createSseConnection(1L, lastEventId);
         }
 
         @Test
-        @DisplayName("예외: JSON Accept로 SSE 요청")
-        void handle_json_accept_for_sse() throws Exception {
-            // given
-            given(userService.getCurrentUser()).willReturn(testUser);
-            SseEmitter mockEmitter = new SseEmitter();
-            given(sseEmittersService.createSseConnection(1L, null)).willReturn(mockEmitter);
-
+        @WithMockUser(username = "12345")
+        @DisplayName("JSON Accept로 SSE 요청 시 정상 처리")
+        void UT_NT_052_handles_json_accept_for_sse_request() throws Exception {
             // when & then - JSON Accept도 처리됨 (컨트롤러에서 지원)
             mockMvc.perform(get("/sse/subscribe")
                     .accept(MediaType.APPLICATION_JSON))
                 .andDo(print())
                 .andExpect(status().isOk());
-
-            verify(sseEmittersService).createSseConnection(1L, null);
         }
     }
 
@@ -121,43 +117,32 @@ class SseStreamControllerTest {
     class ConnectionStatus {
 
         @Test
-        @DisplayName("정상: 연결된 상태 확인")
-        void success_check_connected_status() throws Exception {
-            // given
-            given(userService.getCurrentUser()).willReturn(testUser);
-            given(sseEmittersService.isUserConnected(1L)).willReturn(true);
-            given(sseEmittersService.getActiveConnectionCount()).willReturn(5);
+        @WithMockUser(username = "12345")
+        @DisplayName("연결된 상태 확인")
+        void UT_NT_052_checks_connected_status() throws Exception {
+            // given - SSE 연결 생성
+            sseEmittersService.createSseConnection(testUser.getUserId());
 
             // when & then
             mockMvc.perform(get("/sse/status"))
                 .andDo(print())
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.userId").value(1L))
+                .andExpect(jsonPath("$.userId").value(testUser.getUserId()))
                 .andExpect(jsonPath("$.connected").value(true))
-                .andExpect(jsonPath("$.totalConnections").value(5));
-
-            verify(sseEmittersService).isUserConnected(1L);
-            verify(sseEmittersService).getActiveConnectionCount();
+                .andExpect(jsonPath("$.totalConnections").value(1));
         }
 
         @Test
-        @DisplayName("정상: 연결되지 않은 상태 확인")
-        void success_check_disconnected_status() throws Exception {
-            // given
-            given(userService.getCurrentUser()).willReturn(testUser);
-            given(sseEmittersService.isUserConnected(1L)).willReturn(false);
-            given(sseEmittersService.getActiveConnectionCount()).willReturn(0);
-
-            // when & then
+        @WithMockUser(username = "12345")
+        @DisplayName("연결되지 않은 상태 확인")
+        void UT_NT_052_checks_disconnected_status() throws Exception {
+            // when & then - 연결 없이 상태 확인
             mockMvc.perform(get("/sse/status"))
                 .andDo(print())
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.userId").value(1L))
+                .andExpect(jsonPath("$.userId").value(testUser.getUserId()))
                 .andExpect(jsonPath("$.connected").value(false))
                 .andExpect(jsonPath("$.totalConnections").value(0));
-
-            verify(sseEmittersService).isUserConnected(1L);
-            verify(sseEmittersService).getActiveConnectionCount();
         }
     }
 }

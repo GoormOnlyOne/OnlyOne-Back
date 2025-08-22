@@ -20,13 +20,16 @@ import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicLong;
 
+import org.springframework.beans.factory.InitializingBean;
+import org.springframework.beans.factory.DisposableBean;
+
 /**
  * SSE 연결 관리 서비스 - Last-Event-ID 지원
  */
 @Slf4j
 @RequiredArgsConstructor
 @Service
-public class SseEmittersService {
+public class SseEmittersService implements InitializingBean, DisposableBean {
 
   @Value("${app.notification.sse-timeout-millis:1800000}") // 기본값 30분
   private long sseTimeoutMillis;
@@ -35,9 +38,14 @@ public class SseEmittersService {
   private final NotificationRepository notificationRepository;
   private final RedisTemplate<String, Object> redisTemplate;
   
+  // 주기적인 정리를 위한 스케줄러
+  private final ScheduledExecutorService cleanupScheduler = Executors.newSingleThreadScheduledExecutor(
+      r -> new Thread(r, "sse-cleanup-thread"));
+  
   private static final String SSE_CONNECTION_KEY = "sse:connections";
   private static final String SSE_CONNECTION_INFO_KEY = "sse:connection_info:";
   private static final int CONNECTION_INFO_TTL = 3600; // 1시간
+  private static final long CLEANUP_INTERVAL_MINUTES = 10; // 10분마다 정리
 
   /**
    * SSE 연결 생성 (기존 호환성)
@@ -283,6 +291,36 @@ public class SseEmittersService {
   public boolean isUserConnected(Long userId) {
     return activeConnections.containsKey(userId);
   }
+  
+  /**
+   * 모든 SSE 연결 제거 (테스트용)
+   */
+  public void clearAllConnections() {
+    try {
+      // 모든 활성 연결 정리
+      for (Long userId : new HashSet<>(activeConnections.keySet())) {
+        SseConnection connection = activeConnections.remove(userId);
+        if (connection != null && connection.getEmitter() != null) {
+          try {
+            connection.getEmitter().complete();
+          } catch (Exception e) {
+            // 이미 완료된 연결은 무시
+          }
+        }
+      }
+      
+      // Redis에서도 제거 시도 (테스트 환경에서는 실패할 수 있음)
+      try {
+        redisTemplate.delete(SSE_CONNECTION_KEY);
+        log.debug("Cleared all SSE connections");
+      } catch (Exception e) {
+        log.debug("Failed to clear Redis connections (expected in test environment): {}", e.getMessage());
+      }
+      
+    } catch (Exception e) {
+      log.warn("Error while clearing all connections", e);
+    }
+  }
 
   /**
    * 전체 사용자에게 브로드캐스트 메시지 전송
@@ -348,6 +386,79 @@ public class SseEmittersService {
     );
     
     return broadcastToAll("system_notice", systemNotice);
+  }
+
+  /**
+   * 서비스 초기화 시 주기적인 정리 작업 시작
+   */
+  @Override
+  public void afterPropertiesSet() {
+    // 주기적인 연결 상태 점검 및 정리
+    cleanupScheduler.scheduleWithFixedDelay(
+        this::cleanupStaleConnections, 
+        CLEANUP_INTERVAL_MINUTES, 
+        CLEANUP_INTERVAL_MINUTES, 
+        TimeUnit.MINUTES
+    );
+    
+    log.info("SSE cleanup scheduler started with interval: {} minutes", CLEANUP_INTERVAL_MINUTES);
+  }
+
+  /**
+   * 서비스 종료 시 스케줄러 정리
+   */
+  @Override
+  public void destroy() {
+    log.info("Shutting down SSE service...");
+    
+    // 모든 활성 연결 정리
+    activeConnections.values().forEach(connection -> {
+      try {
+        connection.getEmitter().complete();
+      } catch (Exception e) {
+        log.warn("Error closing SSE connection during shutdown", e);
+      }
+    });
+    activeConnections.clear();
+    
+    // 스케줄러 종료
+    cleanupScheduler.shutdown();
+    try {
+      if (!cleanupScheduler.awaitTermination(5, TimeUnit.SECONDS)) {
+        cleanupScheduler.shutdownNow();
+      }
+    } catch (InterruptedException e) {
+      cleanupScheduler.shutdownNow();
+      Thread.currentThread().interrupt();
+    }
+    
+    log.info("SSE service shutdown completed");
+  }
+
+  /**
+   * 만료된 SSE 연결 정리
+   */
+  private void cleanupStaleConnections() {
+    try {
+      LocalDateTime now = LocalDateTime.now();
+      LocalDateTime cutoffTime = now.minusSeconds((sseTimeoutMillis + 60000) / 1000); // 타임아웃 + 1분 여유
+      
+      List<Long> staleConnections = activeConnections.entrySet().stream()
+          .filter(entry -> entry.getValue().getConnectionTime().isBefore(cutoffTime))
+          .map(Map.Entry::getKey)
+          .toList();
+      
+      staleConnections.forEach(this::cleanupConnection);
+      
+      if (!staleConnections.isEmpty()) {
+        log.info("Cleaned up {} stale SSE connections", staleConnections.size());
+      }
+      
+      log.debug("SSE cleanup completed: active connections={}", activeConnections.size());
+      
+    } catch (Exception e) {
+      log.error("Error during SSE cleanup", e);
+    }
   }
 
   // ================================

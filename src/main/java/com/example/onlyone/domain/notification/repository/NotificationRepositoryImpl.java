@@ -240,6 +240,33 @@ public class NotificationRepositoryImpl implements NotificationRepositoryCustom 
                 .execute();
     }
 
+    @Override
+    @Transactional
+    public void batchInsertNotifications(List<AppNotification> notifications) {
+        if (notifications.isEmpty()) {
+            return;
+        }
+        
+        // 배치 크기 설정 (보통 1000개씩)
+        int batchSize = 1000;
+        for (int i = 0; i < notifications.size(); i += batchSize) {
+            int end = Math.min(i + batchSize, notifications.size());
+            List<AppNotification> batch = notifications.subList(i, end);
+            
+            // QueryDSL로 배치 삽입
+            for (AppNotification notification : batch) {
+                queryFactory
+                    .insert(appNotification)
+                    .set(appNotification.content, notification.getContent())
+                    .set(appNotification.isRead, notification.isRead())
+                    .set(appNotification.fcmSent, notification.isFcmSent())
+                    .set(appNotification.user.userId, notification.getUser().getUserId())
+                    .set(appNotification.notificationType.id, notification.getNotificationType().getId())
+                    .execute();
+            }
+        }
+    }
+
     private BooleanExpression cursorCondition(Long cursor) {
         return cursor == null ? null : appNotification.id.lt(cursor);
     }

@@ -72,6 +72,11 @@ public interface NotificationRepositoryCustom {
     long deleteOldNotifications(int daysToKeep);
     
     /**
+     * 배치 삽입 (성능 최적화)
+     */
+    void batchInsertNotifications(List<AppNotification> notifications);
+    
+    /**
      * 알림 통계 DTO
      */
     record NotificationStats(

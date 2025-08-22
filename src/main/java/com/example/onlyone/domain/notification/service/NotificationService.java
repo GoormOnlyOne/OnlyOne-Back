@@ -24,7 +24,11 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.event.TransactionPhase;
 import org.springframework.transaction.event.TransactionalEventListener;
+import org.springframework.data.redis.core.RedisTemplate;
+import org.springframework.cache.annotation.Cacheable;
+import org.springframework.cache.annotation.CacheEvict;
 
+import java.time.Duration;
 import java.util.List;
 import java.util.Optional;
 
@@ -43,6 +47,7 @@ public class NotificationService {
   private final FcmService fcmService;
   private final ApplicationEventPublisher eventPublisher;
   private final JPAQueryFactory queryFactory;
+  private final RedisTemplate<String, Object> redisTemplate;
 
   /**
    * 알림 생성 및 전송 (이벤트 발행으로 SSE/FCM 처리)
@@ -129,29 +134,61 @@ public class NotificationService {
   }
 
   /**
-   * 읽지 않은 알림 개수 조회 (QueryDSL 사용)
+   * 읽지 않은 알림 개수 조회 (Redis 캐싱 적용)
    */
   @Transactional(readOnly = true)
+  @Cacheable(value = "unreadCount", key = "#userId", unless = "#result == null")
   public Long getUnreadCount(Long userId) {
-    Long count = notificationRepository.countUnreadByUserId(userId);
-    return count != null ? count : 0L;
+    try {
+      // Redis 캐시에서 먼저 확인
+      String cacheKey = "notification:unread:" + userId;
+      Object cached = redisTemplate.opsForValue().get(cacheKey);
+      
+      if (cached != null) {
+        log.debug("Unread count cache hit: userId={}", userId);
+        return Long.valueOf(cached.toString());
+      }
+      
+      // 캐시 미스 시 DB 조회
+      Long count = notificationRepository.countUnreadByUserId(userId);
+      Long result = count != null ? count : 0L;
+      
+      // Redis에 5분간 캐싱
+      redisTemplate.opsForValue().set(cacheKey, result, Duration.ofMinutes(5));
+      
+      log.debug("Unread count cached: userId={}, count={}", userId, result);
+      return result;
+      
+    } catch (Exception e) {
+      log.warn("Redis cache error, falling back to DB query", e);
+      Long count = notificationRepository.countUnreadByUserId(userId);
+      return count != null ? count : 0L;
+    }
   }
 
   /**
    * 모든 알림 읽음 처리 (개별 엔티티 업데이트)
    */
   @Transactional
+  @CacheEvict(value = "unreadCount", key = "#userId")
   public void markAsRead(Long notificationId, Long userId) {
     AppNotification notification = findNotification(notificationId);
     validateNotificationOwnership(notification, userId);
     notification.markAsRead();
+    
+    // Redis 캐시도 함께 무효화
+    evictUnreadCountCache(userId);
   }
 
   @Transactional
+  @CacheEvict(value = "unreadCount", key = "#userId")
   public void markAllAsRead(Long userId) {
     long markedCount = notificationRepository.markAllAsReadByUserId(userId);
 
     if (markedCount > 0) {
+      // Redis 캐시 무효화
+      evictUnreadCountCache(userId);
+      
       sendUnreadCountUpdate(userId); // SSE로 읽지 않은 개수 업데이트 전송
       log.info("Marked {} notifications as read for user: {}", markedCount, userId);
     }
@@ -161,6 +198,7 @@ public class NotificationService {
    * 알림 삭제 (소유권 검증 포함)
    */
   @Transactional
+  @CacheEvict(value = "unreadCount", key = "#userId")
   public void deleteNotification(Long userId, Long notificationId) {
     AppNotification appNotification = findNotification(notificationId);
     validateNotificationOwnership(appNotification, userId);
@@ -169,6 +207,8 @@ public class NotificationService {
     notificationRepository.delete(appNotification);
 
     if (wasUnread) {
+      // Redis 캐시 무효화
+      evictUnreadCountCache(userId);
       sendUnreadCountUpdate(userId); // SSE로 읽지 않은 개수 업데이트 전송
     }
 
@@ -307,6 +347,17 @@ public class NotificationService {
     );
   }
 
+  // Redis 캐시 무효화 헬퍼 메서드
+  private void evictUnreadCountCache(Long userId) {
+    try {
+      String cacheKey = "notification:unread:" + userId;
+      redisTemplate.delete(cacheKey);
+      log.debug("Evicted unread count cache: userId={}", userId);
+    } catch (Exception e) {
+      log.warn("Failed to evict cache for userId: {}", userId, e);
+    }
+  }
+
   // 알림 소유권 검증 (보안)
   private void validateNotificationOwnership(AppNotification appNotification, Long userId) {
     if (!appNotification.getUser().getUserId().equals(userId)) {
@@ -317,7 +368,7 @@ public class NotificationService {
   }
 
 
-  // NotificationListResponseDto 빌드 (최적화된 hasMore 체크)
+  // NotificationListResponseDto 빌드 (최적화된 hasMore 체크, 중복 쿼리 제거)
   private NotificationListResponseDto buildNotificationListResponse(Long userId, List<NotificationItemDto> notifications, int requestedSize) {
     boolean hasMore = notifications.size() > requestedSize;
     
@@ -328,17 +379,18 @@ public class NotificationService {
     Long nextCursor = actualNotifications.isEmpty() ? null :
         actualNotifications.get(actualNotifications.size() - 1).getNotificationId();
 
-    Long unreadCount = notificationRepository.countUnreadByUserId(userId);
+    // 중복 쿼리 방지: 한 번만 조회하여 재사용
+    Long unreadCount = getUnreadCount(userId);
 
     return NotificationListResponseDto.builder()
         .notifications(actualNotifications)
         .cursor(nextCursor)
         .hasMore(hasMore)
-        .unreadCount(unreadCount != null ? unreadCount : 0L)
+        .unreadCount(unreadCount)
         .build();
   }
   
-  // 타입별 조회용 별도 메서드
+  // 타입별 조회용 별도 메서드 (중복 쿼리 제거)
   private NotificationListResponseDto buildNotificationListResponseByType(Long userId, List<NotificationItemDto> notifications, int requestedSize) {
     boolean hasMore = notifications.size() > requestedSize;
     
@@ -349,13 +401,14 @@ public class NotificationService {
     Long nextCursor = actualNotifications.isEmpty() ? null :
         actualNotifications.get(actualNotifications.size() - 1).getNotificationId();
 
-    Long unreadCount = notificationRepository.countUnreadByUserId(userId);
+    // 중복 쿼리 방지: 한 번만 조회하여 재사용
+    Long unreadCount = getUnreadCount(userId);
 
     return NotificationListResponseDto.builder()
         .notifications(actualNotifications)
         .cursor(nextCursor)
         .hasMore(hasMore)
-        .unreadCount(unreadCount != null ? unreadCount : 0L)
+        .unreadCount(unreadCount)
         .build();
   }
 
