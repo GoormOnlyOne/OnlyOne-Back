@@ -133,9 +133,6 @@ public class WalletService {
         Wallet leaderWallet   = walletRepository.getReferenceById(leaderWalletId);
         UserSettlement userSettlement = userSettlementRepository.getReferenceById(userSettlementId);
 
-//        // 실패 중복 로그 방지
-//        if (userSettlement.getSettlementStatus() != SettlementStatus.REQUESTED) return;
-
         // 실패한 트랜잭션
         WalletTransaction failedOutgoing = WalletTransaction.builder()
                 .type(Type.OUTGOING)
@@ -155,8 +152,6 @@ public class WalletService {
                 .build();
         walletTransactionRepository.save(failedOutgoing);
         walletTransactionRepository.save(failedIncoming);
-//        userSettlement.updateStatus(SettlementStatus.FAILED);
-//        userSettlementRepository.save(userSettlement);
         userSettlementRepository.updateStatusIfRequested(userSettlementId, SettlementStatus.FAILED);
         createAndSaveTransfers(userSettlement, failedOutgoing, failedIncoming);
     }

@@ -115,9 +115,11 @@ public class ScheduleService {
                 .receiver(user) // 리더가 receiver
                 .build();
         settlementRepository.save(settlement);
+        club.addSchedule(schedule);
     }
 
     /* 정기 모임 수정 */
+    @Transactional
     public void updateSchedule(Long clubId, Long scheduleId, @Valid ScheduleRequestDto requestDto) {
         clubRepository.findById(clubId)
                 .orElseThrow(() -> new CustomException(ErrorCode.CLUB_NOT_FOUND));
@@ -200,6 +202,7 @@ public class ScheduleService {
         if (schedule.getScheduleStatus() != ScheduleStatus.READY || schedule.getScheduleTime().isBefore(LocalDateTime.now())) {
             throw new CustomException(ErrorCode.ALREADY_ENDED_SCHEDULE);
         }
+        // 정모 참여 멤버가 아닌 경우
         UserSchedule userSchedule = userScheduleRepository.findByUserAndSchedule(user, schedule)
                 .orElseThrow(() -> new CustomException(ErrorCode.USER_SCHEDULE_NOT_FOUND));
         // 리더는 참여 취소 불가능
@@ -212,9 +215,11 @@ public class ScheduleService {
                 .orElseThrow(() -> new CustomException(ErrorCode.USER_SETTLEMENT_NOT_FOUND));
 
         // 이미 해제/완료한 경우엔 멱등 처리
-        if (userSettlement.getSettlementStatus() != SettlementStatus.HOLD_ACTIVE) {
+        if (!(userSettlement.getSettlementStatus() == SettlementStatus.HOLD_ACTIVE
+                || userSettlement.getSettlementStatus() == SettlementStatus.FAILED)) {
             return;
         }
+
         final int amount = schedule.getCost();
         int flag = walletRepository.releaseHoldBalance(user.getUserId(), amount);
         if (flag == 0) throw new CustomException(ErrorCode.WALLET_HOLD_STATE_CONFLICT);
@@ -272,7 +277,7 @@ public class ScheduleService {
         return ScheduleDetailResponseDto.from(schedule);
     }
 
-
+    /* 정기 모임 삭제 */
     public void deleteSchedule(Long clubId, Long scheduleId) {
         Club club = clubRepository.findById(clubId)
                 .orElseThrow(() -> new CustomException(ErrorCode.CLUB_NOT_FOUND));
@@ -293,6 +298,6 @@ public class ScheduleService {
                 .orElseThrow(() -> new CustomException(ErrorCode.CHAT_ROOM_NOT_FOUND));
         club.getSchedules().remove(schedule);
         chatRoomRepository.delete(chatRoom);
-        scheduleRepository.delete(schedule);
+//        scheduleRepository.delete(schedule);
     }
 }
