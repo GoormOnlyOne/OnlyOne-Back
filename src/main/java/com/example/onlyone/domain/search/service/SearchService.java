@@ -1,7 +1,6 @@
 package com.example.onlyone.domain.search.service;
 
 import com.example.onlyone.domain.club.entity.Club;
-import com.example.onlyone.domain.club.entity.UserClub;
 import com.example.onlyone.domain.club.repository.ClubRepository;
 import com.example.onlyone.domain.club.repository.UserClubRepository;
 import com.example.onlyone.domain.interest.entity.Category;
@@ -17,7 +16,6 @@ import com.example.onlyone.global.exception.CustomException;
 import com.example.onlyone.global.exception.ErrorCode;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -83,6 +81,10 @@ public class SearchService {
 
     // 모임 검색 (지역)
     public List<ClubResponseDto> searchClubByLocation(String city, String district, int page) {
+        if (city == null || district == null) {
+            throw new CustomException(ErrorCode.INVALID_LOCATION);
+        }
+
         PageRequest pageRequest = PageRequest.of(page, 20);
         List<Object[]> resultList = clubRepository.searchByLocation(city, district, pageRequest);
         User user = userService.getCurrentUser();
