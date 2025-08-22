@@ -68,6 +68,10 @@ public class SearchService {
 
     // 모임 검색 (관심사)
     public List<ClubResponseDto> searchClubByInterest(Long interestId, int page) {
+        if (interestId == null) {
+            throw new CustomException(ErrorCode.INVALID_INTEREST_ID);
+        }
+
         PageRequest pageRequest = PageRequest.of(page, 20);
         List<Object[]> resultList = clubRepository.searchByInterest(interestId, pageRequest);
         User user = userService.getCurrentUser();
