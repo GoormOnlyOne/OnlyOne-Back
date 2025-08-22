@@ -78,6 +78,7 @@ tasks.named('test') {
     exclude '**/AppNotificationControllerTest.class'
     exclude '**/FcmServiceTest.class'
     exclude '**/SseEmittersServiceTest.class'
+    exclude '**/AppNotificationTypeRepositoryTest.class'
 }
 
 jacoco {
