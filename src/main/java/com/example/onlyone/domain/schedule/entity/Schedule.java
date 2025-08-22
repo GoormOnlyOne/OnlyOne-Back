@@ -1,6 +1,7 @@
 package com.example.onlyone.domain.schedule.entity;
 
 import com.example.onlyone.domain.club.entity.Club;
+import com.example.onlyone.domain.settlement.entity.Settlement;
 import com.example.onlyone.global.BaseTimeEntity;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.NotNull;
@@ -55,6 +56,9 @@ public class Schedule extends BaseTimeEntity {
 
     @OneToMany(mappedBy = "schedule", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<UserSchedule> userSchedules = new ArrayList<>();
+
+    @OneToOne(mappedBy = "schedule", cascade = CascadeType.ALL, orphanRemoval = true)
+    private Settlement settlement;
 
     public void update(String name, String location, int cost, int userLimit, LocalDateTime scheduleTime) {
         this.name = name;
