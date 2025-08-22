@@ -1,9 +1,11 @@
 package com.example.onlyone.domain.schedule.service;
 
 import com.example.onlyone.domain.chat.entity.ChatRoom;
+import com.example.onlyone.domain.chat.entity.Message;
 import com.example.onlyone.domain.chat.entity.Type;
 import com.example.onlyone.domain.chat.entity.UserChatRoom;
 import com.example.onlyone.domain.chat.repository.ChatRoomRepository;
+import com.example.onlyone.domain.chat.repository.MessageRepository;
 import com.example.onlyone.domain.chat.repository.UserChatRoomRepository;
 import com.example.onlyone.domain.club.dto.request.ClubRequestDto;
 import com.example.onlyone.domain.club.dto.response.ClubCreateResponseDto;
@@ -33,6 +35,7 @@ import com.example.onlyone.domain.wallet.entity.Wallet;
 import com.example.onlyone.domain.wallet.repository.WalletRepository;
 import com.example.onlyone.global.exception.CustomException;
 import com.example.onlyone.global.exception.ErrorCode;
+import jakarta.persistence.EntityManager;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -43,10 +46,14 @@ import org.springframework.test.context.ActiveProfiles;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 
 @ActiveProfiles("test")
 @DataJpaTest
@@ -78,6 +85,10 @@ public class ScheduleServiceTest {
     private UserSettlementRepository userSettlementRepository;
     @Autowired
     private WalletRepository walletRepository;
+    @Autowired
+    private MessageRepository messageRepository;
+    @Autowired
+    EntityManager entityManager;
 
     /* 정기모임 생성 */
     @Test
@@ -279,7 +290,6 @@ public class ScheduleServiceTest {
         );
         assertEquals(ErrorCode.MEMBER_CANNOT_CREATE_SCHEDULE, exception.getErrorCode());
     }
-
 
     /* 정기모임 수정 */
     @Test
@@ -743,5 +753,518 @@ public class ScheduleServiceTest {
         );
         assertEquals(ErrorCode.USER_CLUB_NOT_FOUND, exception.getErrorCode());
     }
+
+    /* 정기 모임 참여 취소 */
+    @Test
+    void 정모_참여자는_정상적으로_참여를_취소한다() {
+        // given
+        User leader = userRepository.findById(1L).orElse(null);
+        Mockito.when(userService.getCurrentUser()).thenReturn(leader);
+
+        ClubRequestDto clubRequestDto = new ClubRequestDto(
+                "온리원 첫 번째 모임",
+                10,
+                "테스트 설명...",
+                null,
+                "서울특별시",
+                "강남구",
+                "EXERCISE"
+        );
+        ClubCreateResponseDto responseDto = clubService.createClub(clubRequestDto);
+        ScheduleRequestDto scheduleRequestDto = new ScheduleRequestDto(
+                "온리원의 정모",
+                "구름스퀘어 강남",
+                100,
+                100,
+                LocalDateTime.now().plusHours(2)
+        );
+        scheduleService.createSchedule(responseDto.getClubId(), scheduleRequestDto);
+        Schedule schedule = scheduleRepository.findByNameAndClub_ClubId("온리원의 정모", responseDto.getClubId()).orElseThrow();
+
+        User member = userRepository.findById(2L).orElseThrow();
+        Mockito.when(userService.getCurrentUser()).thenReturn(member);
+        clubService.joinClub(responseDto.getClubId());
+        scheduleService.joinSchedule(responseDto.getClubId(), schedule.getScheduleId());
+
+        // when
+        scheduleService.leaveSchedule(responseDto.getClubId(), schedule.getScheduleId());
+
+        // then
+        Optional<UserSchedule> userSchedule = userScheduleRepository.findByUserAndSchedule(member, schedule);
+        assertThat(userSchedule).isEmpty();
+    }
+
+    @Test
+    void 정모_참여_취소_시_UserSettlement과_정산_예약금이_삭제된다() {
+        // given
+        User leader = userRepository.findById(1L).orElse(null);
+        Mockito.when(userService.getCurrentUser()).thenReturn(leader);
+
+        ClubRequestDto clubRequestDto = new ClubRequestDto(
+                "온리원 첫 번째 모임",
+                10,
+                "테스트 설명...",
+                null,
+                "서울특별시",
+                "강남구",
+                "EXERCISE"
+        );
+        ClubCreateResponseDto responseDto = clubService.createClub(clubRequestDto);
+        ScheduleRequestDto scheduleRequestDto = new ScheduleRequestDto(
+                "온리원의 정모",
+                "구름스퀘어 강남",
+                100,
+                100,
+                LocalDateTime.now().plusHours(2)
+        );
+        scheduleService.createSchedule(responseDto.getClubId(), scheduleRequestDto);
+        Schedule schedule = scheduleRepository.findByNameAndClub_ClubId("온리원의 정모", responseDto.getClubId()).orElseThrow();
+
+        User member = userRepository.findById(2L).orElseThrow();
+        Mockito.when(userService.getCurrentUser()).thenReturn(member);
+        clubService.joinClub(responseDto.getClubId());
+        scheduleService.joinSchedule(responseDto.getClubId(), schedule.getScheduleId());
+        int prevPendingOut = walletRepository.findByUserWithoutLock(member).orElseThrow().getPendingOut();
+
+        // when
+        scheduleService.leaveSchedule(responseDto.getClubId(), schedule.getScheduleId());
+
+        // then
+        Optional<UserSettlement> userSettlement = userSettlementRepository.findByUserAndSchedule(member, schedule);
+        int newPendingOut = walletRepository.findByUserWithoutLock(member).orElseThrow().getPendingOut();
+        assertThat(userSettlement).isEmpty();
+        assertThat(prevPendingOut - newPendingOut).isEqualTo(schedule.getCost());
+    }
+
+    @Test
+    void 상태가_READY인_정모는_참여_취소가_가능하다() throws Exception {
+        // given
+        User leader = userRepository.findById(1L).orElse(null);
+        Mockito.when(userService.getCurrentUser()).thenReturn(leader);
+
+        ClubRequestDto clubRequestDto = new ClubRequestDto(
+                "온리원 첫 번째 모임",
+                10,
+                "테스트 설명...",
+                null,
+                "서울특별시",
+                "강남구",
+                "EXERCISE"
+        );
+        ClubCreateResponseDto responseDto = clubService.createClub(clubRequestDto);
+        ScheduleRequestDto scheduleRequestDto = new ScheduleRequestDto(
+                "온리원의 정모",
+                "구름스퀘어 강남",
+                10000,
+                100,
+                LocalDateTime.now().plusHours(2)
+        );
+        scheduleService.createSchedule(responseDto.getClubId(), scheduleRequestDto);
+        Schedule schedule = scheduleRepository.findByNameAndClub_ClubId("온리원의 정모", responseDto.getClubId()).orElseThrow();
+
+        User member = userRepository.findById(2L).orElseThrow();
+        Mockito.when(userService.getCurrentUser()).thenReturn(member);
+        clubService.joinClub(responseDto.getClubId());
+        scheduleService.joinSchedule(responseDto.getClubId(), schedule.getScheduleId());
+
+        // when
+        schedule.updateStatus(ScheduleStatus.READY);
+        scheduleService.leaveSchedule(responseDto.getClubId(), schedule.getScheduleId());
+
+        // then
+        Optional<UserSchedule> userSchedule = userScheduleRepository.findByUserAndSchedule(member, schedule);
+        assertThat(userSchedule).isEmpty();
+    }
+
+    @Test
+    void 상태가_READY가_아닌_정모에_참여_취소하면_예외가_발생한다() throws Exception {
+        // given
+        User leader = userRepository.findById(1L).orElse(null);
+        Mockito.when(userService.getCurrentUser()).thenReturn(leader);
+
+        ClubRequestDto clubRequestDto = new ClubRequestDto(
+                "온리원 첫 번째 모임",
+                10,
+                "테스트 설명...",
+                null,
+                "서울특별시",
+                "강남구",
+                "EXERCISE"
+        );
+        ClubCreateResponseDto responseDto = clubService.createClub(clubRequestDto);
+        ScheduleRequestDto scheduleRequestDto = new ScheduleRequestDto(
+                "온리원의 정모",
+                "구름스퀘어 강남",
+                10000,
+                100,
+                LocalDateTime.now().plusHours(2)
+        );
+        scheduleService.createSchedule(responseDto.getClubId(), scheduleRequestDto);
+        Schedule schedule = scheduleRepository.findByNameAndClub_ClubId("온리원의 정모", responseDto.getClubId()).orElseThrow();
+
+        User member = userRepository.findById(2L).orElseThrow();
+        Mockito.when(userService.getCurrentUser()).thenReturn(member);
+        clubService.joinClub(responseDto.getClubId());
+        scheduleService.joinSchedule(responseDto.getClubId(), schedule.getScheduleId());
+
+        // when & then
+        schedule.updateStatus(ScheduleStatus.ENDED);
+        scheduleRepository.saveAndFlush(schedule);
+        CustomException exception = assertThrows(CustomException.class, () ->
+                scheduleService.leaveSchedule(responseDto.getClubId(), schedule.getScheduleId())
+        );
+        assertEquals(ErrorCode.ALREADY_ENDED_SCHEDULE, exception.getErrorCode());
+    }
+
+    @Test
+    void 리더가_정모_참여_취소하면_예외가_발생한다() throws Exception {
+        // given
+        User leader = userRepository.findById(1L).orElse(null);
+        Mockito.when(userService.getCurrentUser()).thenReturn(leader);
+
+        ClubRequestDto clubRequestDto = new ClubRequestDto(
+                "온리원 첫 번째 모임",
+                10,
+                "테스트 설명...",
+                null,
+                "서울특별시",
+                "강남구",
+                "EXERCISE"
+        );
+        ClubCreateResponseDto responseDto = clubService.createClub(clubRequestDto);
+        ScheduleRequestDto scheduleRequestDto = new ScheduleRequestDto(
+                "온리원의 정모",
+                "구름스퀘어 강남",
+                10000,
+                100,
+                LocalDateTime.now().plusHours(2)
+        );
+        scheduleService.createSchedule(responseDto.getClubId(), scheduleRequestDto);
+        Schedule schedule = scheduleRepository.findByNameAndClub_ClubId("온리원의 정모", responseDto.getClubId()).orElseThrow();
+
+        // when & then
+        CustomException exception = assertThrows(CustomException.class, () ->
+                scheduleService.leaveSchedule(responseDto.getClubId(), schedule.getScheduleId())
+        );
+        assertEquals(ErrorCode.LEADER_CANNOT_LEAVE_SCHEDULE, exception.getErrorCode());
+    }
+
+    @Test
+    void 정모_참여자가_아닌_경우_예외가_발생한다() throws Exception {
+        // given
+        User leader = userRepository.findById(1L).orElse(null);
+        Mockito.when(userService.getCurrentUser()).thenReturn(leader);
+
+        ClubRequestDto clubRequestDto = new ClubRequestDto(
+                "온리원 첫 번째 모임",
+                10,
+                "테스트 설명...",
+                null,
+                "서울특별시",
+                "강남구",
+                "EXERCISE"
+        );
+        ClubCreateResponseDto responseDto = clubService.createClub(clubRequestDto);
+        ScheduleRequestDto scheduleRequestDto = new ScheduleRequestDto(
+                "온리원의 정모",
+                "구름스퀘어 강남",
+                10000,
+                100,
+                LocalDateTime.now().plusHours(2)
+        );
+        scheduleService.createSchedule(responseDto.getClubId(), scheduleRequestDto);
+        Schedule schedule = scheduleRepository.findByNameAndClub_ClubId("온리원의 정모", responseDto.getClubId()).orElseThrow();
+
+        User member = userRepository.findById(2L).orElseThrow();
+        Mockito.when(userService.getCurrentUser()).thenReturn(member);
+        clubService.joinClub(responseDto.getClubId());
+
+        // when & then
+        CustomException exception = assertThrows(CustomException.class, () ->
+                scheduleService.leaveSchedule(responseDto.getClubId(), schedule.getScheduleId())
+        );
+        assertEquals(ErrorCode.USER_SCHEDULE_NOT_FOUND, exception.getErrorCode());
+    }
+
+    @Test
+    void 이미_해제나_완료된_정모에_참여_취소하면_예외가_발생한다() throws Exception {
+        // given
+        User leader = userRepository.findById(1L).orElse(null);
+        Mockito.when(userService.getCurrentUser()).thenReturn(leader);
+
+        ClubRequestDto clubRequestDto = new ClubRequestDto(
+                "온리원 첫 번째 모임",
+                10,
+                "테스트 설명...",
+                null,
+                "서울특별시",
+                "강남구",
+                "EXERCISE"
+        );
+        ClubCreateResponseDto responseDto = clubService.createClub(clubRequestDto);
+        ScheduleRequestDto scheduleRequestDto = new ScheduleRequestDto(
+                "온리원의 정모",
+                "구름스퀘어 강남",
+                10000,
+                100,
+                LocalDateTime.now().plusHours(2)
+        );
+        scheduleService.createSchedule(responseDto.getClubId(), scheduleRequestDto);
+        Schedule schedule = scheduleRepository.findByNameAndClub_ClubId("온리원의 정모", responseDto.getClubId()).orElseThrow();
+
+        User member = userRepository.findById(2L).orElseThrow();
+        Mockito.when(userService.getCurrentUser()).thenReturn(member);
+        clubService.joinClub(responseDto.getClubId());
+        scheduleService.joinSchedule(responseDto.getClubId(), schedule.getScheduleId());
+        UserSettlement userSettlement = userSettlementRepository.findByUserAndSchedule(member, schedule).orElseThrow();
+        int prevPendingOut = walletRepository.findByUserWithoutLock(member).get().getPendingOut();
+
+        // when & then
+        userSettlement.updateStatus(SettlementStatus.PENDING);
+        scheduleService.leaveSchedule(responseDto.getClubId(), schedule.getScheduleId());
+        Wallet newWallet = walletRepository.findByUserWithoutLock(member).orElseThrow();
+        int newPendingOut = newWallet.getPendingOut();
+
+        assertThat(newPendingOut).isEqualTo(prevPendingOut);
+        assertThat(userScheduleRepository.findByUserAndSchedule(member, schedule)).isPresent();
+        assertThat(userSettlementRepository.findByUserAndSchedule(member, schedule)).isPresent();
+    }
+
+    @Test
+    void 유저_지갑_홀드_해제에_실패하면_예외가_발생한다() throws Exception {
+        // given
+        User leader = userRepository.findById(1L).orElse(null);
+        Mockito.when(userService.getCurrentUser()).thenReturn(leader);
+
+        ClubRequestDto clubRequestDto = new ClubRequestDto(
+                "온리원 첫 번째 모임",
+                10,
+                "테스트 설명...",
+                null,
+                "서울특별시",
+                "강남구",
+                "EXERCISE"
+        );
+        ClubCreateResponseDto responseDto = clubService.createClub(clubRequestDto);
+        ScheduleRequestDto scheduleRequestDto = new ScheduleRequestDto(
+                "온리원의 정모",
+                "구름스퀘어 강남",
+                10000,
+                100,
+                LocalDateTime.now().plusHours(2)
+        );
+        scheduleService.createSchedule(responseDto.getClubId(), scheduleRequestDto);
+        Schedule schedule = scheduleRepository.findByNameAndClub_ClubId("온리원의 정모", responseDto.getClubId()).orElseThrow();
+
+        User member = userRepository.findById(2L).orElseThrow();
+        Mockito.when(userService.getCurrentUser()).thenReturn(member);
+        clubService.joinClub(responseDto.getClubId());
+        scheduleService.joinSchedule(responseDto.getClubId(), schedule.getScheduleId());
+        entityManager.createNativeQuery("UPDATE wallet SET pending_out = pending_out - 1 WHERE user_id = :userId")
+                .setParameter("userId", member.getUserId())
+                .executeUpdate();
+        entityManager.flush();
+        entityManager.clear();
+
+        // when & then
+        CustomException exception = assertThrows(CustomException.class, () ->
+                scheduleService.leaveSchedule(responseDto.getClubId(), schedule.getScheduleId())
+        );
+        assertEquals(ErrorCode.WALLET_HOLD_STATE_CONFLICT, exception.getErrorCode());
+    }
+
+    /* 정기 모임 삭제 */
+    @Test
+    void 리더가_정기_모임을_정상적으로_삭제한다() {
+        // given
+        User leader = userRepository.findById(1L).orElse(null);
+        Mockito.when(userService.getCurrentUser()).thenReturn(leader);
+
+        ClubRequestDto clubRequestDto = new ClubRequestDto(
+                "온리원 첫 번째 모임",
+                10,
+                "테스트 설명...",
+                null,
+                "서울특별시",
+                "강남구",
+                "EXERCISE"
+        );
+        ClubCreateResponseDto responseDto = clubService.createClub(clubRequestDto);
+        ScheduleRequestDto scheduleRequestDto = new ScheduleRequestDto(
+                "온리원의 정모",
+                "구름스퀘어 강남",
+                10000,
+                100,
+                LocalDateTime.now().plusHours(2)
+        );
+        scheduleService.createSchedule(responseDto.getClubId(), scheduleRequestDto);
+        entityManager.flush();
+        entityManager.clear();
+        Schedule schedule = scheduleRepository.findByNameAndClub_ClubId("온리원의 정모", responseDto.getClubId()).orElseThrow();
+
+        // when
+        scheduleService.deleteSchedule(responseDto.getClubId(), schedule.getScheduleId());
+
+        // then
+        Optional<Schedule> deletedSchedule = scheduleRepository.findByNameAndClub_ClubId("온리원의 정모", responseDto.getClubId());
+        assertThat(deletedSchedule).isEmpty();
+    }
+
+    @Test
+    void 정모를_삭제하면_정모_채팅방과_관련_메시지_데이터가_모두_삭제된다_() {
+        // given
+        User leader = userRepository.findById(1L).orElse(null);
+        Mockito.when(userService.getCurrentUser()).thenReturn(leader);
+
+        ClubRequestDto clubRequestDto = new ClubRequestDto(
+                "온리원 첫 번째 모임",
+                10,
+                "테스트 설명...",
+                null,
+                "서울특별시",
+                "강남구",
+                "EXERCISE"
+        );
+        ClubCreateResponseDto responseDto = clubService.createClub(clubRequestDto);
+        ScheduleRequestDto scheduleRequestDto = new ScheduleRequestDto(
+                "온리원의 정모",
+                "구름스퀘어 강남",
+                10000,
+                100,
+                LocalDateTime.now().plusHours(2)
+        );
+        scheduleService.createSchedule(responseDto.getClubId(), scheduleRequestDto);
+        entityManager.flush();
+        entityManager.clear();
+        Schedule schedule = scheduleRepository.findByNameAndClub_ClubId("온리원의 정모", responseDto.getClubId()).orElseThrow();
+        ChatRoom chatRoom = chatRoomRepository.findByTypeAndScheduleId(Type.SCHEDULE, schedule.getScheduleId()).orElseThrow();
+
+        // when
+        scheduleService.deleteSchedule(responseDto.getClubId(), schedule.getScheduleId());
+
+        // then
+        Optional<ChatRoom> deletedChatRoom = chatRoomRepository.findByTypeAndScheduleId(Type.SCHEDULE, schedule.getScheduleId());
+        List<Message> deletedMessages = messageRepository.findByChatRoomChatRoomIdAndDeletedFalseOrderBySentAtAsc(chatRoom.getChatRoomId());
+
+        assertThat(deletedChatRoom).isEmpty();
+        assertThat(deletedMessages).isEmpty();
+    }
+
+    @Test
+    void 상태가_READY이면서_정모_시간이_지나지_않은_정모는_삭제_가능하다_() {
+        // given
+        User leader = userRepository.findById(1L).orElse(null);
+        Mockito.when(userService.getCurrentUser()).thenReturn(leader);
+
+        ClubRequestDto clubRequestDto = new ClubRequestDto(
+                "온리원 첫 번째 모임",
+                10,
+                "테스트 설명...",
+                null,
+                "서울특별시",
+                "강남구",
+                "EXERCISE"
+        );
+        ClubCreateResponseDto responseDto = clubService.createClub(clubRequestDto);
+        ScheduleRequestDto scheduleRequestDto = new ScheduleRequestDto(
+                "온리원의 정모",
+                "구름스퀘어 강남",
+                10000,
+                100,
+                LocalDateTime.now().plusHours(2)
+        );
+        scheduleService.createSchedule(responseDto.getClubId(), scheduleRequestDto);
+        entityManager.flush();
+        entityManager.clear();
+        Schedule schedule = scheduleRepository.findByNameAndClub_ClubId("온리원의 정모", responseDto.getClubId()).orElseThrow();
+
+        // when
+        schedule.updateStatus(ScheduleStatus.READY);
+        scheduleService.deleteSchedule(responseDto.getClubId(), schedule.getScheduleId());
+
+        // then
+        Optional<Schedule> deletedSchedule = scheduleRepository.findByNameAndClub_ClubId("온리원의 정모", responseDto.getClubId());
+        assertThat(deletedSchedule).isEmpty();
+    }
+
+    @Test
+    void 상태가_READY가_아니면서_정모_시간이_지난_정모_삭제_시_예외가_발생한다() throws Exception {
+        // given
+        User leader = userRepository.findById(1L).orElse(null);
+        Mockito.when(userService.getCurrentUser()).thenReturn(leader);
+
+        ClubRequestDto clubRequestDto = new ClubRequestDto(
+                "온리원 첫 번째 모임",
+                10,
+                "테스트 설명...",
+                null,
+                "서울특별시",
+                "강남구",
+                "EXERCISE"
+        );
+        ClubCreateResponseDto responseDto = clubService.createClub(clubRequestDto);
+        ScheduleRequestDto scheduleRequestDto = new ScheduleRequestDto(
+                "온리원의 정모",
+                "구름스퀘어 강남",
+                10000,
+                100,
+                LocalDateTime.now().minusHours(2)
+        );
+        scheduleService.createSchedule(responseDto.getClubId(), scheduleRequestDto);
+        entityManager.flush();
+        entityManager.clear();
+        Schedule schedule = scheduleRepository.findByNameAndClub_ClubId("온리원의 정모", responseDto.getClubId()).orElseThrow();
+
+        // when & then
+        schedule.updateStatus(ScheduleStatus.ENDED);
+        CustomException exception = assertThrows(CustomException.class, () ->
+                scheduleService.deleteSchedule(responseDto.getClubId(), schedule.getScheduleId())
+        );
+        assertEquals(ErrorCode.INVALID_SCHEDULE_DELETE, exception.getErrorCode());
+    }
+
+    @Test
+    void 리더가_아닌_멤버가_정모를_삭제하면_예외가_발생한다() {
+        // given
+        User leader = userRepository.findById(1L).orElse(null);
+        Mockito.when(userService.getCurrentUser()).thenReturn(leader);
+
+        ClubRequestDto clubRequestDto = new ClubRequestDto(
+                "온리원 첫 번째 모임",
+                10,
+                "테스트 설명...",
+                null,
+                "서울특별시",
+                "강남구",
+                "EXERCISE"
+        );
+        ClubCreateResponseDto responseDto = clubService.createClub(clubRequestDto);
+        ScheduleRequestDto scheduleRequestDto = new ScheduleRequestDto(
+                "온리원의 정모",
+                "구름스퀘어 강남",
+                10000,
+                100,
+                LocalDateTime.now().plusHours(2)
+        );
+        scheduleService.createSchedule(responseDto.getClubId(), scheduleRequestDto);
+        entityManager.flush();
+        entityManager.clear();
+        Schedule schedule = scheduleRepository.findByNameAndClub_ClubId("온리원의 정모", responseDto.getClubId()).orElseThrow();
+
+        User member = userRepository.findById(2L).orElse(null);
+        Mockito.when(userService.getCurrentUser()).thenReturn(member);
+        clubService.joinClub(responseDto.getClubId());
+        scheduleService.joinSchedule(responseDto.getClubId(), schedule.getScheduleId());
+
+        // when & then
+        schedule.updateStatus(ScheduleStatus.ENDED);
+        CustomException exception = assertThrows(CustomException.class, () ->
+                scheduleService.deleteSchedule(responseDto.getClubId(), schedule.getScheduleId())
+        );
+        assertEquals(ErrorCode.MEMBER_CANNOT_DELETE_SCHEDULE, exception.getErrorCode());
+    }
+
+
+
 
 }
