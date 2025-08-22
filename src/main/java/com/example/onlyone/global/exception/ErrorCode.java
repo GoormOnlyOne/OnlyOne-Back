@@ -128,6 +128,8 @@ public enum ErrorCode {
     INVALID_SEARCH_FILTER(400, "SEARCH_400_1", "지역 필터는 city와 district가 모두 제공되어야 합니다."),
     SEARCH_KEYWORD_TOO_SHORT(400, "SEARCH_400_2", "검색어는 최소 2글자 이상이어야 합니다."),
     INVALID_INTEREST_ID(400, "SEARCH_400_3", "유효하지 않은 interestId입니다."),
+    INVALID_LOCATION(400, "SEARCH_400_4", "유효하지 않은 city 또는 district입니다."),
+
     ;
 
     private final int status;
