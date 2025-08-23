@@ -63,7 +63,7 @@ public enum ErrorCode {
     ALREADY_JOINED_SCHEDULE(409, "SCHEDULE_409_1", "이미 참여하고 있는 정기 모임입니다."),
     LEADER_CANNOT_LEAVE_SCHEDULE(409, "SCHEDULE_409_2", "리더는 정기 모임 참여를 취소할 수 없습니다."),
     ALREADY_ENDED_SCHEDULE(409, "SCHEDULE_409_4", "이미 종료된 정기 모임입니다."),
-    BEFORE_SCHEDULE_START(409, "SCHEDULE_409_5", "아직 진행되지 않은 정기 모임입니다."),
+    BEFORE_SCHEDULE_END(409, "SCHEDULE_409_5", "아직 진행되지 않은 정기 모임입니다."),
     ALREADY_EXCEEDED_SCHEDULE(409, "SCHEDULE_409_6", "이미 정원이 마감된 정기 모임입니다."),
     ALREADY_SETTLING_SCHEDULE(409, "SCHEDULE_409_7", "이미 정산 진행 중인 정기 모임입니다."),
 

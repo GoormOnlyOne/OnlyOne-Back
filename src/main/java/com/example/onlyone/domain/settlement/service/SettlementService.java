@@ -28,21 +28,14 @@ import lombok.extern.log4j.Log4j2;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
-import org.springframework.scheduling.annotation.Async;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.transaction.event.TransactionPhase;
-import org.springframework.transaction.event.TransactionalEventListener;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.time.LocalDateTime;
 import java.util.List;
-import java.util.Map;
-
-import static org.springframework.transaction.support.TransactionSynchronization.STATUS_ROLLED_BACK;
 
 @Log4j2
 @Service
@@ -94,7 +87,7 @@ public class SettlementService {
                 .orElseThrow(() -> new CustomException(ErrorCode.SCHEDULE_NOT_FOUND));
         // 종료된 스케줄인지 확인
         if (!(schedule.getScheduleStatus() == ScheduleStatus.ENDED || schedule.getScheduleTime().isBefore(LocalDateTime.now()))) {
-            throw new CustomException(ErrorCode.BEFORE_SCHEDULE_START);
+            throw new CustomException(ErrorCode.BEFORE_SCHEDULE_END);
         }
         UserSchedule leaderUserSchedule = userScheduleRepository.findByUserAndSchedule(user, schedule)
                 .orElseThrow(() -> new CustomException(ErrorCode.USER_SCHEDULE_NOT_FOUND));
@@ -111,7 +104,7 @@ public class SettlementService {
         Settlement settlement = settlementRepository.findBySchedule(schedule)
                 .orElseThrow(() -> new CustomException(ErrorCode.SETTLEMENT_NOT_FOUND));
         // 이미 정산 중인 스케줄 예외 처리
-        if (settlement.getTotalStatus() != TotalStatus.HOLDING) {
+        if (!((settlement.getTotalStatus() == TotalStatus.HOLDING) || (settlement.getTotalStatus() == TotalStatus.FAILED))) {
             throw new CustomException(ErrorCode.ALREADY_SETTLING_SCHEDULE);
         }
         // 정산의 sum 업데이트 (count할 때는 리더 제외)
@@ -129,7 +122,7 @@ public class SettlementService {
 
         // 자동 정산 수행
         try {
-            // 1. 멱등성 보장 & 진행 선점: ENDED → IN_PROGRESS 선점
+            // 1. 멱등성 보장 & 진행 선점: HOLDING → IN_PROGRESS 선점
             if (settlementRepository.markProcessing(settlement.getSettlementId()) != 1) {
                 throw new CustomException(ErrorCode.ALREADY_SETTLING_SCHEDULE);
             }
@@ -208,7 +201,7 @@ public class SettlementService {
                 .orElseThrow(() -> new CustomException(ErrorCode.SCHEDULE_NOT_FOUND));
         // 종료된 스케줄인지 확인
         if (!(schedule.getScheduleStatus() == ScheduleStatus.ENDED || schedule.getScheduleTime().isBefore(LocalDateTime.now()))) {
-            throw new CustomException(ErrorCode.BEFORE_SCHEDULE_START);
+            throw new CustomException(ErrorCode.BEFORE_SCHEDULE_END);
         }
         UserSchedule leaderUserSchedule = userScheduleRepository.findByUserAndSchedule(user, schedule)
                 .orElseThrow(() -> new CustomException(ErrorCode.USER_SCHEDULE_NOT_FOUND));

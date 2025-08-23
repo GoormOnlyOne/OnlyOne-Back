@@ -12,6 +12,7 @@ import com.example.onlyone.domain.club.entity.UserClub;
 import com.example.onlyone.domain.club.repository.ClubRepository;
 import com.example.onlyone.domain.club.repository.UserClubRepository;
 import com.example.onlyone.domain.schedule.dto.request.ScheduleRequestDto;
+import com.example.onlyone.domain.schedule.dto.response.ScheduleCreateResponseDto;
 import com.example.onlyone.domain.schedule.dto.response.ScheduleDetailResponseDto;
 import com.example.onlyone.domain.schedule.dto.response.ScheduleResponseDto;
 import com.example.onlyone.domain.schedule.dto.response.ScheduleUserResponseDto;
@@ -79,7 +80,7 @@ public class ScheduleService {
     }
 
     /* 정기 모임 생성*/
-    public void createSchedule(Long clubId, ScheduleRequestDto requestDto) {
+    public ScheduleCreateResponseDto createSchedule(Long clubId, ScheduleRequestDto requestDto) {
         Club club = clubRepository.findById(clubId)
                 .orElseThrow(() -> new CustomException(ErrorCode.CLUB_NOT_FOUND));
         Schedule schedule = requestDto.toEntity(club);
@@ -116,6 +117,7 @@ public class ScheduleService {
                 .build();
         settlementRepository.save(settlement);
         club.addSchedule(schedule);
+        return new ScheduleCreateResponseDto(schedule.getScheduleId());
     }
 
     /* 정기 모임 수정 */
@@ -240,7 +242,7 @@ public class ScheduleService {
                 .orElseThrow(() -> new CustomException(ErrorCode.CLUB_NOT_FOUND));
         User currentUser = userService.getCurrentUser();
 //        return scheduleRepository.findByClubAndScheduleStatusNot(club, ScheduleStatus.CLOSED).stream()
-        return scheduleRepository.findAllByClub(club).stream()
+        return scheduleRepository.findAllByClubOrderByScheduleTimeDesc(club).stream()
                 .map(schedule -> {
                     int userCount = userScheduleRepository.countBySchedule(schedule);
                     Optional<UserSchedule> userScheduleOpt = userScheduleRepository
@@ -268,6 +270,8 @@ public class ScheduleService {
                 .collect(Collectors.toList());
     }
 
+
+    /* 스케줄 정보 상세 조회 */
     @Transactional(readOnly = true)
     public ScheduleDetailResponseDto getScheduleDetails(Long clubId, Long scheduleId) {
         clubRepository.findById(clubId)
