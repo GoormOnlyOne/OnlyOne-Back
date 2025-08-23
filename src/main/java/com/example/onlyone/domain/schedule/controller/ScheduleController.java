@@ -1,6 +1,7 @@
 package com.example.onlyone.domain.schedule.controller;
 
 import com.example.onlyone.domain.schedule.dto.request.ScheduleRequestDto;
+import com.example.onlyone.domain.schedule.dto.response.ScheduleCreateResponseDto;
 import com.example.onlyone.domain.schedule.dto.response.ScheduleResponseDto;
 import com.example.onlyone.domain.schedule.dto.response.ScheduleUserResponseDto;
 import com.example.onlyone.domain.schedule.service.ScheduleService;
@@ -26,8 +27,8 @@ public class ScheduleController {
     @PostMapping
     public ResponseEntity<?> createSchedule(@PathVariable("clubId") final Long clubId,
                                             @RequestBody @Valid ScheduleRequestDto requestDto) {
-        scheduleService.createSchedule(clubId, requestDto);
-        return ResponseEntity.status(HttpStatus.CREATED).body(CommonResponse.success(null));
+        ScheduleCreateResponseDto responseDto = scheduleService.createSchedule(clubId, requestDto);
+        return ResponseEntity.status(HttpStatus.CREATED).body(CommonResponse.success(responseDto));
     }
 
     @Operation(summary = "정기 모임 수정", description = "정기 모임을 수정합니다.")

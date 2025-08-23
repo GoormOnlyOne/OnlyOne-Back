@@ -114,7 +114,6 @@ public interface UserSettlementRepository extends JpaRepository<UserSettlement, 
             "where us.userSettlementId = :id")
     void updateStatusIfRequested(@Param("id") Long userSettlementId, @Param("status") SettlementStatus settlementStatus);
 
-    List<UserSettlement> findAllBySettlement_SettlementId(Long settlementId);
     List<UserSettlement> findAllBySettlement_SettlementIdAndSettlementStatus(
             Long settlementId, SettlementStatus settlementStatus);
 }

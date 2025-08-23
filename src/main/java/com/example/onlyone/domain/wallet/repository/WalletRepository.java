@@ -40,10 +40,11 @@ public interface WalletRepository extends JpaRepository<Wallet,Long> {
     @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Query(value = """
       UPDATE wallet
-         SET posted_balance  = posted_balance - :amount,
-             pending_out = pending_out - :amount
-       WHERE user_id = :userId
-         AND pending_out >= :amount
+         SET posted_balance = posted_balance - :amount,
+             pending_out    = pending_out - :amount
+       WHERE user_id        = :userId
+         AND pending_out    >= :amount
+         AND posted_balance >= :amount
     """, nativeQuery = true)
     int captureHold(@Param("userId") Long userId, @Param("amount") long amount);
 
@@ -55,4 +56,5 @@ public interface WalletRepository extends JpaRepository<Wallet,Long> {
     """, nativeQuery = true)
     int creditByUserId(@Param("userId") Long userId, @Param("amount") long amount);
 
+//    User user(User user);
 }

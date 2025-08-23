@@ -14,14 +14,16 @@ import java.util.List;
 import java.util.Optional;
 
 public interface ScheduleRepository extends JpaRepository<Schedule,Long> {
-    List<Schedule> findByClubAndScheduleStatusNot(Club club, ScheduleStatus scheduleStatus);
-    List<Schedule> findByScheduleStatus(ScheduleStatus scheduleStatus);
+//    List<Schedule> findByClubAndScheduleStatusNot(Club club, ScheduleStatus scheduleStatus);
+//    List<Schedule> findByScheduleStatus(ScheduleStatus scheduleStatus);
 
     @Modifying(clearAutomatically = true)
     @Query("UPDATE Schedule s SET s.scheduleStatus = :endedStatus WHERE s.scheduleStatus = :readyStatus AND s.scheduleTime < :now")
     int updateExpiredSchedules(@Param("endedStatus") ScheduleStatus endedStatus,
                                @Param("readyStatus") ScheduleStatus readyStatus,
                                @Param("now") LocalDateTime now);
+
+    List<Schedule> findAllByClubOrderByScheduleTimeDesc(Club club);
 
     List<Schedule> findAllByClub(Club club);
 
