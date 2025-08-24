@@ -1858,7 +1858,7 @@ class SearchServiceTest {
     
     @Test
     @DisplayName("빈 문자열 city/district는 예외가 발생한다.")
-    void searchClubsLocationnFilterEmpty() {
+    void searchClubsLocationFilterEmpty() {
         // given
         when(userService.getCurrentUser()).thenReturn(seoulUser);
 
@@ -1872,5 +1872,226 @@ class SearchServiceTest {
                 .isInstanceOf(CustomException.class)
                 .hasMessage("지역 필터는 city와 district가 모두 제공되어야 합니다.");
       
+    }
+
+    @Test
+    @DisplayName("1글자 키워드는 예외가 발생한다.")
+    void searchClubsByOneKeyword() {
+        // given
+        when(userService.getCurrentUser()).thenReturn(seoulUser);
+        SearchFilterDto filter = SearchFilterDto.builder()
+                .keyword("아")
+                .build();
+    
+        // when & then
+        assertThatThrownBy(() -> searchService.searchClubs(filter))
+                .isInstanceOf(CustomException.class)
+                .hasMessage("검색어는 최소 2글자 이상이어야 합니다.");
+    }
+    
+    @Test
+    @DisplayName("2글자 이상 키워드는 정상 처리된다.")
+    void searchClubsByGreaterThanTwoKeyword() {
+        // given
+        when(userService.getCurrentUser()).thenReturn(seoulUser);
+        SearchFilterDto filter = SearchFilterDto.builder()
+                .keyword("운동")
+                .build();
+
+        // when
+        List<ClubResponseDto> results = searchService.searchClubs(filter);
+
+        // then
+        assertThat(results).hasSize(13);
+        assertThat(results)
+                .allMatch(club -> club.getName().contains("운동"));
+          
+    }
+    
+    @Test
+    @DisplayName("null 키워드는 정상 처리된다. (전체 모임 조회)")
+    void searchClubsNullKeyword() {
+        // given
+        when(userService.getCurrentUser()).thenReturn(seoulUser);
+        SearchFilterDto filter = SearchFilterDto.builder()
+                .keyword(null)
+                .build();
+    
+        // when
+        List<ClubResponseDto> results = searchService.searchClubs(filter);
+
+        // then
+        assertThat(results).hasSize(20);
+
+        // 다양한 지역의 모임이 나왔는지
+        Set<String> districts = results.stream()
+                .map(ClubResponseDto::getDistrict)
+                .collect(Collectors.toSet());
+
+        assertThat(districts.size()).isGreaterThan(1);
+
+        // 다양한 카테고리의 모임이 나왔는지
+        Set<String> interests = results.stream()
+                .map(ClubResponseDto::getInterest)
+                .collect(Collectors.toSet());
+
+        assertThat(interests.size()).isGreaterThan(1);
+          
+    }
+
+    @Test
+    @DisplayName("빈 문자열 키워드는 정상 처리된다. (전체 모임 조회)")
+    void searchClubsEmptyKeyword() {
+        // given
+        when(userService.getCurrentUser()).thenReturn(seoulUser);
+        SearchFilterDto filter = SearchFilterDto.builder()
+                .keyword("")
+                .build();
+
+        // when
+        List<ClubResponseDto> results = searchService.searchClubs(filter);
+
+        // then
+        assertThat(results).hasSize(20);
+
+        // 다양한 지역의 모임이 나왔는지
+        Set<String> districts = results.stream()
+                .map(ClubResponseDto::getDistrict)
+                .collect(Collectors.toSet());
+
+        assertThat(districts.size()).isGreaterThan(1);
+
+        // 다양한 카테고리의 모임이 나왔는지
+        Set<String> interests = results.stream()
+                .map(ClubResponseDto::getInterest)
+                .collect(Collectors.toSet());
+
+        assertThat(interests.size()).isGreaterThan(1);
+        
+    }
+
+    @Test
+    @DisplayName("공백만 있는 키워드는 정상 처리된다. (trim 후 처리)")
+    void searchClubsTrimKeyword() {
+        // given
+        when(userService.getCurrentUser()).thenReturn(seoulUser);
+
+        SearchFilterDto filter = SearchFilterDto.builder()
+                .keyword("          ")
+                .build();
+
+        // when
+        List<ClubResponseDto> results = searchService.searchClubs(filter);
+
+        // then
+        assertThat(results).hasSize(20);
+
+        // 다양한 지역의 모임이 나왔는지
+        Set<String> districts = results.stream()
+                .map(ClubResponseDto::getDistrict)
+                .collect(Collectors.toSet());
+
+        assertThat(districts.size()).isGreaterThan(1);
+
+        // 다양한 카테고리의 모임이 나왔는지
+        Set<String> interests = results.stream()
+                .map(ClubResponseDto::getInterest)
+                .collect(Collectors.toSet());
+
+        assertThat(interests.size()).isGreaterThan(1);
+    }
+
+    @Test
+    @DisplayName("키워드 없이 지역만으로 검색 시 정상 동작한다.")
+    void searchClubsOnlyLocation() {
+        // given
+        when(userService.getCurrentUser()).thenReturn(seoulUser);
+
+        SearchFilterDto filter = SearchFilterDto.builder()
+                .city("서울")
+                .district("강남구")
+                .build();
+
+        // when
+        List<ClubResponseDto> results = searchService.searchClubs(filter);
+
+        // then
+        assertThat(results)
+                .allMatch(club -> "강남구".equals(club.getDistrict()));
+    }
+    
+    @Test
+    @DisplayName("키워드 없이 관심사만으로 검색 시 정상 동작한다.")
+    void searchClubsOnlyInterest() {
+        // given
+        when(userService.getCurrentUser()).thenReturn(seoulUser);
+
+        SearchFilterDto filter = SearchFilterDto.builder()
+                .interestId(exerciseInterest.getInterestId())
+                .build();
+
+        // when
+        List<ClubResponseDto> results = searchService.searchClubs(filter);
+
+        // then
+        assertThat(results)
+                .allMatch(club -> "운동".equals(club.getInterest()));
+          
+    }
+
+    @Test
+    @DisplayName("키워드 없이 지역 + 관심사로 검색 시 정상 동작한다.")
+    void searchClubsOnlyLocationAndInterest() {
+        // given
+        when(userService.getCurrentUser()).thenReturn(seoulUser);
+        SearchFilterDto filter = SearchFilterDto.builder()
+                .city("서울")
+                .district("강남구")
+                .interestId(exerciseInterest.getInterestId())
+                .build();
+
+        // when
+        List<ClubResponseDto> results = searchService.searchClubs(filter);
+
+        // then
+        assertThat(results)
+                .allMatch(club -> "강남구".equals(club.getDistrict()))
+                .allMatch(club -> "운동".equals(club.getInterest()));
+
+    }
+    
+    @Test
+    @DisplayName("모든 필터가 null인 경우 전체 모임이 조회된다.")
+    void searchClubsNullFilter() {
+        // given
+        when(userService.getCurrentUser()).thenReturn(seoulUser);
+
+        SearchFilterDto filter = SearchFilterDto.builder()
+                .keyword(null)
+                .city(null)
+                .district(null)
+                .interestId(null)
+                .build();
+    
+        // when
+        List<ClubResponseDto> results = searchService.searchClubs(filter);
+
+        // then
+        assertThat(results).hasSize(20);
+
+        // 다양한 지역의 모임이 나왔는지
+        Set<String> districts = results.stream()
+                .map(ClubResponseDto::getDistrict)
+                .collect(Collectors.toSet());
+
+        assertThat(districts.size()).isGreaterThan(1);
+
+        // 다양한 카테고리의 모임이 나왔는지
+        Set<String> interests = results.stream()
+                .map(ClubResponseDto::getInterest)
+                .collect(Collectors.toSet());
+
+        assertThat(interests.size()).isGreaterThan(1);
+          
     }
 }
