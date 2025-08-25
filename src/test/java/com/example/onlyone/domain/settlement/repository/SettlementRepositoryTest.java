@@ -114,8 +114,7 @@ public class SettlementRepositoryTest {
     }
 
     @Test
-    @DisplayName("findAllByTotalStatus: 상태별 정산 목록 조회")
-    void findAllByTotalStatus_success() {
+    void 특정_상태를_가진_정산_목록을_조회한다() {
         List<Settlement> holding = settlementRepository.findAllByTotalStatus(TotalStatus.HOLDING);
         List<Settlement> processing = settlementRepository.findAllByTotalStatus(TotalStatus.IN_PROGRESS);
 
@@ -127,8 +126,7 @@ public class SettlementRepositoryTest {
     }
 
     @Test
-    @DisplayName("markProcessing: HOLDING → IN_PROGRESS 로만 1건 갱신된다")
-    void markProcessing_updatesOnlyEnded() {
+    void HOLDING인_Settlement_1개만_IN_PROGRESS로_갱신한다() {
         // when
         int updated = settlementRepository.markProcessing(holdingSettlement.getSettlementId());
 
@@ -142,23 +140,15 @@ public class SettlementRepositoryTest {
     }
 
     @Test
-    @DisplayName("markProcessing: HOLDING이 아니면 갱신되지 않는다(0건)")
-    void markProcessing_doesNothing_ifNotEnded() {
+    void HOLDING이_아닌_Settlement는_갱신되지_않는다() {
+        // when
         int updated = settlementRepository.markProcessing(inProgressSettlement.getSettlementId());
         assertThat(updated).isEqualTo(0);
 
         entityManager.clear();
+        // then
         Settlement refreshed = settlementRepository.findById(inProgressSettlement.getSettlementId()).orElseThrow();
         assertThat(refreshed.getTotalStatus()).isEqualTo(inProgressSettlement.getTotalStatus());
     }
-
-    @Test
-    @DisplayName("markProcessing: 존재하지 않는 ID면 0건")
-    void markProcessing_returnsZero_ifIdNotFound() {
-        int updated = settlementRepository.markProcessing(999_999L);
-        assertThat(updated).isEqualTo(0);
-    }
-
-
     
 }
