@@ -22,6 +22,7 @@ import com.example.onlyone.domain.settlement.repository.UserSettlementRepository
 import com.example.onlyone.domain.user.entity.User;
 import com.example.onlyone.domain.user.repository.UserRepository;
 import com.example.onlyone.domain.user.service.UserService;
+import com.example.onlyone.domain.wallet.entity.Type;
 import com.example.onlyone.domain.wallet.entity.Wallet;
 import com.example.onlyone.domain.wallet.entity.WalletTransaction;
 import com.example.onlyone.domain.wallet.entity.WalletTransactionStatus;
@@ -40,9 +41,13 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.context.annotation.Import;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.test.annotation.Rollback;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.transaction.TestTransaction;
+import org.springframework.transaction.TransactionStatus;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
@@ -241,28 +246,23 @@ public class SettlementServiceTest {
     @Test
     void 비용이_0원인_경우_정모가_CLOSED된다() {
         // given
-        ScheduleRequestDto updateScheduleRequestDto = new ScheduleRequestDto(
-                "온리원 첫 번째 정모",
-                "구름스퀘어 강남",
-                0,
-                10,
-                LocalDateTime.now().minusHours(2)
-        );
-        leader = userRepository.findById(1L).orElse(null);
+        Schedule managed = scheduleRepository.findById(schedule.getScheduleId()).orElseThrow();
+        managed.updateStatus(ScheduleStatus.READY);
+        managed.update("온리원 첫 번째 정모", "구름스퀘어 강남", 0, 10, LocalDateTime.now().minusHours(2));
+        scheduleRepository.saveAndFlush(managed); // or entityManager.flush()
+        entityManager.clear();
+
         Mockito.when(userService.getCurrentUser()).thenReturn(leader);
-        scheduleService.updateSchedule(club.getClubId(), schedule.getScheduleId(), updateScheduleRequestDto);
 
         // when
-        settlementService.automaticSettlement(club.getClubId(), schedule.getScheduleId());
+        settlementService.automaticSettlement(club.getClubId(), managed.getScheduleId());
         entityManager.flush();
         entityManager.clear();
 
         // then
-        Schedule newSchedule = scheduleRepository.findById(schedule.getScheduleId()).orElseThrow();
-        Optional<Settlement> deletedSettlement = settlementRepository.findBySchedule(newSchedule);
-        assertThat(deletedSettlement).isEmpty();
-        List<UserSettlement> userSettlements = userSettlementRepository.findAll();
-        assertThat(userSettlements).isEmpty();
+        Schedule newSchedule = scheduleRepository.findById(managed.getScheduleId()).orElseThrow();
+        assertThat(settlementRepository.findBySchedule(newSchedule)).isEmpty();
+        assertThat(userSettlementRepository.findAll()).isEmpty();
         assertThat(newSchedule.getScheduleStatus()).isEqualTo(ScheduleStatus.CLOSED);
     }
 
@@ -354,7 +354,7 @@ public class SettlementServiceTest {
         // 잔액 부족 상황
         Wallet memberWallet = walletRepository.findByUserWithoutLock(member1)
                 .orElseThrow();
-        memberWallet.updateBalance(memberWallet.getPostedBalance() - 100000);
+        memberWallet.updateBalance(memberWallet.getPostedBalance() - 1000000);
         walletRepository.saveAndFlush(memberWallet);
         entityManager.flush();
         entityManager.clear();
@@ -441,4 +441,44 @@ public class SettlementServiceTest {
         });
         assertThat(second.getErrorCode()).isEqualTo(ErrorCode.ALREADY_SETTLING_SCHEDULE);
     }
+
+    /* 트랜잭션 롤백 후 실패 로그를 기록*/
+    @Test
+    void 자동_정산_중_예외_시_실패로그가_저장된다() {
+        // given
+        Long scheduleId = schedule.getScheduleId();
+        Mockito.when(userService.getCurrentUser()).thenReturn(leader);
+
+        // 잔액 부족 상황
+        Wallet memberWallet = walletRepository.findByUserWithoutLock(member1)
+                .orElseThrow();
+        memberWallet.updateBalance(memberWallet.getPostedBalance() - 100000);
+        walletRepository.saveAndFlush(memberWallet);
+        entityManager.flush();
+        entityManager.clear();
+
+        TestTransaction.flagForCommit();
+        TestTransaction.end();
+
+        TestTransaction.start();
+        assertThrows(CustomException.class, () ->
+                settlementService.automaticSettlement(club.getClubId(), scheduleId)
+        );
+        TestTransaction.flagForRollback();
+        TestTransaction.end();
+
+        // then
+
+        TestTransaction.start();
+        Pageable pageable = PageRequest.of(0, 10);
+        Page<WalletTransaction> failed = walletTransactionRepository
+                .findByWalletAndTypeAndWalletTransactionStatus(
+                        walletRepository.findByUserWithoutLock(member1).orElseThrow(),
+                        Type.OUTGOING,
+                        WalletTransactionStatus.FAILED,
+                        pageable
+                );
+        assertThat(failed.hasContent()).isTrue();
+    }
+
 }

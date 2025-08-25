@@ -123,7 +123,7 @@ public class ScheduleService {
 
     /* 정기 모임 수정 */
     @Transactional
-    public void updateSchedule(Long clubId, Long scheduleId, @Valid ScheduleRequestDto requestDto) {
+    public void updateSchedule(Long clubId, Long scheduleId, ScheduleRequestDto requestDto) {
         clubRepository.findById(clubId)
                 .orElseThrow(() -> new CustomException(ErrorCode.CLUB_NOT_FOUND));
         Schedule schedule = scheduleRepository.findById(scheduleId)
@@ -137,8 +137,38 @@ public class ScheduleService {
         if (schedule.getScheduleStatus() != ScheduleStatus.READY) {
             throw new CustomException(ErrorCode.ALREADY_ENDED_SCHEDULE);
         }
-        schedule.update(requestDto.getName(), requestDto.getLocation(), requestDto.getCost(), requestDto.getUserLimit(), requestDto.getScheduleTime());
+        // 정산 금액이 변경되는 경우
+        if (schedule.getCost() != requestDto.getCost()) {
+            int memberCount = userScheduleRepository.countBySchedule(schedule) - 1;
+            int delta = requestDto.getCost() - schedule.getCost();
 
+            if (memberCount > 0 && delta != 0) {
+                List<UserSettlement> targets =
+                        userSettlementRepository.findAllBySettlement_SettlementIdAndSettlementStatus(
+                                schedule.getSettlement().getSettlementId(), SettlementStatus.HOLD_ACTIVE);
+                // 비용 인상
+                if (delta > 0) {
+                    for (UserSettlement us : targets) {
+                        int flag = walletRepository.holdBalanceIfEnough(us.getUser().getUserId(), delta);
+                        if (flag != 1) {
+                            // 한 명이라도 잔액 부족 → 전체 롤백
+                            throw new CustomException(ErrorCode.WALLET_BALANCE_NOT_ENOUGH);
+                        }
+                    }
+                }
+                // 비용 감소
+                else {
+                    long release = Math.abs(delta);
+                    for (UserSettlement us : targets) {
+                        int flag = walletRepository.releaseHoldBalance(us.getUser().getUserId(), release);
+                        if (flag != 1) {
+                            throw new CustomException(ErrorCode.WALLET_HOLD_CAPTURE_FAILED);
+                        }
+                    }
+                }
+            }
+        }
+        schedule.update(requestDto.getName(), requestDto.getLocation(), requestDto.getCost(), requestDto.getUserLimit(), requestDto.getScheduleTime());
     }
 
     /* 정기 모임 참여 */
