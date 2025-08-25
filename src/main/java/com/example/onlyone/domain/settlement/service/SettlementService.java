@@ -95,6 +95,7 @@ public class SettlementService {
         if (leaderUserSchedule.getScheduleRole() != ScheduleRole.LEADER) {
             throw new CustomException(ErrorCode.MEMBER_CANNOT_CREATE_SETTLEMENT);
         }
+
         int userCount = userScheduleRepository.countBySchedule(schedule);
         Settlement settlement = settlementRepository.findBySchedule(schedule)
                 .orElseThrow(() -> new CustomException(ErrorCode.SETTLEMENT_NOT_FOUND));
@@ -109,6 +110,13 @@ public class SettlementService {
             });
             return;
         }
+
+        // 멱등성 보장 & 진행 선점: HOLDING → IN_PROGRESS 선점
+        int updated = settlementRepository.markProcessing(settlement.getSettlementId());
+        if (updated != 1) {
+            throw new CustomException(ErrorCode.ALREADY_SETTLING_SCHEDULE);
+        }
+
         // 이미 정산 중인 스케줄 예외 처리
         if (!((settlement.getTotalStatus() == TotalStatus.HOLDING) || (settlement.getTotalStatus() == TotalStatus.FAILED))) {
             throw new CustomException(ErrorCode.ALREADY_SETTLING_SCHEDULE);
@@ -129,11 +137,7 @@ public class SettlementService {
 
         // 자동 정산 수행
         try {
-            // 1. 멱등성 보장 & 진행 선점: HOLDING → IN_PROGRESS 선점
-            if (settlementRepository.markProcessing(settlement.getSettlementId()) != 1) {
-                throw new CustomException(ErrorCode.ALREADY_SETTLING_SCHEDULE);
-            }
-            // 2. 원자적 이체
+            // 원자적 이체
             List<UserSettlement> targets = userSettlementRepository
                     .findAllBySettlement_SettlementIdAndSettlementStatus(settlement.getSettlementId(), SettlementStatus.HOLD_ACTIVE);
 
@@ -142,32 +146,32 @@ public class SettlementService {
                         .orElseThrow(() -> new CustomException(ErrorCode.WALLET_NOT_FOUND));
                 failWallet = memberWallet;
                 failUserSettlementId = userSettlement.getUserSettlementId();
-                // 2-1) 홀드 캡처 (balance -= amt, hold -= amt) : 0행이면 비정상 → 예외
+                // 1) 홀드 캡처 (balance -= amt, hold -= amt) : 0행이면 비정상 → 예외
                 int captured = walletRepository.captureHold(userSettlement.getUser().getUserId(), schedule.getCost());
                 if (captured != 1) {
                     throw new CustomException(ErrorCode.WALLET_HOLD_CAPTURE_FAILED);
                 }
-                // 2-2) 리더 가산
+                // 2) 리더 가산
                 int credited = walletRepository.creditByUserId(leader.getUserId(), schedule.getCost());
                 if (credited != 1) {
                     throw new CustomException(ErrorCode.WALLET_CREDIT_APPLY_FAILED);
                 }
-                // 2-3) 트랜잭션 기록 (멱등키: settlementId-userId)
+                // 3) 트랜잭션 기록 (멱등키: settlementId-userId)
                 walletService.createSuccessfulWalletTransactions(
                         memberWallet.getWalletId(), leaderWallet.getWalletId(),
                         schedule.getCost(), userSettlement);
 
-                // 2-4) 상태 변경
+                // 4) 상태 변경
                 userSettlement.updateUserSettlement(SettlementStatus.COMPLETED, LocalDateTime.now());
                 userSettlementRepository.save(userSettlement);
 
-                // 2-5) 알림
+                // 5) 알림
 //                notificationService.createNotification(
 //                        userSettlement.getUser(),
 //                        Type.SETTLEMENT,
 //                        new String[]{String.valueOf(schedule.getCost())});
             }
-            // 3. 모두 성공한 경우
+            // 모두 성공한 경우
             Schedule completedSchedule = scheduleRepository.findById(scheduleId)
                     .orElseThrow(() -> new CustomException(ErrorCode.SETTLEMENT_NOT_FOUND));
             Settlement completedSettlement = settlementRepository.findBySchedule(completedSchedule)
@@ -178,7 +182,7 @@ public class SettlementService {
 //                    user,
 //                    Type.SETTLEMENT,
 //                    new String[]{String.valueOf(settlement.getSum())});
-        // 4. 예외를 잡아 별도 실패 기록
+        // 예외를 잡아 별도 실패 기록
         } catch (CustomException e) {
             Schedule failedSchedule = scheduleRepository.findById(scheduleId)
                     .orElseThrow(() -> new CustomException(ErrorCode.SETTLEMENT_NOT_FOUND));
