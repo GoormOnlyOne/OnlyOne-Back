@@ -13,6 +13,7 @@ import com.example.onlyone.domain.schedule.entity.ScheduleStatus;
 import com.example.onlyone.domain.schedule.repository.ScheduleRepository;
 import com.example.onlyone.domain.schedule.repository.UserScheduleRepository;
 import com.example.onlyone.domain.schedule.service.ScheduleService;
+import com.example.onlyone.domain.settlement.dto.response.SettlementResponseDto;
 import com.example.onlyone.domain.settlement.entity.Settlement;
 import com.example.onlyone.domain.settlement.entity.SettlementStatus;
 import com.example.onlyone.domain.settlement.entity.TotalStatus;
@@ -44,6 +45,7 @@ import org.springframework.context.annotation.Import;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.annotation.Rollback;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.transaction.TestTransaction;
@@ -64,6 +66,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.springframework.test.annotation.DirtiesContext.MethodMode.AFTER_METHOD;
 
 @ActiveProfiles("test")
 @DataJpaTest
@@ -370,6 +373,67 @@ public class SettlementServiceTest {
         assertThat(failedSettlement.getTotalStatus()).isEqualTo(TotalStatus.FAILED);
     }
 
+    /* 트랜잭션 롤백 후 실패 로그를 기록*/
+    @DirtiesContext(methodMode = DirtiesContext.MethodMode.AFTER_METHOD)
+    @Test
+    void 자동_정산_중_예외_시_실패로그가_저장된다() {
+        // given
+        Long scheduleId = schedule.getScheduleId();
+        Mockito.when(userService.getCurrentUser()).thenReturn(leader);
+
+        // 잔액 부족 상황
+        Wallet memberWallet = walletRepository.findByUserWithoutLock(member1)
+                .orElseThrow();
+        memberWallet.updateBalance(memberWallet.getPostedBalance() - 100000);
+        walletRepository.saveAndFlush(memberWallet);
+        entityManager.flush();
+        entityManager.clear();
+
+        TestTransaction.flagForCommit();
+        TestTransaction.end();
+
+        TestTransaction.start();
+        assertThrows(CustomException.class, () ->
+                settlementService.automaticSettlement(club.getClubId(), scheduleId)
+        );
+        TestTransaction.flagForRollback();
+        TestTransaction.end();
+
+        // then
+
+        TestTransaction.start();
+        Pageable pageable = PageRequest.of(0, 10);
+        Page<WalletTransaction> failed = walletTransactionRepository
+                .findByWalletAndTypeAndWalletTransactionStatus(
+                        walletRepository.findByUserWithoutLock(member1).orElseThrow(),
+                        Type.OUTGOING,
+                        WalletTransactionStatus.FAILED,
+                        pageable
+                );
+        assertThat(failed.hasContent()).isTrue();
+    }
+
+    /* 정모 참여자 정산 조회 */
+    @Test
+    void 스케줄_참여자_정산_목록을_페이징으로_조회한다() {
+        // when
+        Pageable pageable = PageRequest.of(0, 10);
+        SettlementResponseDto result =
+                settlementService.getSettlementList(club.getClubId(), schedule.getScheduleId(), pageable);
+
+        // then
+        // 페이지 메타는 구현체에 따라 다를 수 있지만, 일반적으로 content/total(또는 size) 확인
+        assertThat(result).isNotNull();
+        assertThat(result.getUserSettlementList()).hasSize(2); // 멤버 2명
+        assertThat(result.getUserSettlementList())
+                .extracting("nickname")
+                .containsExactlyInAnyOrder("Bob", "Charlie");
+        assertThat(result.getCurrentPage()).isEqualTo(0);
+        assertThat(result.getPageSize()).isEqualTo(10);
+        assertThat(result.getTotalElement()).isEqualTo(2);
+    }
+
+    @DirtiesContext(methodMode = DirtiesContext.MethodMode.AFTER_METHOD)
     @ParameterizedTest
     @ValueSource(ints = {2, 5, 10})
     void 멱등성과_동시성에_대한_보호가_정상적으로_이루어진다(int threads) throws Exception {
@@ -440,45 +504,6 @@ public class SettlementServiceTest {
             settlementService.automaticSettlement(clubId, scheduleId);
         });
         assertThat(second.getErrorCode()).isEqualTo(ErrorCode.ALREADY_SETTLING_SCHEDULE);
-    }
-
-    /* 트랜잭션 롤백 후 실패 로그를 기록*/
-    @Test
-    void 자동_정산_중_예외_시_실패로그가_저장된다() {
-        // given
-        Long scheduleId = schedule.getScheduleId();
-        Mockito.when(userService.getCurrentUser()).thenReturn(leader);
-
-        // 잔액 부족 상황
-        Wallet memberWallet = walletRepository.findByUserWithoutLock(member1)
-                .orElseThrow();
-        memberWallet.updateBalance(memberWallet.getPostedBalance() - 100000);
-        walletRepository.saveAndFlush(memberWallet);
-        entityManager.flush();
-        entityManager.clear();
-
-        TestTransaction.flagForCommit();
-        TestTransaction.end();
-
-        TestTransaction.start();
-        assertThrows(CustomException.class, () ->
-                settlementService.automaticSettlement(club.getClubId(), scheduleId)
-        );
-        TestTransaction.flagForRollback();
-        TestTransaction.end();
-
-        // then
-
-        TestTransaction.start();
-        Pageable pageable = PageRequest.of(0, 10);
-        Page<WalletTransaction> failed = walletTransactionRepository
-                .findByWalletAndTypeAndWalletTransactionStatus(
-                        walletRepository.findByUserWithoutLock(member1).orElseThrow(),
-                        Type.OUTGOING,
-                        WalletTransactionStatus.FAILED,
-                        pageable
-                );
-        assertThat(failed.hasContent()).isTrue();
     }
 
 }
