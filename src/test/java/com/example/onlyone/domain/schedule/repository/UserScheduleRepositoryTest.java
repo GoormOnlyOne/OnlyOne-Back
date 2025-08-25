@@ -36,11 +36,10 @@ class UserScheduleRepositoryTest {
     @Autowired ClubRepository clubRepository;
     @Autowired UserRepository userRepository;
     @Autowired EntityManager entityManager;
+    @Autowired UserClubRepository userClubRepository;
 
     private Club club;
     private Schedule schedule;
-    @Autowired
-    private UserClubRepository userClubRepository;
 
     @BeforeEach
     void setUp() {
@@ -100,22 +99,24 @@ class UserScheduleRepositoryTest {
     }
 
     @Test
-    @DisplayName("findByUserAndSchedule: 특정 유저의 특정 스케줄 참여 여부를 조회한다")
-    void findByUserAndSchedule_success() {
+    void 특정_유저의_스케줄_참여_여부를_정상적으로_조회한다() {
+        // given
         User user = entityManager.getReference(User.class, 1L);
         joinClub(user, club, ClubRole.MEMBER);
         joinSchedule(user, schedule, ScheduleRole.MEMBER);
 
+        // when
         Optional<UserSchedule> userSchedule = userScheduleRepository.findByUserAndSchedule(user, schedule);
 
+        // then
         assertThat(userSchedule).isPresent();
         assertThat(userSchedule.get().getUser().getNickname()).isEqualTo("Alice");
         assertThat(userSchedule.get().getSchedule().getScheduleId()).isEqualTo(schedule.getScheduleId());
     }
 
     @Test
-    @DisplayName("countBySchedule: 스케줄 참가자 수를 반환한다")
-    void countBySchedule_success() {
+    void 스케줄_참여자_수를_정상적으로_반환한다() {
+        // given
         User user1 = entityManager.getReference(User.class, 2L);
         User user2 = entityManager.getReference(User.class, 3L);
         joinClub(user1, club, ClubRole.MEMBER);
@@ -123,14 +124,16 @@ class UserScheduleRepositoryTest {
         joinClub(user2, club, ClubRole.MEMBER);
         joinSchedule(user2, schedule, ScheduleRole.MEMBER);
 
+        // when
         int count = userScheduleRepository.countBySchedule(schedule);
 
+        // then
         assertThat(count).isEqualTo(2);
     }
 
     @Test
-    @DisplayName("findUserSchedulesBySchedule: 스케줄에 속한 UserSchedule 목록을 반환한다")
-    void findUserSchedulesBySchedule_success() {
+    void 스케줄에_속한_UserSchedule_목록을_반환한다() {
+        // given
         User user1 = entityManager.getReference(User.class, 2L);
         User user2 = entityManager.getReference(User.class, 3L);
         joinClub(user1, club, ClubRole.MEMBER);
@@ -138,16 +141,18 @@ class UserScheduleRepositoryTest {
         joinClub(user2, club, ClubRole.MEMBER);
         joinSchedule(user2, schedule, ScheduleRole.MEMBER);
 
+        // when
         List<UserSchedule> list = userScheduleRepository.findUserSchedulesBySchedule(schedule);
 
+        // then
         assertThat(list).hasSize(2);
         assertThat(list).extracting(us -> us.getUser().getNickname())
                 .containsExactlyInAnyOrder("Bob", "Charlie");
     }
 
     @Test
-    @DisplayName("findUsersBySchedule(JPQL): 스케줄에 참여한 User 목록을 반환한다")
-    void findUsersBySchedule_success() {
+    void 스케줄에_참여한_User_목록을_반환한다() {
+        // given
         User user1 = entityManager.getReference(User.class, 2L);
         User user2 = entityManager.getReference(User.class, 3L);
         joinClub(user1, club, ClubRole.MEMBER);
@@ -155,16 +160,18 @@ class UserScheduleRepositoryTest {
         joinClub(user2, club, ClubRole.MEMBER);
         joinSchedule(user2, schedule, ScheduleRole.MEMBER);
 
+        // when
         List<User> users = userScheduleRepository.findUsersBySchedule(schedule);
 
+        // then
         assertThat(users).hasSize(2);
         assertThat(users).extracting(User::getNickname)
                 .containsExactlyInAnyOrder("Bob", "Charlie");
     }
 
     @Test
-    @DisplayName("findLeaderByScheduleAndScheduleRole: 리더를 Optional로 조회한다(있으면 반환)")
-    void findLeader_success() {
+    void 스케줄의_리더를_Optional로_조회한다() {
+        // given
         User user1 = entityManager.getReference(User.class, 2L);
         User user2 = entityManager.getReference(User.class, 3L);
         joinClub(user1, club, ClubRole.LEADER);
@@ -172,16 +179,18 @@ class UserScheduleRepositoryTest {
         joinClub(user2, club, ClubRole.MEMBER);
         joinSchedule(user2, schedule, ScheduleRole.MEMBER);
 
+        // when
         Optional<User> found = userScheduleRepository.findLeaderByScheduleAndScheduleRole(
                 schedule, ScheduleRole.LEADER);
 
+        // then
         assertThat(found).isPresent();
         assertThat(found.get().getNickname()).isEqualTo("Bob");
     }
 
     @Test
-    @DisplayName("findLeaderByScheduleAndScheduleRole: 리더가 없으면 Optional.empty()")
-    void findLeader_empty_when_no_leader() {
+    void 리더가_없으면_Optinal_empty를_반환한다() {
+        // given
         User user1 = entityManager.getReference(User.class, 2L);
         User user2 = entityManager.getReference(User.class, 3L);
         joinClub(user1, club, ClubRole.MEMBER);
@@ -189,9 +198,11 @@ class UserScheduleRepositoryTest {
         joinClub(user2, club, ClubRole.MEMBER);
         joinSchedule(user2, schedule, ScheduleRole.MEMBER);
 
+        // when
         Optional<User> found = userScheduleRepository.findLeaderByScheduleAndScheduleRole(
                 schedule, ScheduleRole.LEADER);
 
+        // then
         assertThat(found).isEmpty();
     }
 }
