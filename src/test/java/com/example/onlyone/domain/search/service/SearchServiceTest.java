@@ -10,7 +10,6 @@ import com.example.onlyone.domain.interest.entity.Interest;
 import com.example.onlyone.domain.interest.repository.InterestRepository;
 import com.example.onlyone.domain.search.dto.request.SearchFilterDto;
 import com.example.onlyone.domain.search.dto.response.ClubResponseDto;
-import com.example.onlyone.domain.settlement.repository.UserSettlementRepository;
 import com.example.onlyone.domain.user.entity.Gender;
 import com.example.onlyone.domain.user.entity.Status;
 import com.example.onlyone.domain.user.entity.User;
@@ -37,7 +36,7 @@ import java.util.stream.Collectors;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.mockito.Mockito.when;
+import static org.mockito.BDDMockito.given;
 
 @ActiveProfiles("test")
 @SpringBootTest
@@ -49,7 +48,6 @@ class SearchServiceTest {
     @Autowired private UserClubRepository userClubRepository;
     @Autowired private InterestRepository interestRepository;
     @Autowired private UserInterestRepository userInterestRepository;
-    @Autowired private UserSettlementRepository userSettlementRepository;
 
     @MockitoBean private UserService userService;
 
@@ -439,7 +437,7 @@ class SearchServiceTest {
     @DisplayName("1단계 결과가 있으면 2단계는 실행하지 않는다.")
     void stageOneResultsNoStageTwo() {
         // given
-        when(userService.getCurrentUser()).thenReturn(seoulUser);
+        given(userService.getCurrentUser()).willReturn(seoulUser);
 
         // when
         List<ClubResponseDto> results = searchService.recommendedClubs(0, 20);
@@ -464,7 +462,7 @@ class SearchServiceTest {
     @DisplayName("사용자의 지역이 모임의 주소와 정확히 일치한다.")
     void userLocationExactlyMatchesClubAddress() {
         // given
-        when(userService.getCurrentUser()).thenReturn(busanUser);
+        given(userService.getCurrentUser()).willReturn(busanUser);
 
         // when
         List<ClubResponseDto> results = searchService.recommendedClubs(0, 20);
@@ -497,7 +495,7 @@ class SearchServiceTest {
         clubRepository.saveAll(clubs);
 
         int size = 5;
-        when(userService.getCurrentUser()).thenReturn(seoulUser);
+        given(userService.getCurrentUser()).willReturn(seoulUser);
 
         // when
         List<ClubResponseDto> results = searchService.recommendedClubs(0, size);
@@ -555,7 +553,7 @@ class SearchServiceTest {
         }
         clubRepository.saveAll(clubs);
 
-        when(userService.getCurrentUser()).thenReturn(seoulUser);
+        given(userService.getCurrentUser()).willReturn(seoulUser);
 
         // when
         List<ClubResponseDto> page0Results = searchService.recommendedClubs(0, 20); // 첫 페이지
@@ -581,7 +579,7 @@ class SearchServiceTest {
     @DisplayName("사용자 관심사가 없으면 빈 결과가 반환된다.")
     void returnsEmptyUserHasNoInterests() {
         // given
-        when(userService.getCurrentUser()).thenReturn(userWithoutInterest);
+        given(userService.getCurrentUser()).willReturn(userWithoutInterest);
 
         // when
         List<ClubResponseDto> results = searchService.recommendedClubs(0, 20);
@@ -594,7 +592,7 @@ class SearchServiceTest {
     @DisplayName("자신이 가입한 모임은 추천에서 제외된다. - 1단계")
     void exceptClubsUserJoinStepOne() {
         // given
-        when(userService.getCurrentUser()).thenReturn(seoulUser);
+        given(userService.getCurrentUser()).willReturn(seoulUser);
 
         Club joinedClub = seoulGangnamClubs.getFirst();
 
@@ -641,7 +639,7 @@ class SearchServiceTest {
                 .build();
         userInterestRepository.save(userInterest);
 
-        when(userService.getCurrentUser()).thenReturn(nullCityUser);
+        given(userService.getCurrentUser()).willReturn(nullCityUser);
 
         // when
         List<ClubResponseDto> results = searchService.recommendedClubs(0, 20);
@@ -675,7 +673,7 @@ class SearchServiceTest {
                 .build();
         userInterestRepository.save(userInterest);
 
-        when(userService.getCurrentUser()).thenReturn(nullDistrictUser);
+        given(userService.getCurrentUser()).willReturn(nullDistrictUser);
 
         // when
         List<ClubResponseDto> results = searchService.recommendedClubs(0, 20);
@@ -692,7 +690,7 @@ class SearchServiceTest {
     @DisplayName("사용자의 district가 null인 경우 1단계를 건너뛰고 2단계로 진행된다.")
     void skipsStepOneAndGoesToStepTwoWhenCityAndDistrictIsNull() {
         // given
-        when(userService.getCurrentUser()).thenReturn(userWithoutLocation);
+        given(userService.getCurrentUser()).willReturn(userWithoutLocation);
 
         // when
         List<ClubResponseDto> results = searchService.recommendedClubs(0, 20);
@@ -726,7 +724,7 @@ class SearchServiceTest {
                 .build();
         userInterestRepository.save(userInterest);
 
-        when(userService.getCurrentUser()).thenReturn(emptyCityUser);
+        given(userService.getCurrentUser()).willReturn(emptyCityUser);
 
         // when
         List<ClubResponseDto> results = searchService.recommendedClubs(0, 20);
@@ -760,7 +758,7 @@ class SearchServiceTest {
                 .build();
         userInterestRepository.save(userInterest);
 
-        when(userService.getCurrentUser()).thenReturn(emptyDistrictUser);
+        given(userService.getCurrentUser()).willReturn(emptyDistrictUser);
 
         // when
         List<ClubResponseDto> results = searchService.recommendedClubs(0, 20);
@@ -794,7 +792,7 @@ class SearchServiceTest {
                 .build();
         userInterestRepository.save(userInterest);
 
-        when(userService.getCurrentUser()).thenReturn(emptyCityAndDistrictUser);
+        given(userService.getCurrentUser()).willReturn(emptyCityAndDistrictUser);
 
         // when
         List<ClubResponseDto> results = searchService.recommendedClubs(0, 20);
@@ -811,7 +809,7 @@ class SearchServiceTest {
     @DisplayName("1단계에서 결과가 없으면 2단계가 실행된다.")
     void skipsStepOneGoesToStepTwoWhenStageOneIsEmpty() {
         // given
-        when(userService.getCurrentUser()).thenReturn(stageTwoUser);
+        given(userService.getCurrentUser()).willReturn(stageTwoUser);
 
         // when
         List<ClubResponseDto> results = searchService.recommendedClubs(0, 20);
@@ -853,7 +851,7 @@ class SearchServiceTest {
                 .build();
         userClubRepository.save(userClub);
 
-        when(userService.getCurrentUser()).thenReturn(stageTwoUser);
+        given(userService.getCurrentUser()).willReturn(stageTwoUser);
 
         // when
         List<ClubResponseDto> results = searchService.recommendedClubs(0, 20);
@@ -896,7 +894,7 @@ class SearchServiceTest {
         clubRepository.saveAll(clubs);
 
         int size = 5;
-        when(userService.getCurrentUser()).thenReturn(stageTwoUser);
+        given(userService.getCurrentUser()).willReturn(stageTwoUser);
 
         // when
         List<ClubResponseDto> results = searchService.recommendedClubs(0, size);
@@ -935,7 +933,7 @@ class SearchServiceTest {
     @DisplayName("1단계와 2단계 모두 빈 결과면 빈 리스트를 반환한다.")
     void emptyResultAllSteps() {
         // given
-        when(userService.getCurrentUser()).thenReturn(emptyResultUser);
+        given(userService.getCurrentUser()).willReturn(emptyResultUser);
         
         // when
         List<ClubResponseDto> results = searchService.recommendedClubs(0, 20);
@@ -963,7 +961,7 @@ class SearchServiceTest {
         }
         clubRepository.saveAll(clubs);
 
-        when(userService.getCurrentUser()).thenReturn(stageTwoUser);
+        given(userService.getCurrentUser()).willReturn(stageTwoUser);
 
         // when
         List<ClubResponseDto> page0Results = searchService.recommendedClubs(0, 20); // 첫 페이지
@@ -989,7 +987,7 @@ class SearchServiceTest {
     @DisplayName("함께하는 멤버들의 다른 모임이 조회된다.")
     void recommendTeammatesClubs() {
         // given
-        when(userService.getCurrentUser()).thenReturn(seoulUser);
+        given(userService.getCurrentUser()).willReturn(seoulUser);
 
         // when
         List<ClubResponseDto> results = searchService.getClubsByTeammates(0, 20);
@@ -1027,7 +1025,7 @@ class SearchServiceTest {
     @DisplayName("size = 5일 때 상위 20개 중 랜덤 5개가 반환된다. - 팀메이트 추천")
     void returnsRandomFiveClubsFromTopTwentyTeammates() {
         // given
-        when(userService.getCurrentUser()).thenReturn(seoulUser);
+        given(userService.getCurrentUser()).willReturn(seoulUser);
         int size = 5;
 
         // when
@@ -1070,7 +1068,7 @@ class SearchServiceTest {
 
         userClubRepository.save(userClub);
 
-        when(userService.getCurrentUser()).thenReturn(seoulUser);
+        given(userService.getCurrentUser()).willReturn(seoulUser);
 
         // when
         List<ClubResponseDto> results = searchService.getClubsByTeammates(0, 20);
@@ -1103,7 +1101,7 @@ class SearchServiceTest {
     @DisplayName("팀메이트가 없으면 빈 결과가 반환된다.")
     void notExistTeammates() {
         // given
-        when(userService.getCurrentUser()).thenReturn(noTeammateUser);
+        given(userService.getCurrentUser()).willReturn(noTeammateUser);
         
         // when
         List<ClubResponseDto> results = searchService.getClubsByTeammates(0, 20);
@@ -1117,7 +1115,7 @@ class SearchServiceTest {
     @DisplayName("page 파라미터로 페이징이 정상 동작한다. - 팀메이트 추천")
     void teammatePaging() {
         // given
-        when(userService.getCurrentUser()).thenReturn(seoulUser);
+        given(userService.getCurrentUser()).willReturn(seoulUser);
         
         // when
         List<ClubResponseDto> page0Results = searchService.getClubsByTeammates(0, 20);
@@ -1132,7 +1130,7 @@ class SearchServiceTest {
     @DisplayName("특정 관심사 ID로 해당 관심사의 모임들이 검색된다.")
     void searchByInterest() {
         // given
-        when(userService.getCurrentUser()).thenReturn(seoulUser);
+        given(userService.getCurrentUser()).willReturn(seoulUser);
         // when
         List<ClubResponseDto> results1 = searchService.searchClubByInterest(exerciseInterest.getInterestId(), 0);
         List<ClubResponseDto> results2 = searchService.searchClubByInterest(exerciseInterest.getInterestId(), 1);
@@ -1167,7 +1165,7 @@ class SearchServiceTest {
                 .build();
         userClubRepository.saveAll(List.of(userClub1, userClub2));
 
-        when(userService.getCurrentUser()).thenReturn(seoulUser);
+        given(userService.getCurrentUser()).willReturn(seoulUser);
         
         // when
         List<ClubResponseDto> results = searchService.searchClubByInterest(exerciseInterest.getInterestId(), 0);
@@ -1183,7 +1181,7 @@ class SearchServiceTest {
     @DisplayName("각 모임의 멤버수가 정확히 반환된다. - 관심사")
     void searchByInterestExactlyMemberCount() {
         // given
-        when(userService.getCurrentUser()).thenReturn(seoulUser);
+        given(userService.getCurrentUser()).willReturn(seoulUser);
 
         // when
         List<ClubResponseDto> results = searchService.searchClubByInterest(exerciseInterest.getInterestId(), 1);
@@ -1199,7 +1197,7 @@ class SearchServiceTest {
     @DisplayName("사용자의 가입 상태가 정확히 반영된다. - 관심사")
     void searchByInterestExactlyJoinStatus() {
         // given
-        when(userService.getCurrentUser()).thenReturn(seoulUser);
+        given(userService.getCurrentUser()).willReturn(seoulUser);
 
         // when
         List<ClubResponseDto> results = searchService.searchClubByInterest(exerciseInterest.getInterestId(), 0);
@@ -1217,7 +1215,7 @@ class SearchServiceTest {
     @DisplayName("page 파라미터로 페이징이 정상 동작한다. (기본 20개) - 관심사")
     void searchByInterestPaging() {
         // given
-        when(userService.getCurrentUser()).thenReturn(seoulUser);
+        given(userService.getCurrentUser()).willReturn(seoulUser);
         
         // when
         List<ClubResponseDto> results1 = searchService.searchClubByInterest(exerciseInterest.getInterestId(), 0);
@@ -1233,7 +1231,7 @@ class SearchServiceTest {
     @DisplayName("존재하지 않는 관심사 ID로 검색 시 빈 결과가 반환된다.")
     void searchByNotExistInterest() {
         // given
-        when(userService.getCurrentUser()).thenReturn(seoulUser);
+        given(userService.getCurrentUser()).willReturn(seoulUser);
 
         // when
         List<ClubResponseDto> results = searchService.searchClubByInterest(999999L, 0);
@@ -1247,7 +1245,7 @@ class SearchServiceTest {
     @DisplayName("interestId가 null일 시 적절한 예외가 발생한다.")
     void searchByNullInterest() {
         // given
-        when(userService.getCurrentUser()).thenReturn(seoulUser);
+        given(userService.getCurrentUser()).willReturn(seoulUser);
 
         // when & then
         assertThatThrownBy(() -> searchService.searchClubByInterest(null, 0))
@@ -1259,7 +1257,7 @@ class SearchServiceTest {
     @DisplayName("관심사가 정확히 일치하는 모임만 검색된다.")
     void searchByInterestExactly() {
         // given
-        when(userService.getCurrentUser()).thenReturn(seoulUser);
+        given(userService.getCurrentUser()).willReturn(seoulUser);
         
         // when
         List<ClubResponseDto> results1 = searchService.searchClubByInterest(exerciseInterest.getInterestId(), 0);
@@ -1278,7 +1276,7 @@ class SearchServiceTest {
     @DisplayName("city와 district 모두 일치하는 모임들이 검색된다.")
     void searchByLocation() {
         // given
-        when(userService.getCurrentUser()).thenReturn(seoulUser);
+        given(userService.getCurrentUser()).willReturn(seoulUser);
         
         // when
         List<ClubResponseDto> results = searchService.searchClubByLocation("서울", "강남구", 0);
@@ -1308,7 +1306,7 @@ class SearchServiceTest {
                 .build();
         userClubRepository.saveAll(List.of(userClub1, userClub2));
 
-        when(userService.getCurrentUser()).thenReturn(seoulUser);
+        given(userService.getCurrentUser()).willReturn(seoulUser);
 
         // when
         List<ClubResponseDto> results = searchService.searchClubByLocation("서울", "강남구", 0);
@@ -1324,7 +1322,7 @@ class SearchServiceTest {
     @DisplayName("각 모임의 멤버수가 정확히 반환된다. - 지역")
     void searchByLocationExactlyMemberCount() {
         // given
-        when(userService.getCurrentUser()).thenReturn(seoulUser);
+        given(userService.getCurrentUser()).willReturn(seoulUser);
 
         // when
         List<ClubResponseDto> results = searchService.searchClubByLocation("서울", "강남구", 0);
@@ -1347,7 +1345,7 @@ class SearchServiceTest {
     @DisplayName("사용자의 가입 상태가 정확히 반영된다. - 지역")
     void searchByLocationExactlyJoinStatus() {
         // given
-        when(userService.getCurrentUser()).thenReturn(seoulUser);
+        given(userService.getCurrentUser()).willReturn(seoulUser);
 
         // when
         List<ClubResponseDto> results = searchService.searchClubByLocation("서울", "강남구", 0);
@@ -1385,7 +1383,7 @@ class SearchServiceTest {
 
         clubRepository.saveAll(clubs);
 
-        when(userService.getCurrentUser()).thenReturn(seoulUser);
+        given(userService.getCurrentUser()).willReturn(seoulUser);
 
         // when
         List<ClubResponseDto> results1 = searchService.searchClubByLocation("서울", "강남구",  0);
@@ -1401,7 +1399,7 @@ class SearchServiceTest {
     @DisplayName("city만 일치하고 district가 다른 경우 검색되지 않는다.")
     void searchByLocationExactlyCity() {
         // given
-        when(userService.getCurrentUser()).thenReturn(seoulUser);
+        given(userService.getCurrentUser()).willReturn(seoulUser);
         
         // when
         List<ClubResponseDto> results = searchService.searchClubByLocation("서울", "노원구", 0);
@@ -1415,7 +1413,7 @@ class SearchServiceTest {
     @DisplayName("district만 일치하고 city가 다른 경우 검색되지 않는다.")
     void searchByLocationExactlyDistrict() {
         // given
-        when(userService.getCurrentUser()).thenReturn(seoulUser);
+        given(userService.getCurrentUser()).willReturn(seoulUser);
         
         // when
         List<ClubResponseDto> results = searchService.searchClubByLocation("부산", "강남구", 0);
@@ -1429,7 +1427,7 @@ class SearchServiceTest {
     @DisplayName("존재하지 않는 지역으로 검색 시 빈 결과가 반환된다.")
     void searchByNotExistLocation() {
         // given
-        when(userService.getCurrentUser()).thenReturn(seoulUser);
+        given(userService.getCurrentUser()).willReturn(seoulUser);
 
         // when
         List<ClubResponseDto> results = searchService.searchClubByLocation("제주도", "강남구", 0);
@@ -1443,7 +1441,7 @@ class SearchServiceTest {
     @DisplayName("city가 null일 시 적절한 예외가 발생한다.")
     void searchByLocationCityNull() {
         // given
-        when(userService.getCurrentUser()).thenReturn(seoulUser);
+        given(userService.getCurrentUser()).willReturn(seoulUser);
 
         // when & then
         assertThatThrownBy(() -> searchService.searchClubByLocation(null, "강남구", 0))
@@ -1456,7 +1454,7 @@ class SearchServiceTest {
     @DisplayName("district가 null일 시 적절한 예외가 발생한다.")
     void searchByLocationDistrictNull() {
         // given
-        when(userService.getCurrentUser()).thenReturn(seoulUser);
+        given(userService.getCurrentUser()).willReturn(seoulUser);
 
         // when & then
         assertThatThrownBy(() -> searchService.searchClubByLocation("서울", null, 0))
@@ -1469,7 +1467,7 @@ class SearchServiceTest {
     @DisplayName("city와 district가 null일 시 적절한 예외가 발생한다.")
     void searchByLocationCityAndDistrictNull() {
         // given
-        when(userService.getCurrentUser()).thenReturn(seoulUser);
+        given(userService.getCurrentUser()).willReturn(seoulUser);
 
         // when & then
         assertThatThrownBy(() -> searchService.searchClubByLocation(null, null, 0))
@@ -1482,7 +1480,7 @@ class SearchServiceTest {
     @DisplayName("city가 빈 문자열일 시 적절한 예외가 발생한다.")
     void searchByLocationCityEmpty() {
         // given
-        when(userService.getCurrentUser()).thenReturn(seoulUser);
+        given(userService.getCurrentUser()).willReturn(seoulUser);
 
         // when & then
         assertThatThrownBy(() -> searchService.searchClubByLocation("", "강남구", 0))
@@ -1495,7 +1493,7 @@ class SearchServiceTest {
     @DisplayName("district가 빈 문자열일 시 적절한 예외가 발생한다.")
     void searchByLocationDistrictEmpty() {
         // given
-        when(userService.getCurrentUser()).thenReturn(seoulUser);
+        given(userService.getCurrentUser()).willReturn(seoulUser);
 
         // when & then
         assertThatThrownBy(() -> searchService.searchClubByLocation("서울", "", 0))
@@ -1508,7 +1506,7 @@ class SearchServiceTest {
     @DisplayName("city와 district가 빈 문자열일 시 적절한 예외가 발생한다.")
     void searchByLocationCityAndDistrictEmpty() {
         // given
-        when(userService.getCurrentUser()).thenReturn(seoulUser);
+        given(userService.getCurrentUser()).willReturn(seoulUser);
 
         // when & then
         assertThatThrownBy(() -> searchService.searchClubByLocation("", "", 0))
@@ -1521,7 +1519,7 @@ class SearchServiceTest {
     @DisplayName("키워드만 입력 시 해당 키워드가 포함된 모임들이 검색된다.")
     void searchClubsByKeyword() {
         // given
-        when(userService.getCurrentUser()).thenReturn(seoulUser);
+        given(userService.getCurrentUser()).willReturn(seoulUser);
         SearchFilterDto filter = SearchFilterDto.builder()
                 .keyword("운동")
                 .build();
@@ -1541,7 +1539,7 @@ class SearchServiceTest {
     @DisplayName("키워드 + 지역 필터 조합 검색이 정상 동작한다.")
     void searchClubsByKeywordAndLocation() {
         // given
-        when(userService.getCurrentUser()).thenReturn(seoulUser);
+        given(userService.getCurrentUser()).willReturn(seoulUser);
         SearchFilterDto filter = SearchFilterDto.builder()
                 .keyword("운동")
                 .city("서울")
@@ -1564,7 +1562,7 @@ class SearchServiceTest {
     @DisplayName("키워드 + 관심사 필터 조합 검색이 정상 동작한다.")
     void searchClubsByKeywordAndInterest() {
         // given
-        when(userService.getCurrentUser()).thenReturn(seoulUser);
+        given(userService.getCurrentUser()).willReturn(seoulUser);
         SearchFilterDto filter = SearchFilterDto.builder()
                 .keyword("강남")
                 .interestId(exerciseInterest.getInterestId())
@@ -1586,7 +1584,7 @@ class SearchServiceTest {
     @DisplayName("키워드 + 지역 + 관심사 모든 필터 조합이 정상 동작한다.")
     void searchClubsByAllFilter() {
         // given
-        when(userService.getCurrentUser()).thenReturn(seoulUser);
+        given(userService.getCurrentUser()).willReturn(seoulUser);
         SearchFilterDto filter = SearchFilterDto.builder()
                 .keyword("강남부산") // 부산 + 운동인 거도 키워드에서 검색이 되지만 지역 필터링에서 걸러짐
                 .city("서울")
@@ -1619,7 +1617,7 @@ class SearchServiceTest {
                 UserClub.builder().user(daeguUser).club(club2).clubRole(ClubRole.MEMBER).build()
         ));
 
-        when(userService.getCurrentUser()).thenReturn(seoulUser);
+        given(userService.getCurrentUser()).willReturn(seoulUser);
 
         SearchFilterDto filter = SearchFilterDto.builder()
                 .sortBy(SearchFilterDto.SortType.MEMBER_COUNT)
@@ -1640,7 +1638,7 @@ class SearchServiceTest {
     @DisplayName("정렬 옵션 LATEST가 정상 적용된다.")
     void searchClubsSortByLatest() {
         // given
-        when(userService.getCurrentUser()).thenReturn(seoulUser);
+        given(userService.getCurrentUser()).willReturn(seoulUser);
 
         SearchFilterDto filter = SearchFilterDto.builder()
                 .sortBy(SearchFilterDto.SortType.LATEST)
@@ -1677,7 +1675,7 @@ class SearchServiceTest {
 
         clubRepository.saveAll(clubs);
 
-        when(userService.getCurrentUser()).thenReturn(seoulUser);
+        given(userService.getCurrentUser()).willReturn(seoulUser);
 
         SearchFilterDto filter1 = SearchFilterDto.builder()
                 .page(0)
@@ -1716,7 +1714,7 @@ class SearchServiceTest {
     @DisplayName("사용자의 가입 상태가 정확히 반영된다. - 통합검색")
     void searchClubsJoinStatus() {
         // given
-        when(userService.getCurrentUser()).thenReturn(seoulUser);
+        given(userService.getCurrentUser()).willReturn(seoulUser);
 
         SearchFilterDto filter = SearchFilterDto.builder()
                 .page(0)
@@ -1737,7 +1735,7 @@ class SearchServiceTest {
     @DisplayName("city만 있고 district가 null이면 예외가 발생한다. - 통합검색")
     void searchClubsFilterDistrictNull() {
         // given
-        when(userService.getCurrentUser()).thenReturn(seoulUser);
+        given(userService.getCurrentUser()).willReturn(seoulUser);
 
         SearchFilterDto filter = SearchFilterDto.builder()
                 .city("서울")
@@ -1755,7 +1753,7 @@ class SearchServiceTest {
     @DisplayName("city만 있고 district가 빈 문자열이면 예외가 발생한다. - 통합검색")
     void searchClubsFilterDistrictEmpty() {
         // given
-        when(userService.getCurrentUser()).thenReturn(seoulUser);
+        given(userService.getCurrentUser()).willReturn(seoulUser);
 
         SearchFilterDto filter = SearchFilterDto.builder()
                 .city("서울")
@@ -1773,7 +1771,7 @@ class SearchServiceTest {
     @DisplayName("district만 있고 city가 null이면 예외가 발생한다. - 통합검색")
     void searchClubsFilterCityNull() {
         // given
-        when(userService.getCurrentUser()).thenReturn(seoulUser);
+        given(userService.getCurrentUser()).willReturn(seoulUser);
 
         SearchFilterDto filter = SearchFilterDto.builder()
                 .city(null)
@@ -1791,7 +1789,7 @@ class SearchServiceTest {
     @DisplayName("district만 있고 city가 빈 문자열이면 예외가 발생한다. - 통합검색")
     void searchClubsFilterCityEmpty() {
         // given
-        when(userService.getCurrentUser()).thenReturn(seoulUser);
+        given(userService.getCurrentUser()).willReturn(seoulUser);
 
         SearchFilterDto filter = SearchFilterDto.builder()
                 .city("")
@@ -1809,7 +1807,7 @@ class SearchServiceTest {
     @DisplayName("city와 district가 모두 있으면 정상 처리된다. - 통합검색")
     void searchClubsLocationFilter() {
         // given
-        when(userService.getCurrentUser()).thenReturn(seoulUser);
+        given(userService.getCurrentUser()).willReturn(seoulUser);
 
         SearchFilterDto filter = SearchFilterDto.builder()
                 .city("서울")
@@ -1830,7 +1828,7 @@ class SearchServiceTest {
     @DisplayName("city와 district가 모두 null이면 정상 처리된다.")
     void searchClubsLocationFilterNull() {
         // given
-        when(userService.getCurrentUser()).thenReturn(seoulUser);
+        given(userService.getCurrentUser()).willReturn(seoulUser);
 
         SearchFilterDto filter = SearchFilterDto.builder()
                 .keyword("운동")
@@ -1860,7 +1858,7 @@ class SearchServiceTest {
     @DisplayName("빈 문자열 city/district는 예외가 발생한다.")
     void searchClubsLocationFilterEmpty() {
         // given
-        when(userService.getCurrentUser()).thenReturn(seoulUser);
+        given(userService.getCurrentUser()).willReturn(seoulUser);
 
         SearchFilterDto filter = SearchFilterDto.builder()
                 .city("")
@@ -1878,7 +1876,7 @@ class SearchServiceTest {
     @DisplayName("1글자 키워드는 예외가 발생한다.")
     void searchClubsByOneKeyword() {
         // given
-        when(userService.getCurrentUser()).thenReturn(seoulUser);
+        given(userService.getCurrentUser()).willReturn(seoulUser);
         SearchFilterDto filter = SearchFilterDto.builder()
                 .keyword("아")
                 .build();
@@ -1893,7 +1891,7 @@ class SearchServiceTest {
     @DisplayName("2글자 이상 키워드는 정상 처리된다.")
     void searchClubsByGreaterThanTwoKeyword() {
         // given
-        when(userService.getCurrentUser()).thenReturn(seoulUser);
+        given(userService.getCurrentUser()).willReturn(seoulUser);
         SearchFilterDto filter = SearchFilterDto.builder()
                 .keyword("운동")
                 .build();
@@ -1912,7 +1910,7 @@ class SearchServiceTest {
     @DisplayName("null 키워드는 정상 처리된다. (전체 모임 조회)")
     void searchClubsNullKeyword() {
         // given
-        when(userService.getCurrentUser()).thenReturn(seoulUser);
+        given(userService.getCurrentUser()).willReturn(seoulUser);
         SearchFilterDto filter = SearchFilterDto.builder()
                 .keyword(null)
                 .build();
@@ -1943,7 +1941,7 @@ class SearchServiceTest {
     @DisplayName("빈 문자열 키워드는 정상 처리된다. (전체 모임 조회)")
     void searchClubsEmptyKeyword() {
         // given
-        when(userService.getCurrentUser()).thenReturn(seoulUser);
+        given(userService.getCurrentUser()).willReturn(seoulUser);
         SearchFilterDto filter = SearchFilterDto.builder()
                 .keyword("")
                 .build();
@@ -1974,7 +1972,7 @@ class SearchServiceTest {
     @DisplayName("공백만 있는 키워드는 정상 처리된다. (trim 후 처리)")
     void searchClubsTrimKeyword() {
         // given
-        when(userService.getCurrentUser()).thenReturn(seoulUser);
+        given(userService.getCurrentUser()).willReturn(seoulUser);
 
         SearchFilterDto filter = SearchFilterDto.builder()
                 .keyword("          ")
@@ -2005,7 +2003,7 @@ class SearchServiceTest {
     @DisplayName("키워드 없이 지역만으로 검색 시 정상 동작한다.")
     void searchClubsOnlyLocation() {
         // given
-        when(userService.getCurrentUser()).thenReturn(seoulUser);
+        given(userService.getCurrentUser()).willReturn(seoulUser);
 
         SearchFilterDto filter = SearchFilterDto.builder()
                 .city("서울")
@@ -2024,7 +2022,7 @@ class SearchServiceTest {
     @DisplayName("키워드 없이 관심사만으로 검색 시 정상 동작한다.")
     void searchClubsOnlyInterest() {
         // given
-        when(userService.getCurrentUser()).thenReturn(seoulUser);
+        given(userService.getCurrentUser()).willReturn(seoulUser);
 
         SearchFilterDto filter = SearchFilterDto.builder()
                 .interestId(exerciseInterest.getInterestId())
@@ -2043,7 +2041,7 @@ class SearchServiceTest {
     @DisplayName("키워드 없이 지역 + 관심사로 검색 시 정상 동작한다.")
     void searchClubsOnlyLocationAndInterest() {
         // given
-        when(userService.getCurrentUser()).thenReturn(seoulUser);
+        given(userService.getCurrentUser()).willReturn(seoulUser);
         SearchFilterDto filter = SearchFilterDto.builder()
                 .city("서울")
                 .district("강남구")
@@ -2064,7 +2062,7 @@ class SearchServiceTest {
     @DisplayName("모든 필터가 null인 경우 전체 모임이 조회된다.")
     void searchClubsNullFilter() {
         // given
-        when(userService.getCurrentUser()).thenReturn(seoulUser);
+        given(userService.getCurrentUser()).willReturn(seoulUser);
 
         SearchFilterDto filter = SearchFilterDto.builder()
                 .keyword(null)
