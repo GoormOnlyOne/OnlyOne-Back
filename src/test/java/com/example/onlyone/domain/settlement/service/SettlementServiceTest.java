@@ -33,6 +33,8 @@ import com.example.onlyone.global.exception.ErrorCode;
 import jakarta.persistence.EntityManager;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.Mockito;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
@@ -264,7 +266,6 @@ public class SettlementServiceTest {
         assertThat(newSchedule.getScheduleStatus()).isEqualTo(ScheduleStatus.CLOSED);
     }
 
-
     @Test
     void 참여자가_1명인_경우_정모가_CLOSED된다() {
         // given
@@ -369,25 +370,27 @@ public class SettlementServiceTest {
         assertThat(failedSettlement.getTotalStatus()).isEqualTo(TotalStatus.FAILED);
     }
 
-
-
-    @Test
-    void 멱등성과_동시성에_대한_보호가_정상적으로_이루어진다() throws Exception {
+    @ParameterizedTest
+    @ValueSource(ints = {2, 5, 10})
+    void 멱등성과_동시성에_대한_보호가_정상적으로_이루어진다(int threads) throws Exception {
+        // given
         Long clubId = club.getClubId();
         Long scheduleId = schedule.getScheduleId();
 
-        // 재 테스트 트랜잭션을 커밋하고 종료
+        // 동시 테스트 전, 현재 트랜잭션 커밋 (다른 스레드에서 볼 수 있게 설정)
+        // @DataJpaTest 환경에서는 테스트 메서드마다 트랜잭션이 자동으로 열려있기 때문
         TestTransaction.flagForCommit();
-        TestTransaction.end();   // <-- 이 시점에 DB에 커밋되어 다른 스레드에서 보임
+        TestTransaction.end();
 
-        int threads = 2;
-        ExecutorService pool = Executors.newFixedThreadPool(threads);
+        // 동시 실행 환경 세팅
+        ExecutorService pool = Executors.newFixedThreadPool(threads); // 스레드 동시 실행
         CountDownLatch startGate = new CountDownLatch(1);
         CountDownLatch doneGate = new CountDownLatch(threads);
 
-        AtomicInteger success = new AtomicInteger(0);
+        AtomicInteger success = new AtomicInteger(0); // 성공한 스레드 수 카운트
         List<Throwable> errors = Collections.synchronizedList(new ArrayList<>());
 
+        // 동시 요청 작업 처리: 모든 스레드는 동시에 automaticSettlement 호출을 시도
         Runnable task = () -> {
             try {
                 startGate.await();
@@ -400,37 +403,38 @@ public class SettlementServiceTest {
                 doneGate.countDown();
             }
         };
+        for (int i = 0; i < threads; i++) pool.submit(task);
 
-        pool.submit(task);
-        pool.submit(task);
-
+        // when
         startGate.countDown();
-        doneGate.await(5, TimeUnit.SECONDS);
+        doneGate.await(10, TimeUnit.SECONDS);
         pool.shutdown();
 
-        // 테스트 검증을 위해 트랜잭션 다시 시작 (선택)
+        // 검증 위해 트랜잭션 재시작
         TestTransaction.start();
 
-        if (!errors.isEmpty()) {
-            System.out.println("=== Concurrent Errors ===");
-            errors.forEach(e -> {
-                if (e instanceof CustomException ce) {
-                    System.out.println("CustomException: " + ce.getErrorCode());
-                } else {
-                    e.printStackTrace();
-                }
-            });
-        }
+        // then
 
+        // 정확히 하나만 성공
         assertThat(success.get()).isEqualTo(1);
+        // 나머지는 모두 선점 실패(ALREADY_SETTLING_SCHEDULE)
+        long already = errors.stream()
+                .filter(e -> e instanceof CustomException ce
+                        && ce.getErrorCode() == ErrorCode.ALREADY_SETTLING_SCHEDULE)
+                .count();
+        assertThat(already).isEqualTo(threads - 1);
 
+        long otherErrors = errors.size() - already;
+        assertThat(otherErrors).isEqualTo(0);
+
+        // DB의 최종 상태 검증
         entityManager.clear();
         Schedule checkedSchedule = scheduleRepository.findById(scheduleId).orElseThrow();
         Settlement checkedSettlement = settlementRepository.findBySchedule(checkedSchedule).orElseThrow();
-
         assertThat(checkedSchedule.getScheduleStatus()).isEqualTo(ScheduleStatus.CLOSED);
         assertThat(checkedSettlement.getTotalStatus()).isEqualTo(TotalStatus.COMPLETED);
 
+        // 완료 후 재호출은 멱등 방어
         CustomException second = assertThrows(CustomException.class, () -> {
             Mockito.when(userService.getCurrentUser()).thenReturn(leader);
             settlementService.automaticSettlement(clubId, scheduleId);
