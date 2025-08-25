@@ -40,11 +40,19 @@ import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.context.annotation.Import;
 import org.springframework.test.annotation.Rollback;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.context.transaction.TestTransaction;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -144,7 +152,7 @@ public class SettlementServiceTest {
         Mockito.when(userService.getCurrentUser()).thenReturn(leader);
         scheduleService.updateSchedule(club.getClubId(), scheduleResponseDto.getScheduleId(), updateScheduleRequestDto);
         schedule.updateStatus(ScheduleStatus.ENDED);
-        settlement.updateTotalStatus(TotalStatus.IN_PROGRESS);
+        settlement.updateTotalStatus(TotalStatus.HOLDING);
         entityManager.flush();
 //        entityManager.clear();
     }
@@ -362,16 +370,71 @@ public class SettlementServiceTest {
     }
 
 
+
     @Test
     void 멱등성과_동시성에_대한_보호가_정상적으로_이루어진다() throws Exception {
-        // given
+        Long clubId = club.getClubId();
         Long scheduleId = schedule.getScheduleId();
-        Mockito.when(userService.getCurrentUser()).thenReturn(leader);
 
-        // when & then
-        CustomException exception = assertThrows(CustomException.class, () ->
-                settlementService.automaticSettlement(club.getClubId(), scheduleId)
-        );
-        assertEquals(ErrorCode.BEFORE_SCHEDULE_END, exception.getErrorCode());
+        // 재 테스트 트랜잭션을 커밋하고 종료
+        TestTransaction.flagForCommit();
+        TestTransaction.end();   // <-- 이 시점에 DB에 커밋되어 다른 스레드에서 보임
+
+        int threads = 2;
+        ExecutorService pool = Executors.newFixedThreadPool(threads);
+        CountDownLatch startGate = new CountDownLatch(1);
+        CountDownLatch doneGate = new CountDownLatch(threads);
+
+        AtomicInteger success = new AtomicInteger(0);
+        List<Throwable> errors = Collections.synchronizedList(new ArrayList<>());
+
+        Runnable task = () -> {
+            try {
+                startGate.await();
+                Mockito.when(userService.getCurrentUser()).thenReturn(leader);
+                settlementService.automaticSettlement(clubId, scheduleId);
+                success.incrementAndGet();
+            } catch (Throwable t) {
+                errors.add(t);
+            } finally {
+                doneGate.countDown();
+            }
+        };
+
+        pool.submit(task);
+        pool.submit(task);
+
+        startGate.countDown();
+        doneGate.await(5, TimeUnit.SECONDS);
+        pool.shutdown();
+
+        // 테스트 검증을 위해 트랜잭션 다시 시작 (선택)
+        TestTransaction.start();
+
+        if (!errors.isEmpty()) {
+            System.out.println("=== Concurrent Errors ===");
+            errors.forEach(e -> {
+                if (e instanceof CustomException ce) {
+                    System.out.println("CustomException: " + ce.getErrorCode());
+                } else {
+                    e.printStackTrace();
+                }
+            });
+        }
+
+        assertThat(success.get()).isEqualTo(1);
+
+        entityManager.clear();
+        Schedule checkedSchedule = scheduleRepository.findById(scheduleId).orElseThrow();
+        Settlement checkedSettlement = settlementRepository.findBySchedule(checkedSchedule).orElseThrow();
+
+        assertThat(checkedSchedule.getScheduleStatus()).isEqualTo(ScheduleStatus.CLOSED);
+        assertThat(checkedSettlement.getTotalStatus()).isEqualTo(TotalStatus.COMPLETED);
+
+        CustomException second = assertThrows(CustomException.class, () -> {
+            Mockito.when(userService.getCurrentUser()).thenReturn(leader);
+            settlementService.automaticSettlement(clubId, scheduleId);
+        });
+        assertThat(second.getErrorCode()).isEqualTo(ErrorCode.ALREADY_SETTLING_SCHEDULE);
     }
 }
