@@ -98,6 +98,7 @@ public class SettlementService {
 
         // 비용이 0원이거나 참여자가 1명(리더만)인 경우 → 바로 CLOSED 처리 후 리턴
         if (schedule.getCost() == 0 || userCount <= 1) {
+            log.info("비용이 0원일 때 여기에 진입했는지 확인하는 로깅.");
             schedule.updateStatus(ScheduleStatus.CLOSED);
             schedule.removeSettlement(settlement);
             settlementRepository.findBySchedule(schedule).ifPresent(s -> {
@@ -305,8 +306,8 @@ public class SettlementService {
     }
 
     /* 트랜잭션 롤백 후 실패 로그를 기록하기 위한 메서드*/
-    private void registerFailureLogAfterRollback(long wId, long lwId, int amount,
-                                                 long usId, int wBal, int lwBal) {
+    protected void registerFailureLogAfterRollback(long wId, long lwId, int amount,
+                                                   long usId, int wBal, int lwBal) {
         TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
             @Override public void afterCompletion(int status) {
                 if (status == STATUS_ROLLED_BACK) {

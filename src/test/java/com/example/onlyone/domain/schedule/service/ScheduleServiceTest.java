@@ -9,6 +9,7 @@ import com.example.onlyone.domain.chat.repository.MessageRepository;
 import com.example.onlyone.domain.chat.repository.UserChatRoomRepository;
 import com.example.onlyone.domain.club.dto.request.ClubRequestDto;
 import com.example.onlyone.domain.club.dto.response.ClubCreateResponseDto;
+import com.example.onlyone.domain.club.entity.Club;
 import com.example.onlyone.domain.club.repository.ClubRepository;
 import com.example.onlyone.domain.club.service.ClubService;
 import com.example.onlyone.domain.schedule.dto.request.ScheduleRequestDto;
@@ -135,6 +136,8 @@ public class ScheduleServiceTest {
         assertEquals(ScheduleStatus.READY, futureSchedule.getScheduleStatus()); // 미래 스케줄은 그대로 READY
     }
 
+
+    /* 정기모임 생성 */
     @Test
     void 리더는_정기_모임을_정상_생성한다() {
         // given
@@ -335,6 +338,60 @@ public class ScheduleServiceTest {
         assertThat(schedule.getCost()).isEqualTo(cost);
         assertThat(schedule.getUserLimit()).isEqualTo(userLimit);
         assertThat(schedule.getScheduleTime()).isEqualTo(scheduleTime);
+    }
+
+    @Test
+    void 정모_금액을_수정하면_모든_참여자의_정산_예약금이_변경된다() {
+        // given
+        User leader = userRepository.findById(1L).orElse(null);
+        Mockito.when(userService.getCurrentUser()).thenReturn(leader);
+
+        ClubRequestDto clubRequestDto = new ClubRequestDto(
+                "온리원 첫 번째 모임",
+                10,
+                "테스트 설명...",
+                null,
+                "서울특별시",
+                "강남구",
+                "EXERCISE"
+        );
+        ClubCreateResponseDto responseDto = clubService.createClub(clubRequestDto);
+        ScheduleRequestDto scheduleRequestDto = new ScheduleRequestDto(
+                "온리원의 정모",
+                "구름스퀘어 강남",
+                100,
+                100,
+                LocalDateTime.now().plusHours(2)
+        );
+        ScheduleCreateResponseDto created = scheduleService.createSchedule(responseDto.getClubId(), scheduleRequestDto);
+
+        Long clubId = responseDto.getClubId();
+        Long scheduleId = created.getScheduleId();
+
+        User member = userRepository.findById(2L).orElse(null);
+        Mockito.when(userService.getCurrentUser()).thenReturn(member);
+        clubService.joinClub(clubId);
+        scheduleService.joinSchedule(clubId, scheduleId);
+
+        ScheduleRequestDto updateScheduleRequestDto = new ScheduleRequestDto(
+                "온리원 첫 번째 정모",
+                "구름스퀘어 강남",
+                200,
+                10,
+                LocalDateTime.now().minusHours(2)
+        );
+        Mockito.when(userService.getCurrentUser()).thenReturn(leader);
+
+        // when
+        scheduleService.updateSchedule(clubId, scheduleId, updateScheduleRequestDto);
+        entityManager.flush();
+        entityManager.clear();
+
+        // then
+        Schedule refreshSchedule = scheduleRepository.findById(scheduleId).orElse(null);
+        Wallet memberWallet = walletRepository.findByUserWithoutLock(member).orElseThrow();
+        assertThat(refreshSchedule.getCost()).isEqualTo(updateScheduleRequestDto.getCost());
+        assertThat(memberWallet.getPendingOut()).isEqualTo(updateScheduleRequestDto.getCost());
     }
 
     @Test
