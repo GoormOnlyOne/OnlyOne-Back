@@ -116,4 +116,8 @@ public interface UserSettlementRepository extends JpaRepository<UserSettlement, 
 
     List<UserSettlement> findAllBySettlement_SettlementIdAndSettlementStatus(
             Long settlementId, SettlementStatus settlementStatus);
+
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query("delete from UserSettlement us where us.settlement.settlementId = :settlementId")
+    void deleteAllBySettlementId(@Param("settlementId") Long settlementId);
 }
