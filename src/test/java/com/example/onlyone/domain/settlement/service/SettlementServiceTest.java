@@ -40,6 +40,7 @@ import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.context.annotation.Import;
 import org.springframework.test.annotation.Rollback;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -51,6 +52,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 
 @ActiveProfiles("test")
 @DataJpaTest
+@Transactional
 @Import({SettlementService.class, WalletService.class, ScheduleService.class, UserService.class, ClubService.class})
 public class SettlementServiceTest {
 
@@ -144,7 +146,7 @@ public class SettlementServiceTest {
         schedule.updateStatus(ScheduleStatus.ENDED);
         settlement.updateTotalStatus(TotalStatus.IN_PROGRESS);
         entityManager.flush();
-        entityManager.clear();
+//        entityManager.clear();
     }
 
     @Test
@@ -234,7 +236,7 @@ public class SettlementServiceTest {
                 "구름스퀘어 강남",
                 0,
                 10,
-                LocalDateTime.now().plusHours(2)
+                LocalDateTime.now().minusHours(2)
         );
         leader = userRepository.findById(1L).orElse(null);
         Mockito.when(userService.getCurrentUser()).thenReturn(leader);
@@ -247,41 +249,39 @@ public class SettlementServiceTest {
 
         // then
         Schedule newSchedule = scheduleRepository.findById(schedule.getScheduleId()).orElseThrow();
-        Settlement newSettlement = settlementRepository.findBySchedule(newSchedule).orElseThrow();
-        List<UserSettlement> userSettlements = userSettlementRepository.findAllBySettlement_SettlementIdAndSettlementStatus(newSettlement.getSettlementId(), SettlementStatus.COMPLETED);
-
+        Optional<Settlement> deletedSettlement = settlementRepository.findBySchedule(newSchedule);
+        assertThat(deletedSettlement).isEmpty();
+        List<UserSettlement> userSettlements = userSettlementRepository.findAll();
+        assertThat(userSettlements).isEmpty();
         assertThat(newSchedule.getScheduleStatus()).isEqualTo(ScheduleStatus.CLOSED);
-        assertThat(newSettlement.getTotalStatus()).isEqualTo(TotalStatus.COMPLETED);
-        assertThat(userSettlements).hasSize(2);
     }
+
 
     @Test
     void 참여자가_1명인_경우_정모가_CLOSED된다() {
         // given
-        ScheduleRequestDto updateScheduleRequestDto = new ScheduleRequestDto(
+        ScheduleRequestDto createScheduleRequestDto = new ScheduleRequestDto(
                 "온리원 첫 번째 정모",
                 "구름스퀘어 강남",
-                0,
                 10,
-                LocalDateTime.now().plusHours(2)
+                1,
+                LocalDateTime.now().minusHours(2)
         );
         leader = userRepository.findById(1L).orElse(null);
         Mockito.when(userService.getCurrentUser()).thenReturn(leader);
-        scheduleService.updateSchedule(club.getClubId(), schedule.getScheduleId(), updateScheduleRequestDto);
+        ScheduleCreateResponseDto responseDto = scheduleService.createSchedule(club.getClubId(), createScheduleRequestDto);
 
         // when
-        settlementService.automaticSettlement(club.getClubId(), schedule.getScheduleId());
+        settlementService.automaticSettlement(club.getClubId(), responseDto.getScheduleId());
         entityManager.flush();
         entityManager.clear();
 
         // then
-        Schedule newSchedule = scheduleRepository.findById(schedule.getScheduleId()).orElseThrow();
-        Settlement newSettlement = settlementRepository.findBySchedule(newSchedule).orElseThrow();
-        List<UserSettlement> userSettlements = userSettlementRepository.findAllBySettlement_SettlementIdAndSettlementStatus(newSettlement.getSettlementId(), SettlementStatus.COMPLETED);
+        Schedule newSchedule = scheduleRepository.findById(responseDto.getScheduleId()).orElseThrow();
+        Optional<Settlement> newSettlement = settlementRepository.findBySchedule(newSchedule);
 
         assertThat(newSchedule.getScheduleStatus()).isEqualTo(ScheduleStatus.CLOSED);
-        assertThat(newSettlement.getTotalStatus()).isEqualTo(TotalStatus.COMPLETED);
-        assertThat(userSettlements).hasSize(2);
+        assertThat(newSettlement).isEmpty();
     }
 
     @Test
