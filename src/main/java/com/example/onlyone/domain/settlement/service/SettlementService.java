@@ -96,17 +96,24 @@ public class SettlementService {
             throw new CustomException(ErrorCode.MEMBER_CANNOT_CREATE_SETTLEMENT);
         }
         int userCount = userScheduleRepository.countBySchedule(schedule);
+        Settlement settlement = settlementRepository.findBySchedule(schedule)
+                .orElseThrow(() -> new CustomException(ErrorCode.SETTLEMENT_NOT_FOUND));
+
         // 비용이 0원이거나 참여자가 1명(리더만)인 경우 → 바로 CLOSED 처리 후 리턴
         if (schedule.getCost() == 0 || userCount <= 1) {
             schedule.updateStatus(ScheduleStatus.CLOSED);
+            schedule.removeSettlement(settlement);
+            settlementRepository.findBySchedule(schedule).ifPresent(s -> {
+                userSettlementRepository.deleteAllBySettlementId(settlement.getSettlementId());
+                settlementRepository.deleteByScheduleId(schedule.getScheduleId());
+            });
             return;
         }
-        Settlement settlement = settlementRepository.findBySchedule(schedule)
-                .orElseThrow(() -> new CustomException(ErrorCode.SETTLEMENT_NOT_FOUND));
         // 이미 정산 중인 스케줄 예외 처리
         if (!((settlement.getTotalStatus() == TotalStatus.HOLDING) || (settlement.getTotalStatus() == TotalStatus.FAILED))) {
             throw new CustomException(ErrorCode.ALREADY_SETTLING_SCHEDULE);
         }
+
         // 정산의 sum 업데이트 (count할 때는 리더 제외)
         int totalAmount = (userCount - 1) * schedule.getCost();
         settlement.updateSum(totalAmount);
@@ -151,7 +158,7 @@ public class SettlementService {
                         schedule.getCost(), userSettlement);
 
                 // 2-4) 상태 변경
-                userSettlement.updateSettlement(SettlementStatus.COMPLETED, LocalDateTime.now());
+                userSettlement.updateUserSettlement(SettlementStatus.COMPLETED, LocalDateTime.now());
                 userSettlementRepository.save(userSettlement);
 
                 // 2-5) 알림
@@ -279,7 +286,7 @@ public class SettlementService {
                     userSettlement
             );
             // 4. UserSettlement 상태 변경
-            userSettlement.updateSettlement(SettlementStatus.COMPLETED, LocalDateTime.now()); // PENDING -> COMPLETED
+            userSettlement.updateUserSettlement(SettlementStatus.COMPLETED, LocalDateTime.now()); // PENDING -> COMPLETED
             // 5. 모든 변경사항 저장
             walletRepository.save(wallet);
             walletRepository.save(leaderWallet);

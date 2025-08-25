@@ -71,4 +71,12 @@ public class Schedule extends BaseTimeEntity {
     public void updateStatus(ScheduleStatus scheduleStatus) {
         this.scheduleStatus = scheduleStatus;
     }
+
+    public void updateSettlement(Settlement settlement) {
+        this.settlement = settlement;
+    }
+
+    public void removeSettlement(Settlement settlement) {
+        this.settlement = null;
+    }
 }

@@ -117,6 +117,7 @@ public class ScheduleService {
                 .build();
         settlementRepository.save(settlement);
         club.addSchedule(schedule);
+        schedule.updateSettlement(settlement);
         return new ScheduleCreateResponseDto(schedule.getScheduleId());
     }
 
@@ -137,6 +138,7 @@ public class ScheduleService {
             throw new CustomException(ErrorCode.ALREADY_ENDED_SCHEDULE);
         }
         schedule.update(requestDto.getName(), requestDto.getLocation(), requestDto.getCost(), requestDto.getUserLimit(), requestDto.getScheduleTime());
+
     }
 
     /* 정기 모임 참여 */
@@ -191,6 +193,7 @@ public class ScheduleService {
                 .settlementStatus(SettlementStatus.HOLD_ACTIVE)
                 .build();
         userSettlementRepository.save(userSettlement);
+//        settlement.updateUserSettlement(userSettlement);
     }
 
     /* 정기 모임 참여 취소 */
@@ -302,6 +305,5 @@ public class ScheduleService {
                 .orElseThrow(() -> new CustomException(ErrorCode.CHAT_ROOM_NOT_FOUND));
         club.getSchedules().remove(schedule);
         chatRoomRepository.delete(chatRoom);
-//        scheduleRepository.delete(schedule);
     }
 }

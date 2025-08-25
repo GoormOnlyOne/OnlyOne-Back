@@ -23,4 +23,8 @@ public interface SettlementRepository extends JpaRepository<Settlement,Long> {
            AND total_status = 'HOLDING'
     """, nativeQuery = true)
     int markProcessing(@Param("id") Long settlementId);
+
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query("delete from Settlement s where s.schedule.scheduleId = :scheduleId")
+    void deleteByScheduleId(@Param("scheduleId") Long scheduleId);
 }
