@@ -49,12 +49,8 @@ public class SettlementService {
     private final SettlementRepository settlementRepository;
     private final UserSettlementRepository userSettlementRepository;
     private final WalletRepository walletRepository;
-    private final WalletTransactionRepository walletTransactionRepository;
-    private final TransferRepository transferRepository;
     private final NotificationService notificationService;
     private final WalletService walletService;
-    private final ApplicationEventPublisher eventPublisher;
-
 
     /* 정산 Status를 REQUESTED -> COMPLETED로 스케줄링 (낙관적 락 적용)*/
     @Scheduled(cron = "0 0 0 * * *")
