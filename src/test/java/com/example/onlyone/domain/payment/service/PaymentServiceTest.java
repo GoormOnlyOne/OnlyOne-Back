@@ -22,11 +22,13 @@ import com.example.onlyone.support.TestRedisConfig;
 import com.example.onlyone.support.TestRedisContainerConfig;
 import feign.FeignException;
 import feign.Request;
+import jakarta.persistence.EntityManager;
 import org.junit.jupiter.api.*;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.Mockito;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
-import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.context.annotation.Import;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -34,7 +36,10 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.context.transaction.TestTransaction;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
@@ -44,6 +49,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.assertj.core.api.Assertions.*;
+import static org.junit.Assert.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 
@@ -58,11 +64,13 @@ class PaymentServiceTest extends TestRedisContainerConfig {
     @Autowired WalletRepository walletRepository;
     @Autowired WalletTransactionRepository walletTransactionRepository;
     @Autowired UserRepository userRepository;
-
     @Autowired RedisTemplate<String, Object> redisTemplate;
+    @Autowired EntityManager entityManager;
 
-    @MockBean TossPaymentClient tossPaymentClient;
-    @MockBean UserService userService;
+    @MockitoBean TossPaymentClient tossPaymentClient;
+    @MockitoBean UserService userService;
+    @Autowired
+    PlatformTransactionManager txManager;
 
     private User user;
     private Wallet wallet;
@@ -208,13 +216,27 @@ class PaymentServiceTest extends TestRedisContainerConfig {
                 .extracting("errorCode").isEqualTo(ErrorCode.ALREADY_COMPLETED_PAYMENT);
     }
 
-    @Test
-    void 멱등성과_동시성에_대한_보호가_정상적으로_이루어진다() throws Exception {
-        // given
-        var orderId = generateOrderId();
+    @DirtiesContext(methodMode = DirtiesContext.MethodMode.AFTER_METHOD)
+    @ParameterizedTest
+    @ValueSource(ints = {2, 5, 10})
+    void 멱등성과_동시성에_대한_보호가_정상적으로_이루어진다(int threads) throws Exception {
+        // 0) 픽스처 준비 (트랜잭션 안)
+        var orderId    = generateOrderId();
         var paymentKey = generatePaymentKey();
-        long amount = 7_000L;
+        long amount    = 7_000L;
 
+        when(userService.getCurrentUser()).thenReturn(user); // ← 꼭 먼저
+
+        // READY 결제건을 미리 만들어 선점 경합만 발생하도록
+        paymentRepository.saveAndFlush(
+                Payment.builder()
+                        .tossOrderId(orderId)
+                        .status(Status.READY)
+                        .totalAmount(amount)
+                        .build()
+        );
+
+        // PG 모킹
         var req = mock(ConfirmTossPayRequest.class);
         when(req.getOrderId()).thenReturn(orderId);
         when(req.getAmount()).thenReturn(amount);
@@ -224,46 +246,98 @@ class PaymentServiceTest extends TestRedisContainerConfig {
         when(resp.getPaymentKey()).thenReturn(paymentKey);
         when(resp.getStatus()).thenReturn("DONE");
         when(resp.getMethod()).thenReturn("CARD");
+        when(tossPaymentClient.confirmPayment(any(ConfirmTossPayRequest.class))).thenAnswer(inv -> {
+            Thread.sleep(10); // 경합 유도: 선택
+            return resp;
+        });
 
-        // when
-        when(tossPaymentClient.confirmPayment(any(ConfirmTossPayRequest.class))).thenReturn(resp);
-
+        // 픽스처 커밋
         TestTransaction.flagForCommit();
         TestTransaction.end();
 
-        int threads = 6;
+        // 1) 동시 실행
         ExecutorService pool = Executors.newFixedThreadPool(threads);
-        CountDownLatch start = new CountDownLatch(1), done = new CountDownLatch(threads);
-        AtomicInteger success = new AtomicInteger();
-        List<Throwable> errors = Collections.synchronizedList(new ArrayList<>());
+        CountDownLatch startGate = new CountDownLatch(1);
+        CountDownLatch doneGate  = new CountDownLatch(threads);
+
+        AtomicInteger success = new AtomicInteger(0);
+        AtomicInteger already = new AtomicInteger(0);
+        AtomicInteger progress = new AtomicInteger(0);
+        List<Throwable> unexpected = Collections.synchronizedList(new ArrayList<>());
 
         Runnable task = () -> {
             try {
-                start.await();
-                paymentService.confirm(req);
-                success.incrementAndGet();
+                startGate.await();
+                // ⭐ 스레드별 트랜잭션 보장
+                new TransactionTemplate(txManager).execute(status -> {
+                    paymentService.confirm(req);
+                    success.incrementAndGet();
+                    return null;
+                });
+            } catch (CustomException e) {
+                if (e.getErrorCode() == ErrorCode.ALREADY_COMPLETED_PAYMENT) {
+                    already.incrementAndGet();
+                } else if (e.getErrorCode() == ErrorCode.PAYMENT_IN_PROGRESS) {
+                    progress.incrementAndGet();
+                } else {
+                    unexpected.add(e);
+                }
             } catch (Throwable t) {
-                errors.add(t);
+                unexpected.add(t);
             } finally {
-                done.countDown();
+                doneGate.countDown();
             }
         };
+
         for (int i = 0; i < threads; i++) pool.submit(task);
 
-        start.countDown();
-        done.await(10, TimeUnit.SECONDS);
-        pool.shutdown();
+        startGate.countDown();
+        boolean finished = doneGate.await(30, TimeUnit.SECONDS);
+        pool.shutdownNow();
+        assertThat(finished).as("스레드가 타임아웃 내 종료").isTrue();
 
-        // then
-        // 검증 위해 트랜잭션 재시작
+        // 2) 검증(새 트랜잭션)
         TestTransaction.start();
-        assertThat(success.get()).isEqualTo(1);
+        try {
+            entityManager.clear();
 
-        // 최종 상태 확인
-        Payment p = paymentRepository.findByTossOrderId(orderId).orElseThrow();
-        assertThat(p.getStatus()).isEqualTo(Status.DONE);
-        Wallet w = walletRepository.findByUser(user).orElseThrow();
-        assertThat(w.getPostedBalance()).isEqualTo(7_000);
+            Map<String, Long> summary = unexpected.stream().collect(
+                    java.util.stream.Collectors.groupingBy(
+                            e -> (e instanceof CustomException ce)
+                                    ? "CustomException:" + ce.getErrorCode()
+                                    : e.getClass().getSimpleName(),
+                            java.util.stream.Collectors.counting()
+                    )
+            );
+            System.out.printf("threads=%d, success=%d, already=%d, progress=%d, unexpected=%s%n",
+                    threads, success.get(), already.get(), progress.get(), summary);
+
+            assertThat(success.get())
+                    .as("[Exactly one thread should succeed] unexpected=%s", summary)
+                    .isEqualTo(1);
+
+            int concurrencyFailures = already.get() + progress.get();
+            assertThat(concurrencyFailures)
+                    .as("나머지는 동시성 제어 예외여야 함. unexpected=%s", summary)
+                    .isEqualTo(threads - 1);
+
+            assertThat(unexpected).as("예상치 못한 예외 없음").isEmpty();
+
+            // 선점 가드가 PG 이전에 동작한다면 1회 호출이어야 함
+            verify(tossPaymentClient, times(1)).confirmPayment(any(ConfirmTossPayRequest.class));
+
+            Payment p = paymentRepository.findByTossOrderId(orderId).orElseThrow();
+            assertThat(p.getStatus()).isEqualTo(Status.DONE);
+            assertThat(p.getTossPaymentKey()).isEqualTo(paymentKey);
+
+            Wallet w2 = walletRepository.findByUser(user).orElseThrow();
+            assertThat(w2.getPostedBalance()).isEqualTo(amount);
+
+            CustomException second = assertThrows(CustomException.class, () -> paymentService.confirm(req));
+            assertThat(second.getErrorCode()).isEqualTo(ErrorCode.ALREADY_COMPLETED_PAYMENT);
+        } finally {
+            TestTransaction.end();
+        }
     }
 
     @Test
@@ -410,60 +484,37 @@ class PaymentServiceTest extends TestRedisContainerConfig {
     }
 
     @Test
-    void 동일한_paymentKey에_대한_중복_실패_로그는_남지_않는다() throws InterruptedException {
-        // given
+    void 동일한_paymentKey에_대한_중복_실패_로그는_남지_않는다() {
         var orderId = generateOrderId();
         long amount = 3_000L;
         var paymentKey = generatePaymentKey();
 
-        var failReq = mock(ConfirmTossPayRequest.class);
-        when(failReq.getOrderId()).thenReturn(orderId);
-        when(failReq.getAmount()).thenReturn(amount);
-        when(failReq.getPaymentKey()).thenReturn(paymentKey);
+        ConfirmTossPayRequest failReq = ConfirmTossPayRequest.builder()
+                .orderId(orderId)
+                .amount(amount)
+                .paymentKey(paymentKey)
+                .build();
 
-        // 첫 번째 실패 호출
+        // 첫 번째 실패 기록
         paymentService.reportFail(failReq);
-        TestTransaction.flagForCommit();
-        TestTransaction.end();
+        entityManager.clear();
 
-        // then: 첫 번째 로그 확인
-        TestTransaction.start();
-        Wallet wallet = walletRepository.findByUser(user).orElseThrow();
-        WalletTransaction firstTx = walletTransactionRepository
-                .findByWalletAndTypeAndWalletTransactionStatus(
-                        wallet,
-                        Type.CHARGE,
-                        WalletTransactionStatus.FAILED,
-                        PageRequest.of(0, 10)
-                )
-                .getContent()
-                .get(0);
+        // Payment 기준으로 연결된 단일 트랜잭션이 존재하는지 확인
+        Payment payment = paymentRepository.findByTossOrderId(orderId).orElseThrow();
+        WalletTransaction firstTx = payment.getWalletTransaction();
+        assertThat(firstTx).isNotNull();
         Long firstId = firstTx.getWalletTransactionId();
-        TestTransaction.end();
 
-        // 두 번째 실패 호출 (동일 paymentKey, orderId)
-        TestTransaction.start();
-        Thread.sleep(5);
+        // 같은 키로 다시 실패 기록
         paymentService.reportFail(failReq);
-        TestTransaction.flagForCommit();
-        TestTransaction.end();
+        entityManager.clear();
 
-        // 다시 조회
-        TestTransaction.start();
-        Wallet walletAfter = walletRepository.findByUser(user).orElseThrow();
-        Page<WalletTransaction> failed = walletTransactionRepository
-                .findByWalletAndTypeAndWalletTransactionStatus(
-                        walletAfter,
-                        Type.CHARGE,
-                        WalletTransactionStatus.FAILED,
-                        PageRequest.of(0, 10)
-                );
+        Payment paymentAfter = paymentRepository.findByTossOrderId(orderId).orElseThrow();
+        WalletTransaction afterTx = paymentAfter.getWalletTransaction();
 
-        // then
-        assertThat(failed.getTotalElements()).isEqualTo(1);
-
-        WalletTransaction afterTx = failed.getContent().get(0);
-        assertThat(afterTx.getWalletTransactionId()).isEqualTo(firstId);
+        assertThat(afterTx).isNotNull();
+        assertThat(afterTx.getWalletTransactionId()).isEqualTo(firstId); // 중복 생성 X
+        assertThat(afterTx.getWalletTransactionStatus()).isEqualTo(WalletTransactionStatus.FAILED);
     }
 
 

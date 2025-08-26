@@ -71,7 +71,6 @@ public class PaymentService {
             throw new CustomException(ErrorCode.INVALID_PAYMENT_INFO);
         }
         // 검증 완료 후에는 Redis에서 제거
-        log.info("REDIS key 등록 완료");
         redisTemplate.delete(redisKey);
     }
 
@@ -102,14 +101,20 @@ public class PaymentService {
         int amount = Math.toIntExact(req.getAmount());
         wallet.updateBalance(wallet.getPostedBalance() + amount);
 
-        WalletTransaction walletTransaction = WalletTransaction.builder()
-                .type(Type.CHARGE)
-                .amount(amount)
-                .balance(wallet.getPostedBalance())
-                .walletTransactionStatus(WalletTransactionStatus.COMPLETED)
-                .wallet(wallet)
-                .targetWallet(wallet)
-                .build();
+        WalletTransaction walletTransaction = payment.getWalletTransaction();
+
+        if(walletTransaction != null){
+            walletTransaction.update(Type.CHARGE, amount, wallet.getPostedBalance(), WalletTransactionStatus.COMPLETED, wallet);
+        } else {
+            walletTransaction = WalletTransaction.builder()
+                    .type(Type.CHARGE)
+                    .amount(amount)
+                    .balance(wallet.getPostedBalance())
+                    .walletTransactionStatus(WalletTransactionStatus.COMPLETED)
+                    .wallet(wallet)
+                    .targetWallet(wallet)
+                    .build();
+        }
         walletTransactionRepository.save(walletTransaction);
         // 4) 단일 객체 업데이트 (상태/수단/연결)
         payment.updateOnConfirm(response.getPaymentKey(), Status.from(response.getStatus()), Method.from(response.getMethod()), walletTransaction);
@@ -159,6 +164,7 @@ public class PaymentService {
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void reportFail(ConfirmTossPayRequest req) {
+        // 1. Payment 조회 (동시성 대비 락)
         Payment payment = paymentRepository.findByTossOrderId(req.getOrderId())
                 .orElseGet(() -> {
                     Payment p = Payment.builder()
@@ -167,30 +173,27 @@ public class PaymentService {
                             .totalAmount(req.getAmount())
                             .status(Status.CANCELED)
                             .build();
-                    return paymentRepository.save(p);
+                    return paymentRepository.saveAndFlush(p);
                 });
-        if (payment.getStatus() == Status.DONE) {
-            return;
-        }
-        if (!(req.getPaymentKey() != null &&
-                payment.getTossPaymentKey() != null &&
-                payment.getTossPaymentKey().equals(req.getPaymentKey()))) {
+
+        // 2. 이미 완료된 건 무시
+        if (payment.getStatus() == Status.DONE) return;
+
+        // 3. WalletTransaction 중복 생성 방지
+        WalletTransaction tx = payment.getWalletTransaction();
+        if (tx != null) {
+            if (tx.getWalletTransactionStatus() != WalletTransactionStatus.FAILED) {
+                tx.updateStatus(WalletTransactionStatus.FAILED);
+                walletTransactionRepository.saveAndFlush(tx);
+            }
             return;
         }
 
-        // 실패 로그 처리
-        User user = userService.getCurrentUser();
-        Wallet wallet = walletRepository.findByUserWithoutLock(user)
+        // 4. 없으면 새로 생성
+        Wallet wallet = walletRepository.findByUserWithoutLock(userService.getCurrentUser())
                 .orElseThrow(() -> new CustomException(ErrorCode.WALLET_NOT_FOUND));
-        WalletTransaction existingFailTx = payment.getWalletTransaction();
 
-        if (existingFailTx != null
-                && existingFailTx.getWalletTransactionStatus() == WalletTransactionStatus.FAILED) {
-            walletTransactionRepository.saveAndFlush(existingFailTx);
-            return;
-        }
-        // 처음 실패인 경우 새로 생성
-        WalletTransaction walletTransaction = WalletTransaction.builder()
+        WalletTransaction failTx = WalletTransaction.builder()
                 .type(Type.CHARGE)
                 .amount(Math.toIntExact(req.getAmount()))
                 .balance(wallet.getPostedBalance())
@@ -198,10 +201,13 @@ public class PaymentService {
                 .wallet(wallet)
                 .targetWallet(wallet)
                 .build();
-        walletTransaction.updatePayment(payment);
-        payment.updateWalletTransaction(walletTransaction);
-        walletTransactionRepository.saveAndFlush(walletTransaction);
+
+        failTx.updatePayment(payment);
+        payment.updateWalletTransaction(failTx);
+
+        walletTransactionRepository.saveAndFlush(failTx);
         paymentRepository.saveAndFlush(payment);
     }
+
 
 }

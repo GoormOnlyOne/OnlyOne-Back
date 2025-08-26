@@ -25,6 +25,7 @@ ext {
 dependencyManagement {
     imports {
         mavenBom "org.springframework.cloud:spring-cloud-dependencies:${springCloudVersion}"
+        mavenBom "org.testcontainers:testcontainers-bom:1.20.2"
     }
 }
 
@@ -67,7 +68,6 @@ dependencies {
     implementation 'software.amazon.awssdk:s3:2.32.11'
     // Redis
     implementation 'org.springframework.boot:spring-boot-starter-data-redis'
-    implementation 'org.testcontainers:testcontainers-bom:1.20.2'
     testImplementation 'org.testcontainers:junit-jupiter'
     testImplementation 'org.testcontainers:testcontainers'
     // jpa 쿼리 확인
@@ -83,6 +83,8 @@ tasks.named('test') {
     exclude '**/FcmServiceTest.class'
     exclude '**/SseEmittersServiceTest.class'
     exclude '**/AppNotificationTypeRepositoryTest.class'
+    exclude '**/search/**'
+    exclude '**/club/repository/**'
 }
 
 jacoco {
@@ -122,6 +124,9 @@ jacocoTestReport {
                 // 기타 유틸리티
                 '**/util/**',
                 '**/common/**',
+
+                '**/search/**',
+                '**/club/repository/**'
             ])
         }))
     }

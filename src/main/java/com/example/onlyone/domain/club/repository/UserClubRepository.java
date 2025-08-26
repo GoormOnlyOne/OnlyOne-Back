@@ -36,6 +36,4 @@ public interface UserClubRepository extends JpaRepository<UserClub,Long> {
     List<Object[]> findMyClubsWithMemberCount(@Param("userId") Long userId);
 
     boolean existsByUser_UserIdAndClub_ClubId(Long userId, Long clubId);
-
-    Club club(Club club);
 }

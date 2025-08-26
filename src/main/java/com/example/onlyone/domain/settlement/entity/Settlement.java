@@ -48,6 +48,7 @@ public class Settlement extends BaseTimeEntity {
     private User receiver;
 
     @OneToMany(mappedBy = "settlement", cascade = CascadeType.ALL, orphanRemoval = true)
+    @Builder.Default
     private List<UserSettlement> userSettlements = new ArrayList<>();
 
     public void update(TotalStatus totalStatus, LocalDateTime completedTime) {

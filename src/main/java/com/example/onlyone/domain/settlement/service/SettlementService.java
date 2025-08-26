@@ -170,7 +170,7 @@ public class SettlementService {
             }
             // 모두 성공한 경우
             Schedule completedSchedule = scheduleRepository.findById(scheduleId)
-                    .orElseThrow(() -> new CustomException(ErrorCode.SETTLEMENT_NOT_FOUND));
+                    .orElseThrow(() -> new CustomException(ErrorCode.SCHEDULE_NOT_FOUND));
             Settlement completedSettlement = settlementRepository.findBySchedule(completedSchedule)
                     .orElseThrow(() -> new CustomException(ErrorCode.SETTLEMENT_NOT_FOUND));
             completedSettlement.update(TotalStatus.COMPLETED, LocalDateTime.now());

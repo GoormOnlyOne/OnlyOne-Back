@@ -400,6 +400,55 @@ public class ScheduleServiceTest {
     }
 
     @Test
+    void 정모_금액을_인상해_참여자의_잔액이_부족하면_예외가_발생한다() {
+        // given
+        User leader = userRepository.findById(1L).orElse(null);
+        Mockito.when(userService.getCurrentUser()).thenReturn(leader);
+
+        ClubRequestDto clubRequestDto = new ClubRequestDto(
+                "온리원 첫 번째 모임",
+                10,
+                "테스트 설명...",
+                null,
+                "서울특별시",
+                "강남구",
+                "EXERCISE"
+        );
+        ClubCreateResponseDto responseDto = clubService.createClub(clubRequestDto);
+        ScheduleRequestDto scheduleRequestDto = new ScheduleRequestDto(
+                "온리원의 정모",
+                "구름스퀘어 강남",
+                100,
+                100,
+                LocalDateTime.now().plusHours(2)
+        );
+        ScheduleCreateResponseDto created = scheduleService.createSchedule(responseDto.getClubId(), scheduleRequestDto);
+
+        Long clubId = responseDto.getClubId();
+        Long scheduleId = created.getScheduleId();
+
+        User member = userRepository.findById(2L).orElse(null);
+        Mockito.when(userService.getCurrentUser()).thenReturn(member);
+        clubService.joinClub(clubId);
+        scheduleService.joinSchedule(clubId, scheduleId);
+
+        ScheduleRequestDto updateScheduleRequestDto = new ScheduleRequestDto(
+                "온리원 첫 번째 정모",
+                "구름스퀘어 강남",
+                200000,
+                10,
+                LocalDateTime.now().plusHours(2)
+        );
+        Mockito.when(userService.getCurrentUser()).thenReturn(leader);
+
+        // when & then
+        CustomException exception = assertThrows(CustomException.class, () ->
+                scheduleService.updateSchedule(responseDto.getClubId(), created.getScheduleId(), updateScheduleRequestDto)
+        );
+        assertEquals(ErrorCode.WALLET_BALANCE_NOT_ENOUGH, exception.getErrorCode());
+    }
+
+    @Test
     void 리더가_아닌_멤버가_정기_모임을_수정할_경우_예외가_발생한다() {
         // given
         User leader = userRepository.findById(1L).orElse(null);
