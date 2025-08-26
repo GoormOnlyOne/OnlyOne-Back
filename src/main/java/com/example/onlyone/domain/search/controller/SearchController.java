@@ -66,7 +66,6 @@ public class SearchController {
                 .sortBy(sortBy)
                 .page(page)
                 .build();
-                
         return ResponseEntity.ok(CommonResponse.success(searchService.searchClubs(filter)));
     }
 
