@@ -48,6 +48,8 @@ public class QSchedule extends EntityPathBase<Schedule> {
 
     public final NumberPath<Integer> userLimit = createNumber("userLimit", Integer.class);
 
+    public final ListPath<UserSchedule, QUserSchedule> userSchedules = this.<UserSchedule, QUserSchedule>createList("userSchedules", UserSchedule.class, QUserSchedule.class, PathInits.DIRECT2);
+
     public QSchedule(String variable) {
         this(Schedule.class, forVariable(variable), INITS);
     }

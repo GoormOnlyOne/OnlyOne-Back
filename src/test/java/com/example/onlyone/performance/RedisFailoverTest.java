@@ -13,8 +13,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 class RedisFailoverTest {
 
     @Test
-    @DisplayName("UT-NT-150: Redis 장애 시 FCM 폴백")
-    void utNt150WhenRedisDownThenFallbackToFcm() {
+    @DisplayName("UT-NT-174: Redis 장애 시 FCM 폴백")
+    void utNt174WhenRedisDownThenFallbackToFcm() {
         // given - Redis 장애 상황
         RedisHealthChecker.CircuitStatus openCircuit = 
             new RedisHealthChecker.CircuitStatus(true, 3, System.currentTimeMillis());
@@ -28,8 +28,8 @@ class RedisFailoverTest {
     }
 
     @Test
-    @DisplayName("UT-NT-151: Redis 복구 시 SSE 전환")
-    void utNt151WhenRedisRecoveredThenBackToSse() {
+    @DisplayName("UT-NT-175: Redis 복구 시 SSE 전환")
+    void utNt175WhenRedisRecoveredThenBackToSse() {
         // given - Redis 복구 상황
         RedisHealthChecker.CircuitStatus closedCircuit = 
             new RedisHealthChecker.CircuitStatus(false, 0, 0L);
@@ -43,8 +43,8 @@ class RedisFailoverTest {
     }
     
     @Test
-    @DisplayName("UT-NT-152: Circuit Breaker 패턴")
-    void utNt152CircuitBreakerWorks() {
+    @DisplayName("UT-NT-176: Circuit Breaker 패턴")
+    void utNt176CircuitBreakerWorks() {
         // given
         long failureTime = System.currentTimeMillis();
         

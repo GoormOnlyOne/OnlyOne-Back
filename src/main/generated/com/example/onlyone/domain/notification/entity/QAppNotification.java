@@ -40,9 +40,7 @@ public class QAppNotification extends EntityPathBase<AppNotification> {
 
     public final QNotificationType notificationType;
 
-    public final NumberPath<Long> targetId = createNumber("targetId", Long.class);
-
-    public final StringPath targetType = createString("targetType");
+    public final BooleanPath sseSent = createBoolean("sseSent");
 
     public final com.example.onlyone.domain.user.entity.QUser user;
 

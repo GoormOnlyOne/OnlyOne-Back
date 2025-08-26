@@ -53,7 +53,7 @@ import java.util.List;
 @ActiveProfiles("test")
 @Transactional
 @WithMockUser
-@DisplayName("알림 컨트롤러 HTTP API 통합 테스트")
+@DisplayName("알림 컨트롤러 테스트")
 class NotificationControllerTest {
 
     @Autowired
@@ -109,11 +109,11 @@ class NotificationControllerTest {
     }
 
     @Nested
-    @DisplayName("읽지 않은 개수 조회")
+    @DisplayName("읽지 않은 알림 개수 조회 테스트")
     class GetUnreadCountTest {
 
         @Test
-        @DisplayName("UT-NT-105: 컨트롤러 읽지 않은 개수")
+        @DisplayName("UT-NT-149: 읽지 않은 알림 개수 조회 성공")
         void utNt105GetsUnreadCountSuccessfully() throws Exception {
             // given - 실제 알림 5개 생성
             for (int i = 0; i < 5; i++) {
@@ -129,7 +129,7 @@ class NotificationControllerTest {
         }
 
         @Test
-        @DisplayName("UT-NT-106: 컨트롤러 빈 개수")
+        @DisplayName("UT-NT-150: 읽지 않은 알림이 없을 때 0 반환")
         void utNt106ReturnsZeroWhenNoUnreadNotifications() throws Exception {
             // given - 알림이 없는 상태 (기본 상태)
 
@@ -141,7 +141,7 @@ class NotificationControllerTest {
         }
 
         @Test
-        @DisplayName("UT-NT-107: 컨트롤러 인증 실패")
+        @DisplayName("UT-NT-151: 인증 실패 시 예외 발생")
         void utNt107HandlesAuthenticationFailure() {
             // given - 존재하지 않는 사용자 ID로 테스트
             Long invalidUserId = 999999L;
@@ -153,7 +153,7 @@ class NotificationControllerTest {
         }
 
         @Test
-        @DisplayName("UT-NT-108: 컨트롤러 사용자 없음")
+        @DisplayName("사용자를 찾을 수 없을 때 예외 발생")
         void utNt108ThrowsErrorWhenUserNotFound() {
             // given - null 사용자 ID
             Long nullUserId = null;
@@ -165,7 +165,7 @@ class NotificationControllerTest {
         }
 
         @Test
-        @DisplayName("UT-NT-109: 컨트롤러 비활성 사용자")
+        @DisplayName("비활성 사용자의 알림 개수 조회")
         void utNt109ReturnsZeroForInactiveUser() {
             // given - 비활성 사용자 생성
             User inactiveUser = User.builder()
@@ -192,7 +192,7 @@ class NotificationControllerTest {
     class GetNotificationsTest {
 
         @Test
-        @DisplayName("UT-NT-110: 컨트롤러 페이징 조회")
+        @DisplayName("기본 파라미터로 알림 목록 조회")
         void utNt110GetsNotificationsWithDefaultParams() {
             // given - 실제 알림 생성
             for (int i = 0; i < 3; i++) {
@@ -210,7 +210,7 @@ class NotificationControllerTest {
         }
 
         @Test
-        @DisplayName("UT-NT-111: 컨트롤러 커서 페이징")
+        @DisplayName("커서 기반 페이징으로 알림 목록 조회")
         void utNt111GetsNotificationsWithCustomParams() throws Exception {
             // given - 실제 알림 20개 생성
             for (int i = 0; i < 20; i++) {
@@ -231,7 +231,7 @@ class NotificationControllerTest {
         }
 
         @Test
-        @DisplayName("UT-NT-112: 컨트롤러 크기 제한")
+        @DisplayName("최대 크기 제한 검증")
         void utNt112LimitsSizeToMaximum100() {
             // given - 실제 알림 150개 생성
             for (int i = 0; i < 150; i++) {
@@ -1061,6 +1061,113 @@ class NotificationControllerTest {
             // 생성 후 전송 상태 초기값 확인
             assertThat(fcmNotification.isFcmSent()).isFalse(); // 아직 전송 전
             assertThat(sseNotification.isFcmSent()).isFalse(); // SSE는 FCM 전송하지 않음
+        }
+        
+        @Test
+        @DisplayName("UT-NT-149: 컨트롤러 HTTP POST 알림 생성 API")
+        void utNt149PostNotificationCreationEndpoint() throws Exception {
+            // given
+            String jsonBody = "{"
+                + "\"userId\":" + testUser.getUserId() + ","
+                + "\"type\":\"CHAT\","
+                + "\"args\":[\"API 생성 테스트\"]"
+                + "}";
+
+            // when & then
+            mockMvc.perform(post("/notifications")
+                    .contentType("application/json")
+                    .content(jsonBody))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data.notificationId").exists())
+                .andExpect(jsonPath("$.data.content").isNotEmpty());
+        }
+        
+        @Test
+        @DisplayName("UT-NT-150: 컨트롤러 타입별 조회 API")
+        void utNt150GetNotificationsByTypeEndpoint() throws Exception {
+            // given - CHAT 타입 알림 생성
+            for (int i = 0; i < 3; i++) {
+                AppNotification notification = AppNotification.create(testUser, testNotificationType, "채팅 알림" + i);
+                notificationRepository.save(notification);
+            }
+            
+            // LIKE 타입 알림도 생성
+            NotificationType likeType = NotificationType.of(Type.LIKE, "좋아요 템플릿: %s");
+            likeType = notificationTypeRepository.save(likeType);
+            AppNotification likeNotification = AppNotification.create(testUser, likeType, "좋아요 알림");
+            notificationRepository.save(likeNotification);
+
+            // when & then - CHAT 타입만 조회
+            mockMvc.perform(get("/notifications/type/CHAT")
+                    .param("size", "10"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data.notifications").isArray())
+                .andExpect(jsonPath("$.data.notifications", hasSize(greaterThanOrEqualTo(3))));
+        }
+        
+        @Test
+        @DisplayName("UT-NT-151: 컨트롤러 성능 로깅")
+        void utNt151PerformanceLoggingWorksCorrectly() throws Exception {
+            // given - 여러 알림 생성
+            for (int i = 0; i < 10; i++) {
+                AppNotification notification = AppNotification.create(testUser, testNotificationType, "성능 테스트 알림" + i);
+                notificationRepository.save(notification);
+            }
+
+            // when & then - StopWatch 로깅이 포함된 API 호출
+            mockMvc.perform(get("/notifications")
+                    .param("size", "5"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data.notifications", hasSize(5)));
+                
+            // unread-count 엔드포인트도 성능 로깅 확인
+            mockMvc.perform(get("/notifications/unread-count"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data").isNumber());
+        }
+        
+        @Test
+        @DisplayName("UT-NT-152: 컨트롤러 빈 요청 본문 처리")
+        void utNt152HandlesInvalidPostRequestBody() throws Exception {
+            // when & then - 잘못된 JSON 형식
+            mockMvc.perform(post("/notifications")
+                    .contentType("application/json")
+                    .content("{\"invalid\": \"data\"}"))
+                .andExpect(status().isBadRequest());
+        }
+        
+        @Test
+        @DisplayName("UT-NT-153: 컨트롤러 유효성 검증")
+        void utNt153ValidatesRequestParameters() throws Exception {
+            // when & then - 유효하지 않은 타입으로 요청
+            mockMvc.perform(get("/notifications/type/INVALID_TYPE"))
+                .andExpect(status().isBadRequest());
+        }
+        
+        @Test
+        @DisplayName("UT-NT-154: 컨트롤러 크기 파라미터 처리")
+        void utNt154HandlesSizeParameterCorrectly() throws Exception {
+            // given
+            for (int i = 0; i < 20; i++) {
+                AppNotification notification = AppNotification.create(testUser, testNotificationType, "크기 테스트 알림" + i);
+                notificationRepository.save(notification);
+            }
+
+            // when & then - 다양한 크기 파라미터 테스트
+            mockMvc.perform(get("/notifications")
+                    .param("size", "5"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.notifications", hasSize(5)));
+                
+            // 최대 크기 초과 요청
+            mockMvc.perform(get("/notifications")
+                    .param("size", "200")) // 최대 100 초과
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.notifications", hasSize(lessThanOrEqualTo(100))));
         }
     }
 }

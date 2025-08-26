@@ -24,6 +24,8 @@ public class QFeed extends EntityPathBase<Feed> {
 
     public final com.example.onlyone.global.QBaseTimeEntity _super = new com.example.onlyone.global.QBaseTimeEntity(this);
 
+    public final NumberPath<Long> activeParent = createNumber("activeParent", Long.class);
+
     public final com.example.onlyone.domain.club.entity.QClub club;
 
     public final StringPath content = createString("content");
@@ -31,7 +33,9 @@ public class QFeed extends EntityPathBase<Feed> {
     //inherited
     public final DateTimePath<java.time.LocalDateTime> createdAt = _super.createdAt;
 
-    public final NumberPath<Integer> depth = createNumber("depth", Integer.class);
+    public final BooleanPath deleted = createBoolean("deleted");
+
+    public final DateTimePath<java.time.LocalDateTime> deletedAt = createDateTime("deletedAt", java.time.LocalDateTime.class);
 
     public final ListPath<FeedComment, QFeedComment> feedComments = this.<FeedComment, QFeedComment>createList("feedComments", FeedComment.class, QFeedComment.class, PathInits.DIRECT2);
 
@@ -46,7 +50,7 @@ public class QFeed extends EntityPathBase<Feed> {
     //inherited
     public final DateTimePath<java.time.LocalDateTime> modifiedAt = _super.modifiedAt;
 
-    public final QFeed parent;
+    public final NumberPath<Long> parentFeedId = createNumber("parentFeedId", Long.class);
 
     public final NumberPath<Long> rootFeedId = createNumber("rootFeedId", Long.class);
 
@@ -71,7 +75,6 @@ public class QFeed extends EntityPathBase<Feed> {
     public QFeed(Class<? extends Feed> type, PathMetadata metadata, PathInits inits) {
         super(type, metadata, inits);
         this.club = inits.isInitialized("club") ? new com.example.onlyone.domain.club.entity.QClub(forProperty("club"), inits.get("club")) : null;
-        this.parent = inits.isInitialized("parent") ? new QFeed(forProperty("parent"), inits.get("parent")) : null;
         this.user = inits.isInitialized("user") ? new com.example.onlyone.domain.user.entity.QUser(forProperty("user")) : null;
     }
 

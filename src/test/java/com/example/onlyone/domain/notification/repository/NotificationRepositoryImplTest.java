@@ -64,18 +64,18 @@ class NotificationRepositoryImplTest {
             .fcmToken("test_token")
             .build());
         
-        // 알림 타입 생성
+        // 알림 타입 생성 - 템플릿에 %s 플레이스홀더 포함
         chatType = notificationTypeRepository.save(
-            NotificationType.of(Type.CHAT, "테스트 템플릿")
+            NotificationType.of(Type.CHAT, "테스트 템플릿: %s")
         );
         likeType = notificationTypeRepository.save(
-            NotificationType.of(Type.LIKE, "테스트 템플릿")
+            NotificationType.of(Type.LIKE, "테스트 템플릿: %s")
         );
     }
     
     @Test
-    @DisplayName("UT-NT-014: 읽지 않은 개수 조회")
-    void utNt014CountsUnreadNotifications() {
+    @DisplayName("UT-NT-008: 읽지 않은 개수 조회")
+    void utNt008CountsUnreadNotifications() {
         // given
         AppNotification n1 = notificationRepository.save(AppNotification.create(testUser, chatType, "테스트1"));
         AppNotification n2 = notificationRepository.save(AppNotification.create(testUser, chatType, "테스트2"));
@@ -92,8 +92,8 @@ class NotificationRepositoryImplTest {
     }
     
     @Test
-    @DisplayName("UT-NT-015: 페이징 조회 및 정렬")
-    void utNt015FindsNotificationsByUserId() {
+    @DisplayName("UT-NT-009: 페이징 조회")
+    void utNt009FindsNotificationsByUserId() {
         // given - 시간 간격을 두고 알림 생성
         AppNotification first = notificationRepository.save(AppNotification.create(testUser, chatType, "첫번째"));
         try { Thread.sleep(100); } catch (InterruptedException e) { /* ignore */ }
@@ -534,7 +534,7 @@ class NotificationRepositoryImplTest {
         // then
         assertThat(found).isNotNull();
         assertThat(found.getId()).isEqualTo(notification.getId());
-        assertThat(found.getContent()).contains("FetchJoin 테스트"); // 템플릿 적용 여부와 관계없이 원래 내용 포함 확인
+        assertThat(found.getContent()).contains("테스트 템플릿: FetchJoin 테스트"); // 템플릿이 적용된 내용 확인
         assertThat(found.getUser()).isNotNull(); // fetchJoin으로 user 로드됨
         assertThat(found.getNotificationType()).isNotNull(); // fetchJoin으로 notificationType 로드됨
     }
@@ -570,15 +570,19 @@ class NotificationRepositoryImplTest {
         // given - 기존 데이터 삭제
         notificationRepository.deleteAll();
         
-        // 배치 삽입은 복잡하므로 단순히 예외가 발생하지 않는지만 확인
+        // 배치 삽입을 위한 알림 생성 (User와 NotificationType는 이미 저장되어 ID가 있음)
         List<AppNotification> notifications = List.of(
             AppNotification.create(testUser, chatType, "배치1"),
-            AppNotification.create(testUser, likeType, "배치2"),
+            AppNotification.create(testUser, likeType, "배치2"), 
             AppNotification.create(testUser, chatType, "배치3")
         );
         
-        // when & then - 예외 없이 실행되는지 확인 (실제 삽입은 QueryDSL 제한으로 인해 동작 안 할 수 있음)
+        // when & then - 배치 삽입이 예외 없이 실행되는지 확인
         assertThatCode(() -> notificationRepositoryImpl.batchInsertNotifications(notifications))
+            .doesNotThrowAnyException();
+        
+        // 빈 리스트 처리도 예외 없이 처리되는지 확인
+        assertThatCode(() -> notificationRepositoryImpl.batchInsertNotifications(List.of()))
             .doesNotThrowAnyException();
     }
     
@@ -594,7 +598,7 @@ class NotificationRepositoryImplTest {
         
         // then - 정상적으로 조회되어야 함
         assertThat(result).isNotEmpty();
-        assertThat(result.get(0).getContent()).contains("cursor 테스트"); // 템플릿 적용 여부와 관계없이 원래 내용 포함 확인
+        assertThat(result.get(0).getContent()).contains("테스트 템플릿: cursor 테스트"); // 템플릿이 적용된 내용 확인
     }
     
     @Test
@@ -609,7 +613,7 @@ class NotificationRepositoryImplTest {
         
         // then - 정상적으로 조회되어야 함
         assertThat(result).isNotEmpty();
-        assertThat(result.get(0).getContent()).contains("테스트 템플릿: 타입별 cursor 테스트"); // 템플릿 적용됨
+        assertThat(result.get(0).getContent()).contains("테스트 템플릿: 타입별 cursor 테스트"); // 템플릿이 적용된 내용 확인
         assertThat(result.get(0).getType()).isEqualTo(Type.LIKE);
     }
     

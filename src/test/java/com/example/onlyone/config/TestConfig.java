@@ -5,15 +5,17 @@ import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Primary;
 import org.springframework.data.redis.connection.RedisConnectionFactory;
+import org.springframework.data.redis.connection.RedisStandaloneConfiguration;
 import org.springframework.data.redis.connection.lettuce.LettuceConnectionFactory;
 import org.springframework.data.redis.core.RedisTemplate;
+import org.springframework.data.redis.serializer.GenericJackson2JsonRedisSerializer;
 import org.springframework.data.redis.serializer.StringRedisSerializer;
 
 import static org.mockito.Mockito.mock;
 
 /**
  * 테스트용 설정
- * Firebase와 Redis 같은 외부 서비스만 Mock 처리
+ * Firebase만 Mock 처리, Redis는 실제 Docker 컨테이너 사용
  */
 @TestConfiguration
 public class TestConfig {
@@ -28,8 +30,14 @@ public class TestConfig {
     @Bean
     @Primary
     public RedisConnectionFactory redisConnectionFactory() {
-        // Redis Mock 연결
-        return mock(LettuceConnectionFactory.class);
+        // 실제 Redis Docker 컨테이너에 연결
+        RedisStandaloneConfiguration redisConfig = new RedisStandaloneConfiguration();
+        redisConfig.setHostName("localhost");
+        redisConfig.setPort(6379);
+        
+        LettuceConnectionFactory connectionFactory = new LettuceConnectionFactory(redisConfig);
+        connectionFactory.afterPropertiesSet();
+        return connectionFactory;
     }
     
     @Bean
@@ -38,9 +46,10 @@ public class TestConfig {
         RedisTemplate<String, Object> template = new RedisTemplate<>();
         template.setConnectionFactory(redisConnectionFactory());
         template.setKeySerializer(new StringRedisSerializer());
-        template.setValueSerializer(new StringRedisSerializer());
-        
-        // 실제 Redis 연결이 아니므로 afterPropertiesSet을 호출하지 않음
+        template.setValueSerializer(new GenericJackson2JsonRedisSerializer());
+        template.setHashKeySerializer(new StringRedisSerializer());
+        template.setHashValueSerializer(new GenericJackson2JsonRedisSerializer());
+        template.afterPropertiesSet();
         return template;
     }
 }
