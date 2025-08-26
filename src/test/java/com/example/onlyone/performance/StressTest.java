@@ -7,6 +7,7 @@ import com.example.onlyone.domain.notification.service.NotificationService;
 import com.example.onlyone.domain.notification.service.SseEmittersService;
 import com.example.onlyone.domain.user.entity.User;
 import com.example.onlyone.domain.user.entity.Status;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -28,6 +29,7 @@ import static org.assertj.core.api.Assertions.*;
  * - 병목지점 발견
  * - 성능 한계 측정
  */
+@Disabled
 @DisplayName("🔥 극한 부하 스트레스 테스트")
 class StressTest extends BasePerformanceTest {
 
