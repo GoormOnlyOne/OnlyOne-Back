@@ -23,6 +23,7 @@ import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.cache.CacheManager;
 import org.springframework.context.annotation.Import;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.transaction.annotation.Transactional;
@@ -55,11 +56,25 @@ class NotificationControllerTest {
     @Autowired
     private NotificationTypeRepository notificationTypeRepository;
     
+    @Autowired
+    private CacheManager cacheManager;
+    
+    @Autowired
+    private org.springframework.data.redis.core.RedisTemplate<String, Object> redisTemplate;
+    
     private User testUser;
     private NotificationType testNotificationType;
 
     @BeforeEach
     void setUp() {
+        // 테스트 데이터 정리
+        notificationRepository.deleteAll();
+        userRepository.deleteAll();
+        notificationTypeRepository.deleteAll();
+        
+        // Redis 캐시 정리
+        redisTemplate.getConnectionFactory().getConnection().flushAll();
+        
         // 실제 DB에 테스트 데이터 생성
         testUser = User.builder()
             .kakaoId(12345L)
@@ -77,8 +92,8 @@ class NotificationControllerTest {
     class GetUnreadCountTest {
 
         @Test
-        @DisplayName("UT-NT-001: 읽지 않은 알림이 있을 때 정확한 개수가 반환되는가?")
-        void UT_NT_001_gets_unread_count_successfully() {
+        @DisplayName("UT-NT-105: 컨트롤러 읽지 않은 개수")
+        void utNt105GetsUnreadCountSuccessfully() {
             // given - 실제 알림 5개 생성
             for (int i = 0; i < 5; i++) {
                 AppNotification notification = AppNotification.create(testUser, testNotificationType, "알림" + i);
@@ -93,8 +108,8 @@ class NotificationControllerTest {
         }
 
         @Test
-        @DisplayName("UT-NT-002: 읽지 않은 알림이 없을 때 0이 반환되는가?")
-        void UT_NT_002_returns_zero_when_no_unread_notifications() {
+        @DisplayName("UT-NT-106: 컨트롤러 빈 개수")
+        void utNt106ReturnsZeroWhenNoUnreadNotifications() {
             // given - 알림이 없는 상태 (기본 상태)
 
             // when
@@ -105,32 +120,32 @@ class NotificationControllerTest {
         }
 
         @Test
-        @DisplayName("UT-NT-003: 인증되지 않은 사용자 요청 시 401 에러가 발생하는가?")
-        void UT_NT_003_handles_authentication_failure() {
+        @DisplayName("UT-NT-107: 컨트롤러 인증 실패")
+        void utNt107HandlesAuthenticationFailure() {
             // given - 존재하지 않는 사용자 ID로 테스트
             Long invalidUserId = 999999L;
 
-            // when - 존재하지 않는 사용자의 알림 개수 조회
-            Long result = notificationService.getUnreadCount(invalidUserId);
-            
-            // then - 존재하지 않는 사용자의 경우 0 반환 (실제 동작 확인 후 수정)
-            assertThat(result).isEqualTo(0L);
+            // when & then - 존재하지 않는 사용자에 대해 예외 발생
+            assertThatThrownBy(() -> notificationService.getUnreadCount(invalidUserId))
+                .isInstanceOf(CustomException.class)
+                .hasMessageContaining("유저를 찾을 수 없습니다");
         }
 
         @Test
-        @DisplayName("UT-NT-004: 사용자 정보를 찾을 수 없을 때 404 에러가 발생하는가?")
-        void UT_NT_004_throws_error_when_user_not_found() {
+        @DisplayName("UT-NT-108: 컨트롤러 사용자 없음")
+        void utNt108ThrowsErrorWhenUserNotFound() {
             // given - null 사용자 ID
             Long nullUserId = null;
 
             // when & then
             assertThatThrownBy(() -> notificationService.getUnreadCount(nullUserId))
-                .isInstanceOf(RuntimeException.class);
+                .isInstanceOf(CustomException.class)
+                .hasMessageContaining("유저를 찾을 수 없습니다");
         }
 
         @Test
-        @DisplayName("UT-NT-005: 비활성 사용자의 경우 0이 반환되는가?")
-        void UT_NT_005_returns_zero_for_inactive_user() {
+        @DisplayName("UT-NT-109: 컨트롤러 비활성 사용자")
+        void utNt109ReturnsZeroForInactiveUser() {
             // given - 비활성 사용자 생성
             User inactiveUser = User.builder()
                 .kakaoId(99999L)
@@ -156,8 +171,8 @@ class NotificationControllerTest {
     class GetNotificationsTest {
 
         @Test
-        @DisplayName("UT-NT-006: 페이징된 알림 목록이 최신순으로 정상 조회되는가?")
-        void UT_NT_006_gets_notifications_with_default_params() {
+        @DisplayName("UT-NT-110: 컨트롤러 페이징 조회")
+        void utNt110GetsNotificationsWithDefaultParams() {
             // given - 실제 알림 생성
             for (int i = 0; i < 3; i++) {
                 AppNotification notification = AppNotification.create(testUser, testNotificationType, "알림" + i);
@@ -174,8 +189,8 @@ class NotificationControllerTest {
         }
 
         @Test
-        @DisplayName("UT-NT-007: 커서 기반 페이징이 정상 동작하는가?")
-        void UT_NT_007_gets_notifications_with_custom_params() {
+        @DisplayName("UT-NT-111: 컨트롤러 커서 페이징")
+        void utNt111GetsNotificationsWithCustomParams() {
             // given - 실제 알림 20개 생성
             for (int i = 0; i < 20; i++) {
                 AppNotification notification = AppNotification.create(testUser, testNotificationType, "알림" + i);
@@ -197,8 +212,8 @@ class NotificationControllerTest {
         }
 
         @Test
-        @DisplayName("UT-NT-008: size 파라미터가 100을 초과할 때 100으로 제한되는가?")
-        void UT_NT_008_limits_size_to_maximum_100() {
+        @DisplayName("UT-NT-112: 컨트롤러 크기 제한")
+        void utNt112LimitsSizeToMaximum100() {
             // given - 실제 알림 150개 생성
             for (int i = 0; i < 150; i++) {
                 AppNotification notification = AppNotification.create(testUser, testNotificationType, "알림" + i);
@@ -214,8 +229,8 @@ class NotificationControllerTest {
         }
 
         @Test
-        @DisplayName("UT-NT-009: cursor가 null일 때 첫 페이지부터 조회되는가?")
-        void UT_NT_009_gets_first_page_when_cursor_is_null() {
+        @DisplayName("UT-NT-113: 컨트롤러 첫 페이지")
+        void utNt113GetsFirstPageWhenCursorIsNull() {
             // given - 실제 알림 30개 생성
             for (int i = 0; i < 30; i++) {
                 AppNotification notification = AppNotification.create(testUser, testNotificationType, "알림" + i);
@@ -232,8 +247,8 @@ class NotificationControllerTest {
         }
 
         @Test
-        @DisplayName("UT-NT-010: hasMore 플래그가 정확하게 설정되는가?")
-        void UT_NT_010_sets_hasmore_flag_correctly() {
+        @DisplayName("UT-NT-114: 컨트롤러 hasMore 플래그")
+        void utNt114SetsHasmoreFlagCorrectly() {
             // given - 정확히 20개의 알림 생성
             for (int i = 0; i < 20; i++) {
                 AppNotification notification = AppNotification.create(testUser, testNotificationType, "알림" + i);
@@ -249,8 +264,8 @@ class NotificationControllerTest {
         }
 
         @Test
-        @DisplayName("UT-NT-011: unreadCount가 정확하게 포함되는가?")
-        void UT_NT_011_includes_accurate_unread_count() {
+        @DisplayName("UT-NT-115: 컨트롤러 unreadCount")
+        void utNt115IncludesAccurateUnreadCount() {
             // given - 10개 알림 생성 후 3개 읽음 처리
             for (int i = 0; i < 10; i++) {
                 AppNotification notification = AppNotification.create(testUser, testNotificationType, "알림" + i);
@@ -276,8 +291,8 @@ class NotificationControllerTest {
         }
 
         @Test
-        @DisplayName("UT-NT-012: 특정 타입의 알림만 필터링되어 조회되는가?")
-        void UT_NT_012_filters_notifications_by_specific_type() {
+        @DisplayName("UT-NT-116: 컨트롤러 타입 필터링")
+        void utNt116FiltersNotificationsBySpecificType() {
             // given - 다른 타입의 알림 추가 생성
             NotificationType likeType = NotificationType.of(Type.LIKE, "좋아요 템플릿: %s");
             likeType = notificationTypeRepository.save(likeType);
@@ -301,8 +316,8 @@ class NotificationControllerTest {
         }
 
         @Test
-        @DisplayName("UT-NT-013: 타입별 조회 시 페이징이 정상 동작하는가?")
-        void UT_NT_013_type_filtering_with_pagination_works() {
+        @DisplayName("UT-NT-117: 컨트롤러 타입별 페이징")
+        void utNt117TypeFilteringWithPaginationWorks() {
             // given - 특정 타입의 알림을 많이 생성
             for (int i = 0; i < 15; i++) {
                 AppNotification notification = AppNotification.create(testUser, testNotificationType, "채팅 알림" + i);
@@ -324,8 +339,8 @@ class NotificationControllerTest {
         }
 
         @Test
-        @DisplayName("UT-NT-014: 타입별 조회 시 커서 기반 무한 스크롤링이 정상 동작하는가?")
-        void UT_NT_014_type_filtering_with_cursor_based_infinite_scrolling() {
+        @DisplayName("UT-NT-118: 컨트롤러 타입별 무한스크롤")
+        void utNt118TypeFilteringWithCursorBasedInfiniteScrolling() {
             // given - 여러 타입의 알림을 섞어서 생성
             NotificationType likeType = NotificationType.of(Type.LIKE, "좋아요 템플릿: %s");
             likeType = notificationTypeRepository.save(likeType);
@@ -362,8 +377,8 @@ class NotificationControllerTest {
     class MarkAsReadTest {
 
         @Test
-        @DisplayName("UT-NT-015: 읽지 않은 알림이 정상적으로 읽음 처리되는가?")
-        void UT_NT_015_marks_individual_notification_as_read() {
+        @DisplayName("UT-NT-119: 컨트롤러 읽음 처리")
+        void utNt119MarksIndividualNotificationAsRead() {
             // given - 실제 알림 생성
             AppNotification notification = AppNotification.create(testUser, testNotificationType, "테스트 알림");
             notification = notificationRepository.save(notification);
@@ -377,8 +392,8 @@ class NotificationControllerTest {
         }
 
         @Test
-        @DisplayName("UT-NT-016: 이미 읽은 알림 재처리 시 멱등성이 보장되는가?")
-        void UT_NT_016_ensures_idempotency_for_duplicate_operations() {
+        @DisplayName("UT-NT-120: 컨트롤러 읽음 멱등성")
+        void utNt120EnsuresIdempotencyForDuplicateOperations() {
             // given - 실제 알림 생성 후 읽음 처리
             AppNotification notification = AppNotification.create(testUser, testNotificationType, "테스트 알림");
             notification = notificationRepository.save(notification);
@@ -393,8 +408,8 @@ class NotificationControllerTest {
         }
 
         @Test
-        @DisplayName("UT-NT-017: 존재하지 않는 알림 ID 요청 시 404 에러가 발생하는가?")
-        void UT_NT_017_fails_when_notification_not_found() {
+        @DisplayName("UT-NT-121: 컨트롤러 알림 없음")
+        void utNt121FailsWhenNotificationNotFound() {
             // when & then - 존재하지 않는 알림 ID로 읽음 처리 시도
             assertThatThrownBy(() -> notificationService.markAsRead(999L, testUser.getUserId()))
                 .isInstanceOf(CustomException.class)
@@ -402,8 +417,8 @@ class NotificationControllerTest {
         }
 
         @Test
-        @DisplayName("UT-NT-018: 다른 사용자의 알림 접근 시 404 에러가 발생하는가?")
-        void UT_NT_018_blocks_access_to_other_users_notifications() {
+        @DisplayName("UT-NT-122: 컨트롤러 권한 검증")
+        void utNt122BlocksAccessToOtherUsersNotifications() {
             // given - 다른 사용자 생성
             User otherUser = User.builder()
                 .kakaoId(67890L)
@@ -423,8 +438,8 @@ class NotificationControllerTest {
         }
 
         @Test
-        @DisplayName("UT-NT-019: 읽은 알림과 읽지 않은 알림이 구분되어 조회되는가?")
-        void UT_NT_019_distinguishes_read_and_unread_notifications() {
+        @DisplayName("UT-NT-123: 컨트롤러 읽음 상태 구분")
+        void utNt123DistinguishesReadAndUnreadNotifications() {
             // given - 알림 5개 생성
             List<AppNotification> notifications = new ArrayList<>();
             for (int i = 0; i < 5; i++) {
@@ -452,8 +467,8 @@ class NotificationControllerTest {
         }
 
         @Test
-        @DisplayName("UT-NT-020: 읽음 상태별 필터링이 정상 동작하는가?")
-        void UT_NT_020_filters_by_read_status_correctly() {
+        @DisplayName("UT-NT-124: 컨트롤러 읽음 상태 필터링")
+        void utNt124FiltersByReadStatusCorrectly() {
             // given - 알림 6개 생성 후 3개만 읽음 처리
             List<AppNotification> notifications = new ArrayList<>();
             for (int i = 0; i < 6; i++) {
@@ -487,8 +502,8 @@ class NotificationControllerTest {
         }
 
         @Test
-        @DisplayName("UT-NT-022: 읽음 처리 후 즉시 상태가 반영되는가?")
-        void UT_NT_022_read_status_immediately_reflected() {
+        @DisplayName("UT-NT-125: 컨트롤러 즉시 반영")
+        void utNt125ReadStatusImmediatelyReflected() {
             // given - 알림 생성
             AppNotification notification = AppNotification.create(testUser, testNotificationType, "즉시 반영 테스트");
             notification = notificationRepository.save(notification);
@@ -510,8 +525,8 @@ class NotificationControllerTest {
         }
 
         @Test
-        @DisplayName("UT-NT-023: 여러 개의 읽지 않은 알림이 모두 읽음 처리되는가?")
-        void UT_NT_023_marks_all_notifications_as_read() {
+        @DisplayName("UT-NT-126: 컨트롤러 전체 읽음 처리")
+        void utNt126MarksAllNotificationsAsRead() {
             // given - 실제 알림 5개 생성
             for (int i = 0; i < 5; i++) {
                 AppNotification notification = AppNotification.create(testUser, testNotificationType, "알림" + i);
@@ -527,8 +542,8 @@ class NotificationControllerTest {
         }
 
         @Test
-        @DisplayName("UT-NT-024: 이미 모두 읽은 상태에서 재처리 시 멱등성이 보장되는가?")
-        void UT_NT_024_ensures_idempotency_when_all_already_read() {
+        @DisplayName("UT-NT-127: 컨트롤러 전체 읽음 멱등성")
+        void utNt127EnsuresIdempotencyWhenAllAlreadyRead() {
             // given - 알림 3개 생성 후 모두 읽음 처리
             for (int i = 0; i < 3; i++) {
                 AppNotification notification = AppNotification.create(testUser, testNotificationType, "이미 읽은 알림" + i);
@@ -549,8 +564,8 @@ class NotificationControllerTest {
         }
 
         @Test
-        @DisplayName("UT-NT-025: 알림이 없는 경우에도 정상 응답하는가?")
-        void UT_NT_025_handles_empty_state_gracefully() {
+        @DisplayName("UT-NT-128: 컨트롤러 빈 상태 처리")
+        void utNt128HandlesEmptyStateGracefully() {
             // given - 알림이 하나도 없는 상황
 
             // when - 빈 상태에서 모든 알림 읽음 처리
@@ -562,8 +577,8 @@ class NotificationControllerTest {
         }
 
         @Test
-        @DisplayName("UT-NT-026: 다른 사용자의 알림은 영향받지 않는가?")
-        void UT_NT_026_other_users_notifications_not_affected() {
+        @DisplayName("UT-NT-129: 컨트롤러 사용자 격리")
+        void utNt129OtherUsersNotificationsNotAffected() {
             // given - 다른 사용자 생성
             User otherUser = User.builder()
                 .kakaoId(88888L)
@@ -592,12 +607,11 @@ class NotificationControllerTest {
         }
 
         @Test
-        @DisplayName("UT-NT-027: 읽음 처리 후 읽지 않은 개수가 0이 되는가?")
-        void UT_NT_027_unread_count_becomes_zero_after_mark_all_read() {
-            // given - 여러 알림 생성
+        @DisplayName("UT-NT-130: 컨트롤러 개수 업데이트")
+        void utNt130UnreadCountBecomesZeroAfterMarkAllRead() {
+            // given - 여러 알림 생성 (서비스를 통해 생성)
             for (int i = 0; i < 7; i++) {
-                AppNotification notification = AppNotification.create(testUser, testNotificationType, "0으로 만들 알림" + i);
-                notificationRepository.save(notification);
+                notificationService.createNotification(testUser, testNotificationType.getType(), "0으로 만들 알림" + i);
             }
             
             // 읽음 처리 전 개수 확인
@@ -613,8 +627,8 @@ class NotificationControllerTest {
         }
 
         @Test
-        @DisplayName("UT-NT-028: 읽음 처리 후 목록 조회 시 모든 알림이 읽음 상태가 되는가?")
-        void UT_NT_028_all_notifications_marked_as_read_in_list() {
+        @DisplayName("UT-NT-131: 컨트롤러 상태 확인")
+        void utNt131AllNotificationsMarkedAsReadInList() {
             // given - 알림 5개 생성
             for (int i = 0; i < 5; i++) {
                 AppNotification notification = AppNotification.create(testUser, testNotificationType, "목록 읽음 테스트" + i);
@@ -636,12 +650,11 @@ class NotificationControllerTest {
         }
 
         @Test
-        @DisplayName("UT-NT-029: 대용량 알림의 일괄 읽음 처리가 정상 동작하는가?")
-        void UT_NT_029_bulk_mark_as_read_works_for_large_dataset() {
-            // given - 대용량 알림 생성 (테스트 환경에서는 100개)
+        @DisplayName("UT-NT-132: 컨트롤러 대용량 처리")
+        void utNt132BulkMarkAsReadWorksForLargeDataset() {
+            // given - 대용량 알림 생성 (서비스를 통해 생성)
             for (int i = 0; i < 100; i++) {
-                AppNotification notification = AppNotification.create(testUser, testNotificationType, "대용량 알림" + i);
-                notificationRepository.save(notification);
+                notificationService.createNotification(testUser, testNotificationType.getType(), "대용량 알림" + i);
             }
             
             // 읽음 처리 전 개수 확인
@@ -672,8 +685,8 @@ class NotificationControllerTest {
     class DeleteNotificationTest {
 
         @Test
-        @DisplayName("UT-NT-030: 읽지 않은 알림이 정상 삭제되는가?")
-        void UT_NT_030_deletes_notification_successfully() {
+        @DisplayName("UT-NT-133: 컨트롤러 알림 삭제")
+        void utNt133DeletesNotificationSuccessfully() {
             // given - 실제 알림 생성
             AppNotification notification = AppNotification.create(testUser, testNotificationType, "삭제될 알림");
             notification = notificationRepository.save(notification);
@@ -686,8 +699,8 @@ class NotificationControllerTest {
         }
 
         @Test
-        @DisplayName("UT-NT-032: 존재하지 않는 알림 삭제 시 404 에러가 발생하는가?")
-        void UT_NT_032_fails_when_deleting_nonexistent_notification() {
+        @DisplayName("UT-NT-134: 컨트롤러 삭제 실패")
+        void utNt134FailsWhenDeletingNonexistentNotification() {
             // when & then - 존재하지 않는 알림 삭제 시도
             assertThatThrownBy(() -> notificationService.deleteNotification(testUser.getUserId(), 999L))
                 .isInstanceOf(CustomException.class)
@@ -695,8 +708,8 @@ class NotificationControllerTest {
         }
 
         @Test
-        @DisplayName("UT-NT-034: 이미 삭제된 알림 재삭제 시 404 에러가 발생하는가?")
-        void UT_NT_034_handles_nonexistent_resource() {
+        @DisplayName("UT-NT-135: 컨트롤러 중복 삭제")
+        void utNt135HandlesNonexistentResource() {
             // given - 알림 생성 후 삭제
             AppNotification notification = AppNotification.create(testUser, testNotificationType, "삭제될 알림");
             final AppNotification savedNotification = notificationRepository.save(notification);
@@ -709,8 +722,8 @@ class NotificationControllerTest {
         }
 
         @Test
-        @DisplayName("UT-NT-031: 읽은 알림이 정상 삭제되는가?")
-        void UT_NT_031_deletes_read_notification_successfully() {
+        @DisplayName("UT-NT-136: 컨트롤러 읽은 알림 삭제")
+        void utNt136DeletesReadNotificationSuccessfully() {
             // given - 실제 알림 생성 후 읽음 처리
             AppNotification notification = AppNotification.create(testUser, testNotificationType, "읽은 후 삭제될 알림");
             notification = notificationRepository.save(notification);
@@ -724,8 +737,8 @@ class NotificationControllerTest {
         }
 
         @Test
-        @DisplayName("UT-NT-033: 다른 사용자의 알림 삭제 시 404 에러가 발생하는가?")
-        void UT_NT_033_fails_when_deleting_other_users_notification() {
+        @DisplayName("UT-NT-137: 컨트롤러 삭제 권한")
+        void utNt137FailsWhenDeletingOtherUsersNotification() {
             // given - 다른 사용자 생성
             User otherUser = User.builder()
                 .kakaoId(77777L)
@@ -745,8 +758,8 @@ class NotificationControllerTest {
         }
 
         @Test
-        @DisplayName("UT-NT-035: 잘못된 ID 형식 요청 시 400 에러가 발생하는가?")
-        void UT_NT_035_fails_with_invalid_id_format() {
+        @DisplayName("UT-NT-138: 컨트롤러 잘못된 ID")
+        void utNt138FailsWithInvalidIdFormat() {
             // given - 음수 또는 0 ID
             Long invalidId = -1L;
 
@@ -757,24 +770,23 @@ class NotificationControllerTest {
         }
 
         @Test
-        @DisplayName("UT-NT-036: 삭제 후 읽지 않은 개수가 업데이트되는가?")
-        void UT_NT_036_updates_unread_count_after_deletion() {
-            // given - 읽지 않은 알림 3개 생성
+        @DisplayName("UT-NT-139: 컨트롤러 삭제 후 개수")
+        void utNt139UpdatesUnreadCountAfterDeletion() {
+            // given - 읽지 않은 알림 3개 생성 (서비스를 통해 생성)
             for (int i = 0; i < 3; i++) {
-                AppNotification notification = AppNotification.create(testUser, testNotificationType, "삭제전 알림" + i);
-                notificationRepository.save(notification);
+                notificationService.createNotification(testUser, testNotificationType.getType(), "삭제전 알림" + i);
             }
             
-            // 삭제할 알림 하나 더 생성
-            AppNotification toDelete = AppNotification.create(testUser, testNotificationType, "삭제될 알림");
-            toDelete = notificationRepository.save(toDelete);
+            // 삭제할 알림 하나 더 생성 (서비스를 통해 생성하고 ID 조회)
+            var createResponse = notificationService.createNotification(testUser, testNotificationType.getType(), "삭제될 알림");
+            Long toDeleteId = createResponse.getNotificationId();
             
             // 삭제 전 개수 확인
             Long beforeCount = notificationService.getUnreadCount(testUser.getUserId());
             assertThat(beforeCount).isEqualTo(4L);
 
             // when - 알림 삭제
-            notificationService.deleteNotification(testUser.getUserId(), toDelete.getId());
+            notificationService.deleteNotification(testUser.getUserId(), toDeleteId);
 
             // then - 개수 업데이트 확인
             Long afterCount = notificationService.getUnreadCount(testUser.getUserId());
@@ -782,8 +794,8 @@ class NotificationControllerTest {
         }
 
         @Test
-        @DisplayName("UT-NT-037: 삭제된 알림은 조회 목록에 나타나지 않는가?")
-        void UT_NT_037_deleted_notification_not_visible_in_list() {
+        @DisplayName("UT-NT-140: 컨트롤러 삭제 확인")
+        void utNt140DeletedNotificationNotVisibleInList() {
             // given - 알림 5개 생성
             AppNotification toDelete = null;
             for (int i = 0; i < 5; i++) {
@@ -814,8 +826,8 @@ class NotificationControllerTest {
     class NotificationCreationTest {
 
         @Test
-        @DisplayName("UT-NT-038: 알림 내용이 올바르게 생성되는가?")
-        void UT_NT_038_creates_notification_with_correct_content() {
+        @DisplayName("UT-NT-141: 컨트롤러 알림 생성")
+        void utNt141CreatesNotificationWithCorrectContent() {
             // given - 기본 테스트 데이터는 setUp에서 이미 생성됨
             String testContent = "새로운 채팅 메시지가 도착했습니다";
             
@@ -831,8 +843,8 @@ class NotificationControllerTest {
         }
 
         @Test
-        @DisplayName("UT-NT-039: 알림 생성 시 읽지 않음 상태로 초기화되는가?")
-        void UT_NT_039_initializes_notification_as_unread() {
+        @DisplayName("UT-NT-142: 컨트롤러 생성 초기화")
+        void utNt142InitializesNotificationAsUnread() {
             // when
             AppNotification notification = AppNotification.create(testUser, testNotificationType, "초기화 테스트");
             notification = notificationRepository.save(notification);
@@ -844,8 +856,8 @@ class NotificationControllerTest {
         }
 
         @Test
-        @DisplayName("UT-NT-040: 알림 생성 시 타입별 설정이 올바르게 적용되는가?")
-        void UT_NT_040_applies_type_specific_settings_correctly() {
+        @DisplayName("UT-NT-143: 컨트롤러 타입별 생성")
+        void utNt143AppliesTypeSpecificSettingsCorrectly() {
             // given - 다른 타입들 생성
             NotificationType likeType = NotificationType.of(Type.LIKE, "좋아요 템플릿: %s");
             likeType = notificationTypeRepository.save(likeType);
@@ -869,23 +881,41 @@ class NotificationControllerTest {
         }
 
         @Test
-        @DisplayName("UT-NT-041: 알림 생성 후 읽지 않은 개수가 증가하는가?")
-        void UT_NT_041_increases_unread_count_after_creation() {
-            // given - 초기 읽지 않은 개수 확인
-            Long beforeCount = notificationService.getUnreadCount(testUser.getUserId());
+        @DisplayName("UT-NT-144: 컨트롤러 생성 후 개수")
+        void utNt144IncreasesUnreadCountAfterCreation() {
+            // given - 전용 사용자 생성하여 다른 테스트와 격리 (현재 시간 기반 고유 ID)
+            long uniqueKakaoId = System.currentTimeMillis() + 144;
+            User isolatedUser = User.builder()
+                .kakaoId(uniqueKakaoId)
+                .nickname("격리사용자" + uniqueKakaoId)
+                .status(Status.ACTIVE)
+                .build();
+            isolatedUser = userRepository.save(isolatedUser);
+            
+            // Redis 캐시 클리어 (격리된 테스트를 위해)
+            redisTemplate.delete("notification:unread:" + isolatedUser.getUserId());
+            
+            // 신규 사용자의 초기 카운트 확인 (디버깅 목적)
+            Long beforeCount = notificationService.getUnreadCount(isolatedUser.getUserId());
+            System.out.println("UT-NT-144 unique user (" + uniqueKakaoId + ") beforeCount: " + beforeCount);
 
-            // when - 새 알림 생성
-            AppNotification notification = AppNotification.create(testUser, testNotificationType, "개수 증가 테스트");
-            notificationRepository.save(notification);
+            // when - 새 알림 생성 (서비스를 통해 생성하여 캐시 업데이트 보장)
+            notificationService.createNotification(isolatedUser, testNotificationType.getType(), "개수 증가 테스트");
 
             // then - 읽지 않은 개수 증가 확인
-            Long afterCount = notificationService.getUnreadCount(testUser.getUserId());
+            Long afterCount = notificationService.getUnreadCount(isolatedUser.getUserId());
+            System.out.println("UT-NT-144 afterCount: " + afterCount + ", expected: " + (beforeCount + 1));
+            
+            // 실제 데이터베이스에서 확인
+            long dbCount = notificationRepository.countUnreadByUserId(isolatedUser.getUserId());
+            System.out.println("UT-NT-144 direct DB count: " + dbCount);
+            
             assertThat(afterCount).isEqualTo(beforeCount + 1);
         }
 
         @Test
-        @DisplayName("UT-NT-042: 템플릿이 올바르게 적용되는가?")
-        void UT_NT_042_applies_template_correctly() {
+        @DisplayName("UT-NT-145: 컨트롤러 템플릿 적용")
+        void utNt145AppliesTemplateCorrectly() {
             // given - 템플릿이 있는 타입
             NotificationType templateType = NotificationType.of(Type.LIKE, "새로운 좋아요: %s");
             templateType = notificationTypeRepository.save(templateType);
@@ -902,46 +932,87 @@ class NotificationControllerTest {
         }
 
         @Test
-        @DisplayName("UT-NT-043: 대량 알림 생성이 정상 처리되는가?")
-        void UT_NT_043_handles_bulk_notification_creation() {
-            // given - 초기 상태
-            Long beforeCount = notificationService.getUnreadCount(testUser.getUserId());
+        @DisplayName("UT-NT-146: 컨트롤러 대량 생성")
+        void utNt146HandlesBulkNotificationCreation() {
+            // given - 전용 사용자 생성하여 다른 테스트와 격리 (현재 시간 기반 고유 ID)
+            long uniqueKakaoId = System.currentTimeMillis() + 146;
+            User isolatedUser = User.builder()
+                .kakaoId(uniqueKakaoId)
+                .nickname("격리사용자" + uniqueKakaoId)
+                .status(Status.ACTIVE)
+                .build();
+            isolatedUser = userRepository.save(isolatedUser);
+            
+            // 캐시 클리어 (테스트 간에 남아있을 수 있는 데이터 제거)
+            redisTemplate.delete("notification:unread:" + isolatedUser.getUserId());
+            
+            // 신규 사용자의 초기 카운트 확인 (디버깅 목적)
+            Long beforeCount = notificationService.getUnreadCount(isolatedUser.getUserId());
+            System.out.println("UT-NT-146 unique user (" + uniqueKakaoId + ") beforeCount: " + beforeCount);
+            
+            // 직접 DB 확인도 해보자
+            long directDbCount = notificationRepository.countUnreadByUserId(isolatedUser.getUserId());
+            System.out.println("UT-NT-146 direct DB beforeCount: " + directDbCount);
+            
+            // 모든 알림 조회도 해보자
+            List<AppNotification> existingNotifications = notificationRepository.findUnreadNotificationsByUserId(isolatedUser.getUserId());
+            System.out.println("UT-NT-146 existing unread notifications count: " + existingNotifications.size());
+            if (existingNotifications.size() > 0) {
+                System.out.println("UT-NT-146 first notification user: " + existingNotifications.get(0).getUser().getKakaoId());
+            }
 
-            // when - 대량 알림 생성 (50개)
+            // when - 대량 알림 생성 (50개) - 서비스를 통해 생성
             for (int i = 0; i < 50; i++) {
-                AppNotification notification = AppNotification.create(testUser, testNotificationType, "대량 알림 " + i);
-                notificationRepository.save(notification);
+                notificationService.createNotification(isolatedUser, testNotificationType.getType(), "대량 알림 " + i);
             }
 
             // then
-            Long afterCount = notificationService.getUnreadCount(testUser.getUserId());
+            Long afterCount = notificationService.getUnreadCount(isolatedUser.getUserId());
+            System.out.println("UT-NT-146 afterCount: " + afterCount + ", expected: " + (beforeCount + 50));
+            
+            // 실제 데이터베이스에서 확인
+            long dbCount = notificationRepository.countUnreadByUserId(isolatedUser.getUserId());
+            System.out.println("UT-NT-146 direct DB count: " + dbCount);
+            
             assertThat(afterCount).isEqualTo(beforeCount + 50);
             
             // 목록 조회로 생성 확인
-            NotificationListResponseDto response = notificationService.getNotifications(testUser.getUserId(), null, 100);
+            NotificationListResponseDto response = notificationService.getNotifications(isolatedUser.getUserId(), null, 100);
             assertThat(response.getNotifications().size()).isGreaterThanOrEqualTo(50);
         }
 
         @Test
-        @DisplayName("UT-NT-044: 동시 알림 생성이 안전하게 처리되는가?")
-        void UT_NT_044_handles_concurrent_notification_creation_safely() {
-            // given - 초기 개수
-            Long beforeCount = notificationService.getUnreadCount(testUser.getUserId());
+        @DisplayName("UT-NT-147: 컨트롤러 동시 생성")
+        void utNt147HandlesConcurrentNotificationCreationSafely() {
+            // given - 전용 사용자 생성하여 다른 테스트와 격리 (현재 시간 기반 고유 ID)
+            long uniqueKakaoId = System.currentTimeMillis() + 147;
+            User isolatedUser = User.builder()
+                .kakaoId(uniqueKakaoId)
+                .nickname("격리사용자" + uniqueKakaoId)
+                .status(Status.ACTIVE)
+                .build();
+            isolatedUser = userRepository.save(isolatedUser);
+            
+            // Redis 캐시 클리어 (격리된 테스트를 위해)
+            redisTemplate.delete("notification:unread:" + isolatedUser.getUserId());
+            
+            // 신규 사용자의 초기 카운트 확인 (디버깅 목적)
+            Long beforeCount = notificationService.getUnreadCount(isolatedUser.getUserId());
+            System.out.println("UT-NT-147 unique user (" + uniqueKakaoId + ") beforeCount: " + beforeCount);
 
-            // when - 동시에 여러 알림 생성 (동시성 시뮬레이션을 위해 순차 실행하지만 빠르게)
+            // when - 동시에 여러 알림 생성 (서비스를 통해 생성)
             for (int i = 0; i < 10; i++) {
-                AppNotification notification = AppNotification.create(testUser, testNotificationType, "동시성 테스트 " + i);
-                notificationRepository.save(notification);
+                notificationService.createNotification(isolatedUser, testNotificationType.getType(), "동시성 테스트 " + i);
             }
 
             // then - 모든 알림이 정상 생성되었는지 확인
-            Long afterCount = notificationService.getUnreadCount(testUser.getUserId());
+            Long afterCount = notificationService.getUnreadCount(isolatedUser.getUserId());
             assertThat(afterCount).isEqualTo(beforeCount + 10);
         }
 
         @Test
-        @DisplayName("UT-NT-045: 전송 방식(DeliveryMethod)에 따라 올바르게 전송되는가?")
-        void UT_NT_045_delivers_via_correct_method_based_on_type() {
+        @DisplayName("UT-NT-148: 컨트롤러 전송 방식")
+        void utNt148DeliversViaCorrectMethodBasedOnType() {
             // given - 다른 전송 방식을 가진 타입들
             NotificationType fcmType = testNotificationType; // CHAT = FCM
             NotificationType sseType = NotificationType.of(Type.LIKE, "SSE 템플릿");

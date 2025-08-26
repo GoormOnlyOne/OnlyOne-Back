@@ -80,8 +80,8 @@ class SseEmittersServiceTest {
     class SseConnectionManagementTest {
 
         @Test
-        @DisplayName("UT-NT-052: SSE 연결이 정상 수립되는가?")
-        void UT_NT_052_creates_new_sse_connection_successfully() {
+        @DisplayName("UT-NT-095: SSE 연결 생성")
+        void utNt095CreatesNewSseConnectionSuccessfully() {
             // given
             Long userId = testUser.getUserId();
 
@@ -95,8 +95,8 @@ class SseEmittersServiceTest {
         }
 
         @Test
-        @DisplayName("기존 연결이 있는 상태에서 새 연결 생성 시 기존 연결을 정리한다")
-        void UT_NT_052_replaces_existing_connection_with_new_one() {
+        @DisplayName("UT-NT-096: SSE 연결 정리")
+        void utNt096ReplacesExistingConnectionWithNewOne() {
             // given
             Long userId = testUser.getUserId();
             SseEmitter firstEmitter = sseEmittersService.createSseConnection(userId);
@@ -111,8 +111,8 @@ class SseEmittersServiceTest {
         }
 
         @Test
-        @DisplayName("사용자 연결 상태를 정확히 조회한다")
-        void UT_NT_052_checks_user_connection_status_accurately() {
+        @DisplayName("UT-NT-097: SSE 연결 상태 조회")
+        void utNt097ChecksUserConnectionStatusAccurately() {
             // given
             Long connectedUserId = testUser.getUserId();
             User disconnectedUser = createTestUser(9999L, "disconnected");
@@ -132,8 +132,8 @@ class SseEmittersServiceTest {
     class SseNotificationSendTest {
 
         @Test
-        @DisplayName("UT-NT-053: 새 알림 생성 시 SSE로 즉시 전송되는가?")
-        void UT_NT_053_sends_sse_notification_to_connected_user() {
+        @DisplayName("UT-NT-098: SSE 알림 전송")
+        void utNt098SendsSseNotificationToConnectedUser() {
             // given
             Long userId = 1L;
             sseEmittersService.createSseConnection(userId);
@@ -144,8 +144,8 @@ class SseEmittersServiceTest {
         }
 
         @Test
-        @DisplayName("연결되지 않은 사용자에게 알림 전송 시 아무 작업도 하지 않는다")
-        void UT_NT_053_ignores_notification_to_disconnected_user() {
+        @DisplayName("UT-NT-099: SSE 미연결 전송")
+        void utNt099IgnoresNotificationToDisconnectedUser() {
             // given
             Long disconnectedUserId = 999L;
 
@@ -155,8 +155,8 @@ class SseEmittersServiceTest {
         }
 
         @Test
-        @DisplayName("UT-NT-054: 읽음 처리 시 unread-count 업데이트가 SSE로 전송되는가?")
-        void UT_NT_054_sends_unread_count_update_via_sse() {
+        @DisplayName("UT-NT-100: SSE unread-count 전송")
+        void utNt100SendsUnreadCountUpdateViaSse() {
             // given
             Long userId = testUser.getUserId();
             sseEmittersService.createSseConnection(userId);
@@ -178,8 +178,8 @@ class SseEmittersServiceTest {
     class SseConcurrencyTest {
 
         @Test
-        @DisplayName("동시에 여러 사용자가 SSE 연결을 생성해도 안전하다")
-        void UT_NT_056_handles_concurrent_sse_connections_safely() throws Exception {
+        @DisplayName("UT-NT-101: SSE 동시 연결")
+        void utNt101HandlesConcurrentSseConnectionsSafely() throws Exception {
             // given
             int userCount = 10; // 테스트 환경에서는 수를 줄임
             CountDownLatch startLatch = new CountDownLatch(1);
@@ -222,22 +222,22 @@ class SseEmittersServiceTest {
 
             // then
             assertThat(successCount.get()).isEqualTo(userCount);
-            assertThat(errorCount.get()).isEqualTo(0);
+            assertThat(errorCount.get()).isZero();
             assertThat(sseEmittersService.getActiveConnectionCount()).isEqualTo(userCount);
         }
 
         @Test
-        @DisplayName("동시에 여러 알림을 전송해도 안전하다")
-        void UT_NT_057_handles_concurrent_notification_sending_safely() throws Exception {
+        @DisplayName("UT-NT-102: SSE 동시 알림 전송")
+        void utNt102HandlesConcurrentNotificationSendingSafely() throws Exception {
             // given
             int userCount = 3;
             int notificationsPerUser = 3;
             
             // 미리 사용자들 생성하고 연결 설정
-            List<User> users = new ArrayList<>();
+            List<Long> userIds = new ArrayList<>();
             for (int i = 1; i <= userCount; i++) {
                 User user = createTestUser(3000L + i, "notify_user" + i);
-                users.add(user);
+                userIds.add(user.getUserId());
                 sseEmittersService.createSseConnection(user.getUserId());
             }
 
@@ -250,16 +250,27 @@ class SseEmittersServiceTest {
             // when
             for (int userIndex = 0; userIndex < userCount; userIndex++) {
                 for (int notifIndex = 0; notifIndex < notificationsPerUser; notifIndex++) {
-                    final User targetUser = users.get(userIndex);
+                    final Long targetUserId = userIds.get(userIndex);
                     final int finalNotifIndex = notifIndex;
 
                     executor.submit(() -> {
                         try {
                             startLatch.await();
 
-                            // 기존 testUser 사용 (DB 저장 부하 감소)
+                            // 스레드마다 새로운 NotificationType과 User 사용하여 FK 제약조건 문제 방지
+                            NotificationType threadSafeType = notificationTypeRepository
+                                .findByType(Type.CHAT)
+                                .orElseGet(() -> notificationTypeRepository.save(
+                                    NotificationType.of(Type.CHAT, "동시성 테스트 템플릿")));
+                            
+                            // 각 스레드에서 사용자를 새로 조회하여 트랜잭션 문제 해결
+                            User targetUser = userRepository.findById(targetUserId).orElse(null);
+                            if (targetUser == null) {
+                                return; // 사용자가 없으면 스킵
+                            }
+                            
                             AppNotification notification = AppNotification.create(
-                                testUser, testNotificationType, "알림 " + finalNotifIndex);
+                                targetUser, threadSafeType, "알림 " + finalNotifIndex);
                             notification = notificationRepository.save(notification);
 
                             sseEmittersService.sendSseNotification(targetUser.getUserId(), notification);
@@ -290,8 +301,8 @@ class SseEmittersServiceTest {
     class RedisClusterTest {
 
         @Test
-        @DisplayName("전역 연결 상태를 Redis를 통해 확인한다")
-        void UT_NT_058_checks_global_connection_status_via_redis() {
+        @DisplayName("UT-NT-103: SSE Redis 연결 확인")
+        void utNt103ChecksGlobalConnectionStatusViaRedis() {
             // given
             Long userId = testUser.getUserId();
             sseEmittersService.createSseConnection(userId);
@@ -302,8 +313,8 @@ class SseEmittersServiceTest {
         }
 
         @Test
-        @DisplayName("Redis 연결 실패 시 로컬 상태로 폴백한다")
-        void UT_NT_058_falls_back_to_local_status_on_redis_failure() {
+        @DisplayName("UT-NT-104: SSE Redis 폴백")
+        void utNt104FallsBackToLocalStatusOnRedisFailure() {
             // given
             Long userId = testUser.getUserId();
             sseEmittersService.createSseConnection(userId);
@@ -321,8 +332,8 @@ class SseEmittersServiceTest {
     class BroadcastTest {
 
         @Test
-        @DisplayName("UT-NT-055: 연결 끊김 후 재연결이 정상 동작하는가? (with LastEventId)")
-        void UT_NT_055_sse_reconnection_works_after_disconnect() {
+        @DisplayName("UT-NT-055: SSE 재연결")
+        void utNt095SseReconnectionWorksAfterDisconnect() {
             // given
             Long userId = testUser.getUserId();
             String lastEventId = "notification_1_2024-01-01T00:00:00";
@@ -336,15 +347,15 @@ class SseEmittersServiceTest {
             SseEmitter reconnectedEmitter = sseEmittersService.createSseConnection(userId, lastEventId);
             
             // then
-            assertThat(reconnectedEmitter).isNotNull();
-            assertThat(reconnectedEmitter).isNotEqualTo(firstEmitter);
+            assertThat(reconnectedEmitter).isNotNull()
+                    .isNotEqualTo(firstEmitter);
             assertThat(sseEmittersService.isUserConnected(userId)).isTrue();
             assertThat(sseEmittersService.getActiveConnectionCount()).isEqualTo(1);
         }
 
         @Test
-        @DisplayName("전체 사용자에게 브로드캐스트 메시지 전송")
-        void UT_NT_059_broadcasts_message_to_all_users() throws Exception {
+        @DisplayName("UT-NT-096: SSE 연결 정리")
+        void utNt096BroadcastsMessageToAllUsers() throws Exception {
             // given
             int userCount = 5;
             for (int i = 1; i <= userCount; i++) {
@@ -361,15 +372,15 @@ class SseEmittersServiceTest {
         }
 
         @Test
-        @DisplayName("빈 연결 상태에서 브로드캐스트 시 빈 결과 반환")
-        void UT_NT_059_returns_empty_result_when_no_connections_for_broadcast() throws Exception {
+        @DisplayName("UT-NT-097: SSE 연결 상태 조회")
+        void utNt097ReturnsEmptyResultWhenNoConnectionsForBroadcast() throws Exception {
             // when
             var result = sseEmittersService.broadcastToAll("test", "데이터").get();
             
             // then
-            assertThat(result.getSuccessCount()).isEqualTo(0);
-            assertThat(result.getFailureCount()).isEqualTo(0);
-            assertThat(result.getTotalCount()).isEqualTo(0);
+            assertThat(result.getSuccessCount()).isZero();
+            assertThat(result.getFailureCount()).isZero();
+            assertThat(result.getTotalCount()).isZero();
         }
     }
 
@@ -378,8 +389,8 @@ class SseEmittersServiceTest {
     class PerformanceAndStabilityTest {
 
         @Test
-        @DisplayName("대량 연결 처리 성능 테스트")
-        void UT_NT_056_handles_large_number_of_connections() throws Exception {
+        @DisplayName("UT-NT-098: SSE 알림 전송")
+        void utNt098HandlesLargeNumberOfConnections() throws Exception {
             // given
             int userCount = 50; // 테스트 환경에서는 수를 줄임
             CountDownLatch startLatch = new CountDownLatch(1);
@@ -426,8 +437,8 @@ class SseEmittersServiceTest {
         }
 
         @Test
-        @DisplayName("연결 정리 기능 검증")
-        void UT_NT_057_connection_cleanup_works_properly() {
+        @DisplayName("UT-NT-099: SSE 미연결 전송")
+        void utNt099ConnectionCleanupWorksProperly() {
             // given
             List<User> users = new ArrayList<>();
             for (int i = 1; i <= 5; i++) {
@@ -450,13 +461,11 @@ class SseEmittersServiceTest {
         }
 
         @Test
-        @DisplayName("메모리 누수 방지 - 대량 연결/해제 사이클")
-        void UT_NT_058_prevents_memory_leaks_with_connection_cycles() {
+        @DisplayName("UT-NT-100: SSE unread-count 전송")
+        void utNt100PreventsMemoryLeaksWithConnectionCycles() {
             // given
             int cycleCount = 10; // 테스트 환경에서 줄임
             int usersPerCycle = 5;
-            
-            List<User> allUsers = new ArrayList<>();
 
             // when - 반복적인 연결/해제
             for (int cycle = 0; cycle < cycleCount; cycle++) {
@@ -464,7 +473,6 @@ class SseEmittersServiceTest {
                 for (int user = 1; user <= usersPerCycle; user++) {
                     long kakaoId = cycle * usersPerCycle + user + 6000L;
                     User newUser = createTestUser(kakaoId, "cycle_" + cycle + "_user" + user);
-                    allUsers.add(newUser);
                     sseEmittersService.createSseConnection(newUser.getUserId());
                 }
                 
@@ -486,8 +494,8 @@ class SseEmittersServiceTest {
     class AdditionalMissingCasesTest {
 
         @Test
-        @DisplayName("연결되지 않은 사용자에게 개수 업데이트 전송 시 무시")
-        void UT_NT_054_ignores_unread_count_update_for_disconnected_user() {
+        @DisplayName("UT-NT-101: SSE 동시 연결")
+        void utNt101IgnoresUnreadCountUpdateForDisconnectedUser() {
             // given
             User disconnectedUser = createTestUser(999L, "disconnected");
             Long disconnectedUserId = disconnectedUser.getUserId();
@@ -498,8 +506,8 @@ class SseEmittersServiceTest {
         }
 
         @Test
-        @DisplayName("정상적인 unread count 업데이트 전송")
-        void UT_NT_054_handles_unread_count_update_gracefully() {
+        @DisplayName("UT-NT-102: SSE 동시 알림 전송")
+        void utNt102HandlesUnreadCountUpdateGracefully() {
             // given
             Long userId = testUser.getUserId();
             sseEmittersService.createSseConnection(userId);
@@ -510,8 +518,8 @@ class SseEmittersServiceTest {
         }
 
         @Test
-        @DisplayName("서버 인스턴스 ID 생성 검증")
-        void UT_NT_059_generates_server_instance_id() {
+        @DisplayName("UT-NT-103: SSE Redis 연결 확인")
+        void utNt103GeneratesServerInstanceId() {
             // when - 연결 생성 (내부적으로 서버 인스턴스 ID 사용)
             Long userId = 1L;
             SseEmitter emitter = sseEmittersService.createSseConnection(userId);
@@ -522,8 +530,8 @@ class SseEmittersServiceTest {
         }
 
         @Test
-        @DisplayName("SSE 타임아웃 설정 확인")
-        void UT_NT_052_sse_timeout_configuration_works() {
+        @DisplayName("UT-NT-104: SSE Redis 폴백")
+        void utNt104SseTimeoutConfigurationWorks() {
             // given
             Long userId = 1L;
             

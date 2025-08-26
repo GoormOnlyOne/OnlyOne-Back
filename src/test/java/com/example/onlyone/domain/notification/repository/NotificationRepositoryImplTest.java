@@ -49,6 +49,12 @@ class NotificationRepositoryImplTest {
     
     @BeforeEach
     void setUp() {
+        // 테스트 데이터 정리
+        notificationRepository.deleteAll();
+        userRepository.deleteAll();
+        notificationTypeRepository.deleteAll();
+        entityManager.flush();
+        
         // 테스트 유저 생성
         testUser = userRepository.save(User.builder()
             .kakaoId(12345L)
@@ -67,8 +73,8 @@ class NotificationRepositoryImplTest {
     }
     
     @Test
-    @DisplayName("UT-NT-001: 읽지 않은 알림이 있을 때 정확한 개수가 반환되는가?")
-    void UT_NT_001_counts_unread_notifications() {
+    @DisplayName("UT-NT-014: 읽지 않은 개수 조회")
+    void utNt014CountsUnreadNotifications() {
         // given
         AppNotification n1 = notificationRepository.save(AppNotification.create(testUser, chatType, "테스트1"));
         AppNotification n2 = notificationRepository.save(AppNotification.create(testUser, chatType, "테스트2"));
@@ -85,8 +91,8 @@ class NotificationRepositoryImplTest {
     }
     
     @Test
-    @DisplayName("UT-NT-006: 페이징된 알림 목록이 최신순으로 정상 조회되는가?")
-    void UT_NT_006_finds_notifications_by_user_id() {
+    @DisplayName("UT-NT-015: 페이징 조회 및 정렬")
+    void utNt015FindsNotificationsByUserId() {
         // given - 시간 간격을 두고 알림 생성
         AppNotification first = notificationRepository.save(AppNotification.create(testUser, chatType, "첫번째"));
         try { Thread.sleep(100); } catch (InterruptedException e) { /* ignore */ }
@@ -123,8 +129,8 @@ class NotificationRepositoryImplTest {
     }
     
     @Test
-    @DisplayName("UT-NT-007: 커서 기반 페이징이 정상 동작하는가?")
-    void UT_NT_007_cursor_pagination_works() {
+    @DisplayName("UT-NT-016: 커서 페이징 검증")
+    void utNt016CursorPaginationWorks() {
         // given
         AppNotification n1 = notificationRepository.save(AppNotification.create(testUser, chatType, "테스트1"));
         AppNotification n2 = notificationRepository.save(AppNotification.create(testUser, chatType, "테스트2"));
@@ -145,8 +151,8 @@ class NotificationRepositoryImplTest {
     }
     
     @Test
-    @DisplayName("UT-NT-012: 특정 타입의 알림만 필터링되어 조회되는가?")
-    void UT_NT_012_finds_notifications_by_type() {
+    @DisplayName("UT-NT-017: 타입별 필터링 검증")
+    void utNt017FindsNotificationsByType() {
         // given - 여러 타입의 알림을 섞어서 생성
         notificationRepository.save(AppNotification.create(testUser, chatType, "채팅1"));
         notificationRepository.save(AppNotification.create(testUser, likeType, "좋아요1"));
@@ -174,8 +180,8 @@ class NotificationRepositoryImplTest {
     }
 
     @Test
-    @DisplayName("UT-NT-014: 타입별 조회 시 커서 기반 무한 스크롤링이 정상 동작하는가?")
-    void UT_NT_014_type_filtering_with_cursor_based_infinite_scrolling_works() {
+    @DisplayName("UT-NT-018: 타입별 무한 스크롤")
+    void utNt018TypeFilteringWithCursorBasedInfiniteScrollingWorks() {
         // given - 여러 타입을 섞어서 많이 생성 (무한 스크롤링 시뮬레이션)
         for (int i = 0; i < 7; i++) {
             notificationRepository.save(AppNotification.create(testUser, chatType, "채팅" + i));
@@ -232,8 +238,8 @@ class NotificationRepositoryImplTest {
     }
     
     @Test
-    @DisplayName("UT-NT-023: 여러 개의 읽지 않은 알림이 모두 읽음 처리되는가?")
-    void UT_NT_023_marks_all_as_read() {
+    @DisplayName("UT-NT-019: 일괄 읽음 처리")
+    void utNt019MarksAllAsRead() {
         // given
         notificationRepository.save(AppNotification.create(testUser, chatType, "테스트1"));
         notificationRepository.save(AppNotification.create(testUser, chatType, "테스트2"));
@@ -249,8 +255,8 @@ class NotificationRepositoryImplTest {
     }
 
     @Test
-    @DisplayName("UT-NT-024: 이미 모두 읽은 상태에서 재처리 시 멱등성이 보장되는가?")
-    void UT_NT_024_mark_all_as_read_is_idempotent() {
+    @DisplayName("UT-NT-020: 읽음 처리 멱등성")
+    void utNt020MarkAllAsReadIsIdempotent() {
         // given - 모든 알림을 읽음 상태로 생성
         AppNotification n1 = notificationRepository.save(AppNotification.create(testUser, chatType, "테스트1"));
         AppNotification n2 = notificationRepository.save(AppNotification.create(testUser, chatType, "테스트2"));
@@ -269,8 +275,8 @@ class NotificationRepositoryImplTest {
     }
 
     @Test
-    @DisplayName("UT-NT-026: 다른 사용자의 알림은 영향받지 않는가?")
-    void UT_NT_026_other_users_notifications_not_affected() {
+    @DisplayName("UT-NT-021: 사용자별 격리 검증")
+    void utNt021OtherUsersNotificationsNotAffected() {
         // given
         User otherUser = userRepository.save(User.builder()
             .kakaoId(67890L)
@@ -295,8 +301,8 @@ class NotificationRepositoryImplTest {
     }
 
     @Test
-    @DisplayName("UT-NT-027: 읽음 처리 후 읽지 않은 개수가 0이 되는가?")
-    void UT_NT_027_unread_count_becomes_zero_after_mark_all_read() {
+    @DisplayName("UT-NT-022: 읽음 처리 후 개수 확인")
+    void utNt022UnreadCountBecomesZeroAfterMarkAllRead() {
         // given
         notificationRepository.save(AppNotification.create(testUser, chatType, "테스트1"));
         notificationRepository.save(AppNotification.create(testUser, chatType, "테스트2"));
@@ -315,8 +321,8 @@ class NotificationRepositoryImplTest {
     }
     
     @Test
-    @DisplayName("UT-NT-055: SSE 재연결 시 특정 시간 이후 놓친 알림을 조회할 수 있는가?")
-    void UT_NT_055_finds_notifications_after_timestamp_for_sse_reconnection() {
+    @DisplayName("UT-NT-023: 시간 기반 조회")
+    void utNt023FindsNotificationsAfterTimestampForSseReconnection() {
         // given - 과거 시간을 기준으로 설정
         LocalDateTime veryPastTime = LocalDateTime.now().minusHours(1);
         
@@ -341,8 +347,8 @@ class NotificationRepositoryImplTest {
     }
 
     @Test
-    @DisplayName("UT-NT-060: 읽음 처리 후 DB 상태가 정확히 반영되는가?")
-    void UT_NT_060_read_status_correctly_reflected_in_db() {
+    @DisplayName("UT-NT-024: DB 상태 반영 확인")
+    void utNt024ReadStatusCorrectlyReflectedInDb() {
         // given
         AppNotification n1 = notificationRepository.save(AppNotification.create(testUser, chatType, "테스트1"));
         AppNotification n2 = notificationRepository.save(AppNotification.create(testUser, chatType, "테스트2"));
@@ -367,8 +373,8 @@ class NotificationRepositoryImplTest {
     }
 
     @Test
-    @DisplayName("UT-NT-061: 삭제 후 해당 알림만 정리되고 다른 알림은 유지되는가?")
-    void UT_NT_061_specific_notification_deleted_while_others_remain() {
+    @DisplayName("UT-NT-025: 선택적 삭제 검증")
+    void utNt025SpecificNotificationDeletedWhileOthersRemain() {
         // given - 테스트 시작 전에 기존 알림들 모두 정리
         notificationRepository.deleteAll();
         
@@ -401,8 +407,8 @@ class NotificationRepositoryImplTest {
     }
     
     @Test
-    @DisplayName("통계 조회: 알림 통계 정보 조회")
-    void UT_NT_062_gets_notification_stats() {
+    @DisplayName("UT-NT-026: 통계 조회 검증")
+    void utNt026GetsNotificationStats() {
         // given
         AppNotification n1 = notificationRepository.save(AppNotification.create(testUser, chatType, "테스트1"));
         AppNotification n2 = notificationRepository.save(AppNotification.create(testUser, chatType, "테스트2"));
@@ -423,12 +429,12 @@ class NotificationRepositoryImplTest {
         assertThat(stats.totalCount()).isEqualTo(3L);
         assertThat(stats.unreadCount()).isEqualTo(2L);
         assertThat(stats.fcmSentCount()).isEqualTo(2L);
-        assertThat(stats.fcmFailedCount()).isEqualTo(0L); // CHAT은 FCM 대상이지만 전송 안됨
+        assertThat(stats.fcmFailedCount()).isEqualTo(0L); // FCM 전송 실패 건수 (이 테스트에서는 실패 없음)
     }
     
     @Test
-    @DisplayName("데이터 정리: 오래된 읽은 알림 삭제")
-    void UT_NT_063_deletes_old_read_notifications() {
+    @DisplayName("UT-NT-027: 오래된 알림 정리")
+    void utNt027DeletesOldReadNotifications() {
         // given
         AppNotification old = notificationRepository.save(AppNotification.create(testUser, chatType, "오래된"));
         old.markAsRead();

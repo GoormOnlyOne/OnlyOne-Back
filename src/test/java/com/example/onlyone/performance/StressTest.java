@@ -41,8 +41,8 @@ class StressTest extends BasePerformanceTest {
     private SseEmittersService sseEmittersService;
 
     @Test
-    @DisplayName("💥 STRESS-001: 대량 데이터 조회 스트레스 테스트")
-    void massive_data_query_stress_test() {
+    @DisplayName("UT-NT-153: 대량 데이터 조회 성능")
+    void utNt153MassiveDataQueryStressTest() {
         System.err.printf("🚀 대량 데이터 조회 스트레스 테스트 시작...%n");
         
         // given - 대량 사용자 및 알림 생성
@@ -85,10 +85,10 @@ class StressTest extends BasePerformanceTest {
                 }
             }
             
-            if (i % (batchSize * 5) == 0) {
-                System.err.printf("⏳ 데이터 생성 진행률: %.1f%% (%d/%d)%n", 
-                                 (double) i / massiveUsers.size() * 100, i, massiveUsers.size());
-            }
+            // 매 배치마다 진행률 표시 (1000명씩)
+            System.err.printf("⏳ 데이터 생성 진행률: %.1f%% (%d/%d)%n", 
+                             (double) (i + batchSize) / massiveUsers.size() * 100, 
+                             Math.min(i + batchSize, massiveUsers.size()), massiveUsers.size());
         }
         
         long dataSetupTime = Duration.between(dataSetupStart, Instant.now()).toMillis();
@@ -189,8 +189,8 @@ class StressTest extends BasePerformanceTest {
     }
 
     @Test
-    @DisplayName("💥 STRESS-002: SSE 대량 동시 연결 스트레스 테스트")
-    void massive_sse_connections_stress_test() {
+    @DisplayName("UT-NT-154: SSE 동시 연결 성능")
+    void utNt154MassiveSseConnectionsStressTest() {
         System.err.printf("🚀 SSE 대량 동시 연결 스트레스 테스트 시작...%n");
         
         // given - 기존 사용자 사용 및 추가 생성
@@ -289,8 +289,8 @@ class StressTest extends BasePerformanceTest {
     }
 
     @Test
-    @DisplayName("💥 STRESS-003: FCM 대량 전송 스트레스 테스트")
-    void massive_fcm_sending_stress_test() {
+    @DisplayName("UT-NT-155: FCM 대량 전송 성능")
+    void utNt155MassiveFcmSendingStressTest() {
         System.err.printf("🚀 FCM 대량 전송 스트레스 테스트 시작...%n");
         
         // given
@@ -392,8 +392,8 @@ class StressTest extends BasePerformanceTest {
     }
 
     @Test
-    @DisplayName("💥 STRESS-004: 메모리 한계 도전 테스트")
-    void memory_limit_challenge_test() {
+    @DisplayName("UT-NT-156: 메모리 한계 테스트")
+    void utNt156MemoryLimitChallengeTest() {
         System.err.printf("🚀 메모리 한계 도전 테스트 시작...%n");
         
         Runtime runtime = Runtime.getRuntime();
