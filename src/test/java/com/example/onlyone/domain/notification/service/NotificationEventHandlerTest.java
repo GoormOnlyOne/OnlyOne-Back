@@ -10,6 +10,7 @@ import com.example.onlyone.domain.notification.repository.NotificationTypeReposi
 import com.example.onlyone.domain.user.entity.Status;
 import com.example.onlyone.domain.user.entity.User;
 import com.example.onlyone.domain.user.repository.UserRepository;
+import com.example.onlyone.domain.notification.dto.event.NotificationCreatedEvent;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -99,8 +100,8 @@ class NotificationEventHandlerTest {
         fcmNotification = notificationRepository.save(fcmNotification);
         
         // when - 이벤트 핸들러 직접 호출
-        NotificationService.NotificationCreatedEvent event = 
-            new NotificationService.NotificationCreatedEvent(fcmNotification);
+        NotificationCreatedEvent event = 
+            new NotificationCreatedEvent(fcmNotification);
         notificationService.handleNotificationCreated(event);
 
         // then - FCM 전송이 호출되어야 함 (비동기 호출이므로 timeout 사용)
@@ -116,8 +117,8 @@ class NotificationEventHandlerTest {
         sseNotification = notificationRepository.save(sseNotification);
         
         // when - 이벤트 핸들러 직접 호출
-        NotificationService.NotificationCreatedEvent event = 
-            new NotificationService.NotificationCreatedEvent(sseNotification);
+        NotificationCreatedEvent event = 
+            new NotificationCreatedEvent(sseNotification);
         notificationService.handleNotificationCreated(event);
 
         // then - SSE 전송이 호출되어야 함
@@ -135,8 +136,8 @@ class NotificationEventHandlerTest {
         sseNotification = notificationRepository.save(sseNotification);
         
         // when - SSE 전송 타입이지만 Redis가 비정상
-        NotificationService.NotificationCreatedEvent event = 
-            new NotificationService.NotificationCreatedEvent(sseNotification);
+        NotificationCreatedEvent event = 
+            new NotificationCreatedEvent(sseNotification);
         notificationService.handleNotificationCreated(event);
 
         // then - SSE는 호출되지 않고 FCM 폴백이 호출되어야 함
@@ -155,8 +156,8 @@ class NotificationEventHandlerTest {
         sseNotification = notificationRepository.save(sseNotification);
         
         // when
-        NotificationService.NotificationCreatedEvent event = 
-            new NotificationService.NotificationCreatedEvent(sseNotification);
+        NotificationCreatedEvent event = 
+            new NotificationCreatedEvent(sseNotification);
         notificationService.handleNotificationCreated(event);
 
         // then - SSE 시도 후 실패하면 FCM 폴백 호출
@@ -175,8 +176,8 @@ class NotificationEventHandlerTest {
         fcmNotification = notificationRepository.save(fcmNotification);
         
         // when
-        NotificationService.NotificationCreatedEvent event = 
-            new NotificationService.NotificationCreatedEvent(fcmNotification);
+        NotificationCreatedEvent event = 
+            new NotificationCreatedEvent(fcmNotification);
         notificationService.handleNotificationCreated(event);
 
         // then - FCM 토큰이 없으므로 FCM 서비스는 호출되지 않아야 함
@@ -210,8 +211,8 @@ class NotificationEventHandlerTest {
         chatNotification = notificationRepository.save(chatNotification);
 
         // when - 이벤트 핸들러 직접 호출 (트랜잭션 분리를 위해)
-        NotificationService.NotificationCreatedEvent event = 
-            new NotificationService.NotificationCreatedEvent(chatNotification);
+        NotificationCreatedEvent event = 
+            new NotificationCreatedEvent(chatNotification);
         notificationService.handleNotificationCreated(event);
 
         // then - FCM 전송이 호출되었는지 검증

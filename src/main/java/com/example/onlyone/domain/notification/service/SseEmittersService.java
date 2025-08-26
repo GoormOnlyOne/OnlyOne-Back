@@ -2,6 +2,8 @@ package com.example.onlyone.domain.notification.service;
 
 import com.example.onlyone.domain.notification.dto.responseDto.SseNotificationDto;
 import com.example.onlyone.domain.notification.entity.AppNotification;
+import com.example.onlyone.domain.notification.model.SseConnection;
+import com.example.onlyone.domain.notification.dto.sse.BroadcastResult;
 import com.example.onlyone.domain.notification.repository.NotificationRepository;
 import com.example.onlyone.global.exception.CustomException;
 import com.example.onlyone.global.exception.ErrorCode;

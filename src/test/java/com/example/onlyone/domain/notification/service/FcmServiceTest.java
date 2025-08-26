@@ -9,6 +9,9 @@ import com.example.onlyone.domain.notification.repository.NotificationTypeReposi
 import com.example.onlyone.domain.user.entity.Status;
 import com.example.onlyone.domain.user.entity.User;
 import com.example.onlyone.domain.user.repository.UserRepository;
+import com.example.onlyone.domain.notification.model.FcmNotificationTask;
+import com.example.onlyone.domain.notification.dto.fcm.FcmPriority;
+import com.example.onlyone.domain.notification.dto.fcm.BatchSendResult;
 import com.example.onlyone.global.exception.CustomException;
 import com.example.onlyone.global.exception.ErrorCode;
 import com.google.firebase.messaging.FirebaseMessaging;
@@ -154,7 +157,7 @@ class FcmServiceTest {
         @DisplayName("UT-NT-080: FCM 우선순위 큐")
         void utNt080QueuesFcmNotificationWithPriority() {
             // when & then
-            assertThatCode(() -> fcmService.queueFcmNotification(testNotification, FcmService.FcmPriority.HIGH))
+            assertThatCode(() -> fcmService.queueFcmNotification(testNotification, FcmPriority.HIGH))
                 .doesNotThrowAnyException();
         }
 
@@ -180,7 +183,7 @@ class FcmServiceTest {
         @Test
         @DisplayName("UT-NT-082: FCM 우선순위 처리")
         void utNt082ProcessesNotificationsByPriority() {
-            PriorityBlockingQueue<FcmService.FcmNotificationTask> queue = new PriorityBlockingQueue<>();
+            PriorityBlockingQueue<FcmNotificationTask> queue = new PriorityBlockingQueue<>();
             
             User urgentUser = createTestUser(100L, "urgent", "urgent_token");
             User normalUser = createTestUser(101L, "normal", "normal_token");
@@ -191,39 +194,39 @@ class FcmServiceTest {
             urgentNotification = notificationRepository.save(urgentNotification);
             normalNotification = notificationRepository.save(normalNotification);
             
-            FcmService.FcmNotificationTask urgentTask = FcmService.FcmNotificationTask.of(urgentNotification, FcmService.FcmPriority.HIGH);
-            FcmService.FcmNotificationTask normalTask = FcmService.FcmNotificationTask.of(normalNotification, FcmService.FcmPriority.LOW);
+            FcmNotificationTask urgentTask = FcmNotificationTask.of(urgentNotification, FcmPriority.HIGH);
+            FcmNotificationTask normalTask = FcmNotificationTask.of(normalNotification, FcmPriority.LOW);
             
             // when
             queue.offer(normalTask);
             queue.offer(urgentTask);
             
             // then
-            FcmService.FcmNotificationTask firstTask = queue.poll();
+            FcmNotificationTask firstTask = queue.poll();
             assertThat(firstTask).isNotNull();
-            assertThat(firstTask.getPriority()).isEqualTo(FcmService.FcmPriority.HIGH);
+            assertThat(firstTask.getPriority()).isEqualTo(FcmPriority.HIGH);
         }
 
         @Test
         @DisplayName("UT-NT-083: FCM FIFO 처리")
         void utNt083ProcessesSamePriorityNotificationsInFifoOrder() {
-            PriorityBlockingQueue<FcmService.FcmNotificationTask> queue = new PriorityBlockingQueue<>();
+            PriorityBlockingQueue<FcmNotificationTask> queue = new PriorityBlockingQueue<>();
             
-            List<FcmService.FcmNotificationTask> tasks = new ArrayList<>();
+            List<FcmNotificationTask> tasks = new ArrayList<>();
             for (int i = 0; i < 3; i++) {
                 User user = createTestUser(200L + i, "fifo" + i, "fifo_token" + i);
                 AppNotification notification = AppNotification.create(user, testNotificationType, "FIFO" + i);
                 notification = notificationRepository.save(notification);
-                tasks.add(FcmService.FcmNotificationTask.of(notification, FcmService.FcmPriority.NORMAL));
+                tasks.add(FcmNotificationTask.of(notification, FcmPriority.NORMAL));
             }
             
             // when
             tasks.forEach(queue::offer);
             
             // then
-            FcmService.FcmNotificationTask firstOut = queue.poll();
+            FcmNotificationTask firstOut = queue.poll();
             assertThat(firstOut).isNotNull();
-            assertThat(firstOut.getPriority()).isEqualTo(FcmService.FcmPriority.NORMAL);
+            assertThat(firstOut.getPriority()).isEqualTo(FcmPriority.NORMAL);
         }
     }
 
@@ -389,7 +392,7 @@ class FcmServiceTest {
             final AppNotification finalNotification = notificationRepository.save(queueNotification);
 
             // when & then - 큐 처리는 비동기이므로 예외 발생하지 않음
-            assertThatCode(() -> fcmService.queueFcmNotification(finalNotification, FcmService.FcmPriority.NORMAL))
+            assertThatCode(() -> fcmService.queueFcmNotification(finalNotification, FcmPriority.NORMAL))
                 .doesNotThrowAnyException();
         }
 
@@ -466,14 +469,14 @@ class FcmServiceTest {
             notification1 = notificationRepository.save(notification1);
             notification2 = notificationRepository.save(notification2);
 
-            FcmService.FcmNotificationTask task1 = FcmService.FcmNotificationTask.of(notification1, FcmService.FcmPriority.NORMAL);
+            FcmNotificationTask task1 = FcmNotificationTask.of(notification1, FcmPriority.NORMAL);
             // 시간 차이를 만들기 위해 잠시 대기
             try {
                 Thread.sleep(1);
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
             }
-            FcmService.FcmNotificationTask task2 = FcmService.FcmNotificationTask.of(notification2, FcmService.FcmPriority.NORMAL);
+            FcmNotificationTask task2 = FcmNotificationTask.of(notification2, FcmPriority.NORMAL);
 
             // when & then - 동일 우선순위일 때 timestamp로 비교
             int comparison = task1.compareTo(task2);
@@ -484,17 +487,17 @@ class FcmServiceTest {
         @DisplayName("UT-NT-099: FcmPriority getValue 테스트")
         void utNt099TestsFcmPriorityValues() {
             // when & then
-            assertThat(FcmService.FcmPriority.HIGH.getValue()).isEqualTo(1);
-            assertThat(FcmService.FcmPriority.NORMAL.getValue()).isEqualTo(2);
-            assertThat(FcmService.FcmPriority.LOW.getValue()).isEqualTo(3);
+            assertThat(FcmPriority.HIGH.getValue()).isEqualTo(1);
+            assertThat(FcmPriority.NORMAL.getValue()).isEqualTo(2);
+            assertThat(FcmPriority.LOW.getValue()).isEqualTo(3);
         }
 
         @Test
         @DisplayName("UT-NT-100: BatchSendResult 생성 테스트")
         void utNt100TestsBatchSendResultCreation() {
             // when
-            var result = FcmService.BatchSendResult.of(5L, 3L);
-            var emptyResult = FcmService.BatchSendResult.empty();
+            var result = BatchSendResult.of(5L, 3L);
+            var emptyResult = BatchSendResult.empty();
 
             // then
             assertThat(result.getSuccessCount()).isEqualTo(5L);

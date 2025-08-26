@@ -1,6 +1,8 @@
 package com.example.onlyone.domain.notification.service;
 
 import com.example.onlyone.domain.notification.dto.requestDto.NotificationCreateRequestDto;
+import com.example.onlyone.domain.notification.dto.requestDto.BatchNotificationRequestDto;
+import com.example.onlyone.domain.notification.dto.event.NotificationCreatedEvent;
 import com.example.onlyone.domain.notification.dto.responseDto.NotificationItemDto;
 import com.example.onlyone.domain.notification.dto.responseDto.NotificationCreateResponseDto;
 import com.example.onlyone.domain.notification.dto.responseDto.NotificationListResponseDto;
@@ -25,10 +27,16 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.event.TransactionPhase;
 import org.springframework.transaction.event.TransactionalEventListener;
 import org.springframework.data.redis.core.RedisTemplate;
-
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.PersistenceContext;
 import java.time.Duration;
+import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.stream.Collectors;
 
 /**
  * 알림 서비스 - QueryDSL 기반 성능 최적화 및 JWT 인증 적용
@@ -47,6 +55,14 @@ public class NotificationService {
   private final JPAQueryFactory queryFactory;
   private final RedisTemplate<String, Object> redisTemplate;
   private final RedisHealthChecker redisHealthChecker;
+  
+  @PersistenceContext
+  private EntityManager entityManager;
+  
+  // 타입별 캐시
+  private final Map<Type, NotificationType> typeCache = new ConcurrentHashMap<>();
+  
+  private static final int BATCH_SIZE = 1000;
 
   /**
    * 알림 생성 및 전송 (이벤트 발행으로 SSE/FCM 처리)
@@ -482,17 +498,136 @@ public class NotificationService {
   }
 
   /**
-   * 알림 생성 이벤트 클래스 (트랜잭션 분리용)
+   * 배치 알림 생성 (JPA 배치 처리) - 성능 최적화
    */
-  public static class NotificationCreatedEvent {
-    private final AppNotification notification;
-
-    public NotificationCreatedEvent(AppNotification notification) {
-      this.notification = notification;
+  @Transactional
+  public int createBatchNotifications(List<BatchNotificationRequestDto> requests) {
+    if (requests.isEmpty()) {
+      return 0;
     }
-
-    public AppNotification getNotification() {
-      return notification;
+    
+    // 타입 캐시 준비
+    prepareTypeCache(requests);
+    
+    // 사용자 일괄 조회
+    List<Long> userIds = requests.stream()
+        .map(BatchNotificationRequestDto::getUserId)
+        .distinct()
+        .collect(Collectors.toList());
+    Map<Long, User> userMap = userRepository.findAllById(userIds).stream()
+        .collect(Collectors.toMap(User::getUserId, u -> u));
+    
+    // JPA 배치 처리
+    List<AppNotification> notifications = new ArrayList<>();
+    for (BatchNotificationRequestDto request : requests) {
+      User user = userMap.get(request.getUserId());
+      NotificationType type = typeCache.get(request.getType());
+      
+      if (user != null && type != null) {
+        AppNotification notification = AppNotification.create(user, type, request.getArgs());
+        notifications.add(notification);
+      }
+    }
+    
+    // saveAll 사용하여 배치 처리 (Hibernate batch insert)
+    List<AppNotification> saved = notificationRepository.saveAll(notifications);
+    
+    log.info("Batch inserted {} notifications", saved.size());
+    return saved.size();
+  }
+  
+  /**
+   * 성능 테스트용 대량 알림 생성 (최적화 버전)
+   */
+  @Transactional
+  public void createPerformanceTestNotifications(Long userId, Type type, int count) {
+    User user = userRepository.findById(userId)
+        .orElseThrow(() -> new CustomException(ErrorCode.USER_NOT_FOUND));
+    
+    NotificationType notificationType = notificationTypeRepository.findByType(type)
+        .orElseThrow(() -> new CustomException(ErrorCode.NOTIFICATION_TYPE_NOT_FOUND));
+    
+    // JPA 배치 처리
+    List<AppNotification> batch = new ArrayList<>();
+    
+    for (int i = 0; i < count; i++) {
+      AppNotification notification = AppNotification.create(
+          user, 
+          notificationType, 
+          new String[]{"성능테스트" + i}
+      );
+      batch.add(notification);
+      
+      // 배치 사이즈마다 플러시
+      if (batch.size() >= BATCH_SIZE) {
+        notificationRepository.saveAll(batch);
+        entityManager.flush();
+        entityManager.clear(); // 1차 캐시 정리
+        batch.clear();
+      }
+    }
+    
+    // 남은 데이터 처리
+    if (!batch.isEmpty()) {
+      notificationRepository.saveAll(batch);
+      entityManager.flush();
+      entityManager.clear();
+    }
+    
+    log.info("Performance test: Created {} notifications for user {}", count, userId);
+  }
+  
+  /**
+   * 극한 성능 테스트용 대량 알림 생성 (메모리 최적화 버전)
+   */
+  @Transactional
+  public void createUltimatePerformanceTestNotifications(Long userId, Type type, int count) {
+    User user = userRepository.findById(userId)
+        .orElseThrow(() -> new CustomException(ErrorCode.USER_NOT_FOUND));
+    
+    NotificationType notificationType = notificationTypeRepository.findByType(type)
+        .orElseThrow(() -> new CustomException(ErrorCode.NOTIFICATION_TYPE_NOT_FOUND));
+    
+    // 더 큰 배치 사이즈 사용 (2000개)
+    int extremeBatchSize = 2000;
+    List<AppNotification> batch = new ArrayList<>(extremeBatchSize);
+    
+    for (int i = 0; i < count; i++) {
+      AppNotification notification = AppNotification.create(
+          user, 
+          notificationType, 
+          new String[]{"극한성능테스트" + i}
+      );
+      batch.add(notification);
+      
+      // 더 큰 배치로 처리
+      if (batch.size() >= extremeBatchSize || i == count - 1) {
+        notificationRepository.saveAll(batch);
+        
+        // 매 1만개마다만 플러시 (성능 향상)
+        if (i % 10000 == 0 || i == count - 1) {
+          entityManager.flush();
+          entityManager.clear();
+        }
+        batch.clear();
+      }
+    }
+    
+    log.info("Ultimate performance test: Created {} notifications for user {}", count, userId);
+  }
+  
+  private void prepareTypeCache(List<BatchNotificationRequestDto> requests) {
+    List<Type> types = requests.stream()
+        .map(BatchNotificationRequestDto::getType)
+        .distinct()
+        .filter(type -> !typeCache.containsKey(type))
+        .collect(Collectors.toList());
+    
+    if (!types.isEmpty()) {
+      List<NotificationType> notificationTypes = notificationTypeRepository.findAllByTypeIn(types);
+      notificationTypes.forEach(nt -> typeCache.put(nt.getType(), nt));
     }
   }
+
+  // NotificationCreatedEvent는 dto.event 패키지로 이동
 }
