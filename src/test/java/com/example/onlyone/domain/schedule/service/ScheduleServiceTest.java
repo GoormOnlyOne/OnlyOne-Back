@@ -44,6 +44,7 @@ import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.context.annotation.Import;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -62,7 +63,7 @@ public class ScheduleServiceTest {
     private ScheduleService scheduleService;
     @Autowired
     private ClubService clubService;
-    @MockBean
+    @MockitoBean
     private UserService userService;
 
     @Autowired
