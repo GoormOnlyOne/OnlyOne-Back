@@ -37,7 +37,6 @@ import java.util.stream.Collectors;
 @Transactional
 @RequiredArgsConstructor
 public class FeedMainService {
-    private static final int MAX_REFEED_DEPTH = 2;
 
     private final FeedRepository feedRepository;
     private final UserService userService;
@@ -248,11 +247,6 @@ public class FeedMainService {
         Feed parent = feedRepository.findById(parentFeedId)
                 .orElseThrow(() -> new CustomException(ErrorCode.FEED_NOT_FOUND));
 
-//        int newDepth = parent.getDepth() + 1;
-//        if (newDepth > MAX_REFEED_DEPTH) {
-//            throw new CustomException(ErrorCode.REFEED_DEPTH_LIMIT);
-//        }
-
         Club club = clubRepository.findById(targetClubId)
                 .orElseThrow(() -> new CustomException(ErrorCode.CLUB_NOT_FOUND));
         userClubRepository.findByUserAndClub(user, club)
@@ -267,7 +261,6 @@ public class FeedMainService {
                 .feedType(FeedType.REFEED)
                 .parentFeedId(parentFeedId)
                 .rootFeedId(rootId)
-//                .depth(newDepth)
                 .club(club)
                 .user(user)
                 .build();
