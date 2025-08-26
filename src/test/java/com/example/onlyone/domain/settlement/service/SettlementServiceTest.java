@@ -41,7 +41,6 @@ import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.Mockito;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
-import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.context.annotation.Import;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -51,8 +50,10 @@ import org.springframework.test.annotation.Rollback;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.context.transaction.TestTransaction;
+import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.TransactionStatus;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -107,6 +108,8 @@ public class SettlementServiceTest {
     private WalletTransactionRepository walletTransactionRepository;
     @Autowired
     EntityManager entityManager;
+    @Autowired
+    PlatformTransactionManager txManager;
 
     private Club club;
     private Schedule schedule;
@@ -434,34 +437,54 @@ public class SettlementServiceTest {
         assertThat(result.getTotalElement()).isEqualTo(2);
     }
 
-    @DirtiesContext(methodMode = DirtiesContext.MethodMode.AFTER_METHOD)
+    @DirtiesContext(methodMode = AFTER_METHOD)
     @ParameterizedTest
     @ValueSource(ints = {2, 5, 10})
     void 멱등성과_동시성에_대한_보호가_정상적으로_이루어진다(int threads) throws Exception {
-        // given
+        // --- given: 사전상태를 "반드시" 커밋 가능한 트랜잭션 안에서 만들기 ---
         Long clubId = club.getClubId();
         Long scheduleId = schedule.getScheduleId();
 
-        // 동시 테스트 전, 현재 트랜잭션 커밋 (다른 스레드에서 볼 수 있게 설정)
-        // @DataJpaTest 환경에서는 테스트 메서드마다 트랜잭션이 자동으로 열려있기 때문
+        // 동시 테스트가 접근할 '최종 픽스처' 보장
+        // 1) 리더로 고정
+        Mockito.when(userService.getCurrentUser()).thenReturn(leader);
+
+        // 2) 스케줄/정산 상태 확정
+        schedule.updateStatus(ScheduleStatus.ENDED);
+        settlement.updateTotalStatus(TotalStatus.HOLDING);
+
+        // 3) 참여자 지갑 잔액 충분히 세팅(정산이 정상 완료되도록)
+        Wallet m1 = walletRepository.findByUserWithoutLock(member1).orElseThrow();
+        Wallet m2 = walletRepository.findByUserWithoutLock(member2).orElseThrow();
+        m1.updateBalance(1_000_000);
+        m2.updateBalance(1_000_000);
+        walletRepository.saveAndFlush(m1);
+        walletRepository.saveAndFlush(m2);
+
+        entityManager.flush();
+
+        // 4) 픽스처 커밋(@DataJpaTest는 메서드 트랜잭션이 이미 열려있음 → 명시 커밋)
         TestTransaction.flagForCommit();
         TestTransaction.end();
 
-        // 동시 실행 환경 세팅
-        ExecutorService pool = Executors.newFixedThreadPool(threads); // 스레드 동시 실행
+        // --- when: 스레드별 트랜잭션으로 동시에 호출 ---
+        ExecutorService pool = Executors.newFixedThreadPool(threads);
         CountDownLatch startGate = new CountDownLatch(1);
-        CountDownLatch doneGate = new CountDownLatch(threads);
+        CountDownLatch doneGate  = new CountDownLatch(threads);
 
-        AtomicInteger success = new AtomicInteger(0); // 성공한 스레드 수 카운트
+        AtomicInteger success = new AtomicInteger(0);
         List<Throwable> errors = Collections.synchronizedList(new ArrayList<>());
 
-        // 동시 요청 작업 처리: 모든 스레드는 동시에 automaticSettlement 호출을 시도
         Runnable task = () -> {
             try {
                 startGate.await();
-                Mockito.when(userService.getCurrentUser()).thenReturn(leader);
-                settlementService.automaticSettlement(clubId, scheduleId);
-                success.incrementAndGet();
+                // ⭐ 각 스레드에서 트랜잭션 열고 실행 (서비스 @Transactional이더라도 테스트 환경에서 확실히 보장)
+                new TransactionTemplate(txManager).execute(status -> {
+                    Mockito.when(userService.getCurrentUser()).thenReturn(leader); // 모든 스레드 동일 리더
+                    settlementService.automaticSettlement(clubId, scheduleId);
+                    success.incrementAndGet();
+                    return null;
+                });
             } catch (Throwable t) {
                 errors.add(t);
             } finally {
@@ -470,41 +493,60 @@ public class SettlementServiceTest {
         };
         for (int i = 0; i < threads; i++) pool.submit(task);
 
-        // when
         startGate.countDown();
-        doneGate.await(10, TimeUnit.SECONDS);
-        pool.shutdown();
+        boolean finished = doneGate.await(20, TimeUnit.SECONDS);
+        pool.shutdownNow();
+        assertThat(finished).as("스레드가 타임아웃 내 종료").isTrue();
 
-        // 검증 위해 트랜잭션 재시작
+        // --- then: 검증(새 트랜잭션) ---
         TestTransaction.start();
+        try {
+            entityManager.clear();
 
-        // then
+            // 에러 요약 찍어보기(무엇이 떨어졌는지 확인)
+            var summary = errors.stream().collect(
+                    java.util.stream.Collectors.groupingBy(e ->
+                                    (e instanceof CustomException ce) ? ce.getErrorCode().name()
+                                            : e.getClass().getSimpleName(),
+                            java.util.stream.Collectors.counting()
+                    )
+            );
+            System.out.printf("[threads=%d] success=%d, errors=%s%n", threads, success.get(), summary);
 
-        // 정확히 하나만 성공
-        assertThat(success.get()).isEqualTo(1);
-        // 나머지는 모두 선점 실패(ALREADY_SETTLING_SCHEDULE)
-        long already = errors.stream()
-                .filter(e -> e instanceof CustomException ce
-                        && ce.getErrorCode() == ErrorCode.ALREADY_SETTLING_SCHEDULE)
-                .count();
-        assertThat(already).isEqualTo(threads - 1);
+            // 정확히 1건만 성공
+            assertThat(success.get())
+                    .as("Exactly one thread should succeed")
+                    .isEqualTo(1);
 
-        long otherErrors = errors.size() - already;
-        assertThat(otherErrors).isEqualTo(0);
+            // 나머지는 모두 선점 실패(ALREADY_SETTLING_SCHEDULE)이어야 함
+            long already = errors.stream()
+                    .filter(e -> e instanceof CustomException ce
+                            && ce.getErrorCode() == ErrorCode.ALREADY_SETTLING_SCHEDULE)
+                    .count();
+            assertThat(already)
+                    .as("losers must be ALREADY_SETTLING_SCHEDULE. errors=%s", summary)
+                    .isEqualTo(threads - 1);
 
-        // DB의 최종 상태 검증
-        entityManager.clear();
-        Schedule checkedSchedule = scheduleRepository.findById(scheduleId).orElseThrow();
-        Settlement checkedSettlement = settlementRepository.findBySchedule(checkedSchedule).orElseThrow();
-        assertThat(checkedSchedule.getScheduleStatus()).isEqualTo(ScheduleStatus.CLOSED);
-        assertThat(checkedSettlement.getTotalStatus()).isEqualTo(TotalStatus.COMPLETED);
+            long other = errors.size() - already;
+            assertThat(other)
+                    .as("예상 밖의 예외가 있으면 안 됨. errors=%s", summary)
+                    .isEqualTo(0);
 
-        // 완료 후 재호출은 멱등 방어
-        CustomException second = assertThrows(CustomException.class, () -> {
-            Mockito.when(userService.getCurrentUser()).thenReturn(leader);
-            settlementService.automaticSettlement(clubId, scheduleId);
-        });
-        assertThat(second.getErrorCode()).isEqualTo(ErrorCode.ALREADY_SETTLING_SCHEDULE);
+            // DB 최종 상태
+            Schedule checkedSchedule = scheduleRepository.findById(scheduleId).orElseThrow();
+            Settlement checkedSettlement = settlementRepository.findBySchedule(checkedSchedule).orElseThrow();
+            assertThat(checkedSchedule.getScheduleStatus()).isEqualTo(ScheduleStatus.CLOSED);
+            assertThat(checkedSettlement.getTotalStatus()).isEqualTo(TotalStatus.COMPLETED);
+
+            // 사후 멱등성
+            CustomException second = assertThrows(CustomException.class, () -> {
+                Mockito.when(userService.getCurrentUser()).thenReturn(leader);
+                settlementService.automaticSettlement(clubId, scheduleId);
+            });
+            assertThat(second.getErrorCode()).isEqualTo(ErrorCode.ALREADY_SETTLING_SCHEDULE);
+        } finally {
+            TestTransaction.end();
+        }
     }
 
 }
