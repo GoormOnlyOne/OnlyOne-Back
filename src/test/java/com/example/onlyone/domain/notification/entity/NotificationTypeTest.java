@@ -9,8 +9,8 @@ import static org.assertj.core.api.Assertions.*;
 class NotificationTypeTest {
 
     @Test
-    @DisplayName("UT-NT-040: 알림 타입별 템플릿이 올바르게 적용되는가?")
-    void UT_NT_040_creates_notification_type_with_auto_delivery_method() {
+    @DisplayName("UT-NT-013: NotificationType 생성 검증")
+    void utNt013CreatesNotificationTypeWithAutoDeliveryMethod() {
         // when
         NotificationType chatType = NotificationType.of(Type.CHAT, "테스트 템플릿");
         NotificationType likeType = NotificationType.of(Type.LIKE, "테스트 템플릿");

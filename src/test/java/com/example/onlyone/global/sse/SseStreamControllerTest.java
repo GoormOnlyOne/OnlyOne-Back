@@ -74,7 +74,7 @@ class SseStreamControllerTest {
 
         @Test
         @WithMockUser(username = "12345")
-        @DisplayName("UT-NT-052: SSE 연결이 정상 수립되는가?")
+        @DisplayName("UT-NT-052: SSE 연결 테스트")
         void UT_NT_052_establishes_sse_connection_successfully() throws Exception {
             // when & then
             mockMvc.perform(get("/sse/subscribe")
@@ -86,7 +86,7 @@ class SseStreamControllerTest {
 
         @Test
         @WithMockUser(username = "12345")
-        @DisplayName("UT-NT-055: 연결 끊김 후 재연결이 정상 동작하는가?")
+        @DisplayName("UT-NT-055: SSE 재연결")
         void UT_NT_055_handles_reconnection_with_last_event_id() throws Exception {
             // given
             String lastEventId = "notification_1_2024-01-01T00:00:00";
@@ -102,7 +102,7 @@ class SseStreamControllerTest {
 
         @Test
         @WithMockUser(username = "12345")
-        @DisplayName("JSON Accept로 SSE 요청 시 정상 처리")
+        @DisplayName("UT-NT-052: SSE 연결 테스트")
         void UT_NT_052_handles_json_accept_for_sse_request() throws Exception {
             // when & then - JSON Accept도 처리됨 (컨트롤러에서 지원)
             mockMvc.perform(get("/sse/subscribe")
@@ -118,7 +118,7 @@ class SseStreamControllerTest {
 
         @Test
         @WithMockUser(username = "12345")
-        @DisplayName("연결된 상태 확인")
+        @DisplayName("UT-NT-052: SSE 연결 테스트")
         void UT_NT_052_checks_connected_status() throws Exception {
             // given - SSE 연결 생성
             sseEmittersService.createSseConnection(testUser.getUserId());
@@ -134,7 +134,7 @@ class SseStreamControllerTest {
 
         @Test
         @WithMockUser(username = "12345")
-        @DisplayName("연결되지 않은 상태 확인")
+        @DisplayName("UT-NT-052: SSE 연결 테스트")
         void UT_NT_052_checks_disconnected_status() throws Exception {
             // when & then - 연결 없이 상태 확인
             mockMvc.perform(get("/sse/status"))

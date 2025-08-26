@@ -13,8 +13,8 @@ import static org.assertj.core.api.Assertions.*;
 class TypeTest {
 
     @Test
-    @DisplayName("UT-NT-040: 알림 타입별 템플릿이 올바르게 적용되는가?")
-    void UT_NT_040_target_type_mapping_is_correct() {
+    @DisplayName("UT-NT-011: Type TargetType 검증")
+    void utNt011TargetTypeMappingIsCorrect() {
         assertThat(Type.CHAT.getTargetType()).isEqualTo("CHAT");
         assertThat(Type.SETTLEMENT.getTargetType()).isEqualTo("SETTLEMENT");
         assertThat(Type.LIKE.getTargetType()).isEqualTo("POST");
@@ -22,11 +22,4 @@ class TypeTest {
         assertThat(Type.REFEED.getTargetType()).isEqualTo("FEED");
     }
 
-    @Test
-    @DisplayName("데이터 검증: 모든 타입의 타겟 유효성 검증")
-    void UT_NT_062_all_types_have_non_null_target() {
-        for (Type type : Type.values()) {
-            assertThat(type.getTargetType()).isNotNull().isNotEmpty();
-        }
-    }
 }

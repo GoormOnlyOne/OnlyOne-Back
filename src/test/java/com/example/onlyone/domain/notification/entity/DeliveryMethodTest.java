@@ -9,8 +9,8 @@ import static org.assertj.core.api.Assertions.*;
 class DeliveryMethodTest {
 
     @Test
-    @DisplayName("UT-NT-045: 전송 방식(DeliveryMethod)에 따라 올바르게 전송되는가?")
-    void UT_NT_045_delivery_methods_work_correctly() {
+    @DisplayName("UT-NT-009: DeliveryMethod 동작 검증")
+    void utNt009DeliveryMethodsWorkCorrectly() {
         // FCM_ONLY
         assertThat(DeliveryMethod.FCM_ONLY.shouldSendFcm()).isTrue();
         assertThat(DeliveryMethod.FCM_ONLY.shouldSendSse()).isFalse();
@@ -25,8 +25,8 @@ class DeliveryMethodTest {
     }
 
     @Test
-    @DisplayName("UT-NT-045: 전송 방식별 SSE/FCM 전송 선택 올바른가?")
-    void UT_NT_045_optimal_delivery_method_by_type_is_correct() {
+    @DisplayName("UT-NT-010: 최적 전송 방식 검증")
+    void utNt010OptimalDeliveryMethodByTypeIsCorrect() {
         // 채팅, 전송은 fcm
         assertThat(DeliveryMethod.getOptimalMethod(Type.CHAT)).isEqualTo(DeliveryMethod.FCM_ONLY);
         assertThat(DeliveryMethod.getOptimalMethod(Type.SETTLEMENT)).isEqualTo(DeliveryMethod.FCM_ONLY);

@@ -10,6 +10,7 @@ import com.example.onlyone.domain.user.entity.Status;
 import com.example.onlyone.domain.user.entity.User;
 import com.example.onlyone.domain.user.repository.UserRepository;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
@@ -29,6 +30,7 @@ import java.util.concurrent.atomic.AtomicLong;
  * - 공통 설정 및 유틸리티 메서드 제공
  * - 성능 측정 및 검증 로직 포함
  */
+@DisplayName("성능 테스트 베이스 클래스")
 @SpringBootTest
 @Import(TestConfig.class)
 @ActiveProfiles("test")

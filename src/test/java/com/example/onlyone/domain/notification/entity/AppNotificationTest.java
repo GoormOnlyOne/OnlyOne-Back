@@ -6,9 +6,11 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
+import java.lang.reflect.Field;
+
 import static org.assertj.core.api.Assertions.*;
 
-@DisplayName("AppNotification 테스트")
+@DisplayName("AppNotification 엔티티 테스트")
 class AppNotificationTest {
 
     private User testUser;
@@ -28,8 +30,8 @@ class AppNotificationTest {
     }
 
     @Test
-    @DisplayName("UT-NT-039: 알림 생성 시 읽지 않음 상태로 초기화되는가?")
-    void UT_NT_039_creates_notification_with_defaults() {
+    @DisplayName("UT-NT-001: 알림 생성 시 기본값 검증")
+    void utNt001CreatesNotificationWithDefaults() {
         // when
         AppNotification notification = AppNotification.create(testUser, chatType, "테스트");
 
@@ -39,12 +41,13 @@ class AppNotificationTest {
         assertThat(notification.getContent()).isNotBlank();
         assertThat(notification.isRead()).isFalse();
         assertThat(notification.isFcmSent()).isFalse();
+        assertThat(notification.isSseSent()).isFalse();
         assertThat(notification.getTargetType()).isEqualTo("CHAT");
     }
 
     @Test
-    @DisplayName("UT-NT-021: 읽음 처리 후 읽지 않은 개수가 감소하는가?")
-    void UT_NT_021_changes_notification_status() {
+    @DisplayName("UT-NT-002: 상태 변경 메서드 검증")
+    void utNt002ChangesNotificationStatus() {
         // given
         AppNotification notification = AppNotification.create(testUser, chatType, "테스트");
 
@@ -55,16 +58,21 @@ class AppNotificationTest {
         notification.markFcmSent();
         assertThat(notification.isFcmSent()).isTrue();
         
+        notification.markSseSent();
+        assertThat(notification.isSseSent()).isTrue();
+        
         // 멱등성 테스트
         notification.markAsRead();
         notification.markFcmSent();
+        notification.markSseSent();
         assertThat(notification.isRead()).isTrue();
         assertThat(notification.isFcmSent()).isTrue();
+        assertThat(notification.isSseSent()).isTrue();
     }
 
     @Test
-    @DisplayName("UT-NT-045: 전송 방식(DeliveryMethod)에 따라 올바르게 전송되는가?")
-    void UT_NT_045_delivery_method_works_correctly() {
+    @DisplayName("UT-NT-003: 전송 방식별 동작 검증")
+    void utNt003DeliveryMethodWorksCorrectly() {
         // given
         AppNotification chatNotification = AppNotification.create(testUser, chatType, "채팅 테스트");
         NotificationType likeType = NotificationType.of(Type.LIKE, "좋아요 템플릿");
@@ -78,42 +86,63 @@ class AppNotificationTest {
         assertThat(likeNotification.shouldSendFcm()).isFalse();
     }
 
+
     @Test
-    @DisplayName("UT-NT-037: 삭제된 알림은 조회 목록에 나타나지 않는가?")
-    void UT_NT_037_deleted_notification_not_visible() {
+    @DisplayName("UT-NT-006: 템플릿 렌더링 검증")
+    void utNt006TemplateArgumentsAppliedCorrectly() {
         // given
-        AppNotification notification = AppNotification.create(testUser, chatType, "삭제될 알림");
+        NotificationType templateType = NotificationType.of(Type.COMMENT, "댓글 테스트: %s님이 %s에 댓글을 남겼습니다");
         
-        // when - 알림 생성 후 상태 확인 (삭제 과정을 시뮬레이션)
-        assertThat(notification.getUser()).isEqualTo(testUser);
-        assertThat(notification.getContent()).isNotBlank(); // 콘텐츠가 생성됨
-        assertThat(notification.isRead()).isFalse(); // 초기 상태: 읽지 않음
+        // when
+        AppNotification notification = AppNotification.create(testUser, templateType, "홍길동", "게시물");
         
-        // then - 삭제 전에는 정상적으로 존재함을 확인
-        assertThat(notification.getNotificationType()).isEqualTo(chatType);
-        assertThat(notification.isFcmSent()).isFalse();
-        
-        // 실제 삭제는 NotificationService의 deleteNotification() 메서드에서 처리됨
-        // 이 테스트는 엔티티 레벨에서 삭제 대상 알림의 속성을 검증
+        // then
+        assertThat(notification.getContent()).contains("홍길동");
+        assertThat(notification.getContent()).contains("게시물");
+        assertThat(notification.getContent()).contains("댓글을 남겼습니다");
     }
 
-    @Test  
-    @DisplayName("UT-NT-036: 삭제 후 읽지 않은 개수가 업데이트되는가?")
-    void UT_NT_036_unread_count_updated_after_deletion() {
+    @Test
+    @DisplayName("UT-NT-007: 객체 동등성 검증")
+    void utNt007EqualsAndHashCodeWorkCorrectly() {
         // given
-        AppNotification unreadNotification = AppNotification.create(testUser, chatType, "읽지 않은 알림");
-        AppNotification readNotification = AppNotification.create(testUser, chatType, "읽은 알림");
-        readNotification.markAsRead();
+        AppNotification notification1 = AppNotification.create(testUser, chatType, "테스트1");
+        AppNotification notification2 = AppNotification.create(testUser, chatType, "테스트2");
+        
+        // Reflection으로 ID 설정 (실제로는 JPA가 설정)
+        try {
+            Field idField = AppNotification.class.getDeclaredField("id");
+            idField.setAccessible(true);
+            idField.set(notification1, 1L);
+            idField.set(notification2, 1L);
+        } catch (Exception e) {
+            // 테스트 환경에서 ID 설정 실패 시 무시
+        }
+        
+        // when & then - ID가 같으면 equals true
+        assertThat(notification1).isEqualTo(notification2);
+        assertThat(notification1.hashCode()).isEqualTo(notification2.hashCode());
+        
+        // self equality
+        assertThat(notification1).isEqualTo(notification1);
+        
+        // null and different type
+        assertThat(notification1).isNotEqualTo(null);
+        assertThat(notification1).isNotEqualTo("string");
+    }
 
-        // when & then - 읽지 않은 알림의 삭제는 개수에 영향을 줌
-        assertThat(unreadNotification.isRead()).isFalse(); // 삭제될 읽지 않은 알림
-        assertThat(readNotification.isRead()).isTrue(); // 삭제될 읽은 알림
+    @Test
+    @DisplayName("UT-NT-008: toString 출력 검증")
+    void utNt008ToStringContainsCorrectInformation() {
+        // given
+        AppNotification notification = AppNotification.create(testUser, chatType, "테스트 내용");
         
-        // 삭제 대상 알림들의 상태 확인
-        assertThat(unreadNotification.getUser()).isEqualTo(testUser);
-        assertThat(readNotification.getUser()).isEqualTo(testUser);
+        // when
+        String toString = notification.toString();
         
-        // 실제 삭제 후 읽지 않은 개수 업데이트는 NotificationService.deleteNotification()에서 처리됨
-        // 이 테스트는 엔티티 레벨에서 삭제 대상의 읽음 상태를 검증
+        // then - toString이 null이 아니고 기본 정보를 포함하는지만 확인
+        assertThat(toString)
+                .isNotNull()
+                .contains("AppNotification");
     }
 }
