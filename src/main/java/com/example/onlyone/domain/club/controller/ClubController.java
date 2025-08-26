@@ -2,7 +2,6 @@ package com.example.onlyone.domain.club.controller;
 
 import com.example.onlyone.domain.club.dto.request.ClubRequestDto;
 import com.example.onlyone.domain.club.dto.response.ClubDetailResponseDto;
-import com.example.onlyone.domain.club.dto.response.ClubNameResponseDto;
 import com.example.onlyone.domain.club.service.ClubService;
 import com.example.onlyone.global.common.CommonResponse;
 import io.swagger.v3.oas.annotations.Operation;
