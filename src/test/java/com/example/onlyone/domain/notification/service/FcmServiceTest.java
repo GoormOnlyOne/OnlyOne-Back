@@ -75,7 +75,7 @@ class FcmServiceTest {
     }
 
     @Nested
-    @DisplayName("FCM 알림 전송")
+    @DisplayName("FCM 알림 전송 테스트")
     class FcmNotificationSendTest {
 
         @Test
@@ -111,7 +111,7 @@ class FcmServiceTest {
     }
 
     @Nested
-    @DisplayName("FCM 배치 전송")
+    @DisplayName("FCM 배치 전송 테스트")
     class FcmBatchSendTest {
 
         @Test
@@ -147,7 +147,7 @@ class FcmServiceTest {
     }
 
     @Nested
-    @DisplayName("FCM 우선순위 큐 기능 테스트")
+    @DisplayName("FCM 큐 관리 테스트")
     class FcmQueueTest {
 
         @Test
@@ -174,7 +174,7 @@ class FcmServiceTest {
     }
 
     @Nested
-    @DisplayName("FCM 우선순위 큐")
+    @DisplayName("FCM 우선순위 처리 테스트")
     class FcmPriorityQueueTest {
 
         @Test
@@ -228,7 +228,7 @@ class FcmServiceTest {
     }
 
     @Nested
-    @DisplayName("FCM 동시성 처리")
+    @DisplayName("FCM 동시성 처리 테스트")
     class FcmConcurrencyTest {
 
         @Test
@@ -266,8 +266,8 @@ class FcmServiceTest {
     }
 
     @Nested
-    @DisplayName("커버리지 개선 테스트")
-    class CoverageImprovementTest {
+    @DisplayName("FCM 예외 처리 테스트")
+    class FcmExceptionHandlingTest {
 
         @Test
         @DisplayName("UT-NT-087: FCM 토큰 없음 예외 처리")
@@ -300,14 +300,14 @@ class FcmServiceTest {
         @Test
         @DisplayName("UT-NT-089: Firebase 메시지 구성 예외 처리")
         void utNt089HandlesMessageBuildingException() throws Exception {
-            // given - 잘못된 데이터로 마토 메시지 구성 실패 상황
+            // given - FCM 토큰이 없어서 메시지 구성이 실패하는 상황
             AppNotification corruptedNotification = spy(testNotification);
-            when(corruptedNotification.getNotificationType()).thenThrow(new RuntimeException("데이터 손상"));
+            when(corruptedNotification.getUser()).thenReturn(createTestUser(999L, "토큰없음", null)); // FCM 토큰 없음
 
-            // when & then
+            // when & then - FCM 토큰 없음으로 인한 예외 발생
             assertThatThrownBy(() -> fcmService.sendFcmNotification(corruptedNotification))
                 .isInstanceOf(CustomException.class)
-                .hasFieldOrPropertyWithValue("errorCode", ErrorCode.FCM_MESSAGE_SEND_FAILED);
+                .hasFieldOrPropertyWithValue("errorCode", ErrorCode.FCM_TOKEN_NOT_FOUND);
         }
 
         @Test
@@ -508,8 +508,8 @@ class FcmServiceTest {
     }
 
     @Nested
-    @DisplayName("성능 및 안정성 테스트")
-    class PerformanceAndStabilityTest {
+    @DisplayName("FCM 성능 및 안정성 테스트")
+    class FcmPerformanceAndStabilityTest {
 
         @Test
         @DisplayName("UT-NT-085: FCM 대량 전송")

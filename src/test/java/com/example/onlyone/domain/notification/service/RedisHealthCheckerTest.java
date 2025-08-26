@@ -49,12 +49,12 @@ class RedisHealthCheckerTest {
     }
 
     @Nested
-    @DisplayName("Redis 헬스체크 기본 기능")
+    @DisplayName("Redis 헬스체크 기본 기능 테스트")
     class BasicHealthCheckTest {
 
         @Test
-        @DisplayName("UT-NT-074: Redis 정상 상태 확인")
-        void utNt074ReturnsHealthyWhenRedisIsAvailable() throws Exception {
+        @DisplayName("UT-NT-177: Redis 정상 상태 확인")
+        void utNt177ReturnsHealthyWhenRedisIsAvailable() throws Exception {
             // given - Redis가 정상 응답하는 상황
             RedisConnection mockConnection = mock(RedisConnection.class);
             when(mockConnection.ping()).thenReturn("PONG");
@@ -72,8 +72,8 @@ class RedisHealthCheckerTest {
         }
 
         @Test
-        @DisplayName("UT-NT-075: Redis 응답 없음 상태")
-        void utNt075ReturnsUnhealthyWhenRedisDoesNotRespond() throws Exception {
+        @DisplayName("UT-NT-178: Redis 응답 없음 상태")
+        void utNt178ReturnsUnhealthyWhenRedisDoesNotRespond() throws Exception {
             // given - Redis가 응답하지 않는 상황
             when(redisTemplate.execute(any(RedisCallback.class))).thenThrow(new RuntimeException("Redis connection failed"));
 
@@ -132,7 +132,7 @@ class RedisHealthCheckerTest {
     }
 
     @Nested
-    @DisplayName("Circuit Breaker 기능")
+    @DisplayName("Circuit Breaker 기능 테스트")
     class CircuitBreakerTest {
 
         @Test

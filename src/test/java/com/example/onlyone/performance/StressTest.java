@@ -43,8 +43,8 @@ class StressTest extends BasePerformanceTest {
     private SseEmittersService sseEmittersService;
 
     @Test
-    @DisplayName("UT-NT-153: 대량 데이터 조회 성능")
-    void utNt153MassiveDataQueryStressTest() {
+    @DisplayName("UT-NT-170: 대량 데이터 조회 성능")
+    void utNt170MassiveDataQueryStressTest() {
         System.err.printf("🚀 대량 데이터 조회 스트레스 테스트 시작...%n");
         
         // given - 대량 사용자 및 알림 생성
@@ -191,8 +191,8 @@ class StressTest extends BasePerformanceTest {
     }
 
     @Test
-    @DisplayName("UT-NT-154: SSE 동시 연결 성능")
-    void utNt154MassiveSseConnectionsStressTest() {
+    @DisplayName("UT-NT-171: SSE 동시 연결 성능")
+    void utNt171MassiveSseConnectionsStressTest() {
         System.err.printf("🚀 SSE 대량 동시 연결 스트레스 테스트 시작...%n");
         
         // given - 기존 사용자 사용 및 추가 생성
@@ -291,8 +291,8 @@ class StressTest extends BasePerformanceTest {
     }
 
     @Test
-    @DisplayName("UT-NT-155: FCM 대량 전송 성능")
-    void utNt155MassiveFcmSendingStressTest() {
+    @DisplayName("UT-NT-172: FCM 대량 전송 성능")
+    void utNt172MassiveFcmSendingStressTest() {
         System.err.printf("🚀 FCM 대량 전송 스트레스 테스트 시작...%n");
         
         // given
@@ -394,8 +394,8 @@ class StressTest extends BasePerformanceTest {
     }
 
     @Test
-    @DisplayName("UT-NT-156: 메모리 한계 테스트")
-    void utNt156MemoryLimitChallengeTest() {
+    @DisplayName("UT-NT-173: 메모리 한계 테스트")
+    void utNt173MemoryLimitChallengeTest() {
         System.err.printf("🚀 메모리 한계 도전 테스트 시작...%n");
         
         Runtime runtime = Runtime.getRuntime();

@@ -30,7 +30,7 @@ class AppNotificationTest {
     }
 
     @Test
-    @DisplayName("UT-NT-001: 알림 생성 시 기본값 검증")
+    @DisplayName("UT-NT-001: 알림 생성")
     void utNt001CreatesNotificationWithDefaults() {
         // when
         AppNotification notification = AppNotification.create(testUser, chatType, "테스트");
@@ -46,7 +46,7 @@ class AppNotificationTest {
     }
 
     @Test
-    @DisplayName("UT-NT-002: 상태 변경 메서드 검증")
+    @DisplayName("UT-NT-002: 상태 변경")
     void utNt002ChangesNotificationStatus() {
         // given
         AppNotification notification = AppNotification.create(testUser, chatType, "테스트");
@@ -71,7 +71,7 @@ class AppNotificationTest {
     }
 
     @Test
-    @DisplayName("UT-NT-003: 전송 방식별 동작 검증")
+    @DisplayName("UT-NT-003: 전송 방식별 동작")
     void utNt003DeliveryMethodWorksCorrectly() {
         // given
         AppNotification chatNotification = AppNotification.create(testUser, chatType, "채팅 테스트");
@@ -88,8 +88,8 @@ class AppNotificationTest {
 
 
     @Test
-    @DisplayName("UT-NT-006: 템플릿 렌더링 검증")
-    void utNt006TemplateArgumentsAppliedCorrectly() {
+    @DisplayName("UT-NT-004: 템플릿 렌더링")
+    void utNt004TemplateArgumentsAppliedCorrectly() {
         // given
         NotificationType templateType = NotificationType.of(Type.COMMENT, "댓글 테스트: %s님이 %s에 댓글을 남겼습니다");
         
@@ -103,8 +103,8 @@ class AppNotificationTest {
     }
 
     @Test
-    @DisplayName("UT-NT-007: 객체 동등성 검증")
-    void utNt007EqualsAndHashCodeWorkCorrectly() {
+    @DisplayName("UT-NT-005: 객체 동등성")
+    void utNt005EqualsAndHashCodeWorkCorrectly() {
         // given
         AppNotification notification1 = AppNotification.create(testUser, chatType, "테스트1");
         AppNotification notification2 = AppNotification.create(testUser, chatType, "테스트2");
@@ -132,8 +132,8 @@ class AppNotificationTest {
     }
 
     @Test
-    @DisplayName("UT-NT-008: toString 출력 검증")
-    void utNt008ToStringContainsCorrectInformation() {
+    @DisplayName("UT-NT-006: toString 출력")
+    void utNt006ToStringContainsCorrectInformation() {
         // given
         AppNotification notification = AppNotification.create(testUser, chatType, "테스트 내용");
         
