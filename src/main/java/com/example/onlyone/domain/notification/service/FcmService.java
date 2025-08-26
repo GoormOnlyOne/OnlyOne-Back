@@ -2,6 +2,9 @@ package com.example.onlyone.domain.notification.service;
 
 import com.example.onlyone.domain.notification.entity.AppNotification;
 import com.example.onlyone.domain.notification.repository.NotificationRepository;
+import com.example.onlyone.domain.notification.model.FcmNotificationTask;
+import com.example.onlyone.domain.notification.dto.fcm.BatchSendResult;
+import com.example.onlyone.domain.notification.dto.fcm.FcmPriority;
 import com.example.onlyone.global.exception.CustomException;
 import com.example.onlyone.global.exception.ErrorCode;
 import com.google.firebase.messaging.*;
@@ -306,77 +309,5 @@ public class FcmService implements InitializingBean, DisposableBean {
     }
   }
 
-  /**
-   * FCM 우선순위
-   */
-  public enum FcmPriority {
-    HIGH(1),
-    NORMAL(2),
-    LOW(3);
-
-    private final int value;
-
-    FcmPriority(int value) {
-      this.value = value;
-    }
-
-    public int getValue() { return value; }
-  }
-
-  /**
-   * FCM 알림 작업
-   */
-  public static class FcmNotificationTask implements Comparable<FcmNotificationTask> {
-    private final AppNotification notification;
-    private final FcmPriority priority;
-    private final long timestamp;
-
-    private FcmNotificationTask(AppNotification notification, FcmPriority priority) {
-      this.notification = Objects.requireNonNull(notification);
-      this.priority = Objects.requireNonNull(priority);
-      this.timestamp = System.currentTimeMillis();
-    }
-
-    public static FcmNotificationTask of(AppNotification notification, FcmPriority priority) {
-      return new FcmNotificationTask(notification, priority);
-    }
-
-    @Override
-    public int compareTo(FcmNotificationTask other) {
-      int priorityComparison = Integer.compare(this.priority.getValue(), other.priority.getValue());
-      if (priorityComparison != 0) {
-        return priorityComparison;
-      }
-      return Long.compare(this.timestamp, other.timestamp);
-    }
-
-    public AppNotification getNotification() { return notification; }
-    public FcmPriority getPriority() { return priority; }
-    public long getTimestamp() { return timestamp; }
-  }
-
-  /**
-   * 배치 전송 결과
-   */
-  public static class BatchSendResult {
-    private final long successCount;
-    private final long failureCount;
-
-    private BatchSendResult(long successCount, long failureCount) {
-      this.successCount = successCount;
-      this.failureCount = failureCount;
-    }
-
-    public static BatchSendResult of(long successCount, long failureCount) {
-      return new BatchSendResult(successCount, failureCount);
-    }
-
-    public static BatchSendResult empty() {
-      return new BatchSendResult(0, 0);
-    }
-
-    public long getSuccessCount() { return successCount; }
-    public long getFailureCount() { return failureCount; }
-    public long getTotalCount() { return successCount + failureCount; }
-  }
+  // FcmPriority, FcmNotificationTask, BatchSendResult는 dto.fcm 패키지로 이동
 }
