@@ -2,6 +2,7 @@ package com.example.onlyone.domain.notification.repository;
 
 import com.example.onlyone.domain.notification.dto.responseDto.NotificationItemDto;
 import com.example.onlyone.domain.notification.entity.AppNotification;
+import com.example.onlyone.domain.notification.entity.DeliveryMethod;
 import com.example.onlyone.domain.notification.entity.Type;
 import com.querydsl.core.types.Projections;
 import com.querydsl.core.types.dsl.BooleanExpression;
@@ -130,8 +131,26 @@ public class NotificationRepositoryImpl implements NotificationRepositoryCustom 
                         appNotification.user.userId.eq(userId),
                         appNotification.fcmSent.eq(false),
                         appNotification.notificationType.deliveryMethod.in(
-                                com.example.onlyone.domain.notification.entity.DeliveryMethod.FCM_ONLY,
-                                com.example.onlyone.domain.notification.entity.DeliveryMethod.BOTH
+                                DeliveryMethod.FCM_ONLY,
+                                DeliveryMethod.BOTH
+                        )
+                )
+                .orderBy(appNotification.createdAt.desc())
+                .fetch();
+    }
+    
+    @Override
+    public List<AppNotification> findFailedSseNotificationsByUserId(Long userId) {
+        return queryFactory
+                .selectFrom(appNotification)
+                .join(appNotification.notificationType, notificationType).fetchJoin()
+                .join(appNotification.user, user).fetchJoin()
+                .where(
+                        appNotification.user.userId.eq(userId),
+                        appNotification.sseSent.eq(false),
+                        appNotification.notificationType.deliveryMethod.in(
+                                DeliveryMethod.SSE_ONLY,
+                                DeliveryMethod.BOTH
                         )
                 )
                 .orderBy(appNotification.createdAt.desc())
@@ -199,8 +218,31 @@ public class NotificationRepositoryImpl implements NotificationRepositoryCustom 
                         appNotification.user.userId.eq(userId),
                         appNotification.fcmSent.eq(false),
                         appNotification.notificationType.deliveryMethod.in(
-                                com.example.onlyone.domain.notification.entity.DeliveryMethod.FCM_ONLY,
-                                com.example.onlyone.domain.notification.entity.DeliveryMethod.BOTH
+                                DeliveryMethod.FCM_ONLY,
+                                DeliveryMethod.BOTH
+                        )
+                )
+                .fetchOne();
+        
+        Long sseSentCount = queryFactory
+                .select(appNotification.count())
+                .from(appNotification)
+                .where(
+                        appNotification.user.userId.eq(userId),
+                        appNotification.sseSent.eq(true)
+                )
+                .fetchOne();
+        
+        Long sseFailedCount = queryFactory
+                .select(appNotification.count())
+                .from(appNotification)
+                .join(appNotification.notificationType, notificationType)
+                .where(
+                        appNotification.user.userId.eq(userId),
+                        appNotification.sseSent.eq(false),
+                        appNotification.notificationType.deliveryMethod.in(
+                                DeliveryMethod.SSE_ONLY,
+                                DeliveryMethod.BOTH
                         )
                 )
                 .fetchOne();
@@ -209,7 +251,9 @@ public class NotificationRepositoryImpl implements NotificationRepositoryCustom 
                 totalCount != null ? totalCount : 0L,
                 unreadCount != null ? unreadCount : 0L,
                 fcmSentCount != null ? fcmSentCount : 0L,
-                fcmFailedCount != null ? fcmFailedCount : 0L
+                fcmFailedCount != null ? fcmFailedCount : 0L,
+                sseSentCount != null ? sseSentCount : 0L,
+                sseFailedCount != null ? sseFailedCount : 0L
         );
     }
     
@@ -260,6 +304,7 @@ public class NotificationRepositoryImpl implements NotificationRepositoryCustom 
                     .set(appNotification.content, notification.getContent())
                     .set(appNotification.isRead, notification.isRead())
                     .set(appNotification.fcmSent, notification.isFcmSent())
+                    .set(appNotification.sseSent, notification.isSseSent())
                     .set(appNotification.user.userId, notification.getUser().getUserId())
                     .set(appNotification.notificationType.id, notification.getNotificationType().getId())
                     .execute();

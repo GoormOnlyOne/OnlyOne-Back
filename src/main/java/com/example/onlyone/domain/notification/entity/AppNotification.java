@@ -43,12 +43,16 @@ public class AppNotification extends BaseTimeEntity {
     @Column(name = "fcm_sent", nullable = false)
     private boolean fcmSent = false;
 
+    @Column(name = "sse_sent", nullable = false)
+    private boolean sseSent = false;
+
     private AppNotification(User user, NotificationType notificationType, String content) {
         this.user = user;
         this.notificationType = notificationType;
         this.content = content;
 //        this.isRead = false;
 //        this.fcmSent = false;
+//        this.sseSent = false;
     }
 
     public static AppNotification create(User user, NotificationType notificationType, 
@@ -67,6 +71,10 @@ public class AppNotification extends BaseTimeEntity {
 
     public void markFcmSent() {
         this.fcmSent = true;
+    }
+
+    public void markSseSent() {
+        this.sseSent = true;
     }
 
     public boolean shouldSendFcm() {

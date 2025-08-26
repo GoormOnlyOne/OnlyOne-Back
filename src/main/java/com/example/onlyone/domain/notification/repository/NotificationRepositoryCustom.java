@@ -44,6 +44,11 @@ public interface NotificationRepositoryCustom {
     List<AppNotification> findFailedFcmNotificationsByUserId(Long userId);
     
     /**
+     * 전송 실패한 SSE 알림 목록 조회
+     */
+    List<AppNotification> findFailedSseNotificationsByUserId(Long userId);
+    
+    /**
      * 특정 시간 이후의 알림 목록 조회 (SSE 재연결 지원)
      */
     List<AppNotification> findNotificationsByUserIdAfter(
@@ -83,6 +88,8 @@ public interface NotificationRepositoryCustom {
             Long totalCount,
             Long unreadCount,
             Long fcmSentCount,
-            Long fcmFailedCount
+            Long fcmFailedCount,
+            Long sseSentCount,
+            Long sseFailedCount
     ) {}
 }
