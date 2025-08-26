@@ -25,8 +25,6 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.event.TransactionPhase;
 import org.springframework.transaction.event.TransactionalEventListener;
 import org.springframework.data.redis.core.RedisTemplate;
-import org.springframework.cache.annotation.Cacheable;
-import org.springframework.cache.annotation.CacheEvict;
 
 import java.time.Duration;
 import java.util.List;
@@ -48,6 +46,7 @@ public class NotificationService {
   private final ApplicationEventPublisher eventPublisher;
   private final JPAQueryFactory queryFactory;
   private final RedisTemplate<String, Object> redisTemplate;
+  private final RedisHealthChecker redisHealthChecker;
 
   /**
    * 알림 생성 및 전송 (이벤트 발행으로 SSE/FCM 처리)
@@ -59,6 +58,9 @@ public class NotificationService {
 
     AppNotification appNotification = createAndSaveNotification(user, type, requestDto.getArgs());
 
+    // Redis 캐시 무효화 (새 알림 생성으로 인한 카운트 변경)
+    evictUnreadCountCache(requestDto.getUserId());
+    
     // 트랜잭션 커밋 후 실시간 알림 전송을 위한 이벤트 발행
     eventPublisher.publishEvent(new NotificationCreatedEvent(appNotification));
 
@@ -73,6 +75,9 @@ public class NotificationService {
     NotificationType notificationType = findNotificationType(type);
     AppNotification appNotification = createAndSaveNotification(user, notificationType, args);
 
+    // Redis 캐시 무효화 (새 알림 생성으로 인한 카운트 변경)
+    evictUnreadCountCache(user.getUserId());
+    
     // 트랜잭션 커밋 후 실시간 알림 전송을 위한 이벤트 발행
     eventPublisher.publishEvent(new NotificationCreatedEvent(appNotification));
 
@@ -137,8 +142,13 @@ public class NotificationService {
    * 읽지 않은 알림 개수 조회 (Redis 캐싱 적용)
    */
   @Transactional(readOnly = true)
-  @Cacheable(value = "unreadCount", key = "#userId", unless = "#result == null")
   public Long getUnreadCount(Long userId) {
+    // 사용자 존재 확인
+    if (userId == null) {
+      throw new CustomException(ErrorCode.USER_NOT_FOUND);
+    }
+    findUser(userId); // 사용자가 존재하지 않으면 예외 발생
+    
     try {
       // Redis 캐시에서 먼저 확인
       String cacheKey = "notification:unread:" + userId;
@@ -170,7 +180,6 @@ public class NotificationService {
    * 모든 알림 읽음 처리 (개별 엔티티 업데이트)
    */
   @Transactional
-  @CacheEvict(value = "unreadCount", key = "#userId")
   public void markAsRead(Long notificationId, Long userId) {
     AppNotification notification = findNotification(notificationId);
     validateNotificationOwnership(notification, userId);
@@ -181,7 +190,6 @@ public class NotificationService {
   }
 
   @Transactional
-  @CacheEvict(value = "unreadCount", key = "#userId")
   public void markAllAsRead(Long userId) {
     long markedCount = notificationRepository.markAllAsReadByUserId(userId);
 
@@ -198,7 +206,6 @@ public class NotificationService {
    * 알림 삭제 (소유권 검증 포함)
    */
   @Transactional
-  @CacheEvict(value = "unreadCount", key = "#userId")
   public void deleteNotification(Long userId, Long notificationId) {
     AppNotification appNotification = findNotification(notificationId);
     validateNotificationOwnership(appNotification, userId);
@@ -259,13 +266,53 @@ public class NotificationService {
     return notificationRepository.save(appNotification);
   }
 
-  // SSE 알림 전송 (예외 안전)
+  // SSE 알림 전송 (예외 안전 + Redis 장애 시 FCM 폴백)
   private void sendSseNotificationSafely(AppNotification appNotification) {
-    executeNotificationSafely(
-        () -> sseEmittersService.sendSseNotification(appNotification.getUser().getUserId(),
-            appNotification),
-        "SSE", appNotification.getId()
-    );
+    // Redis 상태 확인
+    if (!redisHealthChecker.isHealthy()) {
+      log.warn("Redis is unhealthy, falling back to FCM for notification: id={}", appNotification.getId());
+      sendFcmAsFallback(appNotification);
+      return;
+    }
+    
+    try {
+      sseEmittersService.sendSseNotification(appNotification.getUser().getUserId(), appNotification);
+      updateSseSentStatus(appNotification, true);
+      log.debug("SSE notification sent successfully: notificationId={}", appNotification.getId());
+    } catch (Exception e) {
+      updateSseSentStatus(appNotification, false);
+      log.error("SSE notification failed: id={}, error={}", appNotification.getId(), e.getMessage());
+      
+      // SSE 실패 시 FCM으로 폴백
+      sendFcmAsFallback(appNotification);
+    }
+  }
+  
+  // FCM 폴백 전송 (SSE 실패 시)
+  private void sendFcmAsFallback(AppNotification appNotification) {
+    try {
+      // 이미 FCM으로 전송된 경우 중복 방지
+      if (appNotification.isFcmSent()) {
+        log.debug("FCM already sent for notification: id={}", appNotification.getId());
+        return;
+      }
+      
+      // FCM 토큰 확인
+      String fcmToken = appNotification.getUser().getFcmToken();
+      if (fcmToken == null || fcmToken.isBlank()) {
+        log.warn("Cannot fallback to FCM - no token for user: {}", appNotification.getUser().getUserId());
+        return;
+      }
+      
+      log.info("Attempting FCM fallback for failed SSE notification: id={}", appNotification.getId());
+      fcmService.sendFcmNotification(appNotification);
+      updateFcmSentStatus(appNotification, true);
+      log.info("FCM fallback successful for notification: id={}", appNotification.getId());
+      
+    } catch (Exception e) {
+      log.error("FCM fallback also failed for notification: id={}, error={}", 
+                appNotification.getId(), e.getMessage());
+    }
   }
 
   // FCM 알림 전송 (비동기, 예외 안전)
@@ -330,6 +377,26 @@ public class NotificationService {
     }
   }
 
+  // SSE 전송 상태 업데이트 (최적화된 직접 업데이트)
+  @Transactional
+  private void updateSseSentStatus(AppNotification appNotification, boolean sent) {
+    try {
+      // QueryDSL로 직접 업데이트하여 재조회 방지
+      long updated = queryFactory
+          .update(QAppNotification.appNotification)
+          .set(QAppNotification.appNotification.sseSent, sent)
+          .where(QAppNotification.appNotification.id.eq(appNotification.getId()))
+          .execute();
+      
+      if (updated > 0) {
+        log.debug("SSE status updated: notificationId={}, sent={}", appNotification.getId(), sent);
+      }
+    } catch (Exception e) {
+      log.error("Failed to update SSE sent status: notificationId={}, error={}",
+          appNotification.getId(), e.getMessage());
+    }
+  }
+
   // 알림 전송 예외 안전 실행
   private void executeNotificationSafely(Runnable task, String type, Long id) {
     try {
@@ -368,7 +435,7 @@ public class NotificationService {
   }
 
 
-  // NotificationListResponseDto 빌드 (최적화된 hasMore 체크, 중복 쿼리 제거)
+  // NotificationListResponseDto 빌드 (최적화된 hasMore 체크, 재귀 호출 방지)
   private NotificationListResponseDto buildNotificationListResponse(Long userId, List<NotificationItemDto> notifications, int requestedSize) {
     boolean hasMore = notifications.size() > requestedSize;
     
@@ -379,8 +446,9 @@ public class NotificationService {
     Long nextCursor = actualNotifications.isEmpty() ? null :
         actualNotifications.get(actualNotifications.size() - 1).getNotificationId();
 
-    // 중복 쿼리 방지: 한 번만 조회하여 재사용
-    Long unreadCount = getUnreadCount(userId);
+    // 직접 DB 조회로 재귀 호출 방지
+    Long unreadCount = notificationRepository.countUnreadByUserId(userId);
+    unreadCount = unreadCount != null ? unreadCount : 0L;
 
     return NotificationListResponseDto.builder()
         .notifications(actualNotifications)
@@ -390,7 +458,7 @@ public class NotificationService {
         .build();
   }
   
-  // 타입별 조회용 별도 메서드 (중복 쿼리 제거)
+  // 타입별 조회용 별도 메서드 (재귀 호출 방지)
   private NotificationListResponseDto buildNotificationListResponseByType(Long userId, List<NotificationItemDto> notifications, int requestedSize) {
     boolean hasMore = notifications.size() > requestedSize;
     
@@ -401,8 +469,9 @@ public class NotificationService {
     Long nextCursor = actualNotifications.isEmpty() ? null :
         actualNotifications.get(actualNotifications.size() - 1).getNotificationId();
 
-    // 중복 쿼리 방지: 한 번만 조회하여 재사용
-    Long unreadCount = getUnreadCount(userId);
+    // 직접 DB 조회로 재귀 호출 방지
+    Long unreadCount = notificationRepository.countUnreadByUserId(userId);
+    unreadCount = unreadCount != null ? unreadCount : 0L;
 
     return NotificationListResponseDto.builder()
         .notifications(actualNotifications)

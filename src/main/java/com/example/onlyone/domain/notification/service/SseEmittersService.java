@@ -37,6 +37,7 @@ public class SseEmittersService implements InitializingBean, DisposableBean {
   private final ConcurrentHashMap<Long, SseConnection> activeConnections = new ConcurrentHashMap<>();
   private final NotificationRepository notificationRepository;
   private final RedisTemplate<String, Object> redisTemplate;
+  private final RedisHealthChecker redisHealthChecker;
   
   // 주기적인 정리를 위한 스케줄러
   private final ScheduledExecutorService cleanupScheduler = Executors.newSingleThreadScheduledExecutor(
@@ -212,9 +213,15 @@ public class SseEmittersService implements InitializingBean, DisposableBean {
   }
   
   /**
-   * Redis에 연결 정보 등록 (클러스터 환경 대응)
+   * Redis에 연결 정보 등록 (클러스터 환경 대응 + Circuit Breaker)
    */
   private void registerConnectionToRedis(Long userId, SseConnection connection) {
+    // Redis 상태 확인
+    if (!redisHealthChecker.isHealthy()) {
+      log.warn("Redis is unhealthy, skipping connection registration for userId={}", userId);
+      return;
+    }
+    
     try {
       String serverInstance = getServerInstanceId();
       Map<String, Object> connectionInfo = Map.of(
@@ -235,9 +242,15 @@ public class SseEmittersService implements InitializingBean, DisposableBean {
   }
   
   /**
-   * Redis에서 연결 정보 제거
+   * Redis에서 연결 정보 제거 (Circuit Breaker 적용)
    */
   private void removeConnectionFromRedis(Long userId) {
+    // Redis 상태 확인
+    if (!redisHealthChecker.isHealthy()) {
+      log.warn("Redis is unhealthy, skipping connection removal for userId={}", userId);
+      return;
+    }
+    
     try {
       redisTemplate.delete(SSE_CONNECTION_INFO_KEY + userId);
       redisTemplate.opsForSet().remove(SSE_CONNECTION_KEY, userId.toString());
