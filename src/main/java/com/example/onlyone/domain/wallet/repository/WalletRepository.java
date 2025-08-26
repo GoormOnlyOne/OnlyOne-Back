@@ -56,5 +56,6 @@ public interface WalletRepository extends JpaRepository<Wallet,Long> {
     """, nativeQuery = true)
     int creditByUserId(@Param("userId") Long userId, @Param("amount") long amount);
 
-//    User user(User user);
+    @Query(value="select pending_out from wallet where user_id = :userId", nativeQuery=true)
+    long getPendingOutByUserId(Long userId);
 }

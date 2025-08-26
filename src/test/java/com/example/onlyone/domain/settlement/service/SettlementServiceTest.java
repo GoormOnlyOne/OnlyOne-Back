@@ -20,6 +20,7 @@ import com.example.onlyone.domain.settlement.entity.TotalStatus;
 import com.example.onlyone.domain.settlement.entity.UserSettlement;
 import com.example.onlyone.domain.settlement.repository.SettlementRepository;
 import com.example.onlyone.domain.settlement.repository.UserSettlementRepository;
+import com.example.onlyone.domain.user.dto.response.MySettlementResponseDto;
 import com.example.onlyone.domain.user.entity.User;
 import com.example.onlyone.domain.user.repository.UserRepository;
 import com.example.onlyone.domain.user.service.UserService;
@@ -102,6 +103,8 @@ public class SettlementServiceTest {
     @Autowired
     private UserScheduleRepository userScheduleRepository;
     @Autowired
+    private WalletTransactionRepository walletTransactionRepository;
+    @Autowired
     EntityManager entityManager;
 
     private Club club;
@@ -110,8 +113,6 @@ public class SettlementServiceTest {
     private User leader;
     private User member1;
     private User member2;
-    @Autowired
-    private WalletTransactionRepository walletTransactionRepository;
 
     @BeforeEach
     void setUp() {
@@ -422,7 +423,6 @@ public class SettlementServiceTest {
                 settlementService.getSettlementList(club.getClubId(), schedule.getScheduleId(), pageable);
 
         // then
-        // 페이지 메타는 구현체에 따라 다를 수 있지만, 일반적으로 content/total(또는 size) 확인
         assertThat(result).isNotNull();
         assertThat(result.getUserSettlementList()).hasSize(2); // 멤버 2명
         assertThat(result.getUserSettlementList())

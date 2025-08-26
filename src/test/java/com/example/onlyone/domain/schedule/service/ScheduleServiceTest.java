@@ -378,7 +378,7 @@ public class ScheduleServiceTest {
                 "구름스퀘어 강남",
                 200,
                 10,
-                LocalDateTime.now().minusHours(2)
+                LocalDateTime.now().plusHours(2)
         );
         Mockito.when(userService.getCurrentUser()).thenReturn(leader);
 
@@ -390,8 +390,12 @@ public class ScheduleServiceTest {
         // then
         Schedule refreshSchedule = scheduleRepository.findById(scheduleId).orElse(null);
         Wallet memberWallet = walletRepository.findByUserWithoutLock(member).orElseThrow();
+        entityManager.refresh(memberWallet);
+
         assertThat(refreshSchedule.getCost()).isEqualTo(updateScheduleRequestDto.getCost());
         assertThat(memberWallet.getPendingOut()).isEqualTo(updateScheduleRequestDto.getCost());
+        long pending = walletRepository.getPendingOutByUserId(member.getUserId());
+        assertThat(pending).isEqualTo(200L);
     }
 
     @Test
