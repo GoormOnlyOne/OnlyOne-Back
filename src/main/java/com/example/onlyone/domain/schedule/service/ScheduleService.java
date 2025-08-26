@@ -169,6 +169,7 @@ public class ScheduleService {
             }
         }
         schedule.update(requestDto.getName(), requestDto.getLocation(), requestDto.getCost(), requestDto.getUserLimit(), requestDto.getScheduleTime());
+        scheduleRepository.save(schedule);
     }
 
     /* 정기 모임 참여 */
