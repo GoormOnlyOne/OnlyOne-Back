@@ -55,6 +55,7 @@ public interface FeedRepository extends JpaRepository<Feed,Long> {
       GROUP BY fc.feed_id
     ) c ON c.feed_id = f.feed_id
     WHERE f.club_id IN (:clubIds)
+        AND f.deleted = false
     ORDER BY (
       LOG(GREATEST(
           COALESCE(l.cnt, 0)                 
