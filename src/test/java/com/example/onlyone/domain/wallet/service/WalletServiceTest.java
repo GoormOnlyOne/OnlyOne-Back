@@ -38,6 +38,7 @@ import org.springframework.context.annotation.Import;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -58,7 +59,7 @@ public class WalletServiceTest {
     WalletTransactionRepository walletTransactionRepository;
     @Autowired
     UserRepository userRepository;
-    @MockBean
+    @MockitoBean
     UserService userService;
 
     private User user;
