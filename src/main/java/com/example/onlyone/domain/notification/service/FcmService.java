@@ -252,7 +252,7 @@ public class FcmService implements InitializingBean, DisposableBean {
 
   // 알림 페이로드 구성 - 시스템 알림창에 표시될 내용
   private Notification buildNotificationPayload(AppNotification appNotification) {
-    return com.google.firebase.messaging.Notification.builder()
+    return Notification.builder()
         .setTitle(appNotification.getNotificationType().getType().name())
         .setBody(appNotification.getContent())
         .build();

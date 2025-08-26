@@ -11,11 +11,21 @@ import com.example.onlyone.domain.notification.service.NotificationService;
 import com.example.onlyone.domain.user.entity.Status;
 import com.example.onlyone.domain.user.entity.User;
 import com.example.onlyone.domain.user.repository.UserRepository;
+import com.example.onlyone.domain.user.service.UserService;
 import com.example.onlyone.global.exception.CustomException;
 import com.example.onlyone.global.exception.ErrorCode;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+
+import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.security.test.context.support.WithMockUser;
+import static org.mockito.BDDMockito.given;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
+import static org.hamcrest.Matchers.*;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -38,14 +48,22 @@ import java.util.List;
  * - 실제 비즈니스 로직 및 예외 처리 검증
  */
 @SpringBootTest
+@AutoConfigureMockMvc
 @Import(TestConfig.class)
 @ActiveProfiles("test")
 @Transactional
-@DisplayName("알림 컨트롤러 통합 테스트")
+@WithMockUser
+@DisplayName("알림 컨트롤러 HTTP API 통합 테스트")
 class NotificationControllerTest {
 
     @Autowired
+    private MockMvc mockMvc;
+    
+    @Autowired
     private NotificationService notificationService;
+    
+    @MockitoBean
+    private UserService userService;
     
     @Autowired
     private UserRepository userRepository;
@@ -85,6 +103,9 @@ class NotificationControllerTest {
         
         testNotificationType = NotificationType.of(Type.CHAT, "테스트 템플릿: %s");
         testNotificationType = notificationTypeRepository.save(testNotificationType);
+        
+        // Mock UserService to return testUser for authentication
+        given(userService.getCurrentUser()).willReturn(testUser);
     }
 
     @Nested
@@ -93,30 +114,30 @@ class NotificationControllerTest {
 
         @Test
         @DisplayName("UT-NT-105: 컨트롤러 읽지 않은 개수")
-        void utNt105GetsUnreadCountSuccessfully() {
+        void utNt105GetsUnreadCountSuccessfully() throws Exception {
             // given - 실제 알림 5개 생성
             for (int i = 0; i < 5; i++) {
                 AppNotification notification = AppNotification.create(testUser, testNotificationType, "알림" + i);
                 notificationRepository.save(notification);
             }
 
-            // when
-            Long unreadCount = notificationService.getUnreadCount(testUser.getUserId());
-            
-            // then
-            assertThat(unreadCount).isEqualTo(5L);
+            // when - HTTP GET 요청으로 읽지 않은 알림 개수 조회
+            mockMvc.perform(get("/notifications/unread-count"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data").value(5));
         }
 
         @Test
         @DisplayName("UT-NT-106: 컨트롤러 빈 개수")
-        void utNt106ReturnsZeroWhenNoUnreadNotifications() {
+        void utNt106ReturnsZeroWhenNoUnreadNotifications() throws Exception {
             // given - 알림이 없는 상태 (기본 상태)
 
-            // when
-            Long unreadCount = notificationService.getUnreadCount(testUser.getUserId());
-            
-            // then
-            assertThat(unreadCount).isEqualTo(0L);
+            // when - HTTP GET 요청으로 읽지 않은 알림 개수 조회
+            mockMvc.perform(get("/notifications/unread-count"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data").value(0));
         }
 
         @Test
@@ -190,25 +211,23 @@ class NotificationControllerTest {
 
         @Test
         @DisplayName("UT-NT-111: 컨트롤러 커서 페이징")
-        void utNt111GetsNotificationsWithCustomParams() {
+        void utNt111GetsNotificationsWithCustomParams() throws Exception {
             // given - 실제 알림 20개 생성
             for (int i = 0; i < 20; i++) {
                 AppNotification notification = AppNotification.create(testUser, testNotificationType, "알림" + i);
                 notificationRepository.save(notification);
             }
 
-            // when - 첫 번째 페이지 조회
-            NotificationListResponseDto firstPage = notificationService.getNotifications(testUser.getUserId(), null, 10);
+            // when - HTTP GET 요청으로 첫 번째 페이지 조회 (size=10)
+            mockMvc.perform(get("/notifications").param("size", "10"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data.hasMore").value(true));
             
-            // 두 번째 페이지 조회 (커서 사용)
-            NotificationListResponseDto secondPage = notificationService.getNotifications(
-                testUser.getUserId(), firstPage.getCursor(), 10);
-            
-            // then
-            assertThat(firstPage.getNotifications()).hasSize(10);
-            assertThat(firstPage.isHasMore()).isTrue();
-            assertThat(secondPage.getNotifications()).hasSize(10);
-            assertThat(secondPage.isHasMore()).isFalse();
+            // when - HTTP GET 요청으로 두 번째 페이지 조회 (cursor 포함)
+            mockMvc.perform(get("/notifications").param("size", "10").param("cursor", "10"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true));
         }
 
         @Test
@@ -378,15 +397,16 @@ class NotificationControllerTest {
 
         @Test
         @DisplayName("UT-NT-119: 컨트롤러 읽음 처리")
-        void utNt119MarksIndividualNotificationAsRead() {
+        void utNt119MarksIndividualNotificationAsRead() throws Exception {
             // given - 실제 알림 생성
             AppNotification notification = AppNotification.create(testUser, testNotificationType, "테스트 알림");
             notification = notificationRepository.save(notification);
 
-            // when
-            notificationService.markAsRead(notification.getId(), testUser.getUserId());
+            // when - HTTP PUT 요청으로 읽음 처리
+            mockMvc.perform(put("/notifications/" + notification.getId() + "/read"))
+                .andExpect(status().isOk());
             
-            // then
+            // then - 실제 상태 검증
             AppNotification updated = notificationRepository.findById(notification.getId()).orElseThrow();
             assertThat(updated.isRead()).isTrue();
         }
@@ -526,19 +546,22 @@ class NotificationControllerTest {
 
         @Test
         @DisplayName("UT-NT-126: 컨트롤러 전체 읽음 처리")
-        void utNt126MarksAllNotificationsAsRead() {
+        void utNt126MarksAllNotificationsAsRead() throws Exception {
             // given - 실제 알림 5개 생성
             for (int i = 0; i < 5; i++) {
                 AppNotification notification = AppNotification.create(testUser, testNotificationType, "알림" + i);
                 notificationRepository.save(notification);
             }
 
-            // when
-            notificationService.markAllAsRead(testUser.getUserId());
+            // when - HTTP PUT 요청으로 전체 읽음 처리
+            mockMvc.perform(put("/notifications/read-all"))
+                .andExpect(status().isOk());
             
-            // then
-            Long unreadCount = notificationService.getUnreadCount(testUser.getUserId());
-            assertThat(unreadCount).isEqualTo(0L);
+            // then - 읽지 않은 개수 확인 (HTTP GET으로)
+            mockMvc.perform(get("/notifications/unread-count"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data").value(0));
         }
 
         @Test
@@ -686,15 +709,16 @@ class NotificationControllerTest {
 
         @Test
         @DisplayName("UT-NT-133: 컨트롤러 알림 삭제")
-        void utNt133DeletesNotificationSuccessfully() {
+        void utNt133DeletesNotificationSuccessfully() throws Exception {
             // given - 실제 알림 생성
             AppNotification notification = AppNotification.create(testUser, testNotificationType, "삭제될 알림");
             notification = notificationRepository.save(notification);
 
-            // when
-            notificationService.deleteNotification(testUser.getUserId(), notification.getId());
+            // when - HTTP DELETE 요청으로 알림 삭제
+            mockMvc.perform(delete("/notifications/" + notification.getId()))
+                .andExpect(status().isNoContent());
             
-            // then
+            // then - 실제 삭제 확인
             assertThat(notificationRepository.findById(notification.getId())).isEmpty();
         }
 

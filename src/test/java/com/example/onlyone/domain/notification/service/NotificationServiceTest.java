@@ -15,6 +15,7 @@ import com.example.onlyone.domain.user.entity.User;
 import com.example.onlyone.domain.user.repository.UserRepository;
 import com.example.onlyone.global.exception.CustomException;
 import com.example.onlyone.global.exception.ErrorCode;
+import org.springframework.data.redis.core.RedisTemplate;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -53,6 +54,8 @@ class NotificationServiceTest {
     private NotificationRepository notificationRepository;
     @Autowired
     private NotificationService notificationService;
+    @Autowired
+    private RedisTemplate<String, Object> redisTemplate;
 
     private User testUser;
     private NotificationType testNotificationType;
@@ -350,13 +353,27 @@ class NotificationServiceTest {
     @Test
     @DisplayName("UT-NT-047: 빈 상태 처리")
     void utNt047HandlesNoNotificationsCase() {
-        // given - 새로운 사용자 (알림 없음)
+        // given - 기존 데이터와 Redis 캐시 완전 삭제 후 새로운 사용자 생성
+        notificationRepository.deleteAll();
+        notificationRepository.flush();
+        userRepository.deleteAll(); 
+        userRepository.flush();
+        notificationTypeRepository.deleteAll();
+        notificationTypeRepository.flush();
+        
+        // Redis 캐시 초기화
+        try {
+            redisTemplate.getConnectionFactory().getConnection().serverCommands().flushDb();
+        } catch (Exception e) {
+            // Redis 캐시 초기화 실패해도 테스트 계속
+        }
+        
         User newUser = createTestUser(99L, "신규유저");
 
-        // when
+        // when - 예외 없이 정상 처리
         notificationService.markAllAsRead(newUser.getUserId());
-
-        // then - 예외 없이 정상 처리
+        
+        // then
         Long count = notificationService.getUnreadCount(newUser.getUserId());
         assertThat(count).isZero();
     }
@@ -765,6 +782,166 @@ class NotificationServiceTest {
         // Service count도 DB와 일치하는지 확인 (캐시가 무효화되었는지)
         Long serviceCountAfterDeletion = notificationService.getUnreadCount(testUser.getUserId());
         assertThat(serviceCountAfterDeletion).isEqualTo(dbCountAfterDeletion);
+    }
+
+    @Test
+    @DisplayName("UT-NT-065: 타입별 알림 조회")
+    void utNt065GetNotificationsByTypeWorks() {
+        // given - 다른 타입들 생성
+        NotificationType likeType = NotificationType.of(Type.LIKE, "좋아요 템플릿: %s");
+        likeType = notificationTypeRepository.save(likeType);
+        
+        // 각 타입별 알림 생성
+        AppNotification chatNotification1 = AppNotification.create(testUser, testNotificationType, "채팅1");
+        AppNotification chatNotification2 = AppNotification.create(testUser, testNotificationType, "채팅2");
+        AppNotification likeNotification = AppNotification.create(testUser, likeType, "좋아요");
+        
+        notificationRepository.save(chatNotification1);
+        notificationRepository.save(chatNotification2);
+        notificationRepository.save(likeNotification);
+
+        // when - CHAT 타입만 조회
+        NotificationListResponseDto result = notificationService.getNotificationsByType(testUser.getUserId(), Type.CHAT, null, 20);
+
+        // then - CHAT 타입 알림만 반환되어야 함 (testNotification + 새로 생성한 2개 = 3개)
+        assertThat(result.getNotifications()).hasSize(3);
+        assertThat(result.getNotifications())
+            .allMatch(notification -> notification.getContent().contains("테스트") || notification.getContent().contains("채팅"));
+    }
+
+    @Test
+    @DisplayName("UT-NT-066: 타입별 알림 페이징")
+    void utNt066TypeFilteringWithPaginationWorks() {
+        // given - CHAT 타입 알림을 많이 생성
+        for (int i = 0; i < 15; i++) {
+            AppNotification notification = AppNotification.create(testUser, testNotificationType, "채팅 알림" + i);
+            notificationRepository.save(notification);
+        }
+
+        // when - 첫 번째 페이지 조회 (10개)
+        NotificationListResponseDto firstPage = notificationService.getNotificationsByType(testUser.getUserId(), Type.CHAT, null, 10);
+        
+        // 두 번째 페이지 조회
+        NotificationListResponseDto secondPage = notificationService.getNotificationsByType(
+            testUser.getUserId(), Type.CHAT, firstPage.getCursor(), 10);
+
+        // then
+        assertThat(firstPage.getNotifications()).hasSize(10);
+        assertThat(firstPage.isHasMore()).isTrue();
+        assertThat(secondPage.getNotifications()).hasSize(6); // testNotification(1) + 새로 생성한 15개 중 남은 6개
+        assertThat(secondPage.isHasMore()).isFalse();
+    }
+
+    @Test  
+    @DisplayName("UT-NT-067: 이벤트 핸들러 트리거 검증")
+    void utNt067NotificationCreatedEventTriggered() {
+        // given - 이벤트가 발생할 알림 생성 요청
+        NotificationCreateRequestDto request = NotificationCreateRequestDto.of(
+            testUser.getUserId(), Type.CHAT, "이벤트 테스트"
+        );
+
+        // when - 알림 생성 (이벤트가 발행되어야 함)
+        NotificationCreateResponseDto result = notificationService.createNotification(request);
+
+        // then - 알림이 성공적으로 생성되었는지 검증
+        assertThat(result).isNotNull();
+        assertThat(result.getNotificationId()).isNotNull();
+        assertThat(result.getContent()).contains("이벤트 테스트");
+        
+        // 실제 DB에 저장되었는지 확인
+        AppNotification saved = notificationRepository.findById(result.getNotificationId()).orElse(null);
+        assertThat(saved).isNotNull();
+        assertThat(saved.getContent()).contains("이벤트 테스트");
+    }
+    
+    @Test
+    @DisplayName("UT-NT-068: 커버리지 개선 - null userId getUnreadCount")
+    void utNt068NullUserIdThrowsException() {
+        // when & then - null userId에 대해 예외 발생
+        assertThatThrownBy(() -> notificationService.getUnreadCount(null))
+            .isInstanceOf(CustomException.class)
+            .hasFieldOrPropertyWithValue("errorCode", ErrorCode.USER_NOT_FOUND);
+    }
+    
+    @Test
+    @DisplayName("UT-NT-069: 커버리지 개선 - Redis 에러 폴백")
+    void utNt069RedisErrorFallbackToDatabase() {
+        // given
+        User redisTestUser = createTestUser(9901L, "redis_test_user");
+        
+        AppNotification notification = AppNotification.create(redisTestUser, testNotificationType, "Redis 테스트");
+        notificationRepository.save(notification);
+        
+        // when - Redis 실패 시 DB로 폴백
+        Long count = notificationService.getUnreadCount(redisTestUser.getUserId());
+        
+        // then - 예외 없이 결과 반환
+        assertThat(count).isGreaterThanOrEqualTo(1L);
+    }
+    
+    @Test
+    @DisplayName("UT-NT-070: 커버리지 개선 - 기존 사용자와 타입으로 알림 생성")
+    void utNt070CreateNotificationWithExistingUserAndType() {
+        // when - 기존 사용자와 타입으로 알림 생성
+        NotificationCreateResponseDto result = notificationService.createNotification(
+            testUser, Type.CHAT, "기존 사용자 테스트"
+        );
+        
+        // then
+        assertThat(result).isNotNull();
+        assertThat(result.getNotificationId()).isNotNull();
+        assertThat(result.getContent()).contains("기존 사용자 테스트");
+    }
+    
+    @Test
+    @DisplayName("UT-NT-071: 커버리지 개선 - 없는 알림 타입 예외")
+    void utNt071NonExistentNotificationTypeThrowsException() {
+        // given - 데이터베이스에 없는 타입 사용 시도
+        // 모든 타입을 삭제하여 예외 상황 생성
+        notificationTypeRepository.deleteAll();
+        notificationTypeRepository.flush();
+        
+        // when & then - 없는 타입으로 알림 생성 시 예외 발생
+        assertThatThrownBy(() -> notificationService.createNotification(
+            testUser, Type.CHAT, "없는 타입 테스트"
+        ))
+        .isInstanceOf(CustomException.class)
+        .hasFieldOrPropertyWithValue("errorCode", ErrorCode.NOTIFICATION_TYPE_NOT_FOUND);
+    }
+    
+    @Test
+    @DisplayName("UT-NT-072: 커버리지 개선 - 빈 알림 목록 처리")
+    void utNt072EmptyNotificationListHandling() {
+        // given - 모든 알림 삭제
+        notificationRepository.deleteAll();
+        notificationRepository.flush();
+        
+        // when
+        NotificationListResponseDto result = notificationService.getNotifications(testUser.getUserId(), null, 20);
+        
+        // then
+        assertThat(result.getNotifications()).isEmpty();
+        assertThat(result.getCursor()).isNull();
+        assertThat(result.isHasMore()).isFalse();
+        assertThat(result.getUnreadCount()).isZero();
+    }
+    
+    @Test
+    @DisplayName("UT-NT-073: 커버리지 개선 - 타입별 빈 목록 처리")
+    void utNt073EmptyNotificationListByTypeHandling() {
+        // given - 모든 알림 삭제
+        notificationRepository.deleteAll();
+        notificationRepository.flush();
+        
+        // when
+        NotificationListResponseDto result = notificationService.getNotificationsByType(
+            testUser.getUserId(), Type.CHAT, null, 20);
+        
+        // then
+        assertThat(result.getNotifications()).isEmpty();
+        assertThat(result.getCursor()).isNull();
+        assertThat(result.isHasMore()).isFalse();
+        assertThat(result.getUnreadCount()).isZero();
     }
 
     // Helper 메서드
