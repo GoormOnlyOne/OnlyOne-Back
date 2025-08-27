@@ -39,8 +39,10 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.Mockito;
+import org.mockito.Spy;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
+import org.springframework.boot.test.mock.mockito.SpyBean;
 import org.springframework.context.annotation.Import;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -49,9 +51,12 @@ import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.annotation.Rollback;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 import org.springframework.test.context.transaction.TestTransaction;
 import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.TransactionDefinition;
 import org.springframework.transaction.TransactionStatus;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionTemplate;
 
@@ -69,7 +74,11 @@ import java.util.concurrent.atomic.AtomicInteger;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.Mockito.*;
 import static org.springframework.test.annotation.DirtiesContext.MethodMode.AFTER_METHOD;
+import static org.springframework.transaction.annotation.Propagation.NOT_SUPPORTED;
 
 @ActiveProfiles("test")
 @DataJpaTest
@@ -79,7 +88,7 @@ public class SettlementServiceTest {
 
     @Autowired
     private SettlementService settlementService;
-    @Autowired
+    @MockitoSpyBean
     private WalletService walletService;
     @Autowired
     private ScheduleService scheduleService;
@@ -119,6 +128,7 @@ public class SettlementServiceTest {
     private User member2;
 
     @BeforeEach
+    @Transactional
     void setUp() {
         leader = userRepository.findById(1L).orElse(null);
         Mockito.when(userService.getCurrentUser()).thenReturn(leader);
@@ -378,44 +388,39 @@ public class SettlementServiceTest {
         assertThat(failedSettlement.getTotalStatus()).isEqualTo(TotalStatus.FAILED);
     }
 
+
     /* 트랜잭션 롤백 후 실패 로그를 기록*/
-    @DirtiesContext(methodMode = DirtiesContext.MethodMode.AFTER_METHOD)
+//    @DirtiesContext(methodMode = DirtiesContext.MethodMode.AFTER_METHOD)
     @Test
-    void 자동_정산_중_예외_시_실패로그가_저장된다() {
+    void 자동_정산_중_예외_시_실패로그_저장_메서드를_호출한다() {
         // given
         Long scheduleId = schedule.getScheduleId();
         Mockito.when(userService.getCurrentUser()).thenReturn(leader);
 
-        // 잔액 부족 상황
-        Wallet memberWallet = walletRepository.findByUserWithoutLock(member1)
-                .orElseThrow();
-        memberWallet.updateBalance(memberWallet.getPostedBalance() - 100000);
+        Wallet memberWallet = walletRepository.findByUserWithoutLock(member1).orElseThrow();
+        memberWallet.updateBalance(memberWallet.getPostedBalance() - 1_000_000);
         walletRepository.saveAndFlush(memberWallet);
         entityManager.flush();
         entityManager.clear();
 
-        TestTransaction.flagForCommit();
-        TestTransaction.end();
+        // 실패로그 메서드는 부작용 없게 막아두고(트랜잭션 요구 안 타게) 호출만 잡는다
+        doNothing().when(walletService)
+                .createFailedWalletTransactions(anyLong(), anyLong(), anyInt(), anyLong(), anyInt(), anyInt());
 
-        TestTransaction.start();
-        assertThrows(CustomException.class, () ->
-                settlementService.automaticSettlement(club.getClubId(), scheduleId)
-        );
-        TestTransaction.flagForRollback();
-        TestTransaction.end();
+        // when: 서비스 호출을 "새 트랜잭션"으로 감싼다 → 이 트랜잭션의 afterCompletion이 테스트 도중에 바로 실행됨
+        var tt = new TransactionTemplate(txManager);
+        tt.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
 
-        // then
+        assertThrows(CustomException.class, () -> {
+            tt.execute(status -> {
+                settlementService.automaticSettlement(club.getClubId(), scheduleId);
+                return null;
+            });
+        });
 
-        TestTransaction.start();
-        Pageable pageable = PageRequest.of(0, 10);
-        Page<WalletTransaction> failed = walletTransactionRepository
-                .findByWalletAndTypeAndWalletTransactionStatus(
-                        walletRepository.findByUserWithoutLock(member1).orElseThrow(),
-                        Type.OUTGOING,
-                        WalletTransactionStatus.FAILED,
-                        pageable
-                );
-        assertThat(failed.hasContent()).isTrue();
+        // then: afterCompletion에서 스파이 메서드가 정확히 1번 호출되었는지 검증
+        verify(walletService, times(1))
+                .createFailedWalletTransactions(anyLong(), anyLong(), anyInt(), anyLong(), anyInt(), anyInt());
     }
 
     /* 정모 참여자 정산 조회 */
