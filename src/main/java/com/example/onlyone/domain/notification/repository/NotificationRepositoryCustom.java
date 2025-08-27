@@ -1,6 +1,6 @@
 package com.example.onlyone.domain.notification.repository;
 
-import com.example.onlyone.domain.notification.dto.responseDto.NotificationItemDto;
+import com.example.onlyone.domain.notification.dto.response.NotificationItemDto;
 import com.example.onlyone.domain.notification.entity.AppNotification;
 import com.example.onlyone.domain.notification.entity.Type;
 

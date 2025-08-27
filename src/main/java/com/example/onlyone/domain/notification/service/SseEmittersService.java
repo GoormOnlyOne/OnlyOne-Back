@@ -1,9 +1,9 @@
 package com.example.onlyone.domain.notification.service;
 
-import com.example.onlyone.domain.notification.dto.responseDto.SseNotificationDto;
+import com.example.onlyone.domain.notification.dto.sse.SseNotificationDto;
 import com.example.onlyone.domain.notification.entity.AppNotification;
 import com.example.onlyone.domain.notification.model.SseConnection;
-import com.example.onlyone.domain.notification.dto.sse.BroadcastResult;
+import com.example.onlyone.domain.notification.model.BroadcastResult;
 import com.example.onlyone.domain.notification.repository.NotificationRepository;
 import com.example.onlyone.global.exception.CustomException;
 import com.example.onlyone.global.exception.ErrorCode;
@@ -26,7 +26,7 @@ import org.springframework.beans.factory.InitializingBean;
 import org.springframework.beans.factory.DisposableBean;
 
 /**
- * SSE 연결 관리 서비스 - Last-Event-ID 지원
+ * SSE 연결 관리 서비스
  */
 @Slf4j
 @RequiredArgsConstructor
@@ -41,7 +41,7 @@ public class SseEmittersService implements InitializingBean, DisposableBean {
   private final RedisTemplate<String, Object> redisTemplate;
   private final RedisHealthChecker redisHealthChecker;
   
-  // 주기적인 정리를 위한 스케줄러
+  // 정리 스케줄러
   private final ScheduledExecutorService cleanupScheduler = Executors.newSingleThreadScheduledExecutor(
       r -> new Thread(r, "sse-cleanup-thread"));
   
@@ -51,14 +51,14 @@ public class SseEmittersService implements InitializingBean, DisposableBean {
   private static final long CLEANUP_INTERVAL_MINUTES = 10; // 10분마다 정리
 
   /**
-   * SSE 연결 생성 (기존 호환성)
+   * SSE 연결 생성
    */
   public SseEmitter createSseConnection(Long userId) {
     return createSseConnection(userId, null);
   }
 
   /**
-   * SSE 연결 생성 - Last-Event-ID 지원
+   * SSE 연결 생성 (Last-Event-ID 지원)
    */
   public SseEmitter createSseConnection(Long userId, String lastEventId) {
     cleanupExistingConnection(userId);
@@ -132,9 +132,6 @@ public class SseEmittersService implements InitializingBean, DisposableBean {
     }
   }
 
-  // ================================
-  // Private Helper Methods
-  // ================================
 
   private void cleanupExistingConnection(Long userId) {
     SseConnection existingConnection = activeConnections.get(userId);
@@ -204,8 +201,12 @@ public class SseEmittersService implements InitializingBean, DisposableBean {
           }
         }
       }
+    } catch (DateTimeParseException e) {
+      log.warn("Failed to parse event ID for user: {}, eventId: {}", connection.getUserId(), lastEventId, e);
+      throw new CustomException(ErrorCode.INVALID_EVENT_ID);
     } catch (Exception e) {
-      log.warn("Failed to send missed notifications for user: {}", connection.getUserId());
+      log.warn("Failed to send missed notifications for user: {}", connection.getUserId(), e);
+      throw new CustomException(ErrorCode.NOTIFICATION_PROCESSING_FAILED);
     }
   }
 
@@ -215,7 +216,7 @@ public class SseEmittersService implements InitializingBean, DisposableBean {
   }
   
   /**
-   * Redis에 연결 정보 등록 (클러스터 환경 대응 + Circuit Breaker)
+   * Redis 연결 등록
    */
   private void registerConnectionToRedis(Long userId, SseConnection connection) {
     // Redis 상태 확인
@@ -239,12 +240,13 @@ public class SseEmittersService implements InitializingBean, DisposableBean {
       
       log.debug("Registered SSE connection to Redis: userId={}, server={}", userId, serverInstance);
     } catch (Exception e) {
-      log.warn("Failed to register SSE connection to Redis: userId={}", userId, e);
+      log.warn("Failed to register SSE connection to Redis: userId={}, falling back gracefully", userId, e);
+      // Redis 등록 실패는 SSE 연결에 영향 주지 않으므로 예외를 던지지 않음
     }
   }
   
   /**
-   * Redis에서 연결 정보 제거 (Circuit Breaker 적용)
+   * Redis 연결 제거
    */
   private void removeConnectionFromRedis(Long userId) {
     // Redis 상태 확인
@@ -259,37 +261,38 @@ public class SseEmittersService implements InitializingBean, DisposableBean {
       
       log.debug("Removed SSE connection from Redis: userId={}", userId);
     } catch (Exception e) {
-      log.warn("Failed to remove SSE connection from Redis: userId={}", userId, e);
+      log.warn("Failed to remove SSE connection from Redis: userId={}, falling back gracefully", userId, e);
+      // Redis 제거 실패는 로컬 연결 정리에 영향 주지 않으므로 예외를 던지지 않음
     }
   }
   
   /**
-   * 클러스터 전체에서 사용자 연결 상태 확인
+   * 글로벌 연결 상태 확인
    */
   public boolean isUserConnectedGlobally(Long userId) {
     try {
       return Boolean.TRUE.equals(redisTemplate.opsForSet().isMember(SSE_CONNECTION_KEY, userId.toString()));
     } catch (Exception e) {
-      log.warn("Failed to check global SSE connection status: userId={}", userId, e);
-      return isUserConnected(userId); // 로컬 연결 상태로 폴백
+      log.warn("Failed to check global SSE connection status: userId={}, falling back to local check", userId, e);
+      return isUserConnected(userId);
     }
   }
   
   /**
-   * 클러스터 전체 연결된 사용자 수 조회
+   * 글로벌 연결 수 조회
    */
   public long getGlobalActiveConnectionCount() {
     try {
       Long count = redisTemplate.opsForSet().size(SSE_CONNECTION_KEY);
       return count != null ? count : 0L;
     } catch (Exception e) {
-      log.warn("Failed to get global SSE connection count", e);
-      return getActiveConnectionCount(); // 로컬 연결 수로 폴백
+      log.warn("Failed to get global SSE connection count, falling back to local count", e);
+      return getActiveConnectionCount();
     }
   }
   
   /**
-   * 서버 인스턴스 ID 생성 (클러스터 환경에서 서버 식별용)
+   * 서버 인스턴스 ID 생성
    */
   private String getServerInstanceId() {
     return System.getProperty("server.instance.id", 
@@ -297,7 +300,7 @@ public class SseEmittersService implements InitializingBean, DisposableBean {
   }
 
   /**
-   * 현재 연결된 사용자 수 조회
+   * 연결 수 조회
    */
   public int getActiveConnectionCount() {
     return activeConnections.size();
@@ -308,37 +311,38 @@ public class SseEmittersService implements InitializingBean, DisposableBean {
   }
   
   /**
-   * 모든 SSE 연결 제거 (테스트용)
+   * 모든 연결 제거
    */
   public void clearAllConnections() {
     try {
-      // 모든 활성 연결 정리
+      // 활성 연결 정리
       for (Long userId : new HashSet<>(activeConnections.keySet())) {
         SseConnection connection = activeConnections.remove(userId);
         if (connection != null && connection.getEmitter() != null) {
           try {
             connection.getEmitter().complete();
           } catch (Exception e) {
-            // 이미 완료된 연결은 무시
+            // 완료된 연결 무시
           }
         }
       }
       
-      // Redis에서도 제거 시도 (테스트 환경에서는 실패할 수 있음)
+      // Redis 연결 제거
       try {
         redisTemplate.delete(SSE_CONNECTION_KEY);
         log.debug("Cleared all SSE connections");
       } catch (Exception e) {
-        log.debug("Failed to clear Redis connections (expected in test environment): {}", e.getMessage());
+        log.debug("Failed to clear Redis connections: {}", e.getMessage());
       }
       
     } catch (Exception e) {
-      log.warn("Error while clearing all connections", e);
+      log.error("Error while clearing all connections", e);
+      throw new CustomException(ErrorCode.SSE_CLEANUP_FAILED);
     }
   }
 
   /**
-   * 전체 사용자에게 브로드캐스트 메시지 전송
+   * 브로드캐스트 메시지 전송
    */
   public CompletableFuture<BroadcastResult> broadcastToAll(String eventName, Object data) {
     if (activeConnections.isEmpty()) {
@@ -378,7 +382,7 @@ public class SseEmittersService implements InitializingBean, DisposableBean {
   }
 
   /**
-   * 전체 사용자에게 공지사항 전송
+   * 공지사항 전송
    */
   public CompletableFuture<BroadcastResult> broadcastAnnouncement(String title, String message) {
     Map<String, String> announcement = Map.of(
@@ -391,7 +395,7 @@ public class SseEmittersService implements InitializingBean, DisposableBean {
   }
 
   /**
-   * 전체 사용자에게 시스템 공지 전송
+   * 시스템 공지 전송
    */
   public CompletableFuture<BroadcastResult> broadcastSystemNotice(String noticeType, String content) {
     Map<String, String> systemNotice = Map.of(
@@ -404,11 +408,11 @@ public class SseEmittersService implements InitializingBean, DisposableBean {
   }
 
   /**
-   * 서비스 초기화 시 주기적인 정리 작업 시작
+   * 서비스 초기화
    */
   @Override
   public void afterPropertiesSet() {
-    // 주기적인 연결 상태 점검 및 정리
+    // 연결 상태 점검
     cleanupScheduler.scheduleWithFixedDelay(
         this::cleanupStaleConnections, 
         CLEANUP_INTERVAL_MINUTES, 
@@ -420,7 +424,7 @@ public class SseEmittersService implements InitializingBean, DisposableBean {
   }
 
   /**
-   * 서비스 종료 시 스케줄러 정리
+   * 서비스 종료
    */
   @Override
   public void destroy() {
@@ -451,12 +455,12 @@ public class SseEmittersService implements InitializingBean, DisposableBean {
   }
 
   /**
-   * 만료된 SSE 연결 정리
+   * 만료된 연결 정리
    */
   private void cleanupStaleConnections() {
     try {
       LocalDateTime now = LocalDateTime.now();
-      LocalDateTime cutoffTime = now.minusSeconds((sseTimeoutMillis + 60000) / 1000); // 타임아웃 + 1분 여유
+      LocalDateTime cutoffTime = now.minusSeconds((sseTimeoutMillis + 60000) / 1000);
       
       List<Long> staleConnections = activeConnections.entrySet().stream()
           .filter(entry -> entry.getValue().getConnectionTime().isBefore(cutoffTime))
@@ -472,16 +476,15 @@ public class SseEmittersService implements InitializingBean, DisposableBean {
       log.debug("SSE cleanup completed: active connections={}", activeConnections.size());
       
     } catch (Exception e) {
-      log.error("Error during SSE cleanup", e);
+      log.error("Error during SSE cleanup, continuing gracefully", e);
+      // 스케줄러 정리 실패는 서비스 중단을 야기하지 않도록 예외를 던지지 않음
     }
   }
 
-  // ================================
-  // Event ID 생성 및 파싱 메서드
-  // ================================
+  // Event ID 생성 및 파싱
 
   /**
-   * 알림용 Event ID 생성 (notification_{notificationId}_{timestamp})
+   * 알림용 Event ID 생성
    */
   private String generateEventId(AppNotification appNotification) {
     return String.format("notification_%d_%s", 
@@ -490,28 +493,28 @@ public class SseEmittersService implements InitializingBean, DisposableBean {
   }
 
   /**
-   * 읽지 않은 개수용 Event ID 생성
+   * 카운트용 Event ID 생성
    */
   private String generateCountEventId() {
     return String.format("count_%s", LocalDateTime.now().toString());
   }
 
   /**
-   * 하트비트용 Event ID 생성
+   * 하트비트 Event ID 생성
    */
   private String generateHeartbeatEventId() {
     return String.format("heartbeat_%s", LocalDateTime.now().toString());
   }
 
   /**
-   * 브로드캐스트용 Event ID 생성
+   * 브로드캐스트 Event ID 생성
    */
   private String generateBroadcastEventId() {
     return String.format("broadcast_%s", LocalDateTime.now().toString());
   }
 
   /**
-   * Event ID에서 timestamp 추출
+   * Event ID 파싱
    */
   private LocalDateTime parseEventIdToDateTime(String eventId) {
     try {
@@ -527,7 +530,7 @@ public class SseEmittersService implements InitializingBean, DisposableBean {
   }
 
   /**
-   * 불변 SSE 연결 정보
+   * SSE 연결 정보
    */
   public static class SseConnection {
     private final Long userId;

@@ -5,7 +5,8 @@
       "Bash(docker stop:*)",
       "Bash(docker run:*)",
       "Bash(cat:*)",
-      "Bash(find:*)"
+      "Bash(find:*)",
+      "Bash(open:*)"
     ],
     "deny": [],
     "ask": []

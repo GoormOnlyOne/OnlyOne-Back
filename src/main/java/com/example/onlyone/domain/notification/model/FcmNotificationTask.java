@@ -28,12 +28,16 @@ public class FcmNotificationTask implements Comparable<FcmNotificationTask> {
     
     @Override
     public int compareTo(FcmNotificationTask other) {
-        // 높은 우선순위가 먼저 처리되도록
-        int priorityCompare = other.priority.getValue() - this.priority.getValue();
+        // 높은 우선순위가 먼저 처리되도록 (값이 작을수록 높은 우선순위)
+        int priorityCompare = Integer.compare(this.priority.getValue(), other.priority.getValue());
         if (priorityCompare != 0) {
             return priorityCompare;
         }
         // 동일한 우선순위일 경우 먼저 들어온 것 먼저 (FIFO)
         return Long.compare(this.timestamp, other.timestamp);
+    }
+    
+    private int getPriorityValue(FcmPriority priority) {
+        return priority.getValue();
     }
 }

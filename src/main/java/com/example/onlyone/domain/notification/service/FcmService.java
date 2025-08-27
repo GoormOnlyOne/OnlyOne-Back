@@ -3,7 +3,7 @@ package com.example.onlyone.domain.notification.service;
 import com.example.onlyone.domain.notification.entity.AppNotification;
 import com.example.onlyone.domain.notification.repository.NotificationRepository;
 import com.example.onlyone.domain.notification.model.FcmNotificationTask;
-import com.example.onlyone.domain.notification.dto.fcm.BatchSendResult;
+import com.example.onlyone.domain.notification.model.BatchSendResult;
 import com.example.onlyone.domain.notification.dto.fcm.FcmPriority;
 import com.example.onlyone.global.exception.CustomException;
 import com.example.onlyone.global.exception.ErrorCode;
@@ -23,7 +23,7 @@ import org.springframework.beans.factory.DisposableBean;
 import org.springframework.beans.factory.InitializingBean;
 
 /**
- * FCM 서비스 - Firebase Cloud Messaging 푸시 알림 전송 및 토큰 관리
+ * FCM 서비스
  */
 @Service
 @RequiredArgsConstructor
@@ -40,28 +40,26 @@ public class FcmService implements InitializingBean, DisposableBean {
   private final NotificationRepository notificationRepository;
   private final PriorityBlockingQueue<FcmNotificationTask> priorityQueue = new PriorityBlockingQueue<>();
   private final ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(3);
-  private final ExecutorService queueProcessor = Executors.newFixedThreadPool(2); // 우선순위 큐 소비자 스레드
+  private final ExecutorService queueProcessor = Executors.newFixedThreadPool(2);
 
   /**
-   * FCM 알림 전송 - 모든 예외를 CustomException으로 변환하여 글로벌 예외 처리
+   * FCM 알림 전송
    */
   public void sendFcmNotification(AppNotification appNotification) {
     try {
-      String token = validateAndGetToken(appNotification); // FCM 토큰 검증
-      Message message = buildMessage(appNotification, token); // 메시지 구성
+      String token = validateAndGetToken(appNotification);
+      Message message = buildMessage(appNotification, token);
 
-      String response = firebaseMessaging.send(message); // Firebase로 전송
+      String response = firebaseMessaging.send(message);
       log.info("FCM sent successfully: response={}, notificationId={}",
           response, appNotification.getId());
 
     } catch (IllegalArgumentException e) {
-      // FCM 토큰 관련 예외
+      // 토큰 예외
       throw new CustomException(ErrorCode.FCM_TOKEN_NOT_FOUND);
 
     } catch (FirebaseMessagingException e) {
-      // Firebase 서비스 예외
-      
-      // 특정 에러 코드에 따른 적절한 에러 반환
+      // Firebase 예외
       if (isInvalidTokenError(e)) {
         throw new CustomException(ErrorCode.FCM_TOKEN_REFRESH_REQUIRED);
       }
@@ -69,13 +67,15 @@ public class FcmService implements InitializingBean, DisposableBean {
       throw new CustomException(ErrorCode.FCM_MESSAGE_SEND_FAILED);
 
     } catch (Exception e) {
-      // 기타 예상치 못한 예외
+      // 기타 예외
+      log.error("Unexpected error during FCM send: notificationId={}, error={}", 
+                appNotification.getId(), e.getMessage(), e);
       throw new CustomException(ErrorCode.FCM_MESSAGE_SEND_FAILED);
     }
   }
   
   /**
-   * Firebase 예외가 무효한 토큰 에러인지 확인 - 토큰 갱신 필요 여부 판단
+   * 토큰 에러 확인
    */
   private boolean isInvalidTokenError(FirebaseMessagingException e) {
     if (e.getErrorCode() == null) return false;
@@ -87,7 +87,7 @@ public class FcmService implements InitializingBean, DisposableBean {
   }
 
   /**
-   * 우선순위 큐에 FCM 작업 추가
+   * FCM 작업 큐 추가
    */
   public void queueFcmNotification(AppNotification appNotification, FcmPriority priority) {
     FcmNotificationTask task = FcmNotificationTask.of(appNotification, priority);
@@ -121,7 +121,11 @@ public class FcmService implements InitializingBean, DisposableBean {
           handleBatchResponse(batch, response);
           
         } catch (FirebaseMessagingException e) {
-          log.error("Batch FCM send failed: batchSize={}", batch.size(), e);
+          log.error("Batch FCM send failed: batchSize={}, error={}", batch.size(), e.getMessage(), e);
+          failureCount.addAndGet(batch.size());
+          
+        } catch (Exception e) {
+          log.error("Unexpected error during batch FCM send: batchSize={}, error={}", batch.size(), e.getMessage(), e);
           failureCount.addAndGet(batch.size());
         }
       });
@@ -131,10 +135,10 @@ public class FcmService implements InitializingBean, DisposableBean {
   }
 
   /**
-   * 실패한 FCM 알림 재전송
+   * FCM 재전송
    */
   @Async
-  @Transactional
+  @Transactional(readOnly = true)
   public void retryFailedNotifications(Long userId) {
     log.info("Starting FCM retry for user: {}", userId);
 
@@ -153,16 +157,17 @@ public class FcmService implements InitializingBean, DisposableBean {
       });
 
     } catch (Exception e) {
-      log.error("FCM retry failed for user: {}", userId, e);
+      log.error("FCM retry failed for user: {}, error={}", userId, e.getMessage(), e);
+      // 재시도 실패는 비즘이스 로직에 영향 주지 않으므로 예외를 던지지 않음
     }
   }
 
   /**
-   * 서비스 초기화 시 우선순위 큐 소비자 스레드 시작
+   * 서비스 초기화
    */
   @Override
   public void afterPropertiesSet() {
-    // 우선순위 큐 소비자 스레드 시작
+    // 큐 소비자 스레드 시작
     for (int i = 0; i < 2; i++) {
       queueProcessor.submit(this::processQueuedNotifications);
     }
@@ -170,7 +175,7 @@ public class FcmService implements InitializingBean, DisposableBean {
   }
 
   /**
-   * 서비스 종료 시 스레드풀 정리
+   * 서비스 종료
    */
   @Override
   public void destroy() {
@@ -196,24 +201,33 @@ public class FcmService implements InitializingBean, DisposableBean {
   }
 
   /**
-   * 우선순위 큐에서 FCM 작업을 지속적으로 처리
+   * FCM 작업 처리
    */
   private void processQueuedNotifications() {
     while (!Thread.currentThread().isInterrupted()) {
       try {
-        // 우선순위에 따라 작업 가져오기 (블로킹)
+        // 작업 가져오기
         FcmNotificationTask task = priorityQueue.take();
         
-        // FCM 전송 처리
+        // FCM 전송
         sendFcmNotification(task.getNotification());
         
       } catch (InterruptedException e) {
         log.info("FCM queue processor interrupted");
         Thread.currentThread().interrupt();
         break;
+      } catch (CustomException e) {
+        log.error("CustomException in FCM queue processing: errorCode={}, message={}", e.getErrorCode(), e.getMessage());
+        // 에러 시 대기
+        try {
+          Thread.sleep(1000);
+        } catch (InterruptedException ie) {
+          Thread.currentThread().interrupt();
+          break;
+        }
       } catch (Exception e) {
-        log.error("Error processing FCM queue", e);
-        // 에러 발생 시 잠시 대기 후 재시도
+        log.error("Unexpected error processing FCM queue", e);
+        // 에러 시 대기
         try {
           Thread.sleep(1000);
         } catch (InterruptedException ie) {
@@ -224,11 +238,7 @@ public class FcmService implements InitializingBean, DisposableBean {
     }
   }
 
-  // ================================
-  // Private Helper Methods
-  // ================================
-
-  // FCM 토큰 검증 및 추출
+  // FCM 토큰 검증
   private String validateAndGetToken(AppNotification appNotification) {
     String token = appNotification.getUser().getFcmToken();
     if (token == null || token.isBlank()) {
@@ -240,20 +250,21 @@ public class FcmService implements InitializingBean, DisposableBean {
     return token;
   }
 
-  // FCM 메시지 빌드 - 알림 페이로드와 데이터 페이로드 구성
+  // FCM 메시지 빌드
   private Message buildMessage(AppNotification appNotification, String token) {
     try {
       return Message.builder()
           .setToken(token)
-          .setNotification(buildNotificationPayload(appNotification)) // 알림 표시용
-          .putAllData(buildDataPayload(appNotification)) // 앱 내 처리용 데이터
+          .setNotification(buildNotificationPayload(appNotification))
+          .putAllData(buildDataPayload(appNotification))
           .build();
     } catch (Exception e) {
-      throw new IllegalArgumentException("Failed to build FCM message", e);
+      log.error("Failed to build FCM message for notification: {}", appNotification.getId(), e);
+      throw new CustomException(ErrorCode.INVALID_NOTIFICATION_DATA);
     }
   }
 
-  // 알림 페이로드 구성 - 시스템 알림창에 표시될 내용
+  // 알림 페이로드 구성
   private Notification buildNotificationPayload(AppNotification appNotification) {
     return Notification.builder()
         .setTitle(appNotification.getNotificationType().getType().name())
@@ -261,7 +272,7 @@ public class FcmService implements InitializingBean, DisposableBean {
         .build();
   }
 
-  // 데이터 페이로드 구성 - 앱에서 처리할 추가 정보
+  // 데이터 페이로드 구성
   private Map<String, String> buildDataPayload(AppNotification appNotification) {
     Map<String, String> dataMap = new HashMap<>();
     dataMap.put("notificationId", appNotification.getId().toString());
@@ -309,5 +320,4 @@ public class FcmService implements InitializingBean, DisposableBean {
     }
   }
 
-  // FcmPriority, FcmNotificationTask, BatchSendResult는 dto.fcm 패키지로 이동
 }

@@ -1,11 +1,11 @@
 package com.example.onlyone.domain.notification.service;
 
-import com.example.onlyone.domain.notification.dto.requestDto.NotificationCreateRequestDto;
-import com.example.onlyone.domain.notification.dto.requestDto.BatchNotificationRequestDto;
+import com.example.onlyone.domain.notification.dto.request.NotificationCreateRequestDto;
+import com.example.onlyone.domain.notification.dto.request.BatchNotificationRequestDto;
 import com.example.onlyone.domain.notification.dto.event.NotificationCreatedEvent;
-import com.example.onlyone.domain.notification.dto.responseDto.NotificationItemDto;
-import com.example.onlyone.domain.notification.dto.responseDto.NotificationCreateResponseDto;
-import com.example.onlyone.domain.notification.dto.responseDto.NotificationListResponseDto;
+import com.example.onlyone.domain.notification.dto.response.NotificationItemDto;
+import com.example.onlyone.domain.notification.dto.response.NotificationCreateResponseDto;
+import com.example.onlyone.domain.notification.dto.response.NotificationListResponseDto;
 import com.example.onlyone.domain.notification.entity.AppNotification;
 import com.example.onlyone.domain.notification.entity.DeliveryMethod;
 import com.example.onlyone.domain.notification.entity.NotificationType;
@@ -23,14 +23,15 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.event.TransactionPhase;
 import org.springframework.transaction.event.TransactionalEventListener;
 import org.springframework.data.redis.core.RedisTemplate;
-import jakarta.persistence.EntityManager;
-import jakarta.persistence.PersistenceContext;
+import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.Timer;
+import io.micrometer.core.instrument.Counter;
 import java.time.Duration;
-import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -39,10 +40,9 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 
 /**
- * 알림 서비스 - QueryDSL 기반 성능 최적화 및 JWT 인증 적용
+ * 알림 서비스
  */
 @Service
-@RequiredArgsConstructor
 @Slf4j
 public class NotificationService {
 
@@ -55,55 +55,112 @@ public class NotificationService {
   private final JPAQueryFactory queryFactory;
   private final RedisTemplate<String, Object> redisTemplate;
   private final RedisHealthChecker redisHealthChecker;
+  private final MeterRegistry meterRegistry;
   
-  @PersistenceContext
-  private EntityManager entityManager;
-  
-  // 타입별 캐시
+  // 알림 타입 캐시
   private final Map<Type, NotificationType> typeCache = new ConcurrentHashMap<>();
   
-  private static final int BATCH_SIZE = 1000;
+  // 메트릭
+  private final Timer notificationCreationTimer;
+  private final Counter notificationCreatedCounter;
+  private final Counter sseNotificationCounter;
+  private final Counter fcmNotificationCounter;
+
+  public NotificationService(UserRepository userRepository,
+                           NotificationTypeRepository notificationTypeRepository,
+                           NotificationRepository notificationRepository,
+                           SseEmittersService sseEmittersService,
+                           FcmService fcmService,
+                           ApplicationEventPublisher eventPublisher,
+                           JPAQueryFactory queryFactory,
+                           RedisTemplate<String, Object> redisTemplate,
+                           RedisHealthChecker redisHealthChecker,
+                           MeterRegistry meterRegistry) {
+    this.userRepository = userRepository;
+    this.notificationTypeRepository = notificationTypeRepository;
+    this.notificationRepository = notificationRepository;
+    this.sseEmittersService = sseEmittersService;
+    this.fcmService = fcmService;
+    this.eventPublisher = eventPublisher;
+    this.queryFactory = queryFactory;
+    this.redisTemplate = redisTemplate;
+    this.redisHealthChecker = redisHealthChecker;
+    this.meterRegistry = meterRegistry;
+    
+    // 메트릭 초기화
+    this.notificationCreationTimer = Timer.builder("notification.creation.duration")
+        .description("알림 생성 시간")
+        .register(meterRegistry);
+        
+    this.notificationCreatedCounter = Counter.builder("notification.created.total")
+        .description("생성된 알림 수")
+        .register(meterRegistry);
+        
+    this.sseNotificationCounter = Counter.builder("sse.notifications.sent.total")
+        .description("SSE로 전송된 알림 수")
+        .register(meterRegistry);
+        
+    this.fcmNotificationCounter = Counter.builder("fcm.notifications.sent.total")
+        .description("FCM으로 전송된 알림 수")
+        .register(meterRegistry);
+  }
 
   /**
-   * 알림 생성 및 전송 (이벤트 발행으로 SSE/FCM 처리)
+   * 알림 생성
    */
   @Transactional
   public NotificationCreateResponseDto createNotification(NotificationCreateRequestDto requestDto) {
-    User user = findUser(requestDto.getUserId());
-    NotificationType type = findNotificationType(requestDto.getType());
+    Timer.Sample sample = Timer.start(meterRegistry);
+    try {
+      User user = findUser(requestDto.getUserId());
+      NotificationType type = findNotificationType(requestDto.getType());
 
-    AppNotification appNotification = createAndSaveNotification(user, type, requestDto.getArgs());
+      AppNotification appNotification = createAndSaveNotification(user, type, requestDto.getArgs());
 
-    // Redis 캐시 무효화 (새 알림 생성으로 인한 카운트 변경)
-    evictUnreadCountCache(requestDto.getUserId());
-    
-    // 트랜잭션 커밋 후 실시간 알림 전송을 위한 이벤트 발행
-    eventPublisher.publishEvent(new NotificationCreatedEvent(appNotification));
+      // Redis 캐시 무효화
+      evictUnreadCountCache(requestDto.getUserId());
+      
+      // 알림 전송 이벤트 발행
+      eventPublisher.publishEvent(new NotificationCreatedEvent(appNotification));
 
-    return NotificationCreateResponseDto.from(appNotification);
+      // 메트릭 카운터 증가
+      notificationCreatedCounter.increment();
+
+      return NotificationCreateResponseDto.from(appNotification);
+    } finally {
+      sample.stop(notificationCreationTimer);
+    }
   }
 
   /**
-   * 알림 생성 편의 메서드 (다른 서비스에서 사용) - 하위 호환성
+   * 알림 생성 (편의 메서드)
    */
   @Transactional
   public NotificationCreateResponseDto createNotification(User user, Type type, String... args) {
-    NotificationType notificationType = findNotificationType(type);
-    AppNotification appNotification = createAndSaveNotification(user, notificationType, args);
+    Timer.Sample sample = Timer.start(meterRegistry);
+    try {
+      NotificationType notificationType = findNotificationType(type);
+      AppNotification appNotification = createAndSaveNotification(user, notificationType, args);
 
-    // Redis 캐시 무효화 (새 알림 생성으로 인한 카운트 변경)
-    evictUnreadCountCache(user.getUserId());
-    
-    // 트랜잭션 커밋 후 실시간 알림 전송을 위한 이벤트 발행
-    eventPublisher.publishEvent(new NotificationCreatedEvent(appNotification));
+      // Redis 캐시 무효화
+      evictUnreadCountCache(user.getUserId());
+      
+      // 알림 전송 이벤트 발행
+      eventPublisher.publishEvent(new NotificationCreatedEvent(appNotification));
 
-    return NotificationCreateResponseDto.from(appNotification);
+      // 메트릭 카운터 증가
+      notificationCreatedCounter.increment();
+
+      return NotificationCreateResponseDto.from(appNotification);
+    } finally {
+      sample.stop(notificationCreationTimer);
+    }
   }
 
 
 
   /**
-   * 트랜잭션 커밋 후 알림 타입별 전송 방식 적용
+   * 알림 전송 처리
    */
   @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
   @Async
@@ -116,7 +173,7 @@ public class NotificationService {
         appNotification.getNotificationType().getType(),
         deliveryMethod);
 
-    // 전송 방식에 따라 선택적 전송
+    // 전송 방식별 처리
     if (deliveryMethod.shouldSendSse()) {
         sendSseNotificationSafely(appNotification);
     }
@@ -127,13 +184,13 @@ public class NotificationService {
   }
 
   /**
-   * 알림 목록 조회 (QueryDSL 사용)
+   * 알림 목록 조회
    */
   @Transactional(readOnly = true)
   public NotificationListResponseDto getNotifications(Long userId, Long cursor, int size) {
-    size = Math.min(size, 100); // 최대 100개 제한
+    size = Math.min(size, 100);
     
-    // hasMore 체크를 위해 size + 1 개를 조회
+    // hasMore 체크용
     List<NotificationItemDto> notifications =
         notificationRepository.findNotificationsByUserId(userId, cursor, size + 1);
 
@@ -141,13 +198,13 @@ public class NotificationService {
   }
 
   /**
-   * 특정 타입의 알림 목록 조회 (QueryDSL 사용)
+   * 타입별 알림 목록 조회
    */
   @Transactional(readOnly = true)
   public NotificationListResponseDto getNotificationsByType(Long userId, Type type, Long cursor, int size) {
-    size = Math.min(size, 100); // 최대 100개 제한
+    size = Math.min(size, 100);
     
-    // hasMore 체크를 위해 size + 1 개를 조회
+    // hasMore 체크용
     List<NotificationItemDto> notifications =
         notificationRepository.findNotificationsByUserIdAndType(userId, type, cursor, size + 1);
 
@@ -155,18 +212,18 @@ public class NotificationService {
   }
 
   /**
-   * 읽지 않은 알림 개수 조회 (Redis 캐싱 적용)
+   * 읽지 않은 알림 개수 조회
    */
   @Transactional(readOnly = true)
   public Long getUnreadCount(Long userId) {
-    // 사용자 존재 확인
+    // 사용자 확인
     if (userId == null) {
       throw new CustomException(ErrorCode.USER_NOT_FOUND);
     }
-    findUser(userId); // 사용자가 존재하지 않으면 예외 발생
+    findUser(userId);
     
     try {
-      // Redis 캐시에서 먼저 확인
+      // Redis 캐시 확인
       String cacheKey = "notification:unread:" + userId;
       Object cached = redisTemplate.opsForValue().get(cacheKey);
       
@@ -175,53 +232,58 @@ public class NotificationService {
         return Long.valueOf(cached.toString());
       }
       
-      // 캐시 미스 시 DB 조회
+      // DB 조회
       Long count = notificationRepository.countUnreadByUserId(userId);
       Long result = count != null ? count : 0L;
       
-      // Redis에 5분간 캐싱
+      // Redis 캐싱
       redisTemplate.opsForValue().set(cacheKey, result, Duration.ofMinutes(5));
       
       log.debug("Unread count cached: userId={}, count={}", userId, result);
       return result;
       
     } catch (Exception e) {
-      log.warn("Redis cache error, falling back to DB query", e);
-      Long count = notificationRepository.countUnreadByUserId(userId);
-      return count != null ? count : 0L;
+      log.warn("Redis cache error, falling back to DB query: userId={}", userId, e);
+      try {
+        Long count = notificationRepository.countUnreadByUserId(userId);
+        return count != null ? count : 0L;
+      } catch (Exception dbException) {
+        log.error("Database fallback also failed for userId: {}", userId, dbException);
+        throw new CustomException(ErrorCode.DATABASE_OPERATION_FAILED);
+      }
     }
   }
 
   /**
-   * 모든 알림 읽음 처리 (개별 엔티티 업데이트)
+   * 알림 읽음 처리
    */
-  @Transactional
+  @Transactional(propagation = Propagation.REQUIRED)
   public void markAsRead(Long notificationId, Long userId) {
     AppNotification notification = findNotification(notificationId);
     validateNotificationOwnership(notification, userId);
     notification.markAsRead();
     
-    // Redis 캐시도 함께 무효화
+    // 캐시 무효화
     evictUnreadCountCache(userId);
   }
 
-  @Transactional
+  @Transactional(propagation = Propagation.REQUIRED)
   public void markAllAsRead(Long userId) {
     long markedCount = notificationRepository.markAllAsReadByUserId(userId);
 
     if (markedCount > 0) {
-      // Redis 캐시 무효화
+      // 캐시 무효화
       evictUnreadCountCache(userId);
       
-      sendUnreadCountUpdate(userId); // SSE로 읽지 않은 개수 업데이트 전송
+      sendUnreadCountUpdate(userId);
       log.info("Marked {} notifications as read for user: {}", markedCount, userId);
     }
   }
 
   /**
-   * 알림 삭제 (소유권 검증 포함)
+   * 알림 삭제
    */
-  @Transactional
+  @Transactional(propagation = Propagation.REQUIRED)
   public void deleteNotification(Long userId, Long notificationId) {
     AppNotification appNotification = findNotification(notificationId);
     validateNotificationOwnership(appNotification, userId);
@@ -230,19 +292,15 @@ public class NotificationService {
     notificationRepository.delete(appNotification);
 
     if (wasUnread) {
-      // Redis 캐시 무효화
+      // 캐시 무효화
       evictUnreadCountCache(userId);
-      sendUnreadCountUpdate(userId); // SSE로 읽지 않은 개수 업데이트 전송
+      sendUnreadCountUpdate(userId);
     }
 
     log.info("Notification deleted: id={}", notificationId);
   }
 
-  // ================================
-  // Private Helper Methods
-  // ================================
-
-  // 사용자 조회 (예외 처리 포함)
+  // 사용자 조회
   private User findUser(Long userId) {
     return findEntityOrThrow(
         userRepository.findById(userId),
@@ -250,7 +308,7 @@ public class NotificationService {
     );
   }
 
-  // 알림 타입 조회 (예외 처리 포함)
+  // 알림 타입 조회
   private NotificationType findNotificationType(Type type) {
     return findEntityOrThrow(
         notificationTypeRepository.findByType(type),
@@ -258,7 +316,7 @@ public class NotificationService {
     );
   }
 
-  // 알림 조회 (fetchJoin 포함, 예외 처리 포함)
+  // 알림 조회
   private AppNotification findNotification(Long notificationId) {
     AppNotification notification = notificationRepository.findByIdWithFetchJoin(notificationId);
     if (notification == null) {
@@ -268,7 +326,7 @@ public class NotificationService {
     return notification;
   }
 
-  // 공통 엔티티 조회 메서드 (Optional → Entity 변환)
+  // 엔티티 조회
   private <T> T findEntityOrThrow(Optional<T> optional, String entityName, Object id, ErrorCode errorCode) {
     return optional.orElseThrow(() -> {
       log.error("{} not found: id={}", entityName, id);
@@ -276,13 +334,13 @@ public class NotificationService {
     });
   }
 
-  // 알림 생성 및 저장
+  // 알림 생성
   private AppNotification createAndSaveNotification(User user, NotificationType type, String... args) {
     AppNotification appNotification = AppNotification.create(user, type, args);
     return notificationRepository.save(appNotification);
   }
 
-  // SSE 알림 전송 (예외 안전 + Redis 장애 시 FCM 폴백)
+  // SSE 알림 전송
   private void sendSseNotificationSafely(AppNotification appNotification) {
     // Redis 상태 확인
     if (!redisHealthChecker.isHealthy()) {
@@ -294,20 +352,29 @@ public class NotificationService {
     try {
       sseEmittersService.sendSseNotification(appNotification.getUser().getUserId(), appNotification);
       updateSseSentStatus(appNotification, true);
+      sseNotificationCounter.increment();
       log.debug("SSE notification sent successfully: notificationId={}", appNotification.getId());
+    } catch (CustomException e) {
+      updateSseSentStatus(appNotification, false);
+      log.error("SSE notification failed with CustomException: id={}, errorCode={}, error={}", 
+                appNotification.getId(), e.getErrorCode(), e.getMessage());
+      
+      // SSE 실패 시 FCM으로 폴백
+      sendFcmAsFallback(appNotification);
+      
     } catch (Exception e) {
       updateSseSentStatus(appNotification, false);
-      log.error("SSE notification failed: id={}, error={}", appNotification.getId(), e.getMessage());
+      log.error("SSE notification failed: id={}, error={}", appNotification.getId(), e.getMessage(), e);
       
       // SSE 실패 시 FCM으로 폴백
       sendFcmAsFallback(appNotification);
     }
   }
   
-  // FCM 폴백 전송 (SSE 실패 시)
+  // FCM 폴백 전송
   private void sendFcmAsFallback(AppNotification appNotification) {
     try {
-      // 이미 FCM으로 전송된 경우 중복 방지
+      // 중복 전송 방지
       if (appNotification.isFcmSent()) {
         log.debug("FCM already sent for notification: id={}", appNotification.getId());
         return;
@@ -325,18 +392,21 @@ public class NotificationService {
       updateFcmSentStatus(appNotification, true);
       log.info("FCM fallback successful for notification: id={}", appNotification.getId());
       
+    } catch (CustomException e) {
+      log.error("FCM fallback failed with CustomException: id={}, errorCode={}, error={}", 
+                appNotification.getId(), e.getErrorCode(), e.getMessage());
     } catch (Exception e) {
       log.error("FCM fallback also failed for notification: id={}, error={}", 
-                appNotification.getId(), e.getMessage());
+                appNotification.getId(), e.getMessage(), e);
     }
   }
 
-  // FCM 알림 전송 (비동기, 예외 안전)
+  // FCM 알림 전송
   private void sendFcmNotificationAsyncSafely(AppNotification appNotification) {
     Long userId = appNotification.getUser().getUserId();
     String fcmToken = appNotification.getUser().getFcmToken();
 
-    // FCM 토큰 상태 상세 로깅
+    // FCM 토큰 확인
     log.info("FCM notification attempt: userId={}, notificationId={}, hasToken={}, tokenLength={}, tokenPrefix={}",
         userId, appNotification.getId(),
         fcmToken != null, fcmToken != null ? fcmToken.length() : 0,
@@ -351,12 +421,13 @@ public class NotificationService {
     try {
       fcmService.sendFcmNotification(appNotification);
       updateFcmSentStatus(appNotification, true);
+      fcmNotificationCounter.increment();
 
     } catch (CustomException e) {
-      // FCM 관련 예외 처리 및 상태 업데이트
+      // 예외 처리
       updateFcmSentStatus(appNotification, false);
 
-      // FCM 토큰 관련 에러 로깅
+      // 토큰 에러 처리
       if (e.getErrorCode() == ErrorCode.FCM_TOKEN_NOT_FOUND) {
         log.warn("FCM token not found for user: {}, client should refresh token",
             appNotification.getUser().getUserId());
@@ -364,20 +435,23 @@ public class NotificationService {
         log.warn("FCM token refresh required for user: {}, client should re-register token",
             appNotification.getUser().getUserId());
       }
+      
+      // CustomException 재던지기 - 이미 적절한 ErrorCode를 가지고 있음
+      throw e;
 
     } catch (Exception e) {
-      // 예상치 못한 예외 처리
+      // 예외 처리
       updateFcmSentStatus(appNotification, false);
       log.error("Unexpected FCM error: id={}, error={}",
           appNotification.getId(), e.getMessage(), e);
+      throw new CustomException(ErrorCode.NOTIFICATION_PROCESSING_FAILED);
     }
   }
 
-  // FCM 전송 상태 업데이트 (최적화된 직접 업데이트)
-  @Transactional
+  // FCM 전송 상태 업데이트
   private void updateFcmSentStatus(AppNotification appNotification, boolean sent) {
     try {
-      // QueryDSL로 직접 업데이트하여 재조회 방지
+      // 상태 업데이트
       long updated = queryFactory
           .update(QAppNotification.appNotification)
           .set(QAppNotification.appNotification.fcmSent, sent)
@@ -389,15 +463,15 @@ public class NotificationService {
       }
     } catch (Exception e) {
       log.error("Failed to update FCM sent status: notificationId={}, error={}",
-          appNotification.getId(), e.getMessage());
+          appNotification.getId(), e.getMessage(), e);
+      // 상태 업데이트 실패는 비즘이스 로직에 영향 주지 않으므로 예외를 던지지 않음
     }
   }
 
-  // SSE 전송 상태 업데이트 (최적화된 직접 업데이트)
-  @Transactional
+  // SSE 전송 상태 업데이트
   private void updateSseSentStatus(AppNotification appNotification, boolean sent) {
     try {
-      // QueryDSL로 직접 업데이트하여 재조회 방지
+      // 상태 업데이트
       long updated = queryFactory
           .update(QAppNotification.appNotification)
           .set(QAppNotification.appNotification.sseSent, sent)
@@ -409,20 +483,25 @@ public class NotificationService {
       }
     } catch (Exception e) {
       log.error("Failed to update SSE sent status: notificationId={}, error={}",
-          appNotification.getId(), e.getMessage());
+          appNotification.getId(), e.getMessage(), e);
+      // 상태 업데이트 실패는 비즘이스 로직에 영향 주지 않으므로 예외를 던지지 않음
     }
   }
 
-  // 알림 전송 예외 안전 실행
+  // 안전한 알림 전송
   private void executeNotificationSafely(Runnable task, String type, Long id) {
     try {
       task.run();
+    } catch (CustomException e) {
+      log.error("{} notification failed: id={}, errorCode={}, error={}", type, id, e.getErrorCode(), e.getMessage());
+      // CustomException은 로깅만 하고 전파하지 않음 (안전하게 전송 실행)
     } catch (Exception e) {
-      log.error("{} notification failed: id={}, error={}", type, id, e.getMessage());
+      log.error("{} notification failed: id={}, error={}", type, id, e.getMessage(), e);
+      // 일반 예외도 로깅만 하고 전파하지 않음
     }
   }
 
-  // SSE로 읽지 않은 개수 업데이트 전송
+  // 읽지 않은 개수 전송
   private void sendUnreadCountUpdate(Long userId) {
     executeNotificationSafely(
         () -> sseEmittersService.sendUnreadCountUpdate(userId),
@@ -430,18 +509,19 @@ public class NotificationService {
     );
   }
 
-  // Redis 캐시 무효화 헬퍼 메서드
+  // 캐시 무효화
   private void evictUnreadCountCache(Long userId) {
     try {
       String cacheKey = "notification:unread:" + userId;
       redisTemplate.delete(cacheKey);
       log.debug("Evicted unread count cache: userId={}", userId);
     } catch (Exception e) {
-      log.warn("Failed to evict cache for userId: {}", userId, e);
+      log.warn("Failed to evict cache for userId: {}, falling back gracefully", userId, e);
+      // 캐시 무효화 실패는 비즘이스 로직에 영향 주지 않으므로 예외를 던지지 않음
     }
   }
 
-  // 알림 소유권 검증 (보안)
+  // 소유권 검증
   private void validateNotificationOwnership(AppNotification appNotification, Long userId) {
     if (!appNotification.getUser().getUserId().equals(userId)) {
       log.error("Unauthorized notification access: userId={}, notificationOwnerId={}",
@@ -451,11 +531,11 @@ public class NotificationService {
   }
 
 
-  // NotificationListResponseDto 빌드 (최적화된 hasMore 체크, 재귀 호출 방지)
+  // 알림 목록 응답 생성
   private NotificationListResponseDto buildNotificationListResponse(Long userId, List<NotificationItemDto> notifications, int requestedSize) {
     boolean hasMore = notifications.size() > requestedSize;
     
-    // 실제 반환할 데이터는 요청된 크기만큼만
+    // 실제 반환 데이터
     List<NotificationItemDto> actualNotifications = hasMore ? 
         notifications.subList(0, requestedSize) : notifications;
     
@@ -474,11 +554,11 @@ public class NotificationService {
         .build();
   }
   
-  // 타입별 조회용 별도 메서드 (재귀 호출 방지)
+  // 타입별 알림 응답 생성
   private NotificationListResponseDto buildNotificationListResponseByType(Long userId, List<NotificationItemDto> notifications, int requestedSize) {
     boolean hasMore = notifications.size() > requestedSize;
     
-    // 실제 반환할 데이터는 요청된 크기만큼만
+    // 실제 반환 데이터
     List<NotificationItemDto> actualNotifications = hasMore ? 
         notifications.subList(0, requestedSize) : notifications;
     
@@ -498,9 +578,9 @@ public class NotificationService {
   }
 
   /**
-   * 배치 알림 생성 (JPA 배치 처리) - 성능 최적화
+   * 배치 알림 생성
    */
-  @Transactional
+  @Transactional(propagation = Propagation.REQUIRES_NEW)
   public int createBatchNotifications(List<BatchNotificationRequestDto> requests) {
     if (requests.isEmpty()) {
       return 0;
@@ -509,7 +589,7 @@ public class NotificationService {
     // 타입 캐시 준비
     prepareTypeCache(requests);
     
-    // 사용자 일괄 조회
+    // 사용자 조회
     List<Long> userIds = requests.stream()
         .map(BatchNotificationRequestDto::getUserId)
         .distinct()
@@ -517,7 +597,7 @@ public class NotificationService {
     Map<Long, User> userMap = userRepository.findAllById(userIds).stream()
         .collect(Collectors.toMap(User::getUserId, u -> u));
     
-    // JPA 배치 처리
+    // 배치 처리
     List<AppNotification> notifications = new ArrayList<>();
     for (BatchNotificationRequestDto request : requests) {
       User user = userMap.get(request.getUserId());
@@ -529,91 +609,11 @@ public class NotificationService {
       }
     }
     
-    // saveAll 사용하여 배치 처리 (Hibernate batch insert)
+    // 배치 저장
     List<AppNotification> saved = notificationRepository.saveAll(notifications);
     
     log.info("Batch inserted {} notifications", saved.size());
     return saved.size();
-  }
-  
-  /**
-   * 성능 테스트용 대량 알림 생성 (최적화 버전)
-   */
-  @Transactional
-  public void createPerformanceTestNotifications(Long userId, Type type, int count) {
-    User user = userRepository.findById(userId)
-        .orElseThrow(() -> new CustomException(ErrorCode.USER_NOT_FOUND));
-    
-    NotificationType notificationType = notificationTypeRepository.findByType(type)
-        .orElseThrow(() -> new CustomException(ErrorCode.NOTIFICATION_TYPE_NOT_FOUND));
-    
-    // JPA 배치 처리
-    List<AppNotification> batch = new ArrayList<>();
-    
-    for (int i = 0; i < count; i++) {
-      AppNotification notification = AppNotification.create(
-          user, 
-          notificationType, 
-          new String[]{"성능테스트" + i}
-      );
-      batch.add(notification);
-      
-      // 배치 사이즈마다 플러시
-      if (batch.size() >= BATCH_SIZE) {
-        notificationRepository.saveAll(batch);
-        entityManager.flush();
-        entityManager.clear(); // 1차 캐시 정리
-        batch.clear();
-      }
-    }
-    
-    // 남은 데이터 처리
-    if (!batch.isEmpty()) {
-      notificationRepository.saveAll(batch);
-      entityManager.flush();
-      entityManager.clear();
-    }
-    
-    log.info("Performance test: Created {} notifications for user {}", count, userId);
-  }
-  
-  /**
-   * 극한 성능 테스트용 대량 알림 생성 (메모리 최적화 버전)
-   */
-  @Transactional
-  public void createUltimatePerformanceTestNotifications(Long userId, Type type, int count) {
-    User user = userRepository.findById(userId)
-        .orElseThrow(() -> new CustomException(ErrorCode.USER_NOT_FOUND));
-    
-    NotificationType notificationType = notificationTypeRepository.findByType(type)
-        .orElseThrow(() -> new CustomException(ErrorCode.NOTIFICATION_TYPE_NOT_FOUND));
-    
-    // 더 큰 배치 사이즈 사용 (2000개)
-    int extremeBatchSize = 2000;
-    List<AppNotification> batch = new ArrayList<>(extremeBatchSize);
-    
-    for (int i = 0; i < count; i++) {
-      AppNotification notification = AppNotification.create(
-          user, 
-          notificationType, 
-          new String[]{"극한성능테스트" + i}
-      );
-      batch.add(notification);
-      
-      // 더 큰 배치로 처리
-      if (batch.size() >= extremeBatchSize || i == count - 1) {
-        notificationRepository.saveAll(batch);
-        
-        // 매 1만개마다만 플러시 (성능 향상)
-        if (i % 10000 == 0 || i == count - 1) {
-          entityManager.flush();
-          entityManager.clear();
-        }
-        batch.clear();
-      }
-    }
-    
-    log.info("Ultimate performance test: Created {} notifications for user {}", count, userId);
   }
   
   private void prepareTypeCache(List<BatchNotificationRequestDto> requests) {
@@ -629,5 +629,4 @@ public class NotificationService {
     }
   }
 
-  // NotificationCreatedEvent는 dto.event 패키지로 이동
 }
