@@ -98,6 +98,9 @@ public class SecurityConfig {
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
         http
                 .csrf(AbstractHttpConfigurer::disable)
+                .csrf(csrf -> csrf
+                    // 액츄에이터 CSRF 비활성화
+                    .ignoringRequestMatchers("/actuator/**"))
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
                 .formLogin(AbstractHttpConfigurer::disable)
                 .logout(logout -> logout
@@ -116,6 +119,8 @@ public class SecurityConfig {
                         .requestMatchers(AUTH_WHITELIST).permitAll()
 
                         .requestMatchers("/ws/**").permitAll()
+                        .requestMatchers("/actuator/**").permitAll()
+
                         // Swagger 및 정적 자원 허용
                         .requestMatchers(
                                 "/error", "/favicon.ico",
