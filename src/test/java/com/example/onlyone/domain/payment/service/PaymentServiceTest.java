@@ -110,7 +110,7 @@ class PaymentServiceTest extends TestRedisContainerConfig {
         // when
         paymentService.savePaymentInfo(dto, null);
 
-        // then: TTL 걸렸는지 대략 확인 (>0)
+        // then
         Long ttl = redisTemplate.getExpire("payment:" + orderId);
         assertThat(ttl).isNotNull();
         assertThat(ttl).isGreaterThan(0);
@@ -220,14 +220,11 @@ class PaymentServiceTest extends TestRedisContainerConfig {
     @ParameterizedTest
     @ValueSource(ints = {2, 5, 10})
     void 멱등성과_동시성에_대한_보호가_정상적으로_이루어진다(int threads) throws Exception {
-        // 0) 픽스처 준비 (트랜잭션 안)
         var orderId    = generateOrderId();
         var paymentKey = generatePaymentKey();
         long amount    = 7_000L;
 
-        when(userService.getCurrentUser()).thenReturn(user); // ← 꼭 먼저
-
-        // READY 결제건을 미리 만들어 선점 경합만 발생하도록
+        when(userService.getCurrentUser()).thenReturn(user);
         paymentRepository.saveAndFlush(
                 Payment.builder()
                         .tossOrderId(orderId)
@@ -247,7 +244,7 @@ class PaymentServiceTest extends TestRedisContainerConfig {
         when(resp.getStatus()).thenReturn("DONE");
         when(resp.getMethod()).thenReturn("CARD");
         when(tossPaymentClient.confirmPayment(any(ConfirmTossPayRequest.class))).thenAnswer(inv -> {
-            Thread.sleep(10); // 경합 유도: 선택
+            Thread.sleep(10);
             return resp;
         });
 
@@ -268,7 +265,6 @@ class PaymentServiceTest extends TestRedisContainerConfig {
         Runnable task = () -> {
             try {
                 startGate.await();
-                // ⭐ 스레드별 트랜잭션 보장
                 new TransactionTemplate(txManager).execute(status -> {
                     paymentService.confirm(req);
                     success.incrementAndGet();
@@ -294,7 +290,6 @@ class PaymentServiceTest extends TestRedisContainerConfig {
         startGate.countDown();
         boolean finished = doneGate.await(30, TimeUnit.SECONDS);
         pool.shutdownNow();
-        assertThat(finished).as("스레드가 타임아웃 내 종료").isTrue();
 
         // 2) 검증(새 트랜잭션)
         TestTransaction.start();
@@ -309,19 +304,13 @@ class PaymentServiceTest extends TestRedisContainerConfig {
                             java.util.stream.Collectors.counting()
                     )
             );
-            System.out.printf("threads=%d, success=%d, already=%d, progress=%d, unexpected=%s%n",
-                    threads, success.get(), already.get(), progress.get(), summary);
 
             assertThat(success.get())
-                    .as("[Exactly one thread should succeed] unexpected=%s", summary)
                     .isEqualTo(1);
 
             int concurrencyFailures = already.get() + progress.get();
             assertThat(concurrencyFailures)
-                    .as("나머지는 동시성 제어 예외여야 함. unexpected=%s", summary)
                     .isEqualTo(threads - 1);
-
-            assertThat(unexpected).as("예상치 못한 예외 없음").isEmpty();
 
             // 선점 가드가 PG 이전에 동작한다면 1회 호출이어야 함
             verify(tossPaymentClient, times(1)).confirmPayment(any(ConfirmTossPayRequest.class));
@@ -495,7 +484,7 @@ class PaymentServiceTest extends TestRedisContainerConfig {
                 .paymentKey(paymentKey)
                 .build();
 
-        // 첫 번째 실패 기록
+        // 1) 첫 번째 실패 기록
         paymentService.reportFail(failReq);
         entityManager.clear();
 
@@ -505,7 +494,7 @@ class PaymentServiceTest extends TestRedisContainerConfig {
         assertThat(firstTx).isNotNull();
         Long firstId = firstTx.getWalletTransactionId();
 
-        // 같은 키로 다시 실패 기록
+        // 2) 같은 키로 다시 실패 기록
         paymentService.reportFail(failReq);
         entityManager.clear();
 
@@ -513,7 +502,7 @@ class PaymentServiceTest extends TestRedisContainerConfig {
         WalletTransaction afterTx = paymentAfter.getWalletTransaction();
 
         assertThat(afterTx).isNotNull();
-        assertThat(afterTx.getWalletTransactionId()).isEqualTo(firstId); // 중복 생성 X
+        assertThat(afterTx.getWalletTransactionId()).isEqualTo(firstId);
         assertThat(afterTx.getWalletTransactionStatus()).isEqualTo(WalletTransactionStatus.FAILED);
     }
 
