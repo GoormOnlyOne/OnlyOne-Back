@@ -28,13 +28,13 @@ public class SettlementController {
         return ResponseEntity.status(HttpStatus.CREATED).body(CommonResponse.success(null));
     }
 
-    @Operation(summary = "스케줄 참여자 정산", description = "정기 모임의 참여자가 정산을 진행합니다.")
-    @PostMapping("/user")
-    @Deprecated
-    public ResponseEntity<?> updateUserSettlement(@PathVariable("clubId") final Long clubId, @PathVariable("scheduleId") final Long scheduleId) {
-        settlementService.updateUserSettlement(clubId, scheduleId);
-        return ResponseEntity.ok(CommonResponse.success(null));
-    }
+//    @Operation(summary = "스케줄 참여자 정산", description = "정기 모임의 참여자가 정산을 진행합니다.")
+//    @PostMapping("/user")
+//    @Deprecated
+//    public ResponseEntity<?> updateUserSettlement(@PathVariable("clubId") final Long clubId, @PathVariable("scheduleId") final Long scheduleId) {
+//        settlementService.updateUserSettlement(clubId, scheduleId);
+//        return ResponseEntity.ok(CommonResponse.success(null));
+//    }
 
     @Operation(summary = "스케줄 참여자 정산 조회", description = "정기 모임 모든 참여자의 정산 상태를 조회합니다.")
     @GetMapping

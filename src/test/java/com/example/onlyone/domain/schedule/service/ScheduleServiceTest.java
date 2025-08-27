@@ -45,6 +45,7 @@ import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.context.annotation.Import;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -56,6 +57,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 
 @ActiveProfiles("test")
 @DataJpaTest
+@Transactional
 @Import({ScheduleService.class, UserService.class, ClubService.class})
 public class ScheduleServiceTest {
 
@@ -691,7 +693,7 @@ public class ScheduleServiceTest {
         ScheduleRequestDto scheduleRequestDto = new ScheduleRequestDto(
                 "온리원의 정모",
                 "구름스퀘어 강남",
-                10000,
+                10000000,
                 100,
                 LocalDateTime.now().plusHours(2)
         );

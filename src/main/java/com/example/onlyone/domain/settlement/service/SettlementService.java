@@ -52,26 +52,26 @@ public class SettlementService {
     private final NotificationService notificationService;
     private final WalletService walletService;
 
-    /* 정산 Status를 REQUESTED -> COMPLETED로 스케줄링 (낙관적 락 적용)*/
-    @Scheduled(cron = "0 0 0 * * *")
-    @Transactional
-    public void updateTotalStatusIfAllCompleted() {
-        List<Settlement> settlements = settlementRepository.findAllByTotalStatus(TotalStatus.REQUESTED);
-        for (Settlement settlement : settlements) {
-            long totalCount = userSettlementRepository.countBySettlement(settlement);
-            long completedCount = userSettlementRepository.countBySettlementAndSettlementStatus(settlement, SettlementStatus.COMPLETED);
-            User leader = userScheduleRepository.findLeaderByScheduleAndScheduleRole(settlement.getSchedule(), ScheduleRole.LEADER)
-                    .orElseThrow(() -> new CustomException(ErrorCode.LEADER_NOT_FOUND));
-            // 모든 정산이 완료된 경우
-            if (totalCount > 0 && totalCount == completedCount) {
-                settlement.update(TotalStatus.COMPLETED, LocalDateTime.now());
-                settlementRepository.save(settlement);
-                settlement.getSchedule().updateStatus(ScheduleStatus.CLOSED);
-                // 정산 리더에게 완료 알림
-                notificationService.createNotification(leader, Type.SETTLEMENT, new String[]{String.valueOf(settlement.getSum())});
-            }
-        }
-    }
+//    /* 정산 Status를 REQUESTED -> COMPLETED로 스케줄링 (낙관적 락 적용)*/
+//    @Scheduled(cron = "0 0 0 * * *")
+//    @Transactional
+//    public void updateTotalStatusIfAllCompleted() {
+//        List<Settlement> settlements = settlementRepository.findAllByTotalStatus(TotalStatus.REQUESTED);
+//        for (Settlement settlement : settlements) {
+//            long totalCount = userSettlementRepository.countBySettlement(settlement);
+//            long completedCount = userSettlementRepository.countBySettlementAndSettlementStatus(settlement, SettlementStatus.COMPLETED);
+//            User leader = userScheduleRepository.findLeaderByScheduleAndScheduleRole(settlement.getSchedule(), ScheduleRole.LEADER)
+//                    .orElseThrow(() -> new CustomException(ErrorCode.LEADER_NOT_FOUND));
+//            // 모든 정산이 완료된 경우
+//            if (totalCount > 0 && totalCount == completedCount) {
+//                settlement.update(TotalStatus.COMPLETED, LocalDateTime.now());
+//                settlementRepository.save(settlement);
+//                settlement.getSchedule().updateStatus(ScheduleStatus.CLOSED);
+//                // 정산 리더에게 완료 알림
+//                notificationService.createNotification(leader, Type.SETTLEMENT, new String[]{String.valueOf(settlement.getSum())});
+//            }
+//        }
+//    }
 
     /* 자동 정산 수행 */
     @Transactional(rollbackFor = Exception.class)
@@ -98,7 +98,6 @@ public class SettlementService {
 
         // 비용이 0원이거나 참여자가 1명(리더만)인 경우 → 바로 CLOSED 처리 후 리턴
         if (schedule.getCost() == 0 || userCount <= 1) {
-            log.info("비용이 0원일 때 여기에 진입했는지 확인하는 로깅.");
             schedule.updateStatus(ScheduleStatus.CLOSED);
             schedule.removeSettlement(settlement);
             settlementRepository.findBySchedule(schedule).ifPresent(s -> {
@@ -199,111 +198,111 @@ public class SettlementService {
         }
     }
 
-    /* 정산 요청 생성 */
-    @Deprecated
-    public void createSettlement(Long clubId, Long scheduleId) {
-        User user = userService.getCurrentUser();
-        clubRepository.findById(clubId)
-                .orElseThrow(() -> new CustomException(ErrorCode.CLUB_NOT_FOUND));
-        Schedule schedule = scheduleRepository.findById(scheduleId)
-                .orElseThrow(() -> new CustomException(ErrorCode.SCHEDULE_NOT_FOUND));
-        // 종료된 스케줄인지 확인
-        if (!(schedule.getScheduleStatus() == ScheduleStatus.ENDED || schedule.getScheduleTime().isBefore(LocalDateTime.now()))) {
-            throw new CustomException(ErrorCode.BEFORE_SCHEDULE_END);
-        }
-        UserSchedule leaderUserSchedule = userScheduleRepository.findByUserAndSchedule(user, schedule)
-                .orElseThrow(() -> new CustomException(ErrorCode.USER_SCHEDULE_NOT_FOUND));
-        // 리더가 호출하고 있는지 확인
-        if (leaderUserSchedule.getScheduleRole() != ScheduleRole.LEADER) {
-            throw new CustomException(ErrorCode.MEMBER_CANNOT_CREATE_SETTLEMENT);
-        }
-        int userCount = userScheduleRepository.countBySchedule(schedule);
-        // 비용이 0원이거나 참여자가 1명(리더만)인 경우 → 바로 CLOSED 처리 후 리턴
-        if (schedule.getCost() == 0 || userCount <= 1) {
-            schedule.updateStatus(ScheduleStatus.CLOSED);
-            return;
-        }
-        schedule.updateStatus(ScheduleStatus.SETTLING);
-        int totalAmount = (userCount - 1) * schedule.getCost();
-        Settlement settlement = Settlement.builder()
-                .schedule(schedule)
-                .sum(totalAmount)
-                .totalStatus(TotalStatus.REQUESTED)
-                .receiver(user)
-                .build();
-        settlementRepository.save(settlement);
-        List<UserSchedule> userSchedules = userScheduleRepository.findUserSchedulesBySchedule(schedule);
-        userSchedules.remove(leaderUserSchedule);
-        List<UserSettlement> userSettlements = userSchedules.stream()
-                .map(userSchedule -> UserSettlement.builder()
-                        .user(userSchedule.getUser())
-                        .settlement(settlement)
-                        .settlementStatus(SettlementStatus.REQUESTED)
-                        .build())
-                .toList();
-        userSettlementRepository.saveAll(userSettlements);
-    }
-
-    /* 참여자의 정산 수행 */
-    @Deprecated
-    @Transactional(rollbackFor = Exception.class)
-    public void updateUserSettlement(Long clubId, Long scheduleId) {
-        User user = userService.getCurrentUser();
-        // 검증 로직
-        clubRepository.findById(clubId)
-                .orElseThrow(() -> new CustomException(ErrorCode.CLUB_NOT_FOUND));
-        Schedule schedule = scheduleRepository.findById(scheduleId)
-                .orElseThrow(() -> new CustomException(ErrorCode.SCHEDULE_NOT_FOUND));
-        UserSettlement userSettlement = userSettlementRepository.findByUserAndSchedule(user, schedule)
-                .orElseThrow(() -> new CustomException(ErrorCode.USER_SETTLEMENT_NOT_FOUND));
-        userScheduleRepository.findByUserAndSchedule(user, schedule)
-                .orElseThrow(() -> new CustomException(ErrorCode.USER_SCHEDULE_NOT_FOUND));
-        if (userSettlement.getSettlement().getTotalStatus() == TotalStatus.COMPLETED ||
-                userSettlement.getSettlementStatus() == SettlementStatus.COMPLETED) {
-            throw new CustomException(ErrorCode.ALREADY_SETTLED_USER);
-        }
-        User leader = userScheduleRepository.findLeaderByScheduleAndScheduleRole(schedule, ScheduleRole.LEADER)
-                .orElseThrow(() -> new CustomException(ErrorCode.LEADER_NOT_FOUND));
-        // 비관적 락으로 Wallet 조회
-        Wallet wallet = walletRepository.findByUser(user)
-                .orElseThrow(() -> new CustomException(ErrorCode.WALLET_NOT_FOUND));
-        Wallet leaderWallet = walletRepository.findByUser(leader)
-                .orElseThrow(() -> new CustomException(ErrorCode.WALLET_NOT_FOUND));
-        int amount = schedule.getCost();
-        try {
-            // 잔액 부족 확인
-            if (wallet.getPostedBalance() < amount) {
-                throw new CustomException(ErrorCode.WALLET_BALANCE_NOT_ENOUGH);
-            }
-            // 1. 잔액 변경 전 상태 저장
-            int beforeBalance = wallet.getPostedBalance();
-            int leaderBeforeBalance = leaderWallet.getPostedBalance();
-            // 2. 실제 잔액 변경
-            wallet.updateBalance(beforeBalance - amount);
-            leaderWallet.updateBalance(leaderBeforeBalance + amount);
-            // 3. 변경된 잔액으로 WalletTransaction 생성
-            walletService.createSuccessfulWalletTransactions(
-                    wallet.getWalletId(), leaderWallet.getWalletId(), amount,
-                    userSettlement
-            );
-            // 4. UserSettlement 상태 변경
-            userSettlement.updateUserSettlement(SettlementStatus.COMPLETED, LocalDateTime.now()); // PENDING -> COMPLETED
-            // 5. 모든 변경사항 저장
-            walletRepository.save(wallet);
-            walletRepository.save(leaderWallet);
-            userSettlementRepository.save(userSettlement);
-            // 6. 알림
-            notificationService.createNotification(user,
-                    Type.SETTLEMENT,
-                    new String[]{String.valueOf(amount)});
-        } catch (CustomException e) {
-            registerFailureLogAfterRollback(wallet.getWalletId(), leaderWallet.getWalletId(), amount, userSettlement.getUserSettlementId(), wallet.getPostedBalance(), leaderWallet.getPostedBalance());
-            throw e;
-        } catch (Exception e) {
-            registerFailureLogAfterRollback(wallet.getWalletId(), leaderWallet.getWalletId(), amount, userSettlement.getUserSettlementId(), wallet.getPostedBalance(), leaderWallet.getPostedBalance());
-            throw new CustomException(ErrorCode.SETTLEMENT_PROCESS_FAILED);
-        }
-    }
+//    /* 정산 요청 생성 */
+//    @Deprecated
+//    public void createSettlement(Long clubId, Long scheduleId) {
+//        User user = userService.getCurrentUser();
+//        clubRepository.findById(clubId)
+//                .orElseThrow(() -> new CustomException(ErrorCode.CLUB_NOT_FOUND));
+//        Schedule schedule = scheduleRepository.findById(scheduleId)
+//                .orElseThrow(() -> new CustomException(ErrorCode.SCHEDULE_NOT_FOUND));
+//        // 종료된 스케줄인지 확인
+//        if (!(schedule.getScheduleStatus() == ScheduleStatus.ENDED || schedule.getScheduleTime().isBefore(LocalDateTime.now()))) {
+//            throw new CustomException(ErrorCode.BEFORE_SCHEDULE_END);
+//        }
+//        UserSchedule leaderUserSchedule = userScheduleRepository.findByUserAndSchedule(user, schedule)
+//                .orElseThrow(() -> new CustomException(ErrorCode.USER_SCHEDULE_NOT_FOUND));
+//        // 리더가 호출하고 있는지 확인
+//        if (leaderUserSchedule.getScheduleRole() != ScheduleRole.LEADER) {
+//            throw new CustomException(ErrorCode.MEMBER_CANNOT_CREATE_SETTLEMENT);
+//        }
+//        int userCount = userScheduleRepository.countBySchedule(schedule);
+//        // 비용이 0원이거나 참여자가 1명(리더만)인 경우 → 바로 CLOSED 처리 후 리턴
+//        if (schedule.getCost() == 0 || userCount <= 1) {
+//            schedule.updateStatus(ScheduleStatus.CLOSED);
+//            return;
+//        }
+//        schedule.updateStatus(ScheduleStatus.SETTLING);
+//        int totalAmount = (userCount - 1) * schedule.getCost();
+//        Settlement settlement = Settlement.builder()
+//                .schedule(schedule)
+//                .sum(totalAmount)
+//                .totalStatus(TotalStatus.REQUESTED)
+//                .receiver(user)
+//                .build();
+//        settlementRepository.save(settlement);
+//        List<UserSchedule> userSchedules = userScheduleRepository.findUserSchedulesBySchedule(schedule);
+//        userSchedules.remove(leaderUserSchedule);
+//        List<UserSettlement> userSettlements = userSchedules.stream()
+//                .map(userSchedule -> UserSettlement.builder()
+//                        .user(userSchedule.getUser())
+//                        .settlement(settlement)
+//                        .settlementStatus(SettlementStatus.REQUESTED)
+//                        .build())
+//                .toList();
+//        userSettlementRepository.saveAll(userSettlements);
+//    }
+//
+//    /* 참여자의 정산 수행 */
+//    @Deprecated
+//    @Transactional(rollbackFor = Exception.class)
+//    public void updateUserSettlement(Long clubId, Long scheduleId) {
+//        User user = userService.getCurrentUser();
+//        // 검증 로직
+//        clubRepository.findById(clubId)
+//                .orElseThrow(() -> new CustomException(ErrorCode.CLUB_NOT_FOUND));
+//        Schedule schedule = scheduleRepository.findById(scheduleId)
+//                .orElseThrow(() -> new CustomException(ErrorCode.SCHEDULE_NOT_FOUND));
+//        UserSettlement userSettlement = userSettlementRepository.findByUserAndSchedule(user, schedule)
+//                .orElseThrow(() -> new CustomException(ErrorCode.USER_SETTLEMENT_NOT_FOUND));
+//        userScheduleRepository.findByUserAndSchedule(user, schedule)
+//                .orElseThrow(() -> new CustomException(ErrorCode.USER_SCHEDULE_NOT_FOUND));
+//        if (userSettlement.getSettlement().getTotalStatus() == TotalStatus.COMPLETED ||
+//                userSettlement.getSettlementStatus() == SettlementStatus.COMPLETED) {
+//            throw new CustomException(ErrorCode.ALREADY_SETTLED_USER);
+//        }
+//        User leader = userScheduleRepository.findLeaderByScheduleAndScheduleRole(schedule, ScheduleRole.LEADER)
+//                .orElseThrow(() -> new CustomException(ErrorCode.LEADER_NOT_FOUND));
+//        // 비관적 락으로 Wallet 조회
+//        Wallet wallet = walletRepository.findByUser(user)
+//                .orElseThrow(() -> new CustomException(ErrorCode.WALLET_NOT_FOUND));
+//        Wallet leaderWallet = walletRepository.findByUser(leader)
+//                .orElseThrow(() -> new CustomException(ErrorCode.WALLET_NOT_FOUND));
+//        int amount = schedule.getCost();
+//        try {
+//            // 잔액 부족 확인
+//            if (wallet.getPostedBalance() < amount) {
+//                throw new CustomException(ErrorCode.WALLET_BALANCE_NOT_ENOUGH);
+//            }
+//            // 1. 잔액 변경 전 상태 저장
+//            int beforeBalance = wallet.getPostedBalance();
+//            int leaderBeforeBalance = leaderWallet.getPostedBalance();
+//            // 2. 실제 잔액 변경
+//            wallet.updateBalance(beforeBalance - amount);
+//            leaderWallet.updateBalance(leaderBeforeBalance + amount);
+//            // 3. 변경된 잔액으로 WalletTransaction 생성
+//            walletService.createSuccessfulWalletTransactions(
+//                    wallet.getWalletId(), leaderWallet.getWalletId(), amount,
+//                    userSettlement
+//            );
+//            // 4. UserSettlement 상태 변경
+//            userSettlement.updateUserSettlement(SettlementStatus.COMPLETED, LocalDateTime.now()); // PENDING -> COMPLETED
+//            // 5. 모든 변경사항 저장
+//            walletRepository.save(wallet);
+//            walletRepository.save(leaderWallet);
+//            userSettlementRepository.save(userSettlement);
+//            // 6. 알림
+//            notificationService.createNotification(user,
+//                    Type.SETTLEMENT,
+//                    new String[]{String.valueOf(amount)});
+//        } catch (CustomException e) {
+//            registerFailureLogAfterRollback(wallet.getWalletId(), leaderWallet.getWalletId(), amount, userSettlement.getUserSettlementId(), wallet.getPostedBalance(), leaderWallet.getPostedBalance());
+//            throw e;
+//        } catch (Exception e) {
+//            registerFailureLogAfterRollback(wallet.getWalletId(), leaderWallet.getWalletId(), amount, userSettlement.getUserSettlementId(), wallet.getPostedBalance(), leaderWallet.getPostedBalance());
+//            throw new CustomException(ErrorCode.SETTLEMENT_PROCESS_FAILED);
+//        }
+//    }
 
     /* 트랜잭션 롤백 후 실패 로그를 기록하기 위한 메서드*/
     protected void registerFailureLogAfterRollback(long wId, long lwId, int amount,
