@@ -220,7 +220,7 @@ public class UserService {
         // 사용자 지갑 생성 및 웰컴 포인트 100000원 지급
         Wallet wallet = Wallet.builder()
                 .user(user)
-                .balance(100000)
+                .postedBalance(100000)
                 .build();
         
         walletRepository.save(wallet);
@@ -263,8 +263,8 @@ public class UserService {
                 .collect(Collectors.toList());
 
         // 사용자 지갑 정보 조회
-        Optional<Wallet> walletOpt = walletRepository.findByUser(user);
-        Integer balance = walletOpt.map(Wallet::getBalance).orElse(0);
+        Optional<Wallet> walletOpt = walletRepository.findByUserWithoutLock(user);
+        Integer balance = walletOpt.map(Wallet::getPostedBalance).orElse(0);
 
         return MyPageResponse.builder()
                 .nickname(user.getNickname())
