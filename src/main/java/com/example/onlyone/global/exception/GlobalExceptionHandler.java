@@ -16,6 +16,12 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.servlet.NoHandlerFoundException;
+import org.springframework.dao.DataAccessException;
+import org.springframework.data.redis.RedisConnectionFailureException;
+import org.springframework.transaction.TransactionException;
+import java.time.format.DateTimeParseException;
+import java.util.concurrent.TimeoutException;
+import java.io.IOException;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -263,6 +269,132 @@ public class GlobalExceptionHandler {
         // 응답 생성 및 반환
         return ResponseEntity
                 .status(HttpStatus.BAD_REQUEST)
+                .body(CommonResponse.error(errorResponse));
+    }
+
+    /**
+     * 데이터베이스 에러 처리
+     * 데이터베이스 접근 중 발생하는 예외를 처리합니다.
+     */
+    @ExceptionHandler(DataAccessException.class)
+    public ResponseEntity<CommonResponse<ErrorResponse>> handleDataAccessException(
+            DataAccessException e, HttpServletRequest request) {
+        // 로그 기록
+        logError(request, ErrorCode.DATABASE_OPERATION_FAILED, e);
+
+        // ErrorResponse 생성
+        ErrorResponse errorResponse = ErrorResponse.builder()
+                .code(ErrorCode.DATABASE_OPERATION_FAILED.name())
+                .message(ErrorCode.DATABASE_OPERATION_FAILED.getMessage())
+                .build();
+
+        return ResponseEntity
+                .status(ErrorCode.DATABASE_OPERATION_FAILED.getStatus())
+                .body(CommonResponse.error(errorResponse));
+    }
+
+    /**
+     * Redis 연결 실패 예외 처리
+     * Redis 서버 연결이 실패했을 때 발생하는 예외를 처리합니다.
+     */
+    @ExceptionHandler(RedisConnectionFailureException.class)
+    public ResponseEntity<CommonResponse<ErrorResponse>> handleRedisConnectionFailureException(
+            RedisConnectionFailureException e, HttpServletRequest request) {
+        // 로그 기록
+        logError(request, ErrorCode.REDIS_CONNECTION_FAILED, e);
+
+        // ErrorResponse 생성
+        ErrorResponse errorResponse = ErrorResponse.builder()
+                .code(ErrorCode.REDIS_CONNECTION_FAILED.name())
+                .message(ErrorCode.REDIS_CONNECTION_FAILED.getMessage())
+                .build();
+
+        return ResponseEntity
+                .status(ErrorCode.REDIS_CONNECTION_FAILED.getStatus())
+                .body(CommonResponse.error(errorResponse));
+    }
+
+    /**
+     * 트랜잭션 예외 처리
+     * 데이터베이스 트랜잭션 실패 시 발생하는 예외를 처리합니다.
+     */
+    @ExceptionHandler(TransactionException.class)
+    public ResponseEntity<CommonResponse<ErrorResponse>> handleTransactionException(
+            TransactionException e, HttpServletRequest request) {
+        // 로그 기록
+        logError(request, ErrorCode.DATABASE_OPERATION_FAILED, e);
+
+        // ErrorResponse 생성
+        ErrorResponse errorResponse = ErrorResponse.builder()
+                .code(ErrorCode.DATABASE_OPERATION_FAILED.name())
+                .message("데이터베이스 트랜잭션 처리에 실패했습니다.")
+                .build();
+
+        return ResponseEntity
+                .status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body(CommonResponse.error(errorResponse));
+    }
+
+    /**
+     * 날짜 파싱 예외 처리
+     * 날짜 또는 시간 형식을 파싱할 때 발생하는 예외를 처리합니다.
+     */
+    @ExceptionHandler(DateTimeParseException.class)
+    public ResponseEntity<CommonResponse<ErrorResponse>> handleDateTimeParseException(
+            DateTimeParseException e, HttpServletRequest request) {
+        // 로그 기록
+        logError(request, ErrorCode.INVALID_INPUT_VALUE, e);
+
+        // ErrorResponse 생성
+        ErrorResponse errorResponse = ErrorResponse.builder()
+                .code(ErrorCode.INVALID_INPUT_VALUE.name())
+                .message("날짜 형식이 올바르지 않습니다.")
+                .build();
+
+        return ResponseEntity
+                .status(HttpStatus.BAD_REQUEST)
+                .body(CommonResponse.error(errorResponse));
+    }
+
+    /**
+     * 타임아웃 예외 처리
+     * 작업 수행 시간이 초과되었을 때 발생하는 예외를 처리합니다.
+     */
+    @ExceptionHandler(TimeoutException.class)
+    public ResponseEntity<CommonResponse<ErrorResponse>> handleTimeoutException(
+            TimeoutException e, HttpServletRequest request) {
+        // 로그 기록
+        logError(request, ErrorCode.NOTIFICATION_TIMEOUT, e);
+
+        // ErrorResponse 생성
+        ErrorResponse errorResponse = ErrorResponse.builder()
+                .code(ErrorCode.NOTIFICATION_TIMEOUT.name())
+                .message(ErrorCode.NOTIFICATION_TIMEOUT.getMessage())
+                .build();
+
+        return ResponseEntity
+                .status(ErrorCode.NOTIFICATION_TIMEOUT.getStatus())
+                .body(CommonResponse.error(errorResponse));
+    }
+
+    /**
+     * IO 예외 처리
+     * 파일 입출력 또는 네트워크 작업 실패 시 발생하는 예외를 처리합니다.
+     */
+    @ExceptionHandler(IOException.class)
+    public ResponseEntity<CommonResponse<ErrorResponse>> handleIOException(
+            IOException e, HttpServletRequest request) {
+        // 로그 기록
+        logError(request, ErrorCode.EXTERNAL_API_ERROR, e);
+
+        // ErrorResponse 생성
+        ErrorResponse errorResponse = ErrorResponse.builder()
+                .code(ErrorCode.EXTERNAL_API_ERROR.name())
+                .message("외부 서비스 통신 오류가 발생했습니다.")
+                .build();
+
+        return ResponseEntity
+                .status(ErrorCode.EXTERNAL_API_ERROR.getStatus())
                 .body(CommonResponse.error(errorResponse));
     }
 

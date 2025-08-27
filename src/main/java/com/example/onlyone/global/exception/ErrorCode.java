@@ -66,6 +66,18 @@ public enum ErrorCode {
     UNAUTHORIZED_NOTIFICATION_ACCESS(403, "NOTIFY_403_1", "알림 접근 권한이 없습니다."),
     INVALID_EVENT_ID(400, "NOTIFY_400_5", "잘못된 이벤트 ID입니다."),
     NOTIFICATION_PROCESSING_FAILED(500, "NOTIFY_500_3", "알림 처리에 실패했습니다."),
+    
+    // 추가 알림 시스템 예외
+    REDIS_CONNECTION_FAILED(503, "NOTIFY_503_4", "Redis 연결에 실패했습니다."),
+    REDIS_OPERATION_FAILED(500, "NOTIFY_500_4", "Redis 작업에 실패했습니다."),
+    CACHE_UPDATE_FAILED(500, "NOTIFY_500_5", "캐시 업데이트에 실패했습니다."),
+    DATABASE_OPERATION_FAILED(500, "NOTIFY_500_6", "데이터베이스 작업에 실패했습니다."),
+    BATCH_NOTIFICATION_FAILED(500, "NOTIFY_500_7", "배치 알림 처리에 실패했습니다."),
+    EVENT_PROCESSING_FAILED(500, "NOTIFY_500_8", "이벤트 처리에 실패했습니다."),
+    NOTIFICATION_TIMEOUT(408, "NOTIFY_408_2", "알림 처리 시간이 초과되었습니다."),
+    INVALID_NOTIFICATION_ARGS(400, "NOTIFY_400_6", "알림 인수가 유효하지 않습니다."),
+    NOTIFICATION_QUOTA_EXCEEDED(429, "NOTIFY_429_4", "알림 전송 할당량을 초과했습니다."),
+    SSE_CLEANUP_FAILED(500, "NOTIFY_500_9", "SSE 연결 정리에 실패했습니다."),
 
     // Schedule
     INVALID_SCHEDULE_DELETE(400, "SCHEDULE_400_1", "이미 시작한 스케줄은 삭제할 수 없습니다."),

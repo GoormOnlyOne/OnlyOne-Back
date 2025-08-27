@@ -1,12 +1,12 @@
 spring:
   datasource:
     driver-class-name: org.h2.Driver
-    url: jdbc:h2:mem:testdb;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE;MODE=MySQL
+    url: jdbc:h2:mem:testdb;MODE=MySQL;DATABASE_TO_LOWER=TRUE;DEFAULT_NULL_ORDERING=HIGH
     username: sa
-    password:
+    password: 
   jpa:
     hibernate:
-      ddl-auto: create
+      ddl-auto: create-drop
     generate-ddl: true
     show-sql: false
     defer-datasource-initialization: false
@@ -14,13 +14,6 @@ spring:
       hibernate:
         dialect: org.hibernate.dialect.H2Dialect
         format_sql: false
-        jdbc:
-          batch_size: 1000
-          batch_versioned_data: true
-        order_inserts: true
-        order_updates: true
-        jdbc.batch_versioned_data: true
-        generate_statistics: false
   data:
     redis:
       host: localhost

@@ -11,7 +11,7 @@ import com.example.onlyone.domain.user.entity.User;
 import com.example.onlyone.domain.user.repository.UserRepository;
 import com.example.onlyone.domain.notification.model.FcmNotificationTask;
 import com.example.onlyone.domain.notification.dto.fcm.FcmPriority;
-import com.example.onlyone.domain.notification.dto.fcm.BatchSendResult;
+import com.example.onlyone.domain.notification.model.BatchSendResult;
 import com.example.onlyone.global.exception.CustomException;
 import com.example.onlyone.global.exception.ErrorCode;
 import com.google.firebase.messaging.FirebaseMessaging;
