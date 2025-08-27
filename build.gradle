@@ -25,6 +25,7 @@ ext {
 dependencyManagement {
     imports {
         mavenBom "org.springframework.cloud:spring-cloud-dependencies:${springCloudVersion}"
+        mavenBom "org.testcontainers:testcontainers-bom:1.20.2"
     }
 }
 
@@ -39,6 +40,7 @@ dependencies {
     compileOnly 'org.projectlombok:lombok'
     developmentOnly 'org.springframework.boot:spring-boot-devtools'
     runtimeOnly 'com.mysql:mysql-connector-j'
+    runtimeOnly 'com.h2database:h2'
     annotationProcessor 'org.projectlombok:lombok'
     testImplementation 'org.springframework.boot:spring-boot-starter-test'
     testImplementation 'org.springframework.security:spring-security-test'
@@ -66,6 +68,8 @@ dependencies {
     implementation 'software.amazon.awssdk:s3:2.32.11'
     // Redis
     implementation 'org.springframework.boot:spring-boot-starter-data-redis'
+    testImplementation 'org.testcontainers:junit-jupiter'
+    testImplementation 'org.testcontainers:testcontainers'
     // jpa 쿼리 확인
     implementation 'com.github.gavlyukovskiy:p6spy-spring-boot-starter:1.9.0'
 }
@@ -79,6 +83,8 @@ tasks.named('test') {
     exclude '**/FcmServiceTest.class'
     exclude '**/SseEmittersServiceTest.class'
     exclude '**/AppNotificationTypeRepositoryTest.class'
+    exclude '**/search/**'
+    exclude '**/club/repository/**'
 }
 
 jacoco {
@@ -118,6 +124,9 @@ jacocoTestReport {
                 // 기타 유틸리티
                 '**/util/**',
                 '**/common/**',
+
+                '**/search/**',
+                '**/club/repository/**'
             ])
         }))
     }

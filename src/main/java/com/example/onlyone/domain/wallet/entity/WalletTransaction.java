@@ -7,6 +7,8 @@ import jakarta.persistence.*;
 import jakarta.validation.constraints.NotNull;
 import lombok.*;
 
+import java.time.LocalDateTime;
+
 @Entity
 @Table(name = "wallet_transaction")
 @Getter
@@ -67,5 +69,18 @@ public class WalletTransaction extends BaseTimeEntity {
 
     public void updatePayment(Payment payment) {
         this.payment = payment;
+    }
+
+    public void updateStatus(WalletTransactionStatus walletTransactionStatus) {
+        this.walletTransactionStatus = walletTransactionStatus;
+    }
+
+    public void update(Type type, int amount, int postedBalance, WalletTransactionStatus walletTransactionStatus, Wallet wallet) {
+        this.type = type;
+        this.amount = amount;
+        this.balance = postedBalance;
+        this.walletTransactionStatus = walletTransactionStatus;
+        this.wallet = wallet;
+        this.targetWallet = wallet;
     }
 }
