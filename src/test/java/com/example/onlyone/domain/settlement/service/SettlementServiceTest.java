@@ -390,7 +390,6 @@ public class SettlementServiceTest {
 
 
     /* 트랜잭션 롤백 후 실패 로그를 기록*/
-//    @DirtiesContext(methodMode = DirtiesContext.MethodMode.AFTER_METHOD)
     @Test
     void 자동_정산_중_예외_시_실패로그_저장_메서드를_호출한다() {
         // given
@@ -403,11 +402,10 @@ public class SettlementServiceTest {
         entityManager.flush();
         entityManager.clear();
 
-        // 실패로그 메서드는 부작용 없게 막아두고(트랜잭션 요구 안 타게) 호출만 잡는다
         doNothing().when(walletService)
                 .createFailedWalletTransactions(anyLong(), anyLong(), anyInt(), anyLong(), anyInt(), anyInt());
 
-        // when: 서비스 호출을 "새 트랜잭션"으로 감싼다 → 이 트랜잭션의 afterCompletion이 테스트 도중에 바로 실행됨
+        // when
         var tt = new TransactionTemplate(txManager);
         tt.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
 
@@ -433,7 +431,7 @@ public class SettlementServiceTest {
 
         // then
         assertThat(result).isNotNull();
-        assertThat(result.getUserSettlementList()).hasSize(2); // 멤버 2명
+        assertThat(result.getUserSettlementList()).hasSize(2);
         assertThat(result.getUserSettlementList())
                 .extracting("nickname")
                 .containsExactlyInAnyOrder("Bob", "Charlie");
@@ -446,11 +444,10 @@ public class SettlementServiceTest {
     @ParameterizedTest
     @ValueSource(ints = {2, 5, 10})
     void 멱등성과_동시성에_대한_보호가_정상적으로_이루어진다(int threads) throws Exception {
-        // --- given: 사전상태를 "반드시" 커밋 가능한 트랜잭션 안에서 만들기 ---
+        // given
         Long clubId = club.getClubId();
         Long scheduleId = schedule.getScheduleId();
 
-        // 동시 테스트가 접근할 '최종 픽스처' 보장
         // 1) 리더로 고정
         Mockito.when(userService.getCurrentUser()).thenReturn(leader);
 
@@ -468,11 +465,11 @@ public class SettlementServiceTest {
 
         entityManager.flush();
 
-        // 4) 픽스처 커밋(@DataJpaTest는 메서드 트랜잭션이 이미 열려있음 → 명시 커밋)
+        // 4) 픽스처 커밋
         TestTransaction.flagForCommit();
         TestTransaction.end();
 
-        // --- when: 스레드별 트랜잭션으로 동시에 호출 ---
+        // when
         ExecutorService pool = Executors.newFixedThreadPool(threads);
         CountDownLatch startGate = new CountDownLatch(1);
         CountDownLatch doneGate  = new CountDownLatch(threads);
@@ -483,9 +480,8 @@ public class SettlementServiceTest {
         Runnable task = () -> {
             try {
                 startGate.await();
-                // ⭐ 각 스레드에서 트랜잭션 열고 실행 (서비스 @Transactional이더라도 테스트 환경에서 확실히 보장)
                 new TransactionTemplate(txManager).execute(status -> {
-                    Mockito.when(userService.getCurrentUser()).thenReturn(leader); // 모든 스레드 동일 리더
+                    Mockito.when(userService.getCurrentUser()).thenReturn(leader);
                     settlementService.automaticSettlement(clubId, scheduleId);
                     success.incrementAndGet();
                     return null;
@@ -501,14 +497,12 @@ public class SettlementServiceTest {
         startGate.countDown();
         boolean finished = doneGate.await(20, TimeUnit.SECONDS);
         pool.shutdownNow();
-        assertThat(finished).as("스레드가 타임아웃 내 종료").isTrue();
 
-        // --- then: 검증(새 트랜잭션) ---
+        // then
         TestTransaction.start();
         try {
             entityManager.clear();
 
-            // 에러 요약 찍어보기(무엇이 떨어졌는지 확인)
             var summary = errors.stream().collect(
                     java.util.stream.Collectors.groupingBy(e ->
                                     (e instanceof CustomException ce) ? ce.getErrorCode().name()
@@ -516,25 +510,21 @@ public class SettlementServiceTest {
                             java.util.stream.Collectors.counting()
                     )
             );
-            System.out.printf("[threads=%d] success=%d, errors=%s%n", threads, success.get(), summary);
 
-            // 정확히 1건만 성공
+            // 정확히 1건 성공
             assertThat(success.get())
-                    .as("Exactly one thread should succeed")
                     .isEqualTo(1);
 
-            // 나머지는 모두 선점 실패(ALREADY_SETTLING_SCHEDULE)이어야 함
+            // 나머지는 모두 선점 실패(ALREADY_SETTLING_SCHEDULE)
             long already = errors.stream()
                     .filter(e -> e instanceof CustomException ce
                             && ce.getErrorCode() == ErrorCode.ALREADY_SETTLING_SCHEDULE)
                     .count();
             assertThat(already)
-                    .as("losers must be ALREADY_SETTLING_SCHEDULE. errors=%s", summary)
                     .isEqualTo(threads - 1);
 
             long other = errors.size() - already;
             assertThat(other)
-                    .as("예상 밖의 예외가 있으면 안 됨. errors=%s", summary)
                     .isEqualTo(0);
 
             // DB 최종 상태
