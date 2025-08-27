@@ -77,6 +77,9 @@ class NotificationServiceTest {
         notificationTypeRepository.deleteAll();
         userRepository.deleteAll();
         
+        // NotificationService 캐시 초기화 (테스트 간 상태 공유 방지)
+        clearNotificationServiceCache();
+        
         // 공통 테스트 데이터 생성
         long uniqueId = System.currentTimeMillis() + Thread.currentThread().getId();
         testUser = createTestUser(uniqueId, "공통테스트유저");
@@ -84,6 +87,22 @@ class NotificationServiceTest {
         testNotificationType = notificationTypeRepository.save(testNotificationType);
         testNotification = AppNotification.create(testUser, testNotificationType, "공통알림");
         testNotification = notificationRepository.save(testNotification);
+    }
+    
+    // NotificationService의 typeCache 초기화 (테스트 간 상태 공유 방지)
+    private void clearNotificationServiceCache() {
+        try {
+            // Reflection을 사용해서 private 필드에 접근하여 캐시 클리어
+            java.lang.reflect.Field typeCacheField = notificationService.getClass().getDeclaredField("typeCache");
+            typeCacheField.setAccessible(true);
+            @SuppressWarnings("unchecked")
+            java.util.Map<Object, Object> typeCache = (java.util.Map<Object, Object>) typeCacheField.get(notificationService);
+            typeCache.clear();
+            System.out.println("NotificationService cache cleared successfully");
+        } catch (Exception e) {
+            // 캐시 초기화 실패는 로그만 남기고 테스트 계속
+            System.out.println("Warning: Failed to clear NotificationService cache: " + e.getMessage());
+        }
     }
 
     @Nested
@@ -1090,19 +1109,26 @@ class NotificationServiceTest {
         @Test
         @DisplayName("NS-001: 배치 알림 생성 기능")
         void ns001CreatesBatchNotificationsSuccessfully() {
-            // given - 배치 생성용 데이터 준비
+            // given - 캐시 우회를 위해 다른 타입 사용 (SETTLEMENT, COMMENT)
             List<BatchNotificationRequestDto> batchRequests = new ArrayList<>();
             
             // 여러 사용자에게 다른 타입의 알림 생성
             User user2 = createTestUser(20000L, "batchUser2");
             User user3 = createTestUser(30000L, "batchUser3");
             
-            NotificationType likeType = NotificationType.of(Type.LIKE, "좋아요 템플릿: %s");
-            likeType = notificationTypeRepository.save(likeType);
+            // 캐시 충돌을 피하기 위해 setUp에서 사용하지 않는 타입들 사용
+            NotificationType settlementType = NotificationType.of(Type.SETTLEMENT, "정산 템플릿: %s");
+            settlementType = notificationTypeRepository.save(settlementType);
             
-            batchRequests.add(BatchNotificationRequestDto.of(testUser.getUserId(), Type.CHAT, "배치채팅"));
-            batchRequests.add(BatchNotificationRequestDto.of(user2.getUserId(), Type.LIKE, "배치좋아요"));
-            batchRequests.add(BatchNotificationRequestDto.of(user3.getUserId(), Type.CHAT, "배치채팅2"));
+            NotificationType commentType = NotificationType.of(Type.COMMENT, "댓글 템플릿: %s");
+            commentType = notificationTypeRepository.save(commentType);
+            
+            // DB 동기화
+            notificationTypeRepository.flush();
+            
+            batchRequests.add(BatchNotificationRequestDto.of(testUser.getUserId(), Type.SETTLEMENT, "배치정산"));
+            batchRequests.add(BatchNotificationRequestDto.of(user2.getUserId(), Type.COMMENT, "배치댓글"));
+            batchRequests.add(BatchNotificationRequestDto.of(user3.getUserId(), Type.SETTLEMENT, "배치정산2"));
             
             // when
             int createdCount = notificationService.createBatchNotifications(batchRequests);

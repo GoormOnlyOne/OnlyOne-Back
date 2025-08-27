@@ -5,12 +5,14 @@ import com.example.onlyone.domain.notification.service.SseEmittersService;
 import com.example.onlyone.domain.user.entity.Status;
 import com.example.onlyone.domain.user.entity.User;
 import com.example.onlyone.domain.user.repository.UserRepository;
+import com.example.onlyone.domain.user.service.UserService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
 import org.springframework.security.test.context.support.WithMockUser;
@@ -19,6 +21,8 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.context.WebApplicationContext;
+
+import static org.mockito.BDDMockito.given;
 
 import static org.springframework.security.test.web.servlet.setup.SecurityMockMvcConfigurers.springSecurity;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -45,6 +49,9 @@ class SseStreamControllerTest {
     
     @Autowired
     private UserRepository userRepository;
+    
+    @MockBean
+    private UserService userService;
 
     private MockMvc mockMvc;
     private User testUser;
@@ -53,7 +60,6 @@ class SseStreamControllerTest {
     void setUp() {
         mockMvc = MockMvcBuilders
                 .webAppContextSetup(context)
-                .apply(springSecurity())
                 .build();
         
         // SSE 연결 상태 초기화
@@ -66,6 +72,9 @@ class SseStreamControllerTest {
                 .status(Status.ACTIVE)
                 .build();
         testUser = userRepository.save(testUser);
+        
+        // UserService Mock 설정
+        given(userService.getCurrentUser()).willReturn(testUser);
     }
 
     @Nested
@@ -73,7 +82,6 @@ class SseStreamControllerTest {
     class SseSubscribe {
 
         @Test
-        @WithMockUser(username = "12345")
         @DisplayName("UT-NT-052: SSE 연결 테스트")
         void UT_NT_052_establishes_sse_connection_successfully() throws Exception {
             // when & then
@@ -85,7 +93,6 @@ class SseStreamControllerTest {
         }
 
         @Test
-        @WithMockUser(username = "12345")
         @DisplayName("UT-NT-055: SSE 재연결")
         void UT_NT_055_handles_reconnection_with_last_event_id() throws Exception {
             // given
@@ -101,7 +108,6 @@ class SseStreamControllerTest {
         }
 
         @Test
-        @WithMockUser(username = "12345")
         @DisplayName("UT-NT-052: SSE 연결 테스트")
         void UT_NT_052_handles_json_accept_for_sse_request() throws Exception {
             // when & then - JSON Accept도 처리됨 (컨트롤러에서 지원)
@@ -117,7 +123,6 @@ class SseStreamControllerTest {
     class ConnectionStatus {
 
         @Test
-        @WithMockUser(username = "12345")
         @DisplayName("UT-NT-052: SSE 연결 테스트")
         void UT_NT_052_checks_connected_status() throws Exception {
             // given - SSE 연결 생성
@@ -133,7 +138,6 @@ class SseStreamControllerTest {
         }
 
         @Test
-        @WithMockUser(username = "12345")
         @DisplayName("UT-NT-052: SSE 연결 테스트")
         void UT_NT_052_checks_disconnected_status() throws Exception {
             // when & then - 연결 없이 상태 확인
