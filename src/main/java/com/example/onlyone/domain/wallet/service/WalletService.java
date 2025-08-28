@@ -48,7 +48,7 @@ public class WalletService {
             filter = Filter.ALL; // 기본값 처리
         }
         User user = userService.getCurrentUser();
-        Wallet wallet = walletRepository.findByUser(user)
+        Wallet wallet = walletRepository.findByUserWithoutLock(user)
                 .orElseThrow(() -> new CustomException(ErrorCode.WALLET_NOT_FOUND));
         Page<WalletTransaction> transactionPageList = switch (filter) {
             case ALL -> walletTransactionRepository.findByWalletAndWalletTransactionStatus(wallet, WalletTransactionStatus.COMPLETED, pageable);
@@ -88,7 +88,7 @@ public class WalletService {
         WalletTransaction walletTransaction = WalletTransaction.builder()
                 .type(Type.OUTGOING)
                 .amount(amount)
-                .balance(wallet.getBalance())
+                .balance(wallet.getPostedBalance())
                 .walletTransactionStatus(WalletTransactionStatus.COMPLETED)
                 .wallet(wallet)
                 .targetWallet(leaderWallet)
@@ -97,7 +97,7 @@ public class WalletService {
         WalletTransaction leaderWalletTransaction = WalletTransaction.builder()
                 .type(Type.INCOMING)
                 .amount(amount)
-                .balance(leaderWallet.getBalance())
+                .balance(leaderWallet.getPostedBalance())
                 .walletTransactionStatus(WalletTransactionStatus.COMPLETED)
                 .wallet(leaderWallet)
                 .targetWallet(wallet)
@@ -129,13 +129,9 @@ public class WalletService {
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void createFailedWalletTransactions(Long walletId, Long leaderWalletId, int amount,
                                                   Long userSettlementId, int walletBalance, int leaderWalletBalance) {
-        log.info("createFailedWalletTransactions은 진입했음.");
         Wallet wallet = walletRepository.getReferenceById(walletId);
         Wallet leaderWallet   = walletRepository.getReferenceById(leaderWalletId);
         UserSettlement userSettlement = userSettlementRepository.getReferenceById(userSettlementId);
-
-        // 실패 중복 로그 방지
-        if (userSettlement.getSettlementStatus() != SettlementStatus.REQUESTED) return;
 
         // 실패한 트랜잭션
         WalletTransaction failedOutgoing = WalletTransaction.builder()
@@ -156,8 +152,6 @@ public class WalletService {
                 .build();
         walletTransactionRepository.save(failedOutgoing);
         walletTransactionRepository.save(failedIncoming);
-//        userSettlement.updateStatus(SettlementStatus.FAILED);
-//        userSettlementRepository.save(userSettlement);
         userSettlementRepository.updateStatusIfRequested(userSettlementId, SettlementStatus.FAILED);
         createAndSaveTransfers(userSettlement, failedOutgoing, failedIncoming);
     }

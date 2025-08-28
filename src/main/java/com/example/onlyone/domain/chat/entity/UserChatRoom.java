@@ -5,6 +5,7 @@ import com.example.onlyone.global.BaseTimeEntity;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.NotNull;
 import lombok.*;
+import org.hibernate.annotations.Cascade;
 
 @Entity
 @Table(name = "user_chat_room")
@@ -19,7 +20,7 @@ public class UserChatRoom extends BaseTimeEntity {
     @Column(name = "user_chat_room_id", updatable = false, nullable = false)
     private Long userChatRoomId;
 
-    @ManyToOne(fetch = FetchType.LAZY)
+    @ManyToOne(fetch = FetchType.LAZY, cascade = CascadeType.PERSIST)
     @JoinColumn(name = "chat_room_id", updatable = false)
     private ChatRoom chatRoom;
 
