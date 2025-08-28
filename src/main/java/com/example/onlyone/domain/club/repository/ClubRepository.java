@@ -111,5 +111,5 @@ public interface ClubRepository extends JpaRepository<Club, Long> {
     """)
     List<Object[]> findClubsByTeammates(@Param("userId") Long userId, Pageable pageable);
 
-    Club findByClubId(Long clubId);
+    Club findByClubId(long l);
 }

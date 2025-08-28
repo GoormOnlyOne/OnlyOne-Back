@@ -1,6 +1,7 @@
 package com.example.onlyone.domain.schedule.entity;
 
 import com.example.onlyone.domain.club.entity.Club;
+import com.example.onlyone.domain.settlement.entity.Settlement;
 import com.example.onlyone.global.BaseTimeEntity;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.NotNull;
@@ -48,10 +49,6 @@ public class Schedule extends BaseTimeEntity {
     @Enumerated(EnumType.STRING)
     private ScheduleStatus scheduleStatus;
 
-    @Column(name = "schedule_limit")
-    @NotNull
-    private int scheduleLimit;
-
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "club_id")
     @NotNull
@@ -59,6 +56,9 @@ public class Schedule extends BaseTimeEntity {
 
     @OneToMany(mappedBy = "schedule", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<UserSchedule> userSchedules = new ArrayList<>();
+
+    @OneToOne(mappedBy = "schedule", cascade = CascadeType.ALL, orphanRemoval = true)
+    private Settlement settlement;
 
     public void update(String name, String location, int cost, int userLimit, LocalDateTime scheduleTime) {
         this.name = name;
@@ -70,5 +70,13 @@ public class Schedule extends BaseTimeEntity {
 
     public void updateStatus(ScheduleStatus scheduleStatus) {
         this.scheduleStatus = scheduleStatus;
+    }
+
+    public void updateSettlement(Settlement settlement) {
+        this.settlement = settlement;
+    }
+
+    public void removeSettlement(Settlement settlement) {
+        this.settlement = null;
     }
 }

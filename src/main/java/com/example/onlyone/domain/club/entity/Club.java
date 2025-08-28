@@ -59,12 +59,15 @@ public class Club extends BaseTimeEntity {
     private Interest interest;
 
     @OneToMany(mappedBy = "club", cascade = CascadeType.ALL, orphanRemoval = true)
+    @Builder.Default
     private List<ChatRoom> chatRooms = new ArrayList<>();
 
     @OneToMany(mappedBy = "club", cascade = CascadeType.ALL, orphanRemoval = true)
+    @Builder.Default
     private List<Feed> feeds = new ArrayList<>();
 
     @OneToMany(mappedBy = "club", cascade = CascadeType.ALL, orphanRemoval = true)
+    @Builder.Default
     private List<Schedule> schedules = new ArrayList<>();
 
     public void update(String name,
@@ -81,5 +84,9 @@ public class Club extends BaseTimeEntity {
         this.city = city;
         this.district = district;
         this.interest = interest;
+    }
+
+    public void addSchedule(Schedule schedule) {
+        schedules.add(schedule);
     }
 }
