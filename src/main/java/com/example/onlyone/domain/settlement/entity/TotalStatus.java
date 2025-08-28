@@ -1,6 +1,9 @@
 package com.example.onlyone.domain.settlement.entity;
 
 public enum TotalStatus {
+    HOLDING,
     REQUESTED,
-    COMPLETED
+    IN_PROGRESS,
+    COMPLETED,
+    FAILED
 }

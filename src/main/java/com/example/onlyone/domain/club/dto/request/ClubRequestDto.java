@@ -9,6 +9,8 @@ import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
+import jakarta.validation.constraints.*;
+import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
@@ -21,9 +23,11 @@ public class ClubRequestDto {
     @NotBlank
     @Size(max = 20, message = "모임명은 20자 이내여야 합니다.")
     private String name;
-    @NotNull
+    @Min(value = 1, message = "정원은 1명 이상이어야 합니다.")
+    @Max(value = 100, message = "정원은 100명 이하여야 합니다.")
     private int userLimit;
     @Size(max = 50, message = "모임 설명은 50자 이내여야 합니다.")
+    @NotBlank
     private String description;
     private String clubImage;
     @NotBlank

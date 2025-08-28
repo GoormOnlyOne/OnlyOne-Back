@@ -16,14 +16,16 @@ public interface ClubRepository extends JpaRepository<Club, Long> {
     @Query("SELECT c, COUNT(uc) FROM Club c " +
             "LEFT JOIN UserClub uc ON c.clubId = uc.club.clubId " +
             "WHERE c.interest.interestId = :interestId " +
-            "GROUP BY c.clubId")
+            "GROUP BY c.clubId " +
+            "ORDER BY COUNT(uc) DESC")
     List<Object[]> searchByInterest(@Param("interestId") Long interestId, Pageable pageable);
 
     // 모임 검색 (지역)
     @Query("SELECT c, COUNT(uc) FROM Club c " +
             "LEFT JOIN UserClub uc ON c.clubId = uc.club.clubId " +
             "WHERE c.city = :city and c.district = :district " +
-            "GROUP BY c.clubId")
+            "GROUP BY c.clubId " +
+            "ORDER BY COUNT(uc) DESC")
     List<Object[]> searchByLocation(@Param("city") String city,
                                     @Param("district") String district,
                                     Pageable pageable);
@@ -110,5 +112,5 @@ public interface ClubRepository extends JpaRepository<Club, Long> {
     """)
     List<Object[]> findClubsByTeammates(@Param("userId") Long userId, Pageable pageable);
 
-    Club findByClubId(Long clubId);
+    Club findByClubId(long l);
 }
