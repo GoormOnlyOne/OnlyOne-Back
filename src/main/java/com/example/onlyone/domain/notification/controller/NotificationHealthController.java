@@ -23,7 +23,7 @@ import java.util.Map;
  */
 @Slf4j
 @RestController
-@RequestMapping("/api/v1/notifications/health")
+@RequestMapping("/notifications/health")
 @RequiredArgsConstructor
 @Tag(name = "Notification Health", description = "알림 시스템 상태 확인 API")
 public class NotificationHealthController {

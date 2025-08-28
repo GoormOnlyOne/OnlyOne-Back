@@ -14,7 +14,6 @@ import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.Timer;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Timeout;
@@ -35,10 +34,9 @@ import static org.assertj.core.api.Assertions.*;
  * - 1000개 알림 생성 기준
  * - Micrometer 메트릭 수집
  */
-@Disabled
 @SpringBootTest
 @Import(TestConfig.class)
-@ActiveProfiles("test")
+@ActiveProfiles({"test", "performance"})
 @Transactional
 @Rollback
 @DisplayName("알림 생성 성능 테스트")
