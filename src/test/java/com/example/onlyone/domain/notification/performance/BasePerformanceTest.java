@@ -35,7 +35,7 @@ import java.util.concurrent.atomic.AtomicLong;
 @DisplayName("성능 테스트 베이스 클래스")
 @SpringBootTest
 @Import(TestConfig.class)
-@ActiveProfiles("test")
+@ActiveProfiles({"test", "performance"})
 @Transactional
 @Rollback
 public abstract class BasePerformanceTest {

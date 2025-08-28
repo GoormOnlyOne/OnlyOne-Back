@@ -27,18 +27,24 @@ public class Wallet extends BaseTimeEntity {
     private Long walletId;
 
     @OneToOne(fetch = FetchType.LAZY, cascade = CascadeType.ALL)
-    @JoinColumn(name = "user_id")
+    @JoinColumn(name = "user_id", unique = true)
     @NotNull
     private User user;
 
-    @Column(name = "balance")
-    @NotNull
-    private int balance;
+//    @Column(name = "balance")
+//    @NotNull
+//    private int balance;
+
+    @Column(name = "posted_balance")
+    private int postedBalance;
+
+    @Column(name = "pending_out")
+    private int pendingOut;
 
     @OneToMany(mappedBy = "wallet", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<WalletTransaction> walletTransactions = new ArrayList<>();
 
     public void updateBalance(int balance) {
-        this.balance = balance;
+        this.postedBalance = balance;
     }
 }
