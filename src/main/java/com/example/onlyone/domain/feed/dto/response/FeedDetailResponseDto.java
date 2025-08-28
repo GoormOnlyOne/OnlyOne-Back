@@ -12,6 +12,7 @@ import java.util.List;
 @Getter
 @AllArgsConstructor
 public class FeedDetailResponseDto {
+    private Long feedId;
     private String content;
     private List<String> imageUrls;
     private int likeCount;
@@ -31,6 +32,7 @@ public class FeedDetailResponseDto {
 
     public static FeedDetailResponseDto from(Feed feed, List<String> imageUrls, boolean isLiked, boolean isFeedMine, List<FeedCommentResponseDto> comments, long repostCount) {
         return FeedDetailResponseDto.builder()
+                .feedId(feed.getFeedId())
                 .content(feed.getContent())
                 .imageUrls(imageUrls)
                 .likeCount(feed.getFeedLikes().size())

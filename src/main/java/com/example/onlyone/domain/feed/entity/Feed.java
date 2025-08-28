@@ -62,17 +62,17 @@ public class Feed extends BaseTimeEntity {
 
     @Builder.Default
     @OneToMany(mappedBy = "feed", cascade = CascadeType.ALL, orphanRemoval = true)
-    @BatchSize(size = 50)
+    @BatchSize(size = 100)
     private List<FeedComment> feedComments = new ArrayList<>();
 
     @Builder.Default
     @OneToMany(mappedBy = "feed", cascade = CascadeType.ALL, orphanRemoval = true)
-    @BatchSize(size = 50)
+    @BatchSize(size = 100)
     private List<FeedLike> feedLikes = new ArrayList<>();
 
     @Builder.Default
     @OneToMany(mappedBy = "feed", cascade = CascadeType.ALL, orphanRemoval = true)
-    @BatchSize(size = 50)
+    @BatchSize(size = 100)
     private List<FeedImage> feedImages = new ArrayList<>();
 
     public void update(String content) {
