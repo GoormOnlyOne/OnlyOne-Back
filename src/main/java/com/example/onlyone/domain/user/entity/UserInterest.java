@@ -7,6 +7,11 @@ import jakarta.validation.constraints.NotNull;
 import lombok.*;
 
 @Entity
+@Table(name = "user_interest", indexes = {
+    @Index(name = "idx_user_interest_user", columnList = "user_id"),
+    @Index(name = "idx_user_interest_interest", columnList = "interest_id"),
+    @Index(name = "idx_user_interest_user_interest", columnList = "user_id, interest_id")
+})
 @Getter
 @Setter
 @Builder
