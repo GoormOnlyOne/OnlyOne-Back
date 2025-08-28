@@ -7,8 +7,12 @@ import com.example.onlyone.domain.chat.entity.UserChatRoom;
 import com.example.onlyone.domain.chat.repository.ChatRoomRepository;
 import com.example.onlyone.domain.chat.repository.UserChatRoomRepository;
 import com.example.onlyone.domain.club.entity.Club;
+import com.example.onlyone.domain.club.entity.ClubRole;
+import com.example.onlyone.domain.club.entity.UserClub;
 import com.example.onlyone.domain.club.repository.ClubRepository;
+import com.example.onlyone.domain.club.repository.UserClubRepository;
 import com.example.onlyone.domain.schedule.dto.request.ScheduleRequestDto;
+import com.example.onlyone.domain.schedule.dto.response.ScheduleCreateResponseDto;
 import com.example.onlyone.domain.schedule.dto.response.ScheduleDetailResponseDto;
 import com.example.onlyone.domain.schedule.dto.response.ScheduleResponseDto;
 import com.example.onlyone.domain.schedule.dto.response.ScheduleUserResponseDto;
@@ -18,9 +22,17 @@ import com.example.onlyone.domain.schedule.entity.ScheduleStatus;
 import com.example.onlyone.domain.schedule.entity.UserSchedule;
 import com.example.onlyone.domain.schedule.repository.ScheduleRepository;
 import com.example.onlyone.domain.schedule.repository.UserScheduleRepository;
+import com.example.onlyone.domain.settlement.entity.Settlement;
+import com.example.onlyone.domain.settlement.entity.SettlementStatus;
+import com.example.onlyone.domain.settlement.entity.TotalStatus;
+import com.example.onlyone.domain.settlement.entity.UserSettlement;
+import com.example.onlyone.domain.settlement.repository.SettlementRepository;
+import com.example.onlyone.domain.settlement.repository.UserSettlementRepository;
 import com.example.onlyone.domain.user.entity.User;
 import com.example.onlyone.domain.user.repository.UserRepository;
 import com.example.onlyone.domain.user.service.UserService;
+import com.example.onlyone.domain.wallet.entity.Wallet;
+import com.example.onlyone.domain.wallet.repository.WalletRepository;
 import com.example.onlyone.global.exception.CustomException;
 import jakarta.validation.Valid;
 import com.example.onlyone.global.exception.ErrorCode;
@@ -49,6 +61,10 @@ public class ScheduleService {
     private final ChatRoomRepository chatRoomRepository;
     private final UserService userService;
     private final UserRepository userRepository;
+    private final SettlementRepository settlementRepository;
+    private final UserSettlementRepository userSettlementRepository;
+    private final WalletRepository walletRepository;
+    private final UserClubRepository userClubRepository;
 
     /* 스케줄 Status를 READY -> ENDED로 변경하는 스케줄링 */
     @Scheduled(cron = "0 0 0 * * *")
@@ -64,12 +80,17 @@ public class ScheduleService {
     }
 
     /* 정기 모임 생성*/
-    public void createSchedule(Long clubId, ScheduleRequestDto requestDto) {
+    public ScheduleCreateResponseDto createSchedule(Long clubId, ScheduleRequestDto requestDto) {
         Club club = clubRepository.findById(clubId)
                 .orElseThrow(() -> new CustomException(ErrorCode.CLUB_NOT_FOUND));
         Schedule schedule = requestDto.toEntity(club);
         scheduleRepository.save(schedule);
         User user = userService.getCurrentUser();
+        UserClub userClub = userClubRepository.findByUserAndClub(user, club)
+                .orElseThrow(() -> new CustomException(ErrorCode.USER_CLUB_NOT_FOUND));
+        if (userClub.getClubRole() != ClubRole.LEADER) {
+            throw new CustomException(ErrorCode.MEMBER_CANNOT_CREATE_SCHEDULE);
+        }
         UserSchedule userSchedule = UserSchedule.builder()
                 .user(user)
                 .schedule(schedule)
@@ -88,10 +109,21 @@ public class ScheduleService {
                 .chatRole(ChatRole.LEADER)
                 .build();
         userChatRoomRepository.save(userChatRoom);
+        Settlement settlement = Settlement.builder()
+                .schedule(schedule)
+                .sum(0) // 정산 시작 시 참여자 수 * COST
+                .totalStatus(TotalStatus.HOLDING)
+                .receiver(user) // 리더가 receiver
+                .build();
+        settlementRepository.save(settlement);
+        club.addSchedule(schedule);
+        schedule.updateSettlement(settlement);
+        return new ScheduleCreateResponseDto(schedule.getScheduleId());
     }
 
     /* 정기 모임 수정 */
-    public void updateSchedule(Long clubId, Long scheduleId, @Valid ScheduleRequestDto requestDto) {
+    @Transactional
+    public void updateSchedule(Long clubId, Long scheduleId, ScheduleRequestDto requestDto) {
         clubRepository.findById(clubId)
                 .orElseThrow(() -> new CustomException(ErrorCode.CLUB_NOT_FOUND));
         Schedule schedule = scheduleRepository.findById(scheduleId)
@@ -102,12 +134,47 @@ public class ScheduleService {
         if (userSchedule.getScheduleRole() != ScheduleRole.LEADER) {
             throw new CustomException(ErrorCode.MEMBER_CANNOT_MODIFY_SCHEDULE);
         }
+        if (schedule.getScheduleStatus() != ScheduleStatus.READY) {
+            throw new CustomException(ErrorCode.ALREADY_ENDED_SCHEDULE);
+        }
+        // 정산 금액이 변경되는 경우
+        if (schedule.getCost() != requestDto.getCost()) {
+            int memberCount = userScheduleRepository.countBySchedule(schedule) - 1;
+            int delta = requestDto.getCost() - schedule.getCost();
+
+            if (memberCount > 0 && delta != 0) {
+                List<UserSettlement> targets =
+                        userSettlementRepository.findAllBySettlement_SettlementIdAndSettlementStatus(
+                                schedule.getSettlement().getSettlementId(), SettlementStatus.HOLD_ACTIVE);
+                // 비용 인상
+                if (delta > 0) {
+                    for (UserSettlement us : targets) {
+                        int flag = walletRepository.holdBalanceIfEnough(us.getUser().getUserId(), delta);
+                        if (flag != 1) {
+                            // 한 명이라도 잔액 부족 → 전체 롤백
+                            throw new CustomException(ErrorCode.WALLET_BALANCE_NOT_ENOUGH);
+                        }
+                    }
+                }
+                // 비용 감소
+                else {
+                    long release = Math.abs(delta);
+                    for (UserSettlement us : targets) {
+                        int flag = walletRepository.releaseHoldBalance(us.getUser().getUserId(), release);
+                        if (flag != 1) {
+                            throw new CustomException(ErrorCode.WALLET_HOLD_CAPTURE_FAILED);
+                        }
+                    }
+                }
+            }
+        }
         schedule.update(requestDto.getName(), requestDto.getLocation(), requestDto.getCost(), requestDto.getUserLimit(), requestDto.getScheduleTime());
+        scheduleRepository.save(schedule);
     }
 
     /* 정기 모임 참여 */
     public void joinSchedule(Long clubId, Long scheduleId) {
-        clubRepository.findById(clubId)
+        Club club = clubRepository.findById(clubId)
                 .orElseThrow(() -> new CustomException(ErrorCode.CLUB_NOT_FOUND));
         Schedule schedule = scheduleRepository.findById(scheduleId)
                 .orElseThrow(() -> new CustomException(ErrorCode.SCHEDULE_NOT_FOUND));
@@ -124,6 +191,18 @@ public class ScheduleService {
         if (schedule.getScheduleStatus() != ScheduleStatus.READY || schedule.getScheduleTime().isBefore(LocalDateTime.now())) {
             throw new CustomException(ErrorCode.ALREADY_ENDED_SCHEDULE);
         }
+        // 모임 멤버가 아닌 경우
+        if (userClubRepository.findByUserAndClub(user, club).isEmpty()){
+            throw new CustomException(ErrorCode.USER_CLUB_NOT_FOUND);
+        }
+        Settlement settlement = settlementRepository.findBySchedule(schedule)
+                .orElseThrow(() -> new CustomException(ErrorCode.SETTLEMENT_NOT_FOUND));
+        // 잔액 체크 + wallet에 예약금 홀드
+        int flag = walletRepository.holdBalanceIfEnough(user.getUserId(), schedule.getCost());
+        // 사용자의 잔액이 부족한 경우
+        if (flag == 0) {
+            throw new CustomException(ErrorCode.WALLET_BALANCE_NOT_ENOUGH);
+        }
         UserSchedule userSchedule = UserSchedule.builder()
                 .user(user)
                 .schedule(schedule)
@@ -138,6 +217,14 @@ public class ScheduleService {
                 .chatRole(ChatRole.MEMBER)
                 .build();
         userChatRoomRepository.save(userChatRoom);
+        // 예약금 홀드
+        UserSettlement userSettlement = UserSettlement.builder()
+                .user(userSchedule.getUser())
+                .settlement(settlement)
+                .settlementStatus(SettlementStatus.HOLD_ACTIVE)
+                .build();
+        userSettlementRepository.save(userSettlement);
+//        settlement.updateUserSettlement(userSettlement);
     }
 
     /* 정기 모임 참여 취소 */
@@ -151,12 +238,29 @@ public class ScheduleService {
         if (schedule.getScheduleStatus() != ScheduleStatus.READY || schedule.getScheduleTime().isBefore(LocalDateTime.now())) {
             throw new CustomException(ErrorCode.ALREADY_ENDED_SCHEDULE);
         }
+        // 정모 참여 멤버가 아닌 경우
         UserSchedule userSchedule = userScheduleRepository.findByUserAndSchedule(user, schedule)
                 .orElseThrow(() -> new CustomException(ErrorCode.USER_SCHEDULE_NOT_FOUND));
         // 리더는 참여 취소 불가능
         if (userSchedule.getScheduleRole() == ScheduleRole.LEADER) {
             throw new CustomException(ErrorCode.LEADER_CANNOT_LEAVE_SCHEDULE);
         }
+        Settlement settlement = settlementRepository.findBySchedule(schedule)
+                .orElseThrow(() -> new CustomException(ErrorCode.SETTLEMENT_NOT_FOUND));
+        UserSettlement userSettlement = userSettlementRepository.findByUserAndSettlement(user, settlement)
+                .orElseThrow(() -> new CustomException(ErrorCode.USER_SETTLEMENT_NOT_FOUND));
+
+        // 이미 해제/완료한 경우엔 멱등 처리
+        if (!(userSettlement.getSettlementStatus() == SettlementStatus.HOLD_ACTIVE
+                || userSettlement.getSettlementStatus() == SettlementStatus.FAILED)) {
+            return;
+        }
+
+        final int amount = schedule.getCost();
+        int flag = walletRepository.releaseHoldBalance(user.getUserId(), amount);
+        if (flag == 0) throw new CustomException(ErrorCode.WALLET_HOLD_STATE_CONFLICT);
+
+        userSettlementRepository.delete(userSettlement);
         userScheduleRepository.delete(userSchedule);
         ChatRoom chatRoom = chatRoomRepository.findByTypeAndScheduleId(Type.SCHEDULE, schedule.getScheduleId())
                 .orElseThrow(() -> new CustomException(ErrorCode.CHAT_ROOM_NOT_FOUND));
@@ -171,7 +275,8 @@ public class ScheduleService {
         Club club = clubRepository.findById(clubId)
                 .orElseThrow(() -> new CustomException(ErrorCode.CLUB_NOT_FOUND));
         User currentUser = userService.getCurrentUser();
-        return scheduleRepository.findByClubAndScheduleStatusNot(club, ScheduleStatus.CLOSED).stream()
+//        return scheduleRepository.findByClubAndScheduleStatusNot(club, ScheduleStatus.CLOSED).stream()
+        return scheduleRepository.findAllByClubOrderByScheduleTimeDesc(club).stream()
                 .map(schedule -> {
                     int userCount = userScheduleRepository.countBySchedule(schedule);
                     Optional<UserSchedule> userScheduleOpt = userScheduleRepository
@@ -199,6 +304,8 @@ public class ScheduleService {
                 .collect(Collectors.toList());
     }
 
+
+    /* 스케줄 정보 상세 조회 */
     @Transactional(readOnly = true)
     public ScheduleDetailResponseDto getScheduleDetails(Long clubId, Long scheduleId) {
         clubRepository.findById(clubId)
@@ -208,7 +315,7 @@ public class ScheduleService {
         return ScheduleDetailResponseDto.from(schedule);
     }
 
-
+    /* 정기 모임 삭제 */
     public void deleteSchedule(Long clubId, Long scheduleId) {
         Club club = clubRepository.findById(clubId)
                 .orElseThrow(() -> new CustomException(ErrorCode.CLUB_NOT_FOUND));
@@ -229,6 +336,5 @@ public class ScheduleService {
                 .orElseThrow(() -> new CustomException(ErrorCode.CHAT_ROOM_NOT_FOUND));
         club.getSchedules().remove(schedule);
         chatRoomRepository.delete(chatRoom);
-        scheduleRepository.delete(schedule);
     }
 }

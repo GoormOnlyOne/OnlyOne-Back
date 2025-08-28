@@ -20,7 +20,7 @@ public class Payment extends BaseTimeEntity {
     @Column(name = "payment_id")
     private Long paymentId;
 
-    @Column(name = "toss_payment_key", nullable = false, unique = true)
+    @Column(name = "toss_payment_key", unique = true)
     private String tossPaymentKey;
 
     @Column(name = "toss_order_id", nullable = false, unique = true)
@@ -48,6 +48,10 @@ public class Payment extends BaseTimeEntity {
         this.tossPaymentKey = paymentKey;
         this.status = status;
         this.method = method;
+        this.walletTransaction = walletTransaction;
+    }
+
+    public void updateWalletTransaction(WalletTransaction walletTransaction) {
         this.walletTransaction = walletTransaction;
     }
 }
