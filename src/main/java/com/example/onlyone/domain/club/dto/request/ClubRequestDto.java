@@ -2,12 +2,21 @@ package com.example.onlyone.domain.club.dto.request;
 
 import com.example.onlyone.domain.club.entity.Club;
 import com.example.onlyone.domain.interest.entity.Interest;
+import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
+import com.fasterxml.jackson.databind.annotation.JsonPOJOBuilder;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
 import lombok.Getter;
+import lombok.NoArgsConstructor;
 
+@AllArgsConstructor
+@Builder(toBuilder = true)
+@NoArgsConstructor
 @Getter
+@JsonDeserialize(builder = ClubRequestDto.ClubRequestDtoBuilder.class)
 public class ClubRequestDto {
     @NotBlank
     @Size(max = 20, message = "모임명은 20자 이내여야 합니다.")
@@ -35,4 +44,8 @@ public class ClubRequestDto {
                 .interest(interest)
                 .build();
     }
+
+    @JsonPOJOBuilder(withPrefix = "")
+    public static class ClubRequestDtoBuilder {}
+
 }
