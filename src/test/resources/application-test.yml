@@ -1,0 +1,79 @@
+spring:
+  datasource:
+    driver-class-name: org.h2.Driver
+    url: jdbc:h2:mem:testdb;MODE=MySQL;DATABASE_TO_LOWER=TRUE;DEFAULT_NULL_ORDERING=HIGH
+    username: sa
+    password: 
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+    generate-ddl: true
+    show-sql: false
+    defer-datasource-initialization: false
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.H2Dialect
+        format_sql: false
+  data:
+    redis:
+      host: localhost
+      port: 6379
+      password:
+      repositories:
+        enabled: false
+  cache:
+    type: none
+  main:
+    allow-bean-definition-overriding: true
+
+server:
+  port: 8080
+
+aws:
+  s3:
+    access-key: test-access-key
+    secret-key: test-secret-key
+    region: ap-northeast-2
+    bucket: test-bucket
+    folder:
+      chat: chat
+      club: club
+      feed: feed
+      user: user
+  cloudfront:
+    domain: test.cloudfront.net
+
+kakao:
+  client:
+    id: test-client-id
+  redirect:
+    uri: http://localhost:5173/kakao-callback
+
+jwt:
+  secret: test-secret-key-for-testing-purposes-only-1234567890abcdefghijklmnopqrstuvwxyz
+  access-expiration: 3600000
+  refresh-expiration: 604800000
+
+payment:
+  toss:
+    test_secret_api_key: test_api_key
+    base_url: https://api.tosspayments.com/v1/payments
+
+app:
+  base_url: http://localhost:8080
+  notification:
+    sse-timeout-millis: 60000
+    max-page-size: 100
+    default-page-size: 20
+    fcm-max-retries: 3
+    fcm-retry-interval-millis: 1000
+
+firebase:
+  service-account:
+    path: firebase/service-account.json
+  web:
+    vapid-key: "test-vapid-key"
+
+logging:
+  level:
+    com.example.onlyone: INFO
