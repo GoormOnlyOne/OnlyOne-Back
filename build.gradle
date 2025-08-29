@@ -45,6 +45,7 @@ dependencies {
     testImplementation 'org.springframework.boot:spring-boot-starter-test'
     testImplementation 'org.springframework.security:spring-security-test'
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+    testImplementation 'com.h2database:h2'
     implementation 'io.jsonwebtoken:jjwt-api:0.11.5'
     runtimeOnly  'io.jsonwebtoken:jjwt-impl:0.11.5'
     runtimeOnly  'io.jsonwebtoken:jjwt-jackson:0.11.5'
@@ -89,6 +90,10 @@ tasks.named('test') {
 
 jacoco {
     toolVersion = "0.8.13"
+}
+
+test {
+    jvmArgs += ["-javaagent:${configurations.testRuntimeClasspath.find { it.name.contains('mockito-core') }.absolutePath}"]
 }
 
 jacocoTestReport {
