@@ -31,8 +31,7 @@ public class ClubController {
     @Operation(summary = "모임 수정", description = "모임을 수정합니다.")
     @PatchMapping("/{clubId}")
     public ResponseEntity<?> updateClub(@PathVariable Long clubId, @RequestBody @Valid ClubRequestDto requestDto) {
-        clubService.updateClub(clubId,requestDto);
-        return ResponseEntity.status(HttpStatus.OK).body(CommonResponse.success(null));
+        return ResponseEntity.status(HttpStatus.OK).body(CommonResponse.success(clubService.updateClub(clubId,requestDto)));
     }
 
     @Operation(summary = "모임 상세 조회", description = "모임을 상세하게 조회합니다.")

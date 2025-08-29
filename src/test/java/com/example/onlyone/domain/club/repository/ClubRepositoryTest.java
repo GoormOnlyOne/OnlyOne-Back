@@ -6,6 +6,7 @@ import com.example.onlyone.domain.club.entity.UserClub;
 import com.example.onlyone.domain.interest.entity.Category;
 import com.example.onlyone.domain.interest.entity.Interest;
 import com.example.onlyone.domain.interest.repository.InterestRepository;
+import com.example.onlyone.domain.search.dto.request.SearchFilterDto;
 import com.example.onlyone.domain.user.entity.Gender;
 import com.example.onlyone.domain.user.entity.Status;
 import com.example.onlyone.domain.user.entity.User;
@@ -258,8 +259,12 @@ class ClubRepositoryTest {
     @DisplayName("키워드와 필터로 클럽을 검색할 수 있다")
     void searchByKeywordWithFilter() {
         // when - 축구 키워드로 검색
-        List<Object[]> results = clubRepository.searchByKeywordWithFilter(
-                "축구", null, null, null, "MEMBER_COUNT", pageable);
+        SearchFilterDto filter = SearchFilterDto.builder()
+                .keyword("축구")
+                .sortBy(SearchFilterDto.SortType.MEMBER_COUNT)
+                .page(0)
+                .build();
+        List<Object[]> results = clubRepository.searchByKeywordWithFilter(filter, 0, 20);
 
         // then
         assertThat(results).hasSize(1);

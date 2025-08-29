@@ -1,16 +1,12 @@
 package com.example.onlyone;
 
-import com.example.onlyone.config.TestConfig;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.context.annotation.Import;
-import org.springframework.test.context.ActiveProfiles;
+import org.springframework.scheduling.annotation.EnableScheduling;
 
 @SpringBootTest
-@ActiveProfiles("test")
-@Import(TestConfig.class)
+@EnableScheduling
 class OnlyoneApplicationTests {
-
     @Test
     void contextLoads() {
     }
