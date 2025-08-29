@@ -26,9 +26,9 @@ public class NotificationCreateResponseDto {
 
   public static NotificationCreateResponseDto from(AppNotification appNotification) {
     return NotificationCreateResponseDto.builder()
-        .notificationId(appNotification.getNotificationId())
+        .notificationId(appNotification.getId())
         .content(appNotification.getContent())
-        .fcmSent(appNotification.getFcmSent())
+        .fcmSent(appNotification.isFcmSent())
         .createdAt(appNotification.getCreatedAt())
         .build();
   }

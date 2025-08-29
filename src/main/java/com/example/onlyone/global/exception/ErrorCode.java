@@ -43,6 +43,9 @@ public enum ErrorCode {
     NOTIFICATION_NOT_FOUND(404, "NOTIFY_404_2", "알림이 존재하지 않습니다."),
     SSE_CONNECTION_FAILED(503, "NOTIFY_503_1", "SSE 연결에 실패했습니다."),
     SSE_SEND_FAILED(503, "NOTIFY_503_2", "SSE 메시지 전송에 실패했습니다."),
+    SSE_CLEANUP_FAILED(500, "NOTIFY_500_5", "SSE 연결 정리 중 오류가 발생했습니다."),
+    INVALID_EVENT_ID(400, "NOTIFY_400_2", "유효하지 않은 이벤트 ID입니다."),
+    INVALID_NOTIFICATION_DATA(400, "NOTIFY_400_3", "유효하지 않은 알림 데이터입니다."),
     UNREAD_COUNT_UPDATE_FAILED    (500, "NOTIFY_500_1", "읽지 않은 알림 개수 업데이트에 실패했습니다."),
     FCM_TOKEN_NOT_FOUND           (404, "NOTIFY_404_3", "FCM 토큰을 찾을 수 없습니다."),
     FCM_TOKEN_REFRESH_REQUIRED    (409, "NOTIFY_409_1", "FCM 토큰을 새로 등록해야 합니다."),
@@ -54,6 +57,8 @@ public enum ErrorCode {
     FCM_QUOTA_EXCEEDED(429, "NOTIFY_429_1", "FCM 전송 할당량을 초과했습니다."),
     FCM_SERVICE_UNAVAILABLE(503, "NOTIFY_503_3", "Firebase 서비스를 일시적으로 사용할 수 없습니다."),
     FCM_AUTHENTICATION_FAILED(401, "NOTIFY_401_2", "Firebase 인증에 실패했습니다."),
+    DATABASE_OPERATION_FAILED(500, "NOTIFY_500_3", "데이터베이스 작업 중 오류가 발생했습니다."),
+    NOTIFICATION_PROCESSING_FAILED(500, "NOTIFY_500_4", "알림 처리 중 오류가 발생했습니다."),
 
     // Schedule
     INVALID_SCHEDULE_DELETE(400, "SCHEDULE_400_1", "이미 시작한 스케줄은 삭제할 수 없습니다."),

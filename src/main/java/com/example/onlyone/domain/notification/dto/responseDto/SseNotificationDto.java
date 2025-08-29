@@ -37,7 +37,7 @@ public class SseNotificationDto {
 
   public static SseNotificationDto from(AppNotification appNotification) {
     return SseNotificationDto.builder()
-        .notificationId(appNotification.getNotificationId())
+        .notificationId(appNotification.getId())
         .content(appNotification.getContent())
         .type(appNotification.getNotificationType().getType())
         .createdAt(appNotification.getCreatedAt())
