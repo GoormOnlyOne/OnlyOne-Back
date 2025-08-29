@@ -74,7 +74,7 @@ public class ClubService {
     }
 
     /* 모임 수정*/
-    public void updateClub(long clubId, ClubRequestDto requestDto) {
+    public ClubCreateResponseDto updateClub(long clubId, ClubRequestDto requestDto) {
         Club club = clubRepository.findById(clubId)
                 .orElseThrow(() -> new CustomException(ErrorCode.CLUB_NOT_FOUND));
         Interest interest = interestRepository.findByCategory(Category.from(requestDto.getCategory()))
@@ -94,6 +94,7 @@ public class ClubService {
                 requestDto.getDistrict(),
                 interest
         );
+        return new ClubCreateResponseDto(club.getClubId());
     }
 
     /* 모임 상세 조회*/

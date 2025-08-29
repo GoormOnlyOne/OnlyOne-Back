@@ -6,9 +6,11 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
+import org.springframework.stereotype.Repository;
 
 import java.util.List;
 
+@Repository
 public interface ClubRepository extends JpaRepository<Club, Long> {
     // 모임 검색 (관심사)
     @Query("SELECT c, COUNT(uc) FROM Club c " +
@@ -27,7 +29,6 @@ public interface ClubRepository extends JpaRepository<Club, Long> {
     List<Object[]> searchByLocation(@Param("city") String city,
                                     @Param("district") String district,
                                     Pageable pageable);
-
     /**
      * 사용자 맞춤 모임 추천
      * 1. 관심사 + 지역 일치
