@@ -68,4 +68,5 @@ public class NotificationType extends BaseTimeEntity {
         return String.format("NotificationType{id=%d, type=%s, deliveryMethod=%s}", 
                 id, type, deliveryMethod);
     }
+
 }

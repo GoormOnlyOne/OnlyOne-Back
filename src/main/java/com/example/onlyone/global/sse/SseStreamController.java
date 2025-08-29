@@ -13,10 +13,7 @@ import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
-/**
- * SSE(Server-Sent Events) 전용 컨트롤러
- * JWT 토큰 기반 인증으로 실시간 스트림 연결 관리 - Last-Event-ID 지원
- */
+
 @Tag(name = "SSE", description = "실시간 스트림 API")
 @RestController
 @RequestMapping("/sse")
@@ -80,4 +77,5 @@ public class SseStreamController {
     private final boolean connected;
     private final int totalConnections;
   }
+
 }

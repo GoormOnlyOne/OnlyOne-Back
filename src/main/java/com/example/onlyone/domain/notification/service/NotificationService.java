@@ -299,7 +299,7 @@ public class NotificationService {
 
     log.info("Notification deleted: id={}", notificationId);
   }
-
+  
   // 사용자 조회
   private User findUser(Long userId) {
     return findEntityOrThrow(
@@ -307,7 +307,7 @@ public class NotificationService {
         "User", userId, ErrorCode.USER_NOT_FOUND
     );
   }
-
+  
   // 알림 타입 조회
   private NotificationType findNotificationType(Type type) {
     return findEntityOrThrow(
@@ -502,6 +502,7 @@ public class NotificationService {
   }
 
   // 읽지 않은 개수 전송
+
   private void sendUnreadCountUpdate(Long userId) {
     executeNotificationSafely(
         () -> sseEmittersService.sendUnreadCountUpdate(userId),

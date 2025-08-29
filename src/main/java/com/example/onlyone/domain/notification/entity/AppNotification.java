@@ -102,4 +102,5 @@ public class AppNotification extends BaseTimeEntity {
         return String.format("AppNotification{id=%d, content='%s', isRead=%s}", 
                 id, content, isRead);
     }
+
 }

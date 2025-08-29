@@ -10,7 +10,6 @@ import org.springframework.test.context.ActiveProfiles;
 @ActiveProfiles("test")
 @Import(TestConfig.class)
 class OnlyoneApplicationTests {
-
     @Test
     void contextLoads() {
     }

@@ -22,4 +22,5 @@ public enum Type {
   public String getTargetType() {
     return targetType;
   }
+
 }

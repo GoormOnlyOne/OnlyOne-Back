@@ -1,5 +1,6 @@
 package com.example.onlyone.domain.notification.repository;
 
+
 import com.example.onlyone.domain.notification.entity.AppNotification;
 import org.springframework.data.jpa.repository.JpaRepository;
 

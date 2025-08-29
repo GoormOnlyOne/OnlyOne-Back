@@ -147,6 +147,7 @@ public class FcmService implements InitializingBean, DisposableBean {
               .findFailedFcmNotificationsByUserId(userId);
 
       if (failedNotifications.isEmpty()) {
+
         log.info("No failed notifications to retry for user: {}", userId);
         return;
       }
@@ -319,5 +320,4 @@ public class FcmService implements InitializingBean, DisposableBean {
       }
     }
   }
-
 }

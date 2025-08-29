@@ -25,9 +25,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import org.springframework.beans.factory.InitializingBean;
 import org.springframework.beans.factory.DisposableBean;
 
-/**
- * SSE 연결 관리 서비스
- */
+ 
 @Slf4j
 @RequiredArgsConstructor
 @Service
@@ -35,6 +33,7 @@ public class SseEmittersService implements InitializingBean, DisposableBean {
 
   @Value("${app.notification.sse-timeout-millis:1800000}") // 기본값 30분
   private long sseTimeoutMillis;
+
 
   private final ConcurrentHashMap<Long, SseConnection> activeConnections = new ConcurrentHashMap<>();
   private final NotificationRepository notificationRepository;
@@ -50,8 +49,7 @@ public class SseEmittersService implements InitializingBean, DisposableBean {
   private static final int CONNECTION_INFO_TTL = 3600; // 1시간
   private static final long CLEANUP_INTERVAL_MINUTES = 10; // 10분마다 정리
 
-  /**
-   * SSE 연결 생성
+
    */
   public SseEmitter createSseConnection(Long userId) {
     return createSseConnection(userId, null);
@@ -96,7 +94,6 @@ public class SseEmittersService implements InitializingBean, DisposableBean {
     try {
       SseNotificationDto sseDto = SseNotificationDto.from(appNotification);
       String eventId = generateEventId(appNotification);
-      
       connection.getEmitter().send(SseEmitter.event()
           .id(eventId)
           .name("notification")
@@ -158,6 +155,7 @@ public class SseEmittersService implements InitializingBean, DisposableBean {
     try {
       String eventId = generateHeartbeatEventId();
       connection.getEmitter().send(SseEmitter.event()
+
           .id(eventId)
           .name("heartbeat")
           .data("connected"));
@@ -173,6 +171,7 @@ public class SseEmittersService implements InitializingBean, DisposableBean {
    */
   private void sendMissedNotifications(SseConnection connection) {
     String lastEventId = connection.getLastEventId();
+
     if (lastEventId == null || lastEventId.isBlank()) {
       return;
     }
@@ -190,7 +189,6 @@ public class SseEmittersService implements InitializingBean, DisposableBean {
           try {
             SseNotificationDto sseDto = SseNotificationDto.from(notification);
             String eventId = generateEventId(notification);
-            
             connection.getEmitter().send(SseEmitter.event()
                 .id(eventId)
                 .name("missed_notification")
@@ -614,4 +612,5 @@ public class SseEmittersService implements InitializingBean, DisposableBean {
     public long getFailureCount() { return failureCount; }
     public long getTotalCount() { return successCount + failureCount; }
   }
+
 }

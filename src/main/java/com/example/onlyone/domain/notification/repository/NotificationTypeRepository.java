@@ -5,6 +5,7 @@ import com.example.onlyone.domain.notification.entity.Type;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 import java.util.List;
+
 import java.util.Optional;
 
 public interface NotificationTypeRepository extends JpaRepository<NotificationType, Long> {
@@ -26,6 +27,7 @@ public interface NotificationTypeRepository extends JpaRepository<NotificationTy
    * @return 해당 타입의 NotificationType 정보 (Optional)
    */
   Optional<NotificationType> findByType(Type type);
+
   
   /**
    * 여러 타입의 NotificationType 조회 (배치 처리용)
