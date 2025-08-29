@@ -5,9 +5,11 @@ import com.example.onlyone.domain.feed.entity.FeedComment;
 import com.example.onlyone.domain.user.entity.User;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
+import lombok.Builder;
 import lombok.Getter;
 
 @Getter
+@Builder
 public class FeedCommentRequestDto {
     @NotBlank
     @Size(max = 50, message = "댓글은 50자 이내여야 합니다.")
