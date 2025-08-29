@@ -20,6 +20,7 @@ repositories {
 
 ext {
     set('springCloudVersion', "2025.0.0")
+    set('querydslVersion', '5.1.0')
 }
 
 dependencyManagement {
@@ -72,8 +73,34 @@ dependencies {
     testImplementation 'org.testcontainers:testcontainers'
     // jpa 쿼리 확인
     implementation 'com.github.gavlyukovskiy:p6spy-spring-boot-starter:1.9.0'
+
+    // querydsl
+    implementation "com.querydsl:querydsl-jpa:${querydslVersion}:jakarta"
+    annotationProcessor "com.querydsl:querydsl-apt:${querydslVersion}:jakarta"
+    annotationProcessor 'jakarta.annotation:jakarta.annotation-api'
+    annotationProcessor 'jakarta.persistence:jakarta.persistence-api'
 }
 
+// QueryDSL 설정 (수정됨)
+def querydslDir = layout.buildDirectory.dir('generated/querydsl')
+
+tasks.withType(JavaCompile).configureEach {
+    options.generatedSourceOutputDirectory = querydslDir
+}
+
+sourceSets {
+    main {
+        java {
+            srcDirs += [querydslDir]
+        }
+    }
+}
+
+clean {
+    delete querydslDir
+}
+
+// 나머지는 기존과 동일
 tasks.named('test') {
     useJUnitPlatform()
     finalizedBy jacocoTestReport
@@ -83,8 +110,6 @@ tasks.named('test') {
     exclude '**/FcmServiceTest.class'
     exclude '**/SseEmittersServiceTest.class'
     exclude '**/AppNotificationTypeRepositoryTest.class'
-    exclude '**/search/**'
-    exclude '**/club/repository/**'
 }
 
 jacoco {
@@ -105,28 +130,16 @@ jacocoTestReport {
     afterEvaluate {
         classDirectories.setFrom(files(classDirectories.files.collect {
             fileTree(dir: it, exclude: [
-                // 설정 클래스들
-                '**/config/**',
-                '**/configuration/**',
-                
-                // DTO/Entity/Enum 클래스들 (비즈니스 로직 없음)
-                '**/dto/**',
-                '**/entity/**',
-                '**/domain/**/entity/**',
-                
-                // Application 시작 클래스
-                '**/*Application*',
-                
-                // Exception 클래스들
-                '**/exception/**',
-                '**/global/exception/**',
-                
-                // 기타 유틸리티
-                '**/util/**',
-                '**/common/**',
-
-                '**/search/**',
-                '**/club/repository/**'
+                    '**/config/**',
+                    '**/configuration/**',
+                    '**/dto/**',
+                    '**/entity/**',
+                    '**/domain/**/entity/**',
+                    '**/*Application*',
+                    '**/exception/**',
+                    '**/global/exception/**',
+                    '**/util/**',
+                    '**/common/**',
             ])
         }))
     }
@@ -138,19 +151,19 @@ jacocoTestCoverageVerification {
     violationRules {
         rule {
             limit {
-                minimum = 0.80  // 80% 커버리지 요구
+                minimum = 0.80
             }
         }
-        
+
         rule {
             enabled = true
             element = 'CLASS'
             includes = ['com.example.onlyone.domain.*.service.*']
-            
+
             limit {
                 counter = 'LINE'
                 value = 'COVEREDRATIO'
-                minimum = 0.75  // Service 클래스는 75% 이상
+                minimum = 0.75
             }
         }
     }
