@@ -20,6 +20,7 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
@@ -41,22 +42,32 @@ public class SearchService {
 
         // 사용자 관심사 조회
         List<Long> interestIds = userInterestRepository.findInterestIdsByUserId(user.getUserId());
+        
+        // 관심사가 없는 경우 빈 리스트 반환
+        if (interestIds.isEmpty()) {
+            return new ArrayList<>();
+        }
 
-        // 1단계: 관심사 + 지역 일치
-        List<Object[]> resultList = clubRepository.searchByUserInterestAndLocation(interestIds, user.getCity(), user.getDistrict(), user.getUserId(), pageRequest);
+        // 1단계: 관심사 + 지역 일치 (사용자 지역 정보가 유효한 경우만)
+        if (hasValidLocation(user)) {
+            List<Object[]> resultList = clubRepository.searchByUserInterestAndLocation(
+                    interestIds, user.getCity(), user.getDistrict(), user.getUserId(), pageRequest);
 
-        if (!resultList.isEmpty()) {
-            if (size == 5) {
-                Collections.shuffle(resultList);
-                resultList = resultList.subList(0, Math.min(5, resultList.size()));
+            if (!resultList.isEmpty()) {
+                if (size == 5) {
+                    resultList = new ArrayList<>(resultList);
+                    Collections.shuffle(resultList);
+                    resultList = resultList.subList(0, Math.min(5, resultList.size()));
+                }
+                return convertToClubResponseDto(resultList);
             }
-            return convertToClubResponseDto(resultList);
         }
 
         // 2단계: 관심사 일치
-        resultList = clubRepository.searchByUserInterests(interestIds, user.getUserId(), pageRequest);
+        List<Object[]> resultList = clubRepository.searchByUserInterests(interestIds, user.getUserId(), pageRequest);
 
         if (size == 5) {
+            resultList = new ArrayList<>(resultList);
             Collections.shuffle(resultList);
             resultList = resultList.subList(0, Math.min(5, resultList.size()));
         }
@@ -104,27 +115,7 @@ public class SearchService {
         if (!filter.isKeywordValid()) {
             throw new CustomException(ErrorCode.SEARCH_KEYWORD_TOO_SHORT);
         }
-        PageRequest pageRequest = PageRequest.of(filter.getPage(), 20);
-        
-        // 지역은 세트로만 처리
-        String city = null;
-        String district = null;
-        if (filter.hasLocation()) {
-            city = filter.getCity().trim();
-            district = filter.getDistrict().trim();
-        }
-        
-        // 키워드가 없으면 null로 전달
-        String keyword = filter.hasKeyword() ? filter.getKeyword().trim() : null;
-        
-        List<Object[]> resultList = clubRepository.searchByKeywordWithFilter(
-            keyword,
-            city,
-            district,
-            filter.getInterestId(),
-            filter.getSortBy().name(),
-            pageRequest
-        );
+        List<Object[]> resultList = clubRepository.searchByKeywordWithFilter(filter, filter.getPage(), 20);
 
         User user = userService.getCurrentUser();
         List<Long> joinedClubIds = userClubRepository.findByUserUserId(user.getUserId())
@@ -141,6 +132,7 @@ public class SearchService {
 
         // 홈 화면에서 보여주는건 상위 20개 중 랜덤으로 최대 5개
         if (size == 5) {
+            resultList = new ArrayList<>(resultList); // 가변 리스트로 변환
             Collections.shuffle(resultList);
             resultList = resultList.subList(0, Math.min(5, resultList.size()));
             return convertToClubResponseDto(resultList);
@@ -201,5 +193,11 @@ public class SearchService {
         boolean isUnsettledScheduleExist =
                 userSettlementRepository.existsByUserAndSettlementStatusNot(user, SettlementStatus.COMPLETED);
         return new MyMeetingListResponseDto(isUnsettledScheduleExist, clubResponseDtoList);
+    }
+
+    // 사용자의 지역 정보가 유효한지 확인
+    private boolean hasValidLocation(User user) {
+        return user.getCity() != null && !user.getCity().trim().isEmpty() &&
+               user.getDistrict() != null && !user.getDistrict().trim().isEmpty();
     }
 }

@@ -56,13 +56,8 @@ public class SecurityConfig {
             "/ws/**",          // WebSocket STOMP 엔드포인트 허용
             "/ws/chat/**",      // SockJS는 /info, /websocket, /xhr 등 내부 경로 씀
             "/sse/subscribe/**",    // SSE 구독 엔드포인트 허용
-            "/sse/**",          // SSE 관련 모든 엔드포인트 허용
             "/kakao/**",
             "/auth/**",
-            // 임시 부하테스트용 - 알림 API permitAll
-            "/notifications/**",     // 알림 관련 모든 API
-            "/users/fcm-token/**",   // FCM 토큰 관련 API
-            // 알림 헬스체크 포함
     };
 
     // CORS 설정
@@ -103,9 +98,6 @@ public class SecurityConfig {
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
         http
                 .csrf(AbstractHttpConfigurer::disable)
-                .csrf(csrf -> csrf
-                    // 액츄에이터 CSRF 비활성화
-                    .ignoringRequestMatchers("/actuator/**"))
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
                 .formLogin(AbstractHttpConfigurer::disable)
                 .logout(logout -> logout
@@ -122,15 +114,8 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                         .requestMatchers(AUTH_WHITELIST).permitAll()
-                        
-                        // 부하테스트용 명시적 허용
-                        .requestMatchers("/notifications/**").permitAll()
-                        .requestMatchers("/users/fcm-token/**").permitAll()
-                        .requestMatchers("/sse/**").permitAll()
-                        
-                        .requestMatchers("/ws/**").permitAll()
-                        .requestMatchers("/actuator/**").permitAll()
 
+                        .requestMatchers("/ws/**").permitAll()
                         // Swagger 및 정적 자원 허용
                         .requestMatchers(
                                 "/error", "/favicon.ico",

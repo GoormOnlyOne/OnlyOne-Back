@@ -6,7 +6,8 @@
       "Bash(docker run:*)",
       "Bash(cat:*)",
       "Bash(find:*)",
-      "Bash(open:*)"
+      "Bash(open:*)",
+      "Bash(git checkout:*)"
     ],
     "deny": [],
     "ask": []
