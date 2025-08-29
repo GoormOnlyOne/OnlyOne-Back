@@ -6,6 +6,7 @@ import com.example.onlyone.domain.club.entity.UserClub;
 import com.example.onlyone.domain.interest.entity.Category;
 import com.example.onlyone.domain.interest.entity.Interest;
 import com.example.onlyone.domain.interest.repository.InterestRepository;
+import com.example.onlyone.domain.search.dto.request.SearchFilterDto;
 import com.example.onlyone.domain.user.entity.Gender;
 import com.example.onlyone.domain.user.entity.Status;
 import com.example.onlyone.domain.user.entity.User;
@@ -253,27 +254,31 @@ class ClubRepositoryTest {
         assertThat(club.getInterest().getCategory()).isEqualTo(Category.EXERCISE);
     }
 
-//    @Test
+    @Test
 //    @Transactional(propagation = Propagation.NOT_SUPPORTED)
-//    @DisplayName("키워드와 필터로 클럽을 검색할 수 있다")
-//    void searchByKeywordWithFilter() {
-//        // when - 축구 키워드로 검색
-//        List<Object[]> results = clubRepository.searchByKeywordWithFilter(
-//                "축구", null, null, null, "MEMBER_COUNT", pageable);
-//
-//        // then
-//        assertThat(results).hasSize(1);
-//
-//        Object[] result = results.getFirst();
-//        assertThat(result[1]).isEqualTo("서울 축구 클럽");
-//        assertThat(result[6]).isEqualTo(2L); // member_count
-//
-//        // cleanup
-//        userClubRepository.deleteAll();
-//        clubRepository.deleteAll();
-//        userRepository.deleteAll();
-//        interestRepository.deleteAll();
-//    }
+    @DisplayName("키워드와 필터로 클럽을 검색할 수 있다")
+    void searchByKeywordWithFilter() {
+        // when - 축구 키워드로 검색
+        SearchFilterDto filter = SearchFilterDto.builder()
+                .keyword("축구")
+                .sortBy(SearchFilterDto.SortType.MEMBER_COUNT)
+                .page(0)
+                .build();
+        List<Object[]> results = clubRepository.searchByKeywordWithFilter(filter, 0, 20);
+
+        // then
+        assertThat(results).hasSize(1);
+        
+        Object[] result = results.getFirst();
+        assertThat(result[1]).isEqualTo("서울 축구 클럽");
+        assertThat(result[6]).isEqualTo(2L); // member_count
+        
+        // cleanup
+        userClubRepository.deleteAll();
+        clubRepository.deleteAll();
+        userRepository.deleteAll();
+        interestRepository.deleteAll();
+    }
 
     @Test
     @DisplayName("함께하는 멤버들의 다른 모임을 조회할 수 있다")
@@ -323,6 +328,4 @@ class ClubRepositoryTest {
         // then
         assertThat(foundClub).isNull();
     }
-
-
 }
