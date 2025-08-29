@@ -5,10 +5,14 @@ import com.example.onlyone.domain.feed.entity.Feed;
 import com.example.onlyone.domain.user.entity.User;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
 import lombok.Getter;
+import lombok.NoArgsConstructor;
 
 import java.util.List;
 
+@NoArgsConstructor
 @Getter
 public class FeedRequestDto {
 
@@ -18,6 +22,9 @@ public class FeedRequestDto {
 
     @Size(max = 50, message = "피드 설명은 {max}자 이내여야 합니다.")
     private String content;
+
+    @Builder
+    public FeedRequestDto(List<String> feedUrls, String content) {this.feedUrls = feedUrls; this.content = content; }
 
     public Feed toEntity(Club club, User user) {
         return Feed.builder()
