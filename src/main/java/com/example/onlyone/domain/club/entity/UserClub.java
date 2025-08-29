@@ -8,7 +8,11 @@ import jakarta.validation.constraints.NotNull;
 import lombok.*;
 
 @Entity
-@Table(name = "user_club")
+@Table(name = "user_club", indexes = {
+    @Index(name = "idx_user_club_user", columnList = "user_id"),
+    @Index(name = "idx_user_club_club", columnList = "club_id"),
+    @Index(name = "idx_user_club_user_club", columnList = "user_id, club_id")
+})
 @Getter
 @Builder
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
