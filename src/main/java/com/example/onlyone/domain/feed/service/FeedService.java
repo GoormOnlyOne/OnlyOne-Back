@@ -22,11 +22,15 @@ import com.example.onlyone.domain.user.entity.User;
 import com.example.onlyone.domain.user.service.UserService;
 import com.example.onlyone.global.exception.CustomException;
 import com.example.onlyone.global.exception.ErrorCode;
+import jakarta.persistence.EntityManager;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.log4j.Log4j2;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Isolation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
@@ -46,6 +50,8 @@ public class FeedService {
     private final FeedCommentRepository feedCommentRepository;
     private final UserClubRepository userClubRepository;
     private final NotificationService notificationService;
+    @Autowired
+    EntityManager em;
 
 
     public void createFeed(Long clubId, FeedRequestDto requestDto) {
@@ -137,6 +143,7 @@ public class FeedService {
         return FeedDetailResponseDto.from(feed, imageUrls, isLiked, isMine, commentResponseDtos, repostCount);
     }
 
+    @Transactional(isolation = Isolation.READ_COMMITTED)
     public boolean toggleLike(Long clubId, Long feedId) {
         Club club = clubRepository.findById(clubId)
                 .orElseThrow(() -> new CustomException(ErrorCode.CLUB_NOT_FOUND));
@@ -144,22 +151,30 @@ public class FeedService {
                 .orElseThrow(() -> new CustomException(ErrorCode.FEED_NOT_FOUND));
         User currentUser = userService.getCurrentUser();
 
-        Optional<FeedLike> checkLike = feedLikeRepository.findByFeedAndUser(feed, currentUser);
-
-        if(checkLike.isPresent()) {
-            feedLikeRepository.delete(checkLike.get());
-            return false;
-        } else {
-            FeedLike feedLike = FeedLike.builder()
-                    .feed(feed)
-                    .user(currentUser)
-                    .build();
-            feedLikeRepository.save(feedLike);
-            int likeCount = feedLikeRepository.countByFeed(feed);
-            if(likeCount > 0) likeCount--;
-            // 본인 글에 대한 알림 방지
+        int deleted = feedLikeRepository.deleteByFeedAndUser(feed, currentUser);
+        if (deleted > 0) {
+            return false; // 최종 OFF
+        }
+        FeedLike like = FeedLike.builder().feed(feed).user(currentUser).build();
+        try {
+            feedLikeRepository.save(like);
+            // 필요시 em.flush();  // (선택) 즉시 flush 하여 예외 조기 감지
+            int likeCount = Math.max(0, feedLikeRepository.countByFeed(feed) - 1);
             if (!feed.getUser().getUserId().equals(currentUser.getUserId())) {
-                    notificationService.createNotification(feed.getUser(), Type.LIKE, new String[]{ currentUser.getNickname(), String.valueOf(likeCount) });
+                notificationService.createNotification(feed.getUser(), Type.LIKE,
+                        new String[]{ currentUser.getNickname(), String.valueOf(likeCount) });
+            }
+            return true;
+        } catch (DataIntegrityViolationException e) {
+            // ★ 핵심: 실패한 엔티티 분리
+            try { em.detach(like); } catch (Exception ignore) { em.clear(); }
+            // 또는 em.unwrap(Session.class).evict(like);
+
+            // 이후 로직은 “이미 ON”으로 간주
+            int likeCount = Math.max(0, feedLikeRepository.countByFeed(feed) - 1);
+            if (!feed.getUser().getUserId().equals(currentUser.getUserId())) {
+                notificationService.createNotification(feed.getUser(), Type.LIKE,
+                        new String[]{ currentUser.getNickname(), String.valueOf(likeCount) });
             }
             return true;
         }
@@ -202,18 +217,6 @@ public class FeedService {
         }
 
         feedCommentRepository.delete(feedComment);
-    }
-
-    public void deleteFeed(Long clubId, Long feedId) {
-        Club club = clubRepository.findById(clubId)
-                .orElseThrow(() -> new CustomException(ErrorCode.CLUB_NOT_FOUND));
-        Feed feed = feedRepository.findByFeedIdAndClub(feedId, club)
-                .orElseThrow(() -> new CustomException(ErrorCode.FEED_NOT_FOUND));
-        User user = userService.getCurrentUser();
-        if (!(user.getUserId().equals(feed.getUser().getUserId()))) {
-            throw new CustomException(ErrorCode.UNAUTHORIZED_FEED_ACCESS);
-        }
-        feedRepository.delete(feed);
     }
 
     public void softDeleteFeed(Long clubId, Long feedId) {
