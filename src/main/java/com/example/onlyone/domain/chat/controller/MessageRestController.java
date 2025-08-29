@@ -10,10 +10,11 @@ import com.example.onlyone.domain.user.service.UserService;
 import com.example.onlyone.global.common.CommonResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import lombok.RequiredArgsConstructor;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.List;
+import java.time.LocalDateTime;
 
 @RestController
 @RequiredArgsConstructor
@@ -50,10 +51,16 @@ public class MessageRestController {
         return ResponseEntity.noContent().build();
     }
 
-    @Operation(summary = "채팅방 상세 메시지 조회")
+    @Operation(summary = "채팅방 메시지 조회(최신이 아래, 커서 기반 페이지네이션)")
     @GetMapping("/{chatRoomId}/messages")
-    public ResponseEntity<CommonResponse<ChatRoomMessageResponse>> getChatRoomMessages(@PathVariable Long chatRoomId) {
-        ChatRoomMessageResponse response = messageService.getChatRoomMessages(chatRoomId);
+    public ResponseEntity<CommonResponse<ChatRoomMessageResponse>> getChatRoomMessages(
+            @PathVariable Long chatRoomId,
+            @RequestParam(required = false, defaultValue = "50") Integer size,
+            @RequestParam(required = false) Long cursorId,
+            @RequestParam(required = false)
+            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime cursorAt
+    ) {
+        ChatRoomMessageResponse response = messageService.getChatRoomMessages(chatRoomId, size, cursorId, cursorAt);
         return ResponseEntity.ok(CommonResponse.success(response));
     }
 }
