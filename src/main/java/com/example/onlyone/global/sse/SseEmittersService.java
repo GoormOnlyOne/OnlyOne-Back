@@ -1,25 +1,21 @@
 package com.example.onlyone.global.sse;
 
-import com.example.onlyone.domain.notification.dto.sse.SseNotificationDto;
-import com.example.onlyone.domain.notification.entity.AppNotification;
+import com.example.onlyone.domain.notification.entity.Notification;
 import com.example.onlyone.domain.notification.repository.NotificationRepository;
-import com.example.onlyone.domain.notification.service.RedisHealthChecker;
 import com.example.onlyone.global.exception.CustomException;
 import com.example.onlyone.global.exception.ErrorCode;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import java.io.IOException;
-import java.time.Duration;
 import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
 import java.util.*;
 import java.util.concurrent.*;
-import java.util.concurrent.atomic.AtomicLong;
 
 import org.springframework.beans.factory.InitializingBean;
 import org.springframework.beans.factory.DisposableBean;
@@ -28,32 +24,42 @@ import org.springframework.beans.factory.DisposableBean;
  * SSE 연결 관리 서비스
  */
 @Slf4j
-@RequiredArgsConstructor
 @Service
+@RequiredArgsConstructor
 public class SseEmittersService implements InitializingBean, DisposableBean {
 
   @Value("${app.notification.sse-timeout-millis:1800000}") // 기본값 30분
   private long sseTimeoutMillis;
 
-  private final ConcurrentHashMap<Long, SseConnection> activeConnections = new ConcurrentHashMap<>();
   private final NotificationRepository notificationRepository;
-  private final RedisTemplate<String, Object> redisTemplate;
-  private final RedisHealthChecker redisHealthChecker;
+  private final ConcurrentHashMap<Long, SseConnection> activeConnections = new ConcurrentHashMap<>();
   
   // 정리 스케줄러
   private final ScheduledExecutorService cleanupScheduler = Executors.newSingleThreadScheduledExecutor(
       r -> new Thread(r, "sse-cleanup-thread"));
   
-  private static final String SSE_CONNECTION_KEY = "sse:connections";
-  private static final String SSE_CONNECTION_INFO_KEY = "sse:connection_info:";
-  private static final int CONNECTION_INFO_TTL = 3600; // 1시간
   private static final long CLEANUP_INTERVAL_MINUTES = 10; // 10분마다 정리
 
   /**
    * SSE 연결 생성
    */
   public SseEmitter createSseConnection(Long userId) {
-    return createSseConnection(userId, null);
+    cleanupExistingConnection(userId);
+    
+    SseConnection connection = SseConnection.builder()
+            .userId(userId)
+            .emitter(new SseEmitter(sseTimeoutMillis))
+            .connectionTime(LocalDateTime.now())
+            .build();
+    
+    activeConnections.put(userId, connection);
+    registerConnectionCallbacks(connection);
+    sendInitialHeartbeat(connection);
+
+    log.info("SSE connection established: userId={}, totalConnections={}", 
+            userId, activeConnections.size());
+    
+    return connection.getEmitter();
   }
 
   /**
@@ -66,68 +72,49 @@ public class SseEmittersService implements InitializingBean, DisposableBean {
             .userId(userId)
             .emitter(new SseEmitter(sseTimeoutMillis))
             .connectionTime(LocalDateTime.now())
-            .lastEventId(lastEventId)
             .build();
     
     activeConnections.put(userId, connection);
     registerConnectionCallbacks(connection);
-    registerConnectionToRedis(userId, connection);
+    sendInitialHeartbeat(connection);
     
-    if (sendInitialHeartbeat(connection)) {
-      sendMissedNotifications(connection);
+    // 놓친 메시지 전송
+    if (lastEventId != null && !lastEventId.trim().isEmpty()) {
+      sendMissedMessages(connection, lastEventId);
     }
-    
-    log.info("SSE connection established: userId={}, totalConnections={}", 
-            userId, activeConnections.size());
+
+    log.info("SSE connection established: userId={}, lastEventId={}, totalConnections={}", 
+            userId, lastEventId, activeConnections.size());
     
     return connection.getEmitter();
   }
 
   /**
-   * SSE 알림 전송
+   * 범용 SSE 이벤트 전송
+   * @param userId 사용자 ID
+   * @param eventName 이벤트 이름
+   * @param data 전송할 데이터
    */
-  public void sendSseNotification(Long userId, AppNotification appNotification) {
+  public void sendEvent(Long userId, String eventName, Object data) {
     SseConnection connection = activeConnections.get(userId);
     if (connection == null) {
+      log.debug("No SSE connection found for user: {}", userId);
       return;
     }
 
     try {
-      SseNotificationDto sseDto = SseNotificationDto.from(appNotification);
-      String eventId = generateEventId(appNotification);
+      String eventId = "evt_" + System.currentTimeMillis() + "_" + UUID.randomUUID().toString().substring(0, 8);
       
       connection.getEmitter().send(SseEmitter.event()
           .id(eventId)
-          .name("notification")
-          .data(sseDto));
+          .name(eventName)
+          .data(data));
 
+      log.debug("SSE event sent: userId={}, eventName={}, eventId={}", userId, eventName, eventId);
     } catch (IOException e) {
+      log.error("Failed to send SSE event: userId={}, eventName={}", userId, eventName, e);
       cleanupConnection(userId);
-    }
-  }
-
-  /**
-   * 읽지 않은 개수 업데이트 전송
-   */
-  public void sendUnreadCountUpdate(Long userId) {
-    SseConnection connection = activeConnections.get(userId);
-    if (connection == null) {
-      return;
-    }
-
-    try {
-      Long unreadCount = notificationRepository.countUnreadByUserId(userId);
-      Map<String, Long> countData = Map.of("unread_count", unreadCount != null ? unreadCount : 0L);
-
-      String eventId = generateCountEventId();
-      
-      connection.getEmitter().send(SseEmitter.event()
-          .id(eventId)
-          .name("unread_count")
-          .data(countData));
-
-    } catch (IOException e) {
-      cleanupConnection(userId);
+      throw new CustomException(ErrorCode.SSE_SEND_FAILED);
     }
   }
 
@@ -167,136 +154,11 @@ public class SseEmittersService implements InitializingBean, DisposableBean {
     }
   }
 
-  /**
-   * 놓친 알림 전송
-   */
-  private void sendMissedNotifications(SseConnection connection) {
-    String lastEventId = connection.getLastEventId();
-    if (lastEventId == null || lastEventId.isBlank()) {
-      return;
-    }
-
-    try {
-      LocalDateTime lastEventTime = parseEventIdToDateTime(lastEventId);
-      if (lastEventTime != null) {
-        List<AppNotification> missedNotifications = notificationRepository
-                .findNotificationsByUserIdAfter(connection.getUserId(), lastEventTime);
-
-        log.info("Sending {} missed notifications to user: {}", 
-            missedNotifications.size(), connection.getUserId());
-
-        for (AppNotification notification : missedNotifications) {
-          try {
-            SseNotificationDto sseDto = SseNotificationDto.from(notification);
-            String eventId = generateEventId(notification);
-            
-            connection.getEmitter().send(SseEmitter.event()
-                .id(eventId)
-                .name("missed_notification")
-                .data(sseDto));
-
-          } catch (IOException e) {
-            break;
-          }
-        }
-      }
-    } catch (DateTimeParseException e) {
-      log.warn("Failed to parse event ID for user: {}, eventId: {}", connection.getUserId(), lastEventId, e);
-      throw new CustomException(ErrorCode.INVALID_EVENT_ID);
-    } catch (Exception e) {
-      log.warn("Failed to send missed notifications for user: {}", connection.getUserId(), e);
-      throw new CustomException(ErrorCode.NOTIFICATION_PROCESSING_FAILED);
-    }
-  }
 
   private void cleanupConnection(Long userId) {
     activeConnections.remove(userId);
-    removeConnectionFromRedis(userId);
   }
   
-  /**
-   * Redis 연결 등록
-   */
-  private void registerConnectionToRedis(Long userId, SseConnection connection) {
-    // Redis 상태 확인
-    if (!redisHealthChecker.isHealthy()) {
-      log.warn("Redis is unhealthy, skipping connection registration for userId={}", userId);
-      return;
-    }
-    
-    try {
-      String serverInstance = getServerInstanceId();
-      Map<String, Object> connectionInfo = Map.of(
-          "userId", userId,
-          "serverInstance", serverInstance,
-          "connectionTime", connection.getConnectionTime().toString(),
-          "lastEventId", connection.getLastEventId() != null ? connection.getLastEventId() : ""
-      );
-      
-      redisTemplate.opsForHash().putAll(SSE_CONNECTION_INFO_KEY + userId, connectionInfo);
-      redisTemplate.expire(SSE_CONNECTION_INFO_KEY + userId, Duration.ofSeconds(CONNECTION_INFO_TTL));
-      redisTemplate.opsForSet().add(SSE_CONNECTION_KEY, userId.toString());
-      
-      log.debug("Registered SSE connection to Redis: userId={}, server={}", userId, serverInstance);
-    } catch (Exception e) {
-      log.warn("Failed to register SSE connection to Redis: userId={}, falling back gracefully", userId, e);
-      // Redis 등록 실패는 SSE 연결에 영향 주지 않으므로 예외를 던지지 않음
-    }
-  }
-  
-  /**
-   * Redis 연결 제거
-   */
-  private void removeConnectionFromRedis(Long userId) {
-    // Redis 상태 확인
-    if (!redisHealthChecker.isHealthy()) {
-      log.warn("Redis is unhealthy, skipping connection removal for userId={}", userId);
-      return;
-    }
-    
-    try {
-      redisTemplate.delete(SSE_CONNECTION_INFO_KEY + userId);
-      redisTemplate.opsForSet().remove(SSE_CONNECTION_KEY, userId.toString());
-      
-      log.debug("Removed SSE connection from Redis: userId={}", userId);
-    } catch (Exception e) {
-      log.warn("Failed to remove SSE connection from Redis: userId={}, falling back gracefully", userId, e);
-      // Redis 제거 실패는 로컬 연결 정리에 영향 주지 않으므로 예외를 던지지 않음
-    }
-  }
-  
-  /**
-   * 글로벌 연결 상태 확인
-   */
-  public boolean isUserConnectedGlobally(Long userId) {
-    try {
-      return Boolean.TRUE.equals(redisTemplate.opsForSet().isMember(SSE_CONNECTION_KEY, userId.toString()));
-    } catch (Exception e) {
-      log.warn("Failed to check global SSE connection status: userId={}, falling back to local check", userId, e);
-      return isUserConnected(userId);
-    }
-  }
-  
-  /**
-   * 글로벌 연결 수 조회
-   */
-  public long getGlobalActiveConnectionCount() {
-    try {
-      Long count = redisTemplate.opsForSet().size(SSE_CONNECTION_KEY);
-      return count != null ? count : 0L;
-    } catch (Exception e) {
-      log.warn("Failed to get global SSE connection count, falling back to local count", e);
-      return getActiveConnectionCount();
-    }
-  }
-  
-  /**
-   * 서버 인스턴스 ID 생성
-   */
-  private String getServerInstanceId() {
-    return System.getProperty("server.instance.id", 
-        "server-" + System.currentTimeMillis() % 10000);
-  }
 
   /**
    * 연결 수 조회
@@ -326,13 +188,7 @@ public class SseEmittersService implements InitializingBean, DisposableBean {
         }
       }
       
-      // Redis 연결 제거
-      try {
-        redisTemplate.delete(SSE_CONNECTION_KEY);
-        log.debug("Cleared all SSE connections");
-      } catch (Exception e) {
-        log.debug("Failed to clear Redis connections: {}", e.getMessage());
-      }
+      log.debug("Cleared all SSE connections");
       
     } catch (Exception e) {
       log.error("Error while clearing all connections", e);
@@ -340,71 +196,6 @@ public class SseEmittersService implements InitializingBean, DisposableBean {
     }
   }
 
-  /**
-   * 브로드캐스트 메시지 전송
-   */
-  public CompletableFuture<BroadcastResult> broadcastToAll(String eventName, Object data) {
-    if (activeConnections.isEmpty()) {
-      log.info("No active SSE connections for broadcast");
-      return CompletableFuture.completedFuture(BroadcastResult.empty());
-    }
-
-    return CompletableFuture.supplyAsync(() -> {
-      String eventId = generateBroadcastEventId();
-      AtomicLong successCount = new AtomicLong(0);
-      AtomicLong failureCount = new AtomicLong(0);
-
-      log.info("Broadcasting message to {} connected users: event={}", activeConnections.size(), eventName);
-
-      activeConnections.entrySet().parallelStream().forEach(entry -> {
-        Long userId = entry.getKey();
-        SseConnection connection = entry.getValue();
-        
-        try {
-          connection.getEmitter().send(SseEmitter.event()
-              .id(eventId)
-              .name(eventName)
-              .data(data));
-          successCount.incrementAndGet();
-          
-        } catch (IOException e) {
-          log.warn("Failed to send broadcast message to user: {}", userId);
-          cleanupConnection(userId);
-          failureCount.incrementAndGet();
-        }
-      });
-      
-      BroadcastResult result = BroadcastResult.of(successCount.get(), failureCount.get());
-      log.info("Broadcast completed: success={}, failed={}", result.getSuccessCount(), result.getFailureCount());
-      return result;
-    });
-  }
-
-  /**
-   * 공지사항 전송
-   */
-  public CompletableFuture<BroadcastResult> broadcastAnnouncement(String title, String message) {
-    Map<String, String> announcement = Map.of(
-        "title", title,
-        "message", message,
-        "timestamp", LocalDateTime.now().toString()
-    );
-    
-    return broadcastToAll("announcement", announcement);
-  }
-
-  /**
-   * 시스템 공지 전송
-   */
-  public CompletableFuture<BroadcastResult> broadcastSystemNotice(String noticeType, String content) {
-    Map<String, String> systemNotice = Map.of(
-        "type", noticeType,
-        "content", content,
-        "timestamp", LocalDateTime.now().toString()
-    );
-    
-    return broadcastToAll("system_notice", systemNotice);
-  }
 
   /**
    * 서비스 초기화
@@ -482,135 +273,84 @@ public class SseEmittersService implements InitializingBean, DisposableBean {
 
   // Event ID 생성 및 파싱
 
-  /**
-   * 알림용 Event ID 생성
-   */
-  private String generateEventId(AppNotification appNotification) {
-    return String.format("notification_%d_%s", 
-        appNotification.getId(), 
-        appNotification.getCreatedAt().toString());
-  }
-
-  /**
-   * 카운트용 Event ID 생성
-   */
-  private String generateCountEventId() {
-    return String.format("count_%s", LocalDateTime.now().toString());
-  }
 
   /**
    * 하트비트 Event ID 생성
    */
   private String generateHeartbeatEventId() {
-    return String.format("heartbeat_%s", LocalDateTime.now().toString());
+    return String.format("heartbeat_%s", LocalDateTime.now().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME));
   }
 
   /**
-   * 브로드캐스트 Event ID 생성
+   * 놓친 메시지 전송 (Last-Event-ID 기반)
    */
-  private String generateBroadcastEventId() {
-    return String.format("broadcast_%s", LocalDateTime.now().toString());
+  private void sendMissedMessages(SseConnection connection, String lastEventId) {
+    try {
+      LocalDateTime lastEventTime = parseEventIdToDateTime(lastEventId);
+      if (lastEventTime == null) {
+        log.warn("Invalid lastEventId format, skipping missed messages: {}", lastEventId);
+        return;
+      }
+      
+      // 마지막 이벤트 시간 이후의 읽지 않은 알림들 조회
+      List<Notification> missedNotifications = notificationRepository
+          .findUnreadNotificationsByUserId(connection.getUserId())
+          .stream()
+          .filter(notification -> notification.getCreatedAt().isAfter(lastEventTime))
+          .sorted((n1, n2) -> n1.getCreatedAt().compareTo(n2.getCreatedAt())) // 시간순 정렬
+          .toList();
+      
+      if (!missedNotifications.isEmpty()) {
+        log.info("Sending {} missed notifications to userId: {}", missedNotifications.size(), connection.getUserId());
+        
+        for (Notification notification : missedNotifications) {
+          try {
+            String eventId = "recovery_" + System.currentTimeMillis() + "_" + notification.getId();
+            connection.getEmitter().send(SseEmitter.event()
+                .id(eventId)
+                .name("notification")
+                .data(notification));
+            
+            log.debug("Missed notification sent: userId={}, notificationId={}", 
+                connection.getUserId(), notification.getId());
+          } catch (IOException e) {
+            log.error("Failed to send missed notification: userId={}, notificationId={}", 
+                connection.getUserId(), notification.getId(), e);
+            cleanupConnection(connection.getUserId());
+            throw new CustomException(ErrorCode.SSE_SEND_FAILED);
+          }
+        }
+      }
+    } catch (Exception e) {
+      log.error("Error processing missed messages for userId: {}", connection.getUserId(), e);
+      // 놓친 메시지 전송 실패는 연결 자체를 실패시키지 않음
+    }
   }
 
   /**
-   * Event ID 파싱
+   * Event ID에서 DateTime 파싱
    */
   private LocalDateTime parseEventIdToDateTime(String eventId) {
     try {
-      String[] parts = eventId.split("_");
-      if (parts.length >= 2) {
-        String timestampPart = parts[parts.length - 1];
-        return LocalDateTime.parse(timestampPart);
+      if (eventId.startsWith("evt_")) {
+        // evt_1234567890_abcd1234 형식에서 타임스탬프 추출
+        String[] parts = eventId.split("_");
+        if (parts.length >= 2) {
+          long timestamp = Long.parseLong(parts[1]);
+          return LocalDateTime.ofEpochSecond(timestamp / 1000, 0, java.time.ZoneOffset.UTC);
+        }
+      } else if (eventId.startsWith("heartbeat_")) {
+        // heartbeat_2024-01-01T12:00:00 형식
+        String dateTimePart = eventId.substring("heartbeat_".length());
+        return LocalDateTime.parse(dateTimePart, DateTimeFormatter.ISO_LOCAL_DATE_TIME);
       }
-    } catch (DateTimeParseException e) {
-      log.warn("Failed to parse event ID: {}", eventId);
+    } catch (DateTimeParseException | NumberFormatException e) {
+      log.warn("Failed to parse eventId: {}, error: {}", eventId, e.getMessage());
     }
     return null;
   }
 
-  /**
-   * SSE 연결 정보
-   */
-  public static class SseConnection {
-    private final Long userId;
-    private final SseEmitter emitter;
-    private final LocalDateTime connectionTime;
-    private final String lastEventId;
 
-    private SseConnection(Builder builder) {
-      this.userId = Objects.requireNonNull(builder.userId);
-      this.emitter = Objects.requireNonNull(builder.emitter);
-      this.connectionTime = Objects.requireNonNull(builder.connectionTime);
-      this.lastEventId = builder.lastEventId;
-    }
 
-    public static Builder builder() {
-      return new Builder();
-    }
 
-    public Long getUserId() { return userId; }
-    public SseEmitter getEmitter() { return emitter; }
-    public LocalDateTime getConnectionTime() { return connectionTime; }
-    public String getLastEventId() { return lastEventId; }
-    
-    public long getDuration() {
-      return java.time.Duration.between(connectionTime, LocalDateTime.now()).toMillis();
-    }
-
-    public static class Builder {
-      private Long userId;
-      private SseEmitter emitter;
-      private LocalDateTime connectionTime;
-      private String lastEventId;
-
-      public Builder userId(Long userId) {
-        this.userId = userId;
-        return this;
-      }
-
-      public Builder emitter(SseEmitter emitter) {
-        this.emitter = emitter;
-        return this;
-      }
-
-      public Builder connectionTime(LocalDateTime connectionTime) {
-        this.connectionTime = connectionTime;
-        return this;
-      }
-
-      public Builder lastEventId(String lastEventId) {
-        this.lastEventId = lastEventId;
-        return this;
-      }
-
-      public SseConnection build() {
-        return new SseConnection(this);
-      }
-    }
-  }
-
-  /**
-   * 브로드캐스트 결과
-   */
-  public static class BroadcastResult {
-    private final long successCount;
-    private final long failureCount;
-
-    private BroadcastResult(long successCount, long failureCount) {
-      this.successCount = successCount;
-      this.failureCount = failureCount;
-    }
-
-    public static BroadcastResult of(long successCount, long failureCount) {
-      return new BroadcastResult(successCount, failureCount);
-    }
-
-    public static BroadcastResult empty() {
-      return new BroadcastResult(0, 0);
-    }
-
-    public long getSuccessCount() { return successCount; }
-    public long getFailureCount() { return failureCount; }
-    public long getTotalCount() { return successCount + failureCount; }
-  }
 }

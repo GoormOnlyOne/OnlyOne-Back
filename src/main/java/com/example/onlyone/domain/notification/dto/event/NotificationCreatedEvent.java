@@ -1,6 +1,6 @@
 package com.example.onlyone.domain.notification.dto.event;
 
-import com.example.onlyone.domain.notification.entity.AppNotification;
+import com.example.onlyone.domain.notification.entity.Notification;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 
@@ -10,5 +10,5 @@ import lombok.RequiredArgsConstructor;
 @Getter
 @RequiredArgsConstructor
 public class NotificationCreatedEvent {
-    private final AppNotification notification;
+    private final Notification notification;
 }

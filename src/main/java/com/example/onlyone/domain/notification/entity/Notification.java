@@ -14,12 +14,12 @@ import java.util.Objects;
     @Index(name = "idx_notification_user_created", columnList = "user_id, created_at DESC, notification_id DESC"),
     @Index(name = "idx_notification_user_read", columnList = "user_id, is_read"),
     @Index(name = "idx_notification_user_type_created", columnList = "user_id, type_id, created_at DESC"),
-    @Index(name = "idx_notification_fcm_failed", columnList = "user_id, fcm_sent, type_id"),
+    @Index(name = "idx_notification_sse_failed", columnList = "user_id, sse_sent"),
     @Index(name = "idx_notification_created_at", columnList = "created_at")
 })
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
-public class AppNotification extends BaseTimeEntity {
+public class Notification extends BaseTimeEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -40,25 +40,20 @@ public class AppNotification extends BaseTimeEntity {
     @JoinColumn(name = "user_id", updatable = false, nullable = false)
     private User user;
 
-    @Column(name = "fcm_sent", nullable = false)
-    private boolean fcmSent = false;
-
     @Column(name = "sse_sent", nullable = false)
     private boolean sseSent = false;
 
-    private AppNotification(User user, NotificationType notificationType, String content) {
+
+    private Notification(User user, NotificationType notificationType, String content) {
         this.user = user;
         this.notificationType = notificationType;
         this.content = content;
-//        this.isRead = false;
-//        this.fcmSent = false;
-//        this.sseSent = false;
     }
 
-    public static AppNotification create(User user, NotificationType notificationType, 
+    public static Notification create(User user, NotificationType notificationType, 
                                          String... args) {
         String renderedContent = notificationType.render(args);
-        return new AppNotification(user, notificationType, renderedContent);
+        return new Notification(user, notificationType, renderedContent);
     }
 
     public String getTargetType() {
@@ -69,26 +64,21 @@ public class AppNotification extends BaseTimeEntity {
         this.isRead = true;
     }
 
-    public void markFcmSent() {
-        this.fcmSent = true;
-    }
-
     public void markSseSent() {
         this.sseSent = true;
     }
-
-    public boolean shouldSendFcm() {
-        return notificationType.getDeliveryMethod().shouldSendFcm();
+    
+    public boolean isSseSent() {
+        return sseSent;
     }
 
-    public boolean shouldSendSse() {
-        return notificationType.getDeliveryMethod().shouldSendSse();
-    }
+
+
 
     @Override
     public boolean equals(Object obj) {
         if (this == obj) return true;
-        if (!(obj instanceof AppNotification that)) return false;
+        if (!(obj instanceof Notification that)) return false;
         return Objects.equals(id, that.id);
     }
 
@@ -99,7 +89,7 @@ public class AppNotification extends BaseTimeEntity {
 
     @Override
     public String toString() {
-        return String.format("AppNotification{id=%d, content='%s', isRead=%s}", 
+        return String.format("Notification{id=%d, content='%s', isRead=%s}", 
                 id, content, isRead);
     }
 }

@@ -13,7 +13,6 @@ import com.example.onlyone.domain.club.repository.ClubRepository;
 import com.example.onlyone.domain.club.repository.UserClubRepository;
 import com.example.onlyone.domain.interest.entity.Category;
 import com.example.onlyone.domain.interest.repository.InterestRepository;
-import com.example.onlyone.domain.notification.service.FcmService;
 import com.example.onlyone.domain.user.entity.User;
 import com.example.onlyone.domain.user.repository.UserRepository;
 import com.example.onlyone.domain.user.service.UserService;
