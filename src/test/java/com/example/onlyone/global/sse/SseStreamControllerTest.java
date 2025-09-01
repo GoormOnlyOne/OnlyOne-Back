@@ -21,16 +21,12 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.context.WebApplicationContext;
 
 import static org.mockito.BDDMockito.given;
-
-import static org.springframework.security.test.web.servlet.setup.SecurityMockMvcConfigurers.springSecurity;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultHandlers.print;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 /**
  * SSE 스트림 컨트롤러 통합 테스트
- * - Spring Boot 통합 테스트로 실제 SSE 연결 동작 검증
- * - Mock 의존성 제거하고 실제 서비스 사용
  */
 @SpringBootTest
 @Import(TestConfig.class)
@@ -80,8 +76,8 @@ class SseStreamControllerTest {
     class SseSubscribe {
 
         @Test
-        @DisplayName("UT-NT-052: SSE 연결 테스트")
-        void UT_NT_052_establishes_sse_connection_successfully() throws Exception {
+        @DisplayName("SSE 연결 성공")
+        void sseConnection_success() throws Exception {
             // when & then
             mockMvc.perform(get("/sse/subscribe")
                     .accept(MediaType.TEXT_EVENT_STREAM_VALUE))
@@ -91,8 +87,8 @@ class SseStreamControllerTest {
         }
 
         @Test
-        @DisplayName("UT-NT-055: SSE 재연결")
-        void UT_NT_055_handles_reconnection_with_last_event_id() throws Exception {
+        @DisplayName("Last-Event-ID와 함께 재연결 성공")
+        void reconnectionWithLastEventId_success() throws Exception {
             // given
             String lastEventId = "notification_1_2024-01-01T00:00:00";
 
@@ -106,9 +102,9 @@ class SseStreamControllerTest {
         }
 
         @Test
-        @DisplayName("UT-NT-052: SSE 연결 테스트")
-        void UT_NT_052_handles_json_accept_for_sse_request() throws Exception {
-            // when & then - JSON Accept도 처리됨 (컨트롤러에서 지원)
+        @DisplayName("JSON Accept 헤더로 요청 성공")
+        void jsonAcceptHeader_success() throws Exception {
+            // when & then
             mockMvc.perform(get("/sse/subscribe")
                     .accept(MediaType.APPLICATION_JSON))
                 .andDo(print())
@@ -121,9 +117,9 @@ class SseStreamControllerTest {
     class ConnectionStatus {
 
         @Test
-        @DisplayName("UT-NT-052: SSE 연결 테스트")
-        void UT_NT_052_checks_connected_status() throws Exception {
-            // given - SSE 연결 생성
+        @DisplayName("연결된 상태 확인 성공")
+        void connectedStatus_success() throws Exception {
+            // given
             sseEmittersService.createSseConnection(testUser.getUserId());
 
             // when & then
@@ -136,9 +132,9 @@ class SseStreamControllerTest {
         }
 
         @Test
-        @DisplayName("UT-NT-052: SSE 연결 테스트")
-        void UT_NT_052_checks_disconnected_status() throws Exception {
-            // when & then - 연결 없이 상태 확인
+        @DisplayName("연결되지 않은 상태 확인 성공")
+        void disconnectedStatus_success() throws Exception {
+            // when & then
             mockMvc.perform(get("/sse/status"))
                 .andDo(print())
                 .andExpect(status().isOk())

@@ -13,6 +13,7 @@ import com.example.onlyone.domain.notification.dto.event.NotificationCreatedEven
 import com.example.onlyone.global.sse.SseEmittersService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -81,74 +82,72 @@ class NotificationEventHandlerTest {
         
     }
 
-    @Test
-    @DisplayName("UT-NT-068: SSE 알림 이벤트 핸들러 호출")
-    void utNt068SseNotificationTriggersEventHandler() throws Exception {
-        // given
-        Notification sseNotification = Notification.create(testUser, chatType, "SSE 테스트");
-        sseNotification = notificationRepository.save(sseNotification);
+    @Nested
+    @DisplayName("알림 이벤트 처리")
+    class HandleNotificationEvent {
         
-        // when - 이벤트 핸들러 직접 호출
-        NotificationCreatedEvent event = 
-            new NotificationCreatedEvent(sseNotification);
-        notificationService.handleNotificationCreated(event);
+        @Test
+        @DisplayName("SSE 알림 이벤트 핸들러 호출 성공")
+        void sseNotificationEventHandler_success() throws Exception {
+            // given
+            Notification sseNotification = Notification.create(testUser, chatType, "SSE 테스트");
+            sseNotification = notificationRepository.save(sseNotification);
+            
+            // when
+            NotificationCreatedEvent event = new NotificationCreatedEvent(sseNotification);
+            notificationService.handleNotificationCreated(event);
 
-        // then - SSE 전송이 호출되어야 함 (모든 알림은 SSE로 전송)
-        verify(sseEmittersService, timeout(2000)).sendEvent(eq(testUser.getUserId()), eq("notification"), eq(sseNotification));
-    }
-
-    @Test
-    @DisplayName("UT-NT-069: 모든 알림 SSE 전송 검증")
-    void utNt069AllNotificationsSentViaSse() throws Exception {
-        // given  
-        Notification likeNotification = Notification.create(testUser, likeType, "좋아요 테스트");
-        likeNotification = notificationRepository.save(likeNotification);
+            // then
+            verify(sseEmittersService, timeout(2000)).sendEvent(eq(testUser.getUserId()), eq("notification"), eq(sseNotification));
+        }
         
-        // when - 이벤트 핸들러 직접 호출
-        NotificationCreatedEvent event = 
-            new NotificationCreatedEvent(likeNotification);
-        notificationService.handleNotificationCreated(event);
+        @Test
+        @DisplayName("모든 알림 SSE 전송 검증 성공")
+        void allNotificationsSentViaSse_success() throws Exception {
+            // given  
+            Notification likeNotification = Notification.create(testUser, likeType, "좋아요 테스트");
+            likeNotification = notificationRepository.save(likeNotification);
+            
+            // when
+            NotificationCreatedEvent event = new NotificationCreatedEvent(likeNotification);
+            notificationService.handleNotificationCreated(event);
 
-        // then - 모든 알림은 SSE로만 전송
-        verify(sseEmittersService, timeout(2000)).sendEvent(eq(testUser.getUserId()), eq("notification"), eq(likeNotification));
-    }
-
-
-
-    @Test
-    @DisplayName("UT-NT-072: SSE 연결 없을 때 처리")
-    void utNt072HandlesMissingSseConnection() throws Exception {
-        // given - SSE 연결이 없는 상황
-        when(sseEmittersService.isUserConnected(testUser.getUserId())).thenReturn(false);
+            // then
+            verify(sseEmittersService, timeout(2000)).sendEvent(eq(testUser.getUserId()), eq("notification"), eq(likeNotification));
+        }
         
-        Notification sseNotification = Notification.create(testUser, chatType, "연결 없음 테스트");
-        sseNotification = notificationRepository.save(sseNotification);
+        @Test
+        @DisplayName("SSE 연결 없을 때 처리 성공")
+        void handlesMissingSseConnection_success() throws Exception {
+            // given
+            when(sseEmittersService.isUserConnected(testUser.getUserId())).thenReturn(false);
+            
+            Notification sseNotification = Notification.create(testUser, chatType, "연결 없음 테스트");
+            sseNotification = notificationRepository.save(sseNotification);
+            
+            // when
+            NotificationCreatedEvent event = new NotificationCreatedEvent(sseNotification);
+            notificationService.handleNotificationCreated(event);
+
+            // then
+            verify(sseEmittersService, timeout(2000)).sendEvent(eq(testUser.getUserId()), eq("notification"), eq(sseNotification));
+        }
         
-        // when
-        NotificationCreatedEvent event = 
-            new NotificationCreatedEvent(sseNotification);
-        notificationService.handleNotificationCreated(event);
+        @Test
+        @DisplayName("이벤트 발행 검증 성공")
+        void eventPublishing_success() {
+            // given
+            when(sseEmittersService.isUserConnected(testUser.getUserId())).thenReturn(true);
+            
+            Notification chatNotification = Notification.create(testUser, chatType, "이벤트 발행 테스트");
+            chatNotification = notificationRepository.save(chatNotification);
 
-        // then - SSE 연결이 없어도 전송 시도는 해야 함
-        verify(sseEmittersService, timeout(2000)).sendEvent(eq(testUser.getUserId()), eq("notification"), eq(sseNotification));
-    }
+            // when
+            NotificationCreatedEvent event = new NotificationCreatedEvent(chatNotification);
+            notificationService.handleNotificationCreated(event);
 
-
-    @Test
-    @DisplayName("UT-NT-074: 이벤트 발행 검증")
-    void utNt074EventPublishingWorks() {
-        // given - SSE 연결이 있는 사용자로 설정
-        when(sseEmittersService.isUserConnected(testUser.getUserId())).thenReturn(true);
-        
-        Notification chatNotification = Notification.create(testUser, chatType, "이벤트 발행 테스트");
-        chatNotification = notificationRepository.save(chatNotification);
-
-        // when - 이벤트 핸들러 직접 호출
-        NotificationCreatedEvent event = 
-            new NotificationCreatedEvent(chatNotification);
-        notificationService.handleNotificationCreated(event);
-
-        // then - SSE 전송이 호출되었는지 검증
-        verify(sseEmittersService, timeout(3000)).sendEvent(eq(testUser.getUserId()), eq("notification"), eq(chatNotification));
+            // then
+            verify(sseEmittersService, timeout(3000)).sendEvent(eq(testUser.getUserId()), eq("notification"), eq(chatNotification));
+        }
     }
 }
