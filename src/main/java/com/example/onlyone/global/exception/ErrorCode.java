@@ -14,6 +14,9 @@ public enum ErrorCode {
     INTERNAL_SERVER_ERROR(500, "GLOBAL_500_1", "서버 내부 오류가 발생했습니다."),
     EXTERNAL_API_ERROR(503, "GLOBAL_503_1", "외부 API 서버 호출 중 오류가 발생했습니다."),
     UNAUTHORIZED(401, "GLOBAL_401_1", "인증되지 않은 사용자입니다."),
+    NO_PERMISSION(403, "GLOBAL_403_1", "권한이 없습니다."),
+    RESOURCE_NOT_FOUND(404, "GLOBAL_404_1", "요청한 리소스를 찾을 수 없습니다."),
+    ALREADY_JOINED(409, "GLOBAL_409_1", "이미 참여 중입니다."),
 
     // User
     USER_NOT_FOUND(404, "USER_404_1", "유저를 찾을 수 없습니다."),
@@ -71,6 +74,7 @@ public enum ErrorCode {
     BEFORE_SCHEDULE_END(409, "SCHEDULE_409_5", "아직 진행되지 않은 정기 모임입니다."),
     ALREADY_EXCEEDED_SCHEDULE(409, "SCHEDULE_409_6", "이미 정원이 마감된 정기 모임입니다."),
     ALREADY_SETTLING_SCHEDULE(409, "SCHEDULE_409_7", "이미 정산 진행 중인 정기 모임입니다."),
+    SCHEDULE_NOT_JOIN(403,"SCHEDULE_403_3", "정기 모임(스케줄)에 참여하지 않은 사용자입니다."),
 
     // Settlement
     MEMBER_CANNOT_CREATE_SETTLEMENT(403, "SETTLEMENT_403_1", "리더만 정산 요청을 할 수 있습니다."),
