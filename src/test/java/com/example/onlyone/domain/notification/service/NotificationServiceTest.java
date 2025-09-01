@@ -84,7 +84,7 @@ class NotificationServiceTest {
             List<Notification> notifications = notificationRepository.findAll();
             assertThat(notifications).hasSize(1);
             
-            Notification saved = notifications.getFirst();
+            Notification saved = notifications.get(0);
             assertThat(saved.getUser().getUserId()).isEqualTo(testUser.getUserId());
             assertThat(saved.getNotificationType().getType()).isEqualTo(Type.CHAT);
             assertThat(saved.isRead()).isFalse();
@@ -210,7 +210,7 @@ class NotificationServiceTest {
 
     private Notification createSingleNotification() {
         notificationService.createNotification(testUser, Type.CHAT, "단일 알림 테스트");
-        return notificationRepository.findAll().getFirst();
+        return notificationRepository.findAll().get(0);
     }
 
     private User createAnotherUser() {

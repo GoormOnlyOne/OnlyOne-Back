@@ -94,12 +94,13 @@ public class SseEmittersService implements InitializingBean, DisposableBean {
    * @param userId 사용자 ID
    * @param eventName 이벤트 이름
    * @param data 전송할 데이터
+   * @return 전송 성공 여부
    */
-  public void sendEvent(Long userId, String eventName, Object data) {
+  public boolean sendEvent(Long userId, String eventName, Object data) {
     SseConnection connection = activeConnections.get(userId);
     if (connection == null) {
       log.debug("No SSE connection found for user: {}", userId);
-      return;
+      return false;
     }
 
     try {
@@ -111,10 +112,11 @@ public class SseEmittersService implements InitializingBean, DisposableBean {
           .data(data));
 
       log.debug("SSE event sent: userId={}, eventName={}, eventId={}", userId, eventName, eventId);
+      return true;
     } catch (IOException e) {
       log.error("Failed to send SSE event: userId={}, eventName={}", userId, eventName, e);
       cleanupConnection(userId);
-      throw new CustomException(ErrorCode.SSE_SEND_FAILED);
+      return false;
     }
   }
 
@@ -303,6 +305,7 @@ public class SseEmittersService implements InitializingBean, DisposableBean {
       if (!missedNotifications.isEmpty()) {
         log.info("Sending {} missed notifications to userId: {}", missedNotifications.size(), connection.getUserId());
         
+        int successCount = 0;
         for (Notification notification : missedNotifications) {
           try {
             String eventId = "recovery_" + System.currentTimeMillis() + "_" + notification.getId();
@@ -311,14 +314,26 @@ public class SseEmittersService implements InitializingBean, DisposableBean {
                 .name("notification")
                 .data(notification));
             
+            successCount++;
             log.debug("Missed notification sent: userId={}, notificationId={}", 
                 connection.getUserId(), notification.getId());
           } catch (IOException e) {
-            log.error("Failed to send missed notification: userId={}, notificationId={}", 
+            log.error("Failed to send missed notification: userId={}, notificationId={}, continuing with remaining messages", 
                 connection.getUserId(), notification.getId(), e);
-            cleanupConnection(connection.getUserId());
-            throw new CustomException(ErrorCode.SSE_SEND_FAILED);
+            // 개별 메시지 실패 시 연결을 끊지 않고 계속 진행
+            break; // 하나라도 실패하면 나머지도 실패할 가능성이 높으므로 중단
           }
+        }
+        
+        if (successCount > 0) {
+          log.info("Successfully sent {}/{} missed notifications to userId: {}", 
+              successCount, missedNotifications.size(), connection.getUserId());
+        }
+        
+        // 모든 메시지 실패 시에만 연결 정리
+        if (successCount == 0 && !missedNotifications.isEmpty()) {
+          log.warn("All missed message sends failed, cleaning up connection for userId: {}", connection.getUserId());
+          cleanupConnection(connection.getUserId());
         }
       }
     } catch (Exception e) {

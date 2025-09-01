@@ -51,17 +51,24 @@ public class NotificationType extends BaseTimeEntity {
     public boolean equals(Object obj) {
         if (this == obj) return true;
         if (!(obj instanceof NotificationType that)) return false;
+        
+        // 두 엔티티 모두 id가 null인 경우 (아직 영속화되지 않은 경우)
+        if (id == null && that.id == null) {
+            return false; // 서로 다른 transient 객체로 간주
+        }
+        
         return Objects.equals(id, that.id);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(id);
+        // id가 null인 경우에도 일관된 hashCode 반환
+        return id != null ? Objects.hash(id) : getClass().hashCode();
     }
 
     @Override
     public String toString() {
-        return String.format("NotificationType{id=%d, type=%s}", 
+        return String.format("NotificationType{id=%s, type=%s}", 
                 id, type);
     }
 }
