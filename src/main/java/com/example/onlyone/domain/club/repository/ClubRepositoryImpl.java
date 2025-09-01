@@ -32,37 +32,98 @@ public class ClubRepositoryImpl implements ClubRepositoryCustom {
     
     @Override
     public List<Object[]> searchByKeywordWithFilter(SearchFilterDto filter, int page, int size) {
+        // 지역이나 관심사가 있으면 서브쿼리 방식
+        if (filter.hasLocation() || filter.getInterestId() != null) {
+            return searchWithSubquery(filter, page, size);
+        }
+        // 키워드만 있으면 단일 쿼리 (FULLTEXT 사용)
+        else {
+            return searchKeywordOnly(filter, page, size);
+        }
+    }
+    
+    private List<Object[]> searchWithSubquery(SearchFilterDto filter, int page, int size) {
         PageRequest pageRequest = PageRequest.of(page, size);
         
-        // WHERE 조건 구성 - 선택도가 높은 조건부터 적용
-        BooleanBuilder whereCondition = new BooleanBuilder();
+        // 1단계: 지역/관심사로 club ID 필터링
+        BooleanBuilder preFilterCondition = new BooleanBuilder();
         
-        // 1. 지역 필터 (가장 선택도가 높음)
         if (filter.hasLocation()) {
-            whereCondition.and(club.city.eq(filter.getCity().trim()))
-                         .and(club.district.eq(filter.getDistrict().trim()));
+            preFilterCondition.and(club.city.eq(filter.getCity().trim()))
+                             .and(club.district.eq(filter.getDistrict().trim()));
         }
         
-        // 2. 관심사 필터
         if (filter.getInterestId() != null) {
-            whereCondition.and(club.interest.interestId.eq(filter.getInterestId()));
+            preFilterCondition.and(club.interest.interestId.eq(filter.getInterestId()));
         }
         
-        // 3. 키워드 검색 - MySQL FULLTEXT MATCH AGAINST 사용 (가장 마지막)
+        List<Long> clubIds = queryFactory
+            .select(club.clubId)
+            .from(club)
+            .where(preFilterCondition)
+            .fetch();
+            
+        if (clubIds.isEmpty()) {
+            return new ArrayList<>();
+        }
+        
+        // 2단계: 필터링된 club들에 대해 FULLTEXT 검색 및 JOIN
+        BooleanBuilder finalCondition = new BooleanBuilder();
+        finalCondition.and(club.clubId.in(clubIds));
+        
         if (filter.hasKeyword()) {
             String keyword = filter.getKeyword().trim();
-            whereCondition.and(
-                fullTextMatchTemplate(keyword).gt(0)
-            );
+            finalCondition.and(fullTextMatchTemplate(keyword).gt(0));
         }
         
-        // COUNT 표현식
         NumberExpression<Long> memberCountExpr = userClub.userClubId.count();
-        
-        // ORDER BY 조건 구성
         OrderSpecifier<?>[] orderSpecifiers = createOrderSpecifiers(filter, memberCountExpr);
         
-        // 쿼리 실행
+        return queryFactory
+            .select(
+                club.clubId,
+                club.name,
+                club.description,
+                club.district,
+                club.clubImage,
+                interest.category,
+                memberCountExpr
+            )
+            .from(club)
+            .leftJoin(userClub).on(club.clubId.eq(userClub.club.clubId))
+            .leftJoin(interest).on(club.interest.interestId.eq(interest.interestId))
+            .where(finalCondition)
+            .groupBy(club.clubId, club.name, club.description, club.district, club.clubImage, interest.category)
+            .orderBy(orderSpecifiers)
+            .offset(pageRequest.getOffset())
+            .limit(pageRequest.getPageSize())
+            .fetch()
+            .stream()
+            .map(tuple -> new Object[] {
+                tuple.get(club.clubId),
+                tuple.get(club.name),
+                tuple.get(club.description),
+                tuple.get(club.district),
+                tuple.get(club.clubImage),
+                tuple.get(interest.category).name(),
+                tuple.get(memberCountExpr)
+            })
+            .toList();
+    }
+    
+    private List<Object[]> searchKeywordOnly(SearchFilterDto filter, int page, int size) {
+        PageRequest pageRequest = PageRequest.of(page, size);
+        
+        BooleanBuilder whereCondition = new BooleanBuilder();
+        
+        if (filter.hasKeyword()) {
+            String keyword = filter.getKeyword().trim();
+            whereCondition.and(fullTextMatchTemplate(keyword).gt(0));
+        }
+        
+        NumberExpression<Long> memberCountExpr = userClub.userClubId.count();
+        OrderSpecifier<?>[] orderSpecifiers = createOrderSpecifiers(filter, memberCountExpr);
+        
         return queryFactory
             .select(
                 club.clubId,
@@ -89,10 +150,10 @@ public class ClubRepositoryImpl implements ClubRepositoryCustom {
                 tuple.get(club.description),
                 tuple.get(club.district),
                 tuple.get(club.clubImage),
-                tuple.get(interest.category).name(), // Category enum을 String으로 변환
+                tuple.get(interest.category).name(),
                 tuple.get(memberCountExpr)
             })
-            .toList(); // List<Object[]> 반환
+            .toList();
     }
     
     @Override
