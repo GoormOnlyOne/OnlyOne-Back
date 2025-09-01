@@ -119,6 +119,8 @@ public class SecurityConfig {
 
                         .requestMatchers("/ws/**").permitAll()
                         .requestMatchers("/ws-native/**").permitAll()
+                        .requestMatchers("/actuator/prometheus", "/actuator/health", "/actuator/info").permitAll()
+
                         // Swagger 및 정적 자원 허용
                         .requestMatchers(
                                 "/error", "/favicon.ico",
