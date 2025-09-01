@@ -54,3 +54,12 @@ spy.log
 src/test/resources/application-test.yml
 src/test/resources/data.sql
 src/main/resources/ValidationMessages.properties
+
+### ngrinder ###
+ngrinder-controller
+
+### monitoring ###
+grafana-data
+prometheus-data
+docker-compose.yml
+prometheus.yml
