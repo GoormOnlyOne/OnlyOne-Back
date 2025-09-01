@@ -1,10 +1,9 @@
-package com.example.onlyone.domain.notification.service;
+package com.example.onlyone.global.sse;
 
 import com.example.onlyone.domain.notification.dto.sse.SseNotificationDto;
 import com.example.onlyone.domain.notification.entity.AppNotification;
-import com.example.onlyone.domain.notification.model.SseConnection;
-import com.example.onlyone.domain.notification.model.BroadcastResult;
 import com.example.onlyone.domain.notification.repository.NotificationRepository;
+import com.example.onlyone.domain.notification.service.RedisHealthChecker;
 import com.example.onlyone.global.exception.CustomException;
 import com.example.onlyone.global.exception.ErrorCode;
 import lombok.RequiredArgsConstructor;
