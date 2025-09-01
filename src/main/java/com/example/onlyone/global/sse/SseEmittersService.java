@@ -170,6 +170,37 @@ public class SseEmittersService implements InitializingBean, DisposableBean {
   public boolean isUserConnected(Long userId) {
     return activeConnections.containsKey(userId);
   }
+
+  /**
+   * 사용자의 마지막 연결 시간 조회
+   */
+  public LocalDateTime getLastConnectedTime(Long userId) {
+    SseConnection connection = activeConnections.get(userId);
+    return connection != null ? connection.getConnectionTime() : null;
+  }
+
+  /**
+   * 사용자의 연결 지속 시간 조회 (문자열)
+   */
+  public String getConnectionDuration(Long userId) {
+    SseConnection connection = activeConnections.get(userId);
+    if (connection == null) {
+      return null;
+    }
+    
+    long durationMs = connection.getDuration();
+    long seconds = durationMs / 1000;
+    long minutes = seconds / 60;
+    long hours = minutes / 60;
+    
+    if (hours > 0) {
+      return String.format("%d시간 %d분", hours, minutes % 60);
+    } else if (minutes > 0) {
+      return String.format("%d분 %d초", minutes, seconds % 60);
+    } else {
+      return String.format("%d초", seconds);
+    }
+  }
   
   /**
    * 모든 연결 제거
@@ -349,8 +380,5 @@ public class SseEmittersService implements InitializingBean, DisposableBean {
     }
     return null;
   }
-
-
-
 
 }

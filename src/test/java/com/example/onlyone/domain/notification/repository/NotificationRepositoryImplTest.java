@@ -396,6 +396,90 @@ class NotificationRepositoryImplTest {
         assertThat(result.get(0).getContent()).contains("테스트 템플릿: cursor 테스트"); // 템플릿이 적용된 내용 확인
     }
     
+    @Test
+    @DisplayName("SSE 전송 상태 업데이트 성공")
+    void updateSseSentStatus_success() {
+        // given
+        Notification notification = notificationRepository.save(
+            Notification.create(testUser, chatType, "SSE 상태 테스트"));
+        
+        // 초기 상태 확인
+        assertThat(notification.isSseSent()).isFalse();
+        
+        // when - SSE 전송 성공으로 업데이트
+        long updatedCount = notificationRepositoryImpl.updateSseSentStatus(notification.getId(), true);
+        
+        // then
+        assertThat(updatedCount).isEqualTo(1L);
+        
+        // DB에서 다시 조회하여 상태 확인
+        entityManager.flush();
+        entityManager.clear();
+        
+        Notification updated = notificationRepository.findById(notification.getId()).orElseThrow();
+        assertThat(updated.isSseSent()).isTrue();
+    }
     
+    @Test
+    @DisplayName("SSE 전송 실패 상태 업데이트")
+    void updateSseSentStatus_toFalse() {
+        // given
+        Notification notification = notificationRepository.save(
+            Notification.create(testUser, chatType, "SSE 실패 테스트"));
+        
+        // 먼저 성공 상태로 설정
+        notification.markSseSent();
+        notificationRepository.save(notification);
+        assertThat(notification.isSseSent()).isTrue();
+        
+        // when - SSE 전송 실패로 업데이트
+        long updatedCount = notificationRepositoryImpl.updateSseSentStatus(notification.getId(), false);
+        
+        // then
+        assertThat(updatedCount).isEqualTo(1L);
+        
+        // DB에서 다시 조회하여 상태 확인
+        entityManager.flush();
+        entityManager.clear();
+        
+        Notification updated = notificationRepository.findById(notification.getId()).orElseThrow();
+        assertThat(updated.isSseSent()).isFalse();
+    }
+    
+    @Test
+    @DisplayName("존재하지 않는 알림 SSE 상태 업데이트")
+    void updateSseSentStatus_nonExistent() {
+        // given
+        Long nonExistentId = 99999L;
+        
+        // when - 존재하지 않는 알림 업데이트 시도
+        long updatedCount = notificationRepositoryImpl.updateSseSentStatus(nonExistentId, true);
+        
+        // then - 업데이트된 개수가 0
+        assertThat(updatedCount).isEqualTo(0L);
+    }
+    
+    @Test
+    @DisplayName("SSE 전송 상태 업데이트 멱등성")
+    void updateSseSentStatus_idempotent() {
+        // given
+        Notification notification = notificationRepository.save(
+            Notification.create(testUser, chatType, "멱등성 테스트"));
+        
+        // when - 동일한 상태로 여러 번 업데이트
+        long firstUpdate = notificationRepositoryImpl.updateSseSentStatus(notification.getId(), true);
+        long secondUpdate = notificationRepositoryImpl.updateSseSentStatus(notification.getId(), true);
+        
+        // then - 모두 정상 처리되어야 함
+        assertThat(firstUpdate).isEqualTo(1L);
+        assertThat(secondUpdate).isEqualTo(1L);
+        
+        // 최종 상태 확인
+        entityManager.flush();
+        entityManager.clear();
+        
+        Notification updated = notificationRepository.findById(notification.getId()).orElseThrow();
+        assertThat(updated.isSseSent()).isTrue();
+    }
 
 }
