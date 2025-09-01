@@ -34,27 +34,26 @@ public class ClubRepositoryImpl implements ClubRepositoryCustom {
     public List<Object[]> searchByKeywordWithFilter(SearchFilterDto filter, int page, int size) {
         PageRequest pageRequest = PageRequest.of(page, size);
         
-        // WHERE 조건 구성
+        // WHERE 조건 구성 - 선택도가 높은 조건부터 적용
         BooleanBuilder whereCondition = new BooleanBuilder();
         
-        // 키워드 검색 - MySQL FULLTEXT MATCH AGAINST 사용
-        if (filter.hasKeyword()) {
-            String keyword = filter.getKeyword().trim();
-            // function('match') 방식 사용
-            whereCondition.and(
-                fullTextMatchTemplate(keyword).gt(0)
-            );
-        }
-        
-        // 지역 필터
+        // 1. 지역 필터 (가장 선택도가 높음)
         if (filter.hasLocation()) {
             whereCondition.and(club.city.eq(filter.getCity().trim()))
                          .and(club.district.eq(filter.getDistrict().trim()));
         }
         
-        // 관심사 필터
+        // 2. 관심사 필터
         if (filter.getInterestId() != null) {
             whereCondition.and(club.interest.interestId.eq(filter.getInterestId()));
+        }
+        
+        // 3. 키워드 검색 - MySQL FULLTEXT MATCH AGAINST 사용 (가장 마지막)
+        if (filter.hasKeyword()) {
+            String keyword = filter.getKeyword().trim();
+            whereCondition.and(
+                fullTextMatchTemplate(keyword).gt(0)
+            );
         }
         
         // COUNT 표현식
