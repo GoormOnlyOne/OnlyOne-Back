@@ -57,9 +57,13 @@ public class SecurityConfig {
             "/email/**",
             "/ws/**",          // WebSocket STOMP 엔드포인트 허용
             "/ws/chat/**",      // SockJS는 /info, /websocket, /xhr 등 내부 경로 씀
+            "/ws-native",
             "/sse/subscribe/**",    // SSE 구독 엔드포인트 허용
             "/kakao/**",
             "/auth/**",
+            "/grafana/**",     // Grafana 대시보드
+            "/influxdb/**",    // InfluxDB API
+            "/write",          // InfluxDB write
     };
 
     // CORS 설정
@@ -70,8 +74,10 @@ public class SecurityConfig {
                 "http://localhost:8080",
                 "http://localhost:5173",
                 "https://only-one-front-delta.vercel.app",
+                "https://*.ngrok-free.app",
                 baseUrl
         ));
+
         configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"));
         configuration.addAllowedHeader("*");
         configuration.setExposedHeaders(Arrays.asList("Set-Cookie", "Location"));
@@ -118,7 +124,7 @@ public class SecurityConfig {
                         .requestMatchers(AUTH_WHITELIST).permitAll()
 
                         .requestMatchers("/ws/**").permitAll()
-                        .requestMatchers("/ws-native/**").permitAll()
+                        .requestMatchers("/ws-native", "/ws-native/**").permitAll()
                         .requestMatchers("/actuator/prometheus", "/actuator/health", "/actuator/info").permitAll()
 
                         // Swagger 및 정적 자원 허용
