@@ -234,7 +234,7 @@ public class NotificationService {
         notifications.subList(0, requestedSize) : notifications;
     
     Long nextCursor = actualNotifications.isEmpty() ? null :
-        actualNotifications.getLast().getNotificationId();
+        actualNotifications.get(actualNotifications.size() - 1).getNotificationId();
 
     // 직접 DB 조회로 재귀 호출 방지
     Long unreadCount = notificationRepository.countUnreadByUserId(userId);

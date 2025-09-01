@@ -45,6 +45,9 @@ public class Notification extends BaseTimeEntity {
 
 
     private Notification(User user, NotificationType notificationType, String content) {
+        if (user == null || notificationType == null || content == null) {
+            throw new IllegalArgumentException("User, NotificationType, and content cannot be null");
+        }
         this.user = user;
         this.notificationType = notificationType;
         this.content = content;
@@ -79,17 +82,24 @@ public class Notification extends BaseTimeEntity {
     public boolean equals(Object obj) {
         if (this == obj) return true;
         if (!(obj instanceof Notification that)) return false;
+        
+        // 두 엔티티 모두 id가 null인 경우 (아직 영속화되지 않은 경우)
+        if (id == null && that.id == null) {
+            return false; // 서로 다른 transient 객체로 간주
+        }
+        
         return Objects.equals(id, that.id);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(id);
+        // id가 null인 경우에도 일관된 hashCode 반환
+        return id != null ? Objects.hash(id) : getClass().hashCode();
     }
 
     @Override
     public String toString() {
-        return String.format("Notification{id=%d, content='%s', isRead=%s}", 
+        return String.format("Notification{id=%s, content='%s', isRead=%s}", 
                 id, content, isRead);
     }
 }
