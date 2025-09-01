@@ -4,7 +4,7 @@ import com.example.onlyone.domain.notification.dto.response.NotificationListResp
 import com.example.onlyone.domain.notification.entity.AppNotification;
 import com.example.onlyone.domain.notification.service.FcmService;
 import com.example.onlyone.domain.notification.service.NotificationService;
-import com.example.onlyone.domain.notification.service.SseEmittersService;
+import com.example.onlyone.global.sse.SseEmittersService;
 import com.example.onlyone.domain.user.entity.User;
 import com.example.onlyone.domain.user.entity.Status;
 import org.junit.jupiter.api.Disabled;

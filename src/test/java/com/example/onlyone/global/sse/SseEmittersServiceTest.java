@@ -6,7 +6,6 @@ import com.example.onlyone.domain.notification.entity.NotificationType;
 import com.example.onlyone.domain.notification.entity.Type;
 import com.example.onlyone.domain.notification.repository.NotificationRepository;
 import com.example.onlyone.domain.notification.repository.NotificationTypeRepository;
-import com.example.onlyone.domain.notification.service.SseEmittersService;
 import com.example.onlyone.domain.user.entity.Status;
 import com.example.onlyone.domain.user.entity.User;
 import com.example.onlyone.domain.user.repository.UserRepository;
