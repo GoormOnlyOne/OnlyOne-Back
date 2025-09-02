@@ -12,6 +12,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
 
+import jakarta.persistence.EntityManager;
 import java.time.LocalDateTime;
 import java.util.List;
 
@@ -25,6 +26,7 @@ import static com.example.onlyone.domain.user.entity.QUser.user;
 public class NotificationRepositoryImpl implements NotificationRepositoryCustom {
     
     private final JPAQueryFactory queryFactory;
+    private final EntityManager entityManager;
     
     @Override
     public List<NotificationItemDto> findNotificationsByUserId(
@@ -91,7 +93,7 @@ public class NotificationRepositoryImpl implements NotificationRepositoryCustom 
     @Override
     @Transactional
     public long markAllAsReadByUserId(Long userId) {
-        return queryFactory
+        long updated = queryFactory
                 .update(notification)
                 .set(notification.isRead, true)
                 .where(
@@ -99,16 +101,20 @@ public class NotificationRepositoryImpl implements NotificationRepositoryCustom 
                         notification.isRead.eq(false)
                 )
                 .execute();
+        entityManager.clear(); // 벌크 업데이트 후 1차 캐시 무효화
+        return updated;
     }
     
     @Override
     @Transactional
     public long updateSseSentStatus(Long notificationId, boolean sent) {
-        return queryFactory
+        long updated = queryFactory
                 .update(notification)
                 .set(notification.sseSent, sent)
                 .where(notification.id.eq(notificationId))
                 .execute();
+        entityManager.clear(); // 벌크 업데이트 후 1차 캐시 무효화
+        return updated;
     }
 
     private BooleanExpression cursorCondition(Long cursor) {

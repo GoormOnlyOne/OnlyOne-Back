@@ -17,12 +17,13 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
-import org.springframework.security.oauth2.jwt.JwtException;
+import io.jsonwebtoken.JwtException;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import javax.crypto.SecretKey;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.Collections;
 import java.util.Optional;
 import io.jsonwebtoken.Jwts;
@@ -41,6 +42,7 @@ public class SseAuthenticationFilter extends OncePerRequestFilter {
     
     private final UserRepository userRepository;
     private static final String COOKIE_NAME = "access_token";
+    private static final String CONTENT_TYPE_JSON = "application/json";
 
     @Override
     protected boolean shouldNotFilter(HttpServletRequest request) throws ServletException {
@@ -57,33 +59,38 @@ public class SseAuthenticationFilter extends OncePerRequestFilter {
         if (token == null) {
             log.debug("No JWT token found in header or cookie for SSE request: {}", request.getRequestURI());
             response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+            response.setContentType(CONTENT_TYPE_JSON);
             response.getWriter().write("{\"error\":\"JWT token required for SSE connection\"}");
-            response.setContentType("application/json");
             return;
         }
 
         try {
-            SecretKey key = Keys.hmacShaKeyFor(jwtSecret.getBytes());
+            SecretKey key = Keys.hmacShaKeyFor(jwtSecret.getBytes(StandardCharsets.UTF_8));
             Claims claims = Jwts.parser()
-                    .setSigningKey(key)
+                    .verifyWith(key)
                     .build()
-                    .parseClaimsJws(token)
-                    .getBody();
+                    .parseSignedClaims(token)
+                    .getPayload();
 
             String kakaoIdString = claims.getSubject();
             Long kakaoId = Long.valueOf(kakaoIdString);
 
             // 사용자 상태 확인
             Optional<User> userOpt = userRepository.findByKakaoId(kakaoId);
-            if (userOpt.isPresent()) {
-                User user = userOpt.get();
-                if (Status.INACTIVE.equals(user.getStatus())) {
-                    log.warn("SSE connection attempt by withdrawn user: kakaoId={}", kakaoId);
-                    response.setStatus(HttpServletResponse.SC_FORBIDDEN);
-                    response.getWriter().write("{\"error\":\"User account is withdrawn\"}");
-                    response.setContentType("application/json");
-                    return;
-                }
+            if (userOpt.isEmpty()) {
+                log.warn("SSE connection attempt by non-existing user: kakaoId={}", kakaoId);
+                response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+                response.setContentType(CONTENT_TYPE_JSON);
+                response.getWriter().write("{\"error\":\"User not found\"}");
+                return;
+            }
+            User user = userOpt.get();
+            if (user.getStatus() == Status.INACTIVE) {
+                log.warn("SSE connection attempt by withdrawn user: kakaoId={}", kakaoId);
+                response.setStatus(HttpServletResponse.SC_FORBIDDEN);
+                response.setContentType(CONTENT_TYPE_JSON);
+                response.getWriter().write("{\"error\":\"User account is withdrawn\"}");
+                return;
             }
 
             UsernamePasswordAuthenticationToken auth =
@@ -99,8 +106,8 @@ public class SseAuthenticationFilter extends OncePerRequestFilter {
         } catch (JwtException | IllegalArgumentException e) {
             log.warn("SSE JWT validation failed: {}", e.getMessage());
             response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+            response.setContentType(CONTENT_TYPE_JSON);
             response.getWriter().write("{\"error\":\"Invalid JWT token\"}");
-            response.setContentType("application/json");
             return;
         }
         

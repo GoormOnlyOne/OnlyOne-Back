@@ -223,8 +223,8 @@ class SseAuthenticationFilterTest {
     }
 
     @Test
-    @DisplayName("사용자가 DB에 없어도 인증은 통과 (신규 사용자 허용)")
-    void allowAuthenticationWhenUserNotInDb() throws Exception {
+    @DisplayName("사용자가 DB에 없으면 401 반환 (보안 강화)")
+    void returnUnauthorizedWhenUserNotInDb() throws Exception {
         // given
         Long kakaoId = 99999L;
         String token = generateTestToken(kakaoId);
@@ -238,8 +238,9 @@ class SseAuthenticationFilterTest {
         sseAuthenticationFilter.doFilterInternal(request, response, filterChain);
 
         // then
-        verify(filterChain).doFilter(request, response);
-        assertThat(SecurityContextHolder.getContext().getAuthentication()).isNotNull();
+        verify(filterChain, never()).doFilter(any(), any());
+        assertThat(response.getStatus()).isEqualTo(401);
+        assertThat(response.getContentAsString()).contains("User not found");
     }
 
     private String generateTestToken(Long kakaoId) {

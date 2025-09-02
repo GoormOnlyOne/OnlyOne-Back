@@ -52,7 +52,6 @@ public class NotificationService {
     // 알림 전송 이벤트 발행
     eventPublisher.publishEvent(new NotificationCreatedEvent(notification));
 
-    NotificationCreateResponseDto.from(notification);
   }
 
   /**
