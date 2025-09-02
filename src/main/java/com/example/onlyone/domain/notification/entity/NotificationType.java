@@ -26,19 +26,15 @@ public class NotificationType extends BaseTimeEntity {
     @Column(name = "template", nullable = false)
     private String template;
 
-    @Column(name = "delivery_method", nullable = false)
-    @Enumerated(EnumType.STRING)
-    private DeliveryMethod deliveryMethod;
 
 
-    private NotificationType(Type type, String template, DeliveryMethod deliveryMethod) {
+    private NotificationType(Type type, String template) {
         this.type = type;
         this.template = template;
-        this.deliveryMethod = deliveryMethod;
     }
 
     public static NotificationType of(Type type, String template) {
-        return new NotificationType(type, template, DeliveryMethod.getOptimalMethod(type));
+        return new NotificationType(type, template);
     }
 
 
@@ -55,17 +51,24 @@ public class NotificationType extends BaseTimeEntity {
     public boolean equals(Object obj) {
         if (this == obj) return true;
         if (!(obj instanceof NotificationType that)) return false;
+        
+        // 두 엔티티 모두 id가 null인 경우 (아직 영속화되지 않은 경우)
+        if (id == null && that.id == null) {
+            return false; // 서로 다른 transient 객체로 간주
+        }
+        
         return Objects.equals(id, that.id);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(id);
+        // id가 null인 경우에도 일관된 hashCode 반환
+        return id != null ? Objects.hash(id) : getClass().hashCode();
     }
 
     @Override
     public String toString() {
-        return String.format("NotificationType{id=%d, type=%s, deliveryMethod=%s}", 
-                id, type, deliveryMethod);
+        return String.format("NotificationType{id=%s, type=%s}", 
+                id, type);
     }
 }

@@ -1,4 +1,4 @@
-package com.example.onlyone.domain.notification.model;
+package com.example.onlyone.global.sse;
 
 import lombok.Builder;
 import lombok.Getter;
@@ -16,7 +16,13 @@ public class SseConnection {
     private final Long userId;
     private final SseEmitter emitter;
     private final LocalDateTime connectionTime;
-    private final String lastEventId;
+    
+    /**
+     * 연결 지속 시간 (밀리초)
+     */
+    public long getDuration() {
+        return java.time.Duration.between(connectionTime, LocalDateTime.now()).toMillis();
+    }
     
     /**
      * 연결 만료 여부 확인
