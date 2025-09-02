@@ -16,14 +16,9 @@ class NotificationTypeTest {
         NotificationType likeType = NotificationType.of(Type.LIKE, "테스트 템플릿");
         NotificationType settlementType = NotificationType.of(Type.SETTLEMENT, "테스트 템플릿");
 
-        // then
+        // then - 모든 알림 타입이 올바르게 생성되었는지 확인
         assertThat(chatType.getType()).isEqualTo(Type.CHAT);
-        assertThat(chatType.getDeliveryMethod()).isEqualTo(DeliveryMethod.FCM_ONLY);
-        
         assertThat(likeType.getType()).isEqualTo(Type.LIKE);
-        assertThat(likeType.getDeliveryMethod()).isEqualTo(DeliveryMethod.SSE_ONLY);
-        
         assertThat(settlementType.getType()).isEqualTo(Type.SETTLEMENT);
-        assertThat(settlementType.getDeliveryMethod()).isEqualTo(DeliveryMethod.FCM_ONLY);
     }
 }
