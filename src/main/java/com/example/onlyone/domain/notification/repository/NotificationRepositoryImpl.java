@@ -101,6 +101,15 @@ public class NotificationRepositoryImpl implements NotificationRepositoryCustom 
                 .execute();
     }
     
+    @Override
+    @Transactional
+    public long updateSseSentStatus(Long notificationId, boolean sent) {
+        return queryFactory
+                .update(notification)
+                .set(notification.sseSent, sent)
+                .where(notification.id.eq(notificationId))
+                .execute();
+    }
 
     private BooleanExpression cursorCondition(Long cursor) {
         return cursor == null ? null : notification.id.lt(cursor);
