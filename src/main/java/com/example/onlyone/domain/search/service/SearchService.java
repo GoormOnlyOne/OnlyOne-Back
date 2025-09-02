@@ -86,7 +86,6 @@ public class SearchService {
         User user = userService.getCurrentUser();
         List<Long> joinedClubIds = userClubRepository.findByUserUserId(user.getUserId())
                 .stream().map(uc -> uc.getClub().getClubId()).toList();
-
         return convertToClubResponseDtoWithJoinStatus(resultList, joinedClubIds);
     }
 
@@ -175,7 +174,7 @@ public class SearchService {
     private List<ClubResponseDto> convertToClubResponseDtoWithJoinStatus(List<Object[]> results, List<Long> joinedClubIds) {
         return results.stream().map(result -> {
             Club club = (Club) result[0];
-            Long memberCount = (Long) result[1];
+            Long memberCount = ((Integer) result[1]).longValue(); // Integer → Long 변환
             boolean isJoined = joinedClubIds.contains(club.getClubId());
             return ClubResponseDto.from(club, memberCount, isJoined);
         }).toList();
