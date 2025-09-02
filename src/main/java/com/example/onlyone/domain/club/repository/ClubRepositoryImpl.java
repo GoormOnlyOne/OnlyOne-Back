@@ -18,112 +18,49 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Repository;
 
+import java.util.ArrayList;
 import java.util.List;
 
 @Repository
 @RequiredArgsConstructor
 public class ClubRepositoryImpl implements ClubRepositoryCustom {
-    
+
     private final JPAQueryFactory queryFactory;
-    
+
     private static final QClub club = QClub.club;
     private static final QUserClub userClub = QUserClub.userClub;
     private static final QInterest interest = QInterest.interest;
-    
+
     @Override
     public List<Object[]> searchByKeywordWithFilter(SearchFilterDto filter, int page, int size) {
-        // 지역이나 관심사가 있으면 서브쿼리 방식
-        if (filter.hasLocation() || filter.getInterestId() != null) {
-            return searchWithSubquery(filter, page, size);
-        }
-        // 키워드만 있으면 단일 쿼리 (FULLTEXT 사용)
-        else {
-            return searchKeywordOnly(filter, page, size);
-        }
-    }
-    
-    private List<Object[]> searchWithSubquery(SearchFilterDto filter, int page, int size) {
         PageRequest pageRequest = PageRequest.of(page, size);
-        
-        // 1단계: 지역/관심사로 club ID 필터링
-        BooleanBuilder preFilterCondition = new BooleanBuilder();
-        
-        if (filter.hasLocation()) {
-            preFilterCondition.and(club.city.eq(filter.getCity().trim()))
-                             .and(club.district.eq(filter.getDistrict().trim()));
-        }
-        
-        if (filter.getInterestId() != null) {
-            preFilterCondition.and(club.interest.interestId.eq(filter.getInterestId()));
-        }
-        
-        List<Long> clubIds = queryFactory
-            .select(club.clubId)
-            .from(club)
-            .where(preFilterCondition)
-            .fetch();
-            
-        if (clubIds.isEmpty()) {
-            return new ArrayList<>();
-        }
-        
-        // 2단계: 필터링된 club들에 대해 FULLTEXT 검색 및 JOIN
-        BooleanBuilder finalCondition = new BooleanBuilder();
-        finalCondition.and(club.clubId.in(clubIds));
-        
-        if (filter.hasKeyword()) {
-            String keyword = filter.getKeyword().trim();
-            finalCondition.and(fullTextMatchTemplate(keyword).gt(0));
-        }
-        
-        NumberExpression<Long> memberCountExpr = userClub.userClubId.count();
-        OrderSpecifier<?>[] orderSpecifiers = createOrderSpecifiers(filter, memberCountExpr);
-        
-        return queryFactory
-            .select(
-                club.clubId,
-                club.name,
-                club.description,
-                club.district,
-                club.clubImage,
-                interest.category,
-                memberCountExpr
-            )
-            .from(club)
-            .leftJoin(userClub).on(club.clubId.eq(userClub.club.clubId))
-            .leftJoin(interest).on(club.interest.interestId.eq(interest.interestId))
-            .where(finalCondition)
-            .groupBy(club.clubId, club.name, club.description, club.district, club.clubImage, interest.category)
-            .orderBy(orderSpecifiers)
-            .offset(pageRequest.getOffset())
-            .limit(pageRequest.getPageSize())
-            .fetch()
-            .stream()
-            .map(tuple -> new Object[] {
-                tuple.get(club.clubId),
-                tuple.get(club.name),
-                tuple.get(club.description),
-                tuple.get(club.district),
-                tuple.get(club.clubImage),
-                tuple.get(interest.category).name(),
-                tuple.get(memberCountExpr)
-            })
-            .toList();
-    }
-    
-    private List<Object[]> searchKeywordOnly(SearchFilterDto filter, int page, int size) {
-        PageRequest pageRequest = PageRequest.of(page, size);
-        
+
+        // WHERE 조건 구성 - 선택도가 높은 조건부터 적용
         BooleanBuilder whereCondition = new BooleanBuilder();
-        
+
+        // 1. 지역 필터 (가장 선택도가 높음)
+        if (filter.hasLocation()) {
+            whereCondition.and(club.city.eq(filter.getCity().trim()))
+                         .and(club.district.eq(filter.getDistrict().trim()));
+        }
+
+        // 2. 관심사 필터
+        if (filter.getInterestId() != null) {
+            whereCondition.and(club.interest.interestId.eq(filter.getInterestId()));
+        }
+
+        // 3. 키워드 검색 - MySQL FULLTEXT MATCH AGAINST 사용 (가장 마지막)
         if (filter.hasKeyword()) {
             String keyword = filter.getKeyword().trim();
-            whereCondition.and(fullTextMatchTemplate(keyword).gt(0));
+            whereCondition.and(
+                fullTextMatchTemplate(keyword).gt(0)
+            );
         }
-        
-        NumberExpression<Long> memberCountExpr = userClub.userClubId.count();
-        OrderSpecifier<?>[] orderSpecifiers = createOrderSpecifiers(filter, memberCountExpr);
-        
+
+        // ORDER BY 조건 구성 - memberCount 컬럼 직접 사용
+        OrderSpecifier<?>[] orderSpecifiers = createOrderSpecifiersWithColumn(filter);
+
+        // 쿼리 실행 - JOIN 제거, GROUP BY 제거!
         return queryFactory
             .select(
                 club.clubId,
@@ -132,13 +69,11 @@ public class ClubRepositoryImpl implements ClubRepositoryCustom {
                 club.district,
                 club.clubImage,
                 interest.category,
-                memberCountExpr
+                club.memberCount
             )
             .from(club)
-            .leftJoin(userClub).on(club.clubId.eq(userClub.club.clubId))
-            .leftJoin(interest).on(club.interest.interestId.eq(interest.interestId))
+            .join(interest).on(club.interest.interestId.eq(interest.interestId)) // INNER JOIN만
             .where(whereCondition)
-            .groupBy(club.clubId, club.name, club.description, club.district, club.clubImage, interest.category)
             .orderBy(orderSpecifiers)
             .offset(pageRequest.getOffset())
             .limit(pageRequest.getPageSize())
@@ -150,12 +85,12 @@ public class ClubRepositoryImpl implements ClubRepositoryCustom {
                 tuple.get(club.description),
                 tuple.get(club.district),
                 tuple.get(club.clubImage),
-                tuple.get(interest.category).name(),
-                tuple.get(memberCountExpr)
+                tuple.get(interest.category).name(), // Category enum을 String으로 변환
+                tuple.get(club.memberCount)
             })
-            .toList();
+            .toList(); // List<Object[]> 반환
     }
-    
+
     @Override
     public List<Object[]> findClubsByTeammates(Long userId, Pageable pageable) {
         // QueryDSL 별칭 정의
@@ -163,17 +98,14 @@ public class ClubRepositoryImpl implements ClubRepositoryCustom {
         QUserClub teammate = new QUserClub("teammate");
         QUserClub uc2 = new QUserClub("uc2");
         QUserClub uc3 = new QUserClub("uc3");
-        
-        // 멤버 수 카운트
-        NumberExpression<Long> memberCountExpr = userClub.userClubId.count();
-        
+
         return queryFactory
             .select(
                 club,
-                memberCountExpr
+                club.memberCount  // 컬럼 직접 사용
             )
             .from(club)
-            .leftJoin(userClub).on(club.clubId.eq(userClub.club.clubId))
+            // LEFT JOIN 제거 - memberCount 컬럼 사용으로 불필요
             .where(
                 // EXISTS: 현재 사용자와 함께 참여한 모임이 있는 다른 사용자들이 참여한 모임
                 JPAExpressions.selectOne()
@@ -195,15 +127,15 @@ public class ClubRepositoryImpl implements ClubRepositoryCustom {
                     )
                     .notExists()
             )
-            .groupBy(club.clubId)
-            .orderBy(memberCountExpr.desc(), club.createdAt.desc())
+            // GROUP BY 제거 - 집계 함수 사용하지 않음
+            .orderBy(club.memberCount.desc(), club.createdAt.desc())
             .offset(pageable.getOffset())
             .limit(pageable.getPageSize())
             .fetch()
             .stream()
             .map(tuple -> new Object[] {
                 tuple.get(club),
-                tuple.get(memberCountExpr)
+                tuple.get(club.memberCount)  // 컬럼 직접 사용
             })
             .toList();
     }
@@ -211,11 +143,10 @@ public class ClubRepositoryImpl implements ClubRepositoryCustom {
     @Override
     public List<Object[]> searchByUserInterestAndLocation(List<Long> interestIds, String city, String district, Long userId, Pageable pageable) {
         QUserClub excludeUserClub = new QUserClub("excludeUserClub");
-        
+
         return queryFactory
-                .select(club, userClub.userClubId.count())
+                .select(club)
                 .from(club)
-                .leftJoin(userClub).on(club.clubId.eq(userClub.club.clubId))
                 .where(
                         club.interest.interestId.in(interestIds)
                                 .and(club.city.eq(city))
@@ -230,15 +161,14 @@ public class ClubRepositoryImpl implements ClubRepositoryCustom {
                                                 .notExists()
                                 )
                 )
-                .groupBy(club.clubId)
-                .orderBy(userClub.userClubId.count().desc(), club.createdAt.desc())
+                .orderBy(club.memberCount.desc(), club.createdAt.desc())
                 .offset(pageable.getOffset())
                 .limit(pageable.getPageSize())
                 .fetch()
                 .stream()
-                .map(tuple -> new Object[] {
-                        tuple.get(club),
-                        tuple.get(userClub.userClubId.count())
+                .map(club -> new Object[] {
+                        club,
+                        club.getMemberCount()
                 })
                 .toList();
     }
@@ -246,11 +176,10 @@ public class ClubRepositoryImpl implements ClubRepositoryCustom {
     @Override
     public List<Object[]> searchByUserInterests(List<Long> interestIds, Long userId, Pageable pageable) {
         QUserClub excludeUserClub = new QUserClub("excludeUserClub");
-        
+
         return queryFactory
-                .select(club, userClub.userClubId.count())
+                .select(club)
                 .from(club)
-                .leftJoin(userClub).on(club.clubId.eq(userClub.club.clubId))
                 .where(
                         club.interest.interestId.in(interestIds)
                                 .and(
@@ -263,15 +192,14 @@ public class ClubRepositoryImpl implements ClubRepositoryCustom {
                                                 .notExists()
                                 )
                 )
-                .groupBy(club.clubId)
-                .orderBy(userClub.userClubId.count().desc(), club.createdAt.desc())
+                .orderBy(club.memberCount.desc(), club.createdAt.desc())
                 .offset(pageable.getOffset())
                 .limit(pageable.getPageSize())
                 .fetch()
                 .stream()
-                .map(tuple -> new Object[] {
-                        tuple.get(club),
-                        tuple.get(userClub.userClubId.count())
+                .map(club -> new Object[] {
+                        club,
+                        club.getMemberCount()
                 })
                 .toList();
     }
@@ -279,19 +207,17 @@ public class ClubRepositoryImpl implements ClubRepositoryCustom {
     @Override
     public List<Object[]> searchByInterest(Long interestId, Pageable pageable) {
         return queryFactory
-                .select(club, userClub.userClubId.count())
+                .select(club)
                 .from(club)
-                .leftJoin(userClub).on(club.clubId.eq(userClub.club.clubId))
                 .where(club.interest.interestId.eq(interestId))
-                .groupBy(club.clubId)
-                .orderBy(userClub.userClubId.count().desc())
+                .orderBy(club.memberCount.desc(), club.createdAt.desc())
                 .offset(pageable.getOffset())
                 .limit(pageable.getPageSize())
                 .fetch()
                 .stream()
-                .map(tuple -> new Object[] {
-                        tuple.get(club),
-                        tuple.get(userClub.userClubId.count())
+                .map(club -> new Object[] {
+                        club,
+                        club.getMemberCount()
                 })
                 .toList();
     }
@@ -299,53 +225,74 @@ public class ClubRepositoryImpl implements ClubRepositoryCustom {
     @Override
     public List<Object[]> searchByLocation(String city, String district, Pageable pageable) {
         return queryFactory
-                .select(club, userClub.userClubId.count())
+                .select(club)
                 .from(club)
-                .leftJoin(userClub).on(club.clubId.eq(userClub.club.clubId))
                 .where(club.city.eq(city).and(club.district.eq(district)))
-                .groupBy(club.clubId)
-                .orderBy(userClub.userClubId.count().desc())
+                .orderBy(club.memberCount.desc(), club.createdAt.desc())
                 .offset(pageable.getOffset())
                 .limit(pageable.getPageSize())
                 .fetch()
                 .stream()
-                .map(tuple -> new Object[] {
-                        tuple.get(club),
-                        tuple.get(userClub.userClubId.count())
+                .map(club -> new Object[] {
+                        club,
+                        club.getMemberCount()
                 })
                 .toList();
     }
-    
+
     private NumberExpression<Double> fullTextMatchTemplate(String searchKeyword) {
         return Expressions.numberTemplate(Double.class,
-                "function('match', {0}, {1}, {2})", 
+                "function('match', {0}, {1}, {2})",
                 club.name, club.description, searchKeyword);
     }
-    
-    private OrderSpecifier<?>[] createOrderSpecifiers(SearchFilterDto filter, NumberExpression<Long> memberCountExpr) {
-        // 기존 네이티브 쿼리와 동일한 CASE 구문을 사용한 정렬
-        NumberExpression<Double> sortExpression;
+
+
+    private OrderSpecifier<?>[] createOrderSpecifiersWithColumn(SearchFilterDto filter) {
+        // memberCount 컬럼을 직접 사용한 정렬
         
         if (filter.hasKeyword()) {
             String keyword = filter.getKeyword().trim();
             // 키워드가 있을 때는 FULLTEXT 관련성 점수로 정렬
-            sortExpression = fullTextMatchTemplate(keyword);
+            return new OrderSpecifier[] {
+                fullTextMatchTemplate(keyword).desc(),
+                club.memberCount.desc()
+            };
         } else {
             // 키워드가 없을 때는 sortBy 조건에 따라 정렬
             if (filter.getSortBy() == SearchFilterDto.SortType.LATEST) {
-                // LATEST일 때는 created_at을 숫자로 변환하여 정렬 (UNIX_TIMESTAMP 사용)
+                return new OrderSpecifier[] {
+                    club.createdAt.desc()
+                };
+            } else {
+                // MEMBER_COUNT일 때는 컬럼 직접 사용
+                return new OrderSpecifier[] {
+                    club.memberCount.desc(),
+                    club.createdAt.desc()
+                };
+            }
+        }
+    }
+    
+    // 기존 메서드도 유지 (다른 곳에서 사용 중일 수 있음)
+    private OrderSpecifier<?>[] createOrderSpecifiers(SearchFilterDto filter, NumberExpression<Long> memberCountExpr) {
+        NumberExpression<Double> sortExpression;
+
+        if (filter.hasKeyword()) {
+            String keyword = filter.getKeyword().trim();
+            sortExpression = fullTextMatchTemplate(keyword);
+        } else {
+            if (filter.getSortBy() == SearchFilterDto.SortType.LATEST) {
                 sortExpression = Expressions.numberTemplate(Double.class,
                     "UNIX_TIMESTAMP({0})", club.createdAt
                 );
             } else {
-                // MEMBER_COUNT일 때는 멤버 수로 정렬
                 sortExpression = memberCountExpr.doubleValue();
             }
         }
-        
+
         return new OrderSpecifier[] {
             sortExpression.desc(),
-            club.createdAt.desc() // 2차 정렬은 항상 최신순
+            club.createdAt.desc()
         };
     }
 }
