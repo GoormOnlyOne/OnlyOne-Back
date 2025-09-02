@@ -6,7 +6,6 @@ import com.example.onlyone.domain.notification.dto.response.NotificationCreateRe
 import com.example.onlyone.domain.notification.dto.response.NotificationListResponseDto;
 import com.example.onlyone.domain.notification.entity.Notification;
 import com.example.onlyone.domain.notification.entity.NotificationType;
-import com.example.onlyone.domain.notification.entity.QNotification;
 import com.example.onlyone.domain.notification.entity.Type;
 import com.example.onlyone.domain.notification.repository.NotificationRepository;
 import com.example.onlyone.domain.notification.repository.NotificationTypeRepository;
@@ -15,7 +14,6 @@ import com.example.onlyone.domain.user.repository.UserRepository;
 import com.example.onlyone.global.exception.CustomException;
 import com.example.onlyone.global.exception.ErrorCode;
 import com.example.onlyone.global.sse.SseEmittersService;
-import com.querydsl.jpa.impl.JPAQueryFactory;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationEventPublisher;
@@ -41,16 +39,15 @@ public class NotificationService {
   private final NotificationRepository notificationRepository;
   private final SseEmittersService sseEmittersService;
   private final ApplicationEventPublisher eventPublisher;
-  private final JPAQueryFactory queryFactory;
 
   /**
-   * 알림 생성
+   * 알림 생성 및 전송
    */
   @Transactional
   public void createNotification(User user, Type type, String... args) {
     NotificationType notificationType = findNotificationType(type);
 
-    Notification notification = createAndSaveNotification(user, notificationType, args);
+    Notification notification = createNotification(user, notificationType, args);
 
     // 알림 전송 이벤트 발행
     eventPublisher.publishEvent(new NotificationCreatedEvent(notification));
@@ -71,7 +68,7 @@ public class NotificationService {
         notification.getNotificationType().getType());
 
     // SSE로 알림 전송
-    sendSseNotificationSafely(notification);
+    sendNotification(notification);
   }
 
   /**
@@ -79,13 +76,15 @@ public class NotificationService {
    */
   @Transactional(readOnly = true)
   public NotificationListResponseDto getNotifications(Long userId, Long cursor, int size) {
+    // 사용자 검증 및 조회 (한 번만)
+    User user = findUser(userId);
     size = Math.min(size, 100);
     
     // hasMore 체크용
     List<NotificationItemDto> notifications =
-        notificationRepository.findNotificationsByUserId(userId, cursor, size + 1);
+        notificationRepository.findNotificationsByUserId(user.getUserId(), cursor, size + 1);
 
-    return buildNotificationListResponse(userId, notifications, size);
+    return buildNotificationListResponse(user, notifications, size);
   }
 
 
@@ -170,17 +169,17 @@ public class NotificationService {
     });
   }
 
-  // 알림 생성
-  private Notification createAndSaveNotification(User user, NotificationType type, String... args) {
+  // 알림 생성 및 저장
+  private Notification createNotification(User user, NotificationType type, String... args) {
     Notification notification = Notification.create(user, type, args);
     return notificationRepository.save(notification);
   }
 
-  // SSE 알림 전송
-  private void sendSseNotificationSafely(Notification notification) {
+  // 알림 전송
+  private void sendNotification(Notification notification) {
     Long userId = notification.getUser().getUserId();
 
-    log.info("SSE notification attempt: userId={}, notificationId={}",
+    log.info("Notification sending: userId={}, notificationId={}",
         userId, notification.getId());
 
     try {
@@ -188,27 +187,23 @@ public class NotificationService {
       updateSseSentStatus(notification, true);
 
     } catch (Exception e) {
-      // SSE 전송 실패 처리
+      // 전송 실패 처리
       updateSseSentStatus(notification, false);
-      log.warn("SSE notification failed for user: {}, error: {}", userId, e.getMessage());
+      log.warn("Notification send failed for user: {}, error: {}", userId, e.getMessage());
     }
   }
 
-  // SSE 전송 상태 업데이트
+  // 전송 상태 업데이트
   private void updateSseSentStatus(Notification notification, boolean sent) {
     try {
-      // 상태 업데이트
-      long updated = queryFactory
-          .update(QNotification.notification)
-          .set(QNotification.notification.sseSent, sent)
-          .where(QNotification.notification.id.eq(notification.getId()))
-          .execute();
+      // Repository 계층을 통한 상태 업데이트
+      long updated = notificationRepository.updateSseSentStatus(notification.getId(), sent);
       
       if (updated > 0) {
-        log.debug("SSE status updated: notificationId={}, sent={}", notification.getId(), sent);
+        log.debug("Send status updated: notificationId={}, sent={}", notification.getId(), sent);
       }
     } catch (Exception e) {
-      log.error("Failed to update SSE sent status: notificationId={}, error={}",
+      log.error("Failed to update send status: notificationId={}, error={}",
           notification.getId(), e.getMessage(), e);
       // 상태 업데이트 실패는 비즈니스 로직에 영향 주지 않으므로 예외를 던지지 않음
     }
@@ -226,7 +221,7 @@ public class NotificationService {
 
 
   // 알림 목록 응답 생성
-  private NotificationListResponseDto buildNotificationListResponse(Long userId, List<NotificationItemDto> notifications, int requestedSize) {
+  private NotificationListResponseDto buildNotificationListResponse(User user, List<NotificationItemDto> notifications, int requestedSize) {
     boolean hasMore = notifications.size() > requestedSize;
     
     // 실제 반환 데이터
@@ -236,8 +231,8 @@ public class NotificationService {
     Long nextCursor = actualNotifications.isEmpty() ? null :
         actualNotifications.get(actualNotifications.size() - 1).getNotificationId();
 
-    // 직접 DB 조회로 재귀 호출 방지
-    Long unreadCount = notificationRepository.countUnreadByUserId(userId);
+    // User 객체가 이미 검증되었으므로 직접 조회
+    Long unreadCount = notificationRepository.countUnreadByUserId(user.getUserId());
     unreadCount = unreadCount != null ? unreadCount : 0L;
 
     return NotificationListResponseDto.builder()

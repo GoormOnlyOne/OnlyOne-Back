@@ -29,15 +29,15 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 
 /**
- * 알림 이벤트 핸들러 및 SSE 전송 기능 테스트
+ * 알림 이벤트 핸들러 및 전송 기능 테스트
  * - @TransactionalEventListener 메서드 호출 검증
- * - SSE 전송 로직 검증
+ * - 알림 전송 로직 검증
  */
 @SpringBootTest
 @Import(TestConfig.class)
 @ActiveProfiles("test")
 @Transactional
-@DisplayName("알림 이벤트 처리 및 SSE 전송 테스트")
+@DisplayName("알림 이벤트 처리 및 전송 테스트")
 class NotificationEventHandlerTest {
 
     @Autowired
@@ -87,23 +87,23 @@ class NotificationEventHandlerTest {
     class HandleNotificationEvent {
         
         @Test
-        @DisplayName("SSE 알림 이벤트 핸들러 호출 성공")
-        void sseNotificationEventHandler_success() throws Exception {
+        @DisplayName("알림 이벤트 핸들러 호출 성공")
+        void notificationEventHandler_success() throws Exception {
             // given
-            Notification sseNotification = Notification.create(testUser, chatType, "SSE 테스트");
-            sseNotification = notificationRepository.save(sseNotification);
+            Notification notification = Notification.create(testUser, chatType, "알림 테스트");
+            notification = notificationRepository.save(notification);
             
             // when
-            NotificationCreatedEvent event = new NotificationCreatedEvent(sseNotification);
+            NotificationCreatedEvent event = new NotificationCreatedEvent(notification);
             notificationService.handleNotificationCreated(event);
 
             // then
-            verify(sseEmittersService, timeout(2000)).sendEvent(eq(testUser.getUserId()), eq("notification"), eq(sseNotification));
+            verify(sseEmittersService, timeout(2000)).sendEvent(eq(testUser.getUserId()), eq("notification"), eq(notification));
         }
         
         @Test
-        @DisplayName("모든 알림 SSE 전송 검증 성공")
-        void allNotificationsSentViaSse_success() throws Exception {
+        @DisplayName("모든 알림 전송 검증 성공")
+        void allNotificationsSent_success() throws Exception {
             // given  
             Notification likeNotification = Notification.create(testUser, likeType, "좋아요 테스트");
             likeNotification = notificationRepository.save(likeNotification);
@@ -117,20 +117,20 @@ class NotificationEventHandlerTest {
         }
         
         @Test
-        @DisplayName("SSE 연결 없을 때 처리 성공")
-        void handlesMissingSseConnection_success() throws Exception {
+        @DisplayName("연결 없을 때 처리 성공")
+        void handlesMissingConnection_success() throws Exception {
             // given
             when(sseEmittersService.isUserConnected(testUser.getUserId())).thenReturn(false);
             
-            Notification sseNotification = Notification.create(testUser, chatType, "연결 없음 테스트");
-            sseNotification = notificationRepository.save(sseNotification);
+            Notification notification = Notification.create(testUser, chatType, "연결 없음 테스트");
+            notification = notificationRepository.save(notification);
             
             // when
-            NotificationCreatedEvent event = new NotificationCreatedEvent(sseNotification);
+            NotificationCreatedEvent event = new NotificationCreatedEvent(notification);
             notificationService.handleNotificationCreated(event);
 
             // then
-            verify(sseEmittersService, timeout(2000)).sendEvent(eq(testUser.getUserId()), eq("notification"), eq(sseNotification));
+            verify(sseEmittersService, timeout(2000)).sendEvent(eq(testUser.getUserId()), eq("notification"), eq(notification));
         }
         
         @Test
@@ -139,15 +139,15 @@ class NotificationEventHandlerTest {
             // given
             when(sseEmittersService.isUserConnected(testUser.getUserId())).thenReturn(true);
             
-            Notification chatNotification = Notification.create(testUser, chatType, "이벤트 발행 테스트");
-            chatNotification = notificationRepository.save(chatNotification);
+            Notification notification = Notification.create(testUser, chatType, "이벤트 발행 테스트");
+            notification = notificationRepository.save(notification);
 
             // when
-            NotificationCreatedEvent event = new NotificationCreatedEvent(chatNotification);
+            NotificationCreatedEvent event = new NotificationCreatedEvent(notification);
             notificationService.handleNotificationCreated(event);
 
             // then
-            verify(sseEmittersService, timeout(3000)).sendEvent(eq(testUser.getUserId()), eq("notification"), eq(chatNotification));
+            verify(sseEmittersService, timeout(3000)).sendEvent(eq(testUser.getUserId()), eq("notification"), eq(notification));
         }
     }
 }

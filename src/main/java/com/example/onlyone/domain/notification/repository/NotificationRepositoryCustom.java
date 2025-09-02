@@ -38,4 +38,9 @@ public interface NotificationRepositoryCustom {
      * 모든 알림을 읽음 처리
      */
     long markAllAsReadByUserId(Long userId);
+    
+    /**
+     * SSE 전송 상태 업데이트
+     */
+    long updateSseSentStatus(Long notificationId, boolean sent);
 }
