@@ -53,6 +53,10 @@ public class Club extends BaseTimeEntity {
     @NotNull
     private String district;
 
+    @Column(name = "member_count")
+    @NotNull
+    private int memberCount;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "interest_id")
     @NotNull
@@ -89,4 +93,13 @@ public class Club extends BaseTimeEntity {
     public void addSchedule(Schedule schedule) {
         schedules.add(schedule);
     }
+
+    public void incrementMemberCount() {
+        this.memberCount++;
+    }
+    
+    public void decrementMemberCount() {
+        this.memberCount = Math.max(0, this.memberCount - 1);
+    }
+
 }
