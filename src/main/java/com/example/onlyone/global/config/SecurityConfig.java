@@ -1,6 +1,7 @@
 package com.example.onlyone.global.config;
 
 import com.example.onlyone.global.filter.JwtAuthenticationFilter;
+import com.example.onlyone.global.filter.SseAuthenticationFilter;
 import lombok.AllArgsConstructor;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
@@ -38,6 +39,7 @@ import java.util.List;
 @Profile("!test")
 public class SecurityConfig {
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
+    private final SseAuthenticationFilter sseAuthenticationFilter;
     @Value("${app.base-url}")
     private String baseUrl;
 
@@ -57,8 +59,8 @@ public class SecurityConfig {
             "/email/**",
             "/ws/**",          // WebSocket STOMP 엔드포인트 허용
             "/ws/chat/**",      // SockJS는 /info, /websocket, /xhr 등 내부 경로 씀
+            // "/sse/subscribe/**",    // SSE는 별도 필터에서 인증 처리
             "/ws-native",
-            "/sse/subscribe/**",    // SSE 구독 엔드포인트 허용
             "/kakao/**",
             "/auth/**",
             "/grafana/**",     // Grafana 대시보드
@@ -115,6 +117,8 @@ public class SecurityConfig {
                 .httpBasic(AbstractHttpConfigurer::disable)
                 .addFilterBefore(jwtAuthenticationFilter,
                         UsernamePasswordAuthenticationFilter.class)
+                .addFilterBefore(sseAuthenticationFilter,
+                        JwtAuthenticationFilter.class)
                 .sessionManagement(session -> session
                         .sessionCreationPolicy(SessionCreationPolicy.IF_REQUIRED)
                         .sessionFixation().migrateSession())

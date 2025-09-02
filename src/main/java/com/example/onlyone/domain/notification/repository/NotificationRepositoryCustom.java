@@ -1,7 +1,7 @@
 package com.example.onlyone.domain.notification.repository;
 
 import com.example.onlyone.domain.notification.dto.response.NotificationItemDto;
-import com.example.onlyone.domain.notification.entity.AppNotification;
+import com.example.onlyone.domain.notification.entity.Notification;
 import com.example.onlyone.domain.notification.entity.Type;
 
 import java.time.LocalDateTime;
@@ -18,15 +18,6 @@ public interface NotificationRepositoryCustom {
             int size
     );
     
-    /**
-     * 특정 타입의 알림 목록 조회
-     */
-    List<NotificationItemDto> findNotificationsByUserIdAndType(
-            Long userId, 
-            Type type,
-            Long cursor,
-            int size
-    );
     
     /**
      * 읽지 않은 알림 개수 조회
@@ -36,35 +27,12 @@ public interface NotificationRepositoryCustom {
     /**
      * 읽지 않은 알림 목록 조회 (전체)
      */
-    List<AppNotification> findUnreadNotificationsByUserId(Long userId);
-    
-    /**
-     * 전송 실패한 FCM 알림 목록 조회
-     */
-    List<AppNotification> findFailedFcmNotificationsByUserId(Long userId);
-    
-    /**
-     * 전송 실패한 SSE 알림 목록 조회
-     */
-    List<AppNotification> findFailedSseNotificationsByUserId(Long userId);
-    
-    /**
-     * 특정 시간 이후의 알림 목록 조회 (SSE 재연결 지원)
-     */
-    List<AppNotification> findNotificationsByUserIdAfter(
-            Long userId, 
-            LocalDateTime after
-    );
+    List<Notification> findUnreadNotificationsByUserId(Long userId);
     
     /**
      * ID로 단일 알림 조회 (fetchJoin 포함)
      */
-    AppNotification findByIdWithFetchJoin(Long notificationId);
-    
-    /**
-     * 알림 통계 정보 조회
-     */
-    NotificationStats getNotificationStats(Long userId);
+    Notification findByIdWithFetchJoin(Long notificationId);
     
     /**
      * 모든 알림을 읽음 처리
@@ -72,24 +40,7 @@ public interface NotificationRepositoryCustom {
     long markAllAsReadByUserId(Long userId);
     
     /**
-     * 오래된 알림 삭제 (읽음 처리된 알림만)
+     * SSE 전송 상태 업데이트
      */
-    long deleteOldNotifications(int daysToKeep);
-    
-    /**
-     * 배치 삽입 (성능 최적화)
-     */
-    void batchInsertNotifications(List<AppNotification> notifications);
-    
-    /**
-     * 알림 통계 DTO
-     */
-    record NotificationStats(
-            Long totalCount,
-            Long unreadCount,
-            Long fcmSentCount,
-            Long fcmFailedCount,
-            Long sseSentCount,
-            Long sseFailedCount
-    ) {}
+    long updateSseSentStatus(Long notificationId, boolean sent);
 }
