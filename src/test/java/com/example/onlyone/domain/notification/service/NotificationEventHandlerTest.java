@@ -70,7 +70,7 @@ class NotificationEventHandlerTest {
             .kakaoId(12345L)
             .nickname("이벤트테스트유저")
             .status(Status.ACTIVE)
-            .fcmToken("test_fcm_token_123")
+            
             .build();
         testUser = userRepository.save(testUser);
         

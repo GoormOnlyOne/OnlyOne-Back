@@ -61,7 +61,7 @@ class NotificationRepositoryImplTest {
             .kakaoId(12345L)
             .nickname("테스트유저")
             .status(Status.ACTIVE)
-            .fcmToken("test_token")
+            
             .build());
         
         // 알림 타입 생성 - 템플릿에 %s 플레이스홀더 포함
