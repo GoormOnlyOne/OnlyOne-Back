@@ -183,7 +183,7 @@ class SseAuthenticationFilterTest {
     void returnUnauthorizedWhenInvalidToken() throws Exception {
         // given
         request.setRequestURI("/sse/subscribe");
-        request.addHeader("Authorization", "Bearer invalid.token.here");
+        request.addHeader("Authorization", "Bearer invalid-token");
 
         // when
         sseAuthenticationFilter.doFilterInternal(request, response, filterChain);
@@ -207,6 +207,7 @@ class SseAuthenticationFilterTest {
         User mockUser = User.builder()
                 .userId(1L)
                 .kakaoId(kakaoId)
+                .nickname("testuser")
                 .status(Status.INACTIVE)
                 .build();
         

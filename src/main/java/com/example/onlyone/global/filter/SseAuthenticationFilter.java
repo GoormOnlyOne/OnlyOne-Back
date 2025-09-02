@@ -77,7 +77,7 @@ public class SseAuthenticationFilter extends OncePerRequestFilter {
             Optional<User> userOpt = userRepository.findByKakaoId(kakaoId);
             if (userOpt.isPresent()) {
                 User user = userOpt.get();
-                if (Status.INACTIVE.name().equals(user.getStatus())) {
+                if (Status.INACTIVE.equals(user.getStatus())) {
                     log.warn("SSE connection attempt by withdrawn user: kakaoId={}", kakaoId);
                     response.setStatus(HttpServletResponse.SC_FORBIDDEN);
                     response.getWriter().write("{\"error\":\"User account is withdrawn\"}");
