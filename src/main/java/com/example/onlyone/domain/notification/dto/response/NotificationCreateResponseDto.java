@@ -1,6 +1,6 @@
 package com.example.onlyone.domain.notification.dto.response;
 
-import com.example.onlyone.domain.notification.entity.AppNotification;
+import com.example.onlyone.domain.notification.entity.Notification;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
@@ -26,18 +26,18 @@ public class NotificationCreateResponseDto {
   @NotBlank(message = "알림 내용은 필수입니다")
   private final String content;
 
-  @NotNull(message = "FCM 전송 상태는 필수입니다")
-  private final Boolean fcmSent;
+  @NotNull(message = "SSE 전송 상태는 필수입니다")
+  private final Boolean sseSent;
 
   @NotNull(message = "생성 시간은 필수입니다")
   private LocalDateTime createdAt;
 
-  public static NotificationCreateResponseDto from(AppNotification appNotification) {
+  public static NotificationCreateResponseDto from(Notification notification) {
     return NotificationCreateResponseDto.builder()
-        .notificationId(appNotification.getId())
-        .content(appNotification.getContent())
-        .fcmSent(appNotification.isFcmSent())
-        .createdAt(appNotification.getCreatedAt())
+        .notificationId(notification.getId())
+        .content(notification.getContent())
+        .sseSent(notification.isSseSent())
+        .createdAt(notification.getCreatedAt())
         .build();
   }
 }

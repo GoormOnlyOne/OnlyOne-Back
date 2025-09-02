@@ -51,15 +51,4 @@ public class NotificationItemDto {
   @NotNull(message = "생성 시간은 필수입니다")
   private final LocalDateTime createdAt;
 
-  /**
-   * 타겟 타입 (예: CHAT, MATCHING, POST 등)
-   */
-  @NotBlank(message = "타겟 타입은 필수입니다")
-  private final String targetType;
-
-  /**
-   * 타겟 ID (채팅방 ID, 매칭 ID, 게시글 ID 등)
-   */
-  @Positive(message = "타겟 ID는 양수여야 합니다")
-  private final Long targetId;
 }

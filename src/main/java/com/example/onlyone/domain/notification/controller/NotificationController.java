@@ -1,9 +1,6 @@
 package com.example.onlyone.domain.notification.controller;
 
-import com.example.onlyone.domain.notification.dto.request.NotificationCreateRequestDto;
-import com.example.onlyone.domain.notification.dto.response.NotificationCreateResponseDto;
 import com.example.onlyone.domain.notification.dto.response.NotificationListResponseDto;
-import com.example.onlyone.domain.notification.entity.Type;
 import com.example.onlyone.domain.notification.service.NotificationService;
 import com.example.onlyone.domain.user.entity.User;
 import com.example.onlyone.domain.user.service.UserService;
@@ -16,7 +13,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
-import jakarta.validation.Valid;
 import org.springframework.util.StopWatch;
 
 @Tag(name = "알림", description = "알림 관리 API")
@@ -92,30 +88,5 @@ public class NotificationController {
         return ResponseEntity.ok(CommonResponse.success(response));
     }
 
-    @Operation(summary = "타입별 알림 조회", description = "특정 타입의 알림만 필터링하여 조회합니다")
-    @GetMapping("/type/{type}")
-    public ResponseEntity<CommonResponse<NotificationListResponseDto>> getNotificationsByType(
-        @Parameter(description = "알림 타입")
-        @PathVariable Type type,
-        @Parameter(description = "커서 (이전 조회의 마지막 알림 ID)")
-        @RequestParam(required = false) Long cursor,
-        @Parameter(description = "페이지 크기 (최대 100)")
-        @RequestParam(defaultValue = "20") int size) {
-        
-        User currentUser = userService.getCurrentUser();
-        NotificationListResponseDto response = notificationService.getNotificationsByType(
-            currentUser.getUserId(), type, cursor, size);
-        
-        return ResponseEntity.ok(CommonResponse.success(response));
-    }
 
-    @Operation(summary = "알림 생성", description = "새로운 알림을 생성합니다 (테스트/관리용)")
-    @PostMapping
-    public ResponseEntity<CommonResponse<NotificationCreateResponseDto>> createNotification(
-        @Parameter(description = "알림 생성 요청 정보")
-        @Valid @RequestBody NotificationCreateRequestDto requestDto) {
-        
-        NotificationCreateResponseDto response = notificationService.createNotification(requestDto);
-        return ResponseEntity.ok(CommonResponse.success(response));
-    }
 }
