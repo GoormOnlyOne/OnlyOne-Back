@@ -68,7 +68,7 @@ class ChatRoomRepositoryTest {
                 .gender(Gender.MALE)
                 .city("서울특별시")
                 .district("강남구")
-                .fcmToken("dummy")
+                
                 .build();
         em.persist(user);
         return user;

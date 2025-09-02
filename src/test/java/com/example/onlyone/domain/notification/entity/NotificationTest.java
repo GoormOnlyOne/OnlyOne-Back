@@ -23,7 +23,7 @@ class NotificationTest {
             .kakaoId(12345L)
             .nickname("테스트유저")
             .status(Status.ACTIVE)
-            .fcmToken("test_token")
+            
             .build();
 
         chatType = NotificationType.of(Type.CHAT, "테스트 템플릿");

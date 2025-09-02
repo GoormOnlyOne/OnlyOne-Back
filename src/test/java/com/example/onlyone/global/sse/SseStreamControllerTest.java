@@ -5,11 +5,14 @@ import com.example.onlyone.domain.user.entity.Status;
 import com.example.onlyone.domain.user.entity.User;
 import com.example.onlyone.domain.user.repository.UserRepository;
 import com.example.onlyone.domain.user.service.UserService;
+import io.jsonwebtoken.Jwts;
+import io.jsonwebtoken.security.Keys;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.context.annotation.Import;
@@ -19,6 +22,9 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.context.WebApplicationContext;
+
+import javax.crypto.SecretKey;
+import java.util.Date;
 
 import static org.mockito.BDDMockito.given;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -47,8 +53,12 @@ class SseStreamControllerTest {
     @MockBean
     private UserService userService;
 
+    @Value("${jwt.secret}")
+    private String jwtSecret;
+
     private MockMvc mockMvc;
     private User testUser;
+    private String validToken;
 
     @BeforeEach
     void setUp() {
@@ -69,6 +79,9 @@ class SseStreamControllerTest {
         
         // UserService Mock 설정
         given(userService.getCurrentUser()).willReturn(testUser);
+        
+        // JWT 토큰 생성
+        validToken = generateTestToken(testUser.getKakaoId());
     }
 
     @Nested
@@ -142,5 +155,88 @@ class SseStreamControllerTest {
                 .andExpect(jsonPath("$.connected").value(false))
                 .andExpect(jsonPath("$.totalConnections").value(0));
         }
+    }
+    
+    @Nested
+    @DisplayName("SSE 인증 테스트")
+    class SseAuthentication {
+        
+        @Test
+        @DisplayName("유효한 Authorization 헤더로 SSE 연결 성공")
+        void authenticateWithAuthorizationHeader() throws Exception {
+            mockMvc.perform(get("/sse/subscribe")
+                    .header("Authorization", "Bearer " + validToken)
+                    .accept(MediaType.TEXT_EVENT_STREAM_VALUE))
+                .andDo(print())
+                .andExpect(status().isOk())
+                .andExpect(request().asyncStarted());
+        }
+        
+        @Test
+        @DisplayName("유효한 쿠키로 SSE 연결 성공")
+        void authenticateWithCookie() throws Exception {
+            mockMvc.perform(get("/sse/subscribe")
+                    .cookie(new jakarta.servlet.http.Cookie("access_token", validToken))
+                    .accept(MediaType.TEXT_EVENT_STREAM_VALUE))
+                .andDo(print())
+                .andExpect(status().isOk())
+                .andExpect(request().asyncStarted());
+        }
+        
+        @Test
+        @DisplayName("토큰 없이 SSE 연결 시도하면 401 에러")
+        void failWithoutToken() throws Exception {
+            mockMvc.perform(get("/sse/subscribe")
+                    .accept(MediaType.TEXT_EVENT_STREAM_VALUE))
+                .andDo(print())
+                .andExpect(status().isUnauthorized())
+                .andExpect(content().json("{\"error\":\"JWT token required for SSE connection\"}"));
+        }
+        
+        @Test
+        @DisplayName("유효하지 않은 토큰으로 SSE 연결 시도하면 401 에러")
+        void failWithInvalidToken() throws Exception {
+            mockMvc.perform(get("/sse/subscribe")
+                    .header("Authorization", "Bearer invalid.token.here")
+                    .accept(MediaType.TEXT_EVENT_STREAM_VALUE))
+                .andDo(print())
+                .andExpect(status().isUnauthorized())
+                .andExpect(content().json("{\"error\":\"Invalid JWT token\"}"));
+        }
+        
+        @Test
+        @DisplayName("Authorization 헤더로 SSE 상태 조회 성공")
+        void statusWithAuthorizationHeader() throws Exception {
+            mockMvc.perform(get("/sse/status")
+                    .header("Authorization", "Bearer " + validToken))
+                .andDo(print())
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.userId").value(testUser.getUserId()));
+        }
+        
+        @Test
+        @DisplayName("쿠키로 SSE 상태 조회 성공")
+        void statusWithCookie() throws Exception {
+            mockMvc.perform(get("/sse/status")
+                    .cookie(new jakarta.servlet.http.Cookie("access_token", validToken)))
+                .andDo(print())
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.userId").value(testUser.getUserId()));
+        }
+    }
+    
+    private String generateTestToken(Long kakaoId) {
+        SecretKey key = Keys.hmacShaKeyFor(jwtSecret.getBytes());
+        Date now = new Date();
+        Date expiryDate = new Date(now.getTime() + 3600000); // 1 hour
+        
+        return Jwts.builder()
+                .subject(kakaoId.toString())
+                .claim("kakaoId", kakaoId)
+                .claim("type", "access")
+                .issuedAt(now)
+                .expiration(expiryDate)
+                .signWith(key)
+                .compact();
     }
 }
