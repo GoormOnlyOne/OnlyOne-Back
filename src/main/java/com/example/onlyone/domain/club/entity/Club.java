@@ -15,9 +15,12 @@ import java.util.List;
 @Entity
 @Table(name = "club", indexes = {
         @Index(name = "idx_club_interest_location", columnList = "interest_id, city, district"),
-        @Index(name = "idx_club_city_district_created", columnList = "city, district, created_at"),
-        @Index(name = "idx_club_interest_created", columnList = "interest_id, created_at"),
-        @Index(name = "idx_club_interest_location_created", columnList = "interest_id, city, district, created_at")
+        @Index(name = "idx_club_interest", columnList = "interest_id"),
+        @Index(name = "idx_club_location", columnList = "city, district"),
+        @Index(name = "idx_club_member_count_created", columnList = "member_count DESC, created_at DESC"),
+        @Index(name = "idx_club_interest_member_created", columnList = "interest_id, member_count DESC, created_at DESC"),
+        @Index(name = "idx_club_location_member_created", columnList = "city, district, member_count DESC, created_at DESC"),
+        @Index(name = "idx_club_interest_location_member_created", columnList = "interest_id, city, district, member_count DESC, created_at DESC")
 })
 @Getter
 @Builder
@@ -53,9 +56,9 @@ public class Club extends BaseTimeEntity {
     @NotNull
     private String district;
 
-    @Column(name = "member_count")
+    @Column(name = "member_count", nullable = false)
     @NotNull
-    private Long memberCount;
+    private Long memberCount = 0L;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "interest_id")
