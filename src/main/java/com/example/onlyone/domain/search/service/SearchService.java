@@ -164,7 +164,7 @@ public class SearchService {
                     .district((String) result[3])
                     .image((String) result[4])
                     .interest(koreanCategoryName)
-                    .memberCount(((Number) result[6]).longValue())
+                    .memberCount((Long) result[6])
                     .isJoined(isJoined)
                     .build();
         }).toList();
@@ -174,7 +174,7 @@ public class SearchService {
     private List<ClubResponseDto> convertToClubResponseDtoWithJoinStatus(List<Object[]> results, List<Long> joinedClubIds) {
         return results.stream().map(result -> {
             Club club = (Club) result[0];
-            Long memberCount = ((Integer) result[1]).longValue(); // Integer → Long 변환
+            Long memberCount = (Long) result[1];
             boolean isJoined = joinedClubIds.contains(club.getClubId());
             return ClubResponseDto.from(club, memberCount, isJoined);
         }).toList();
