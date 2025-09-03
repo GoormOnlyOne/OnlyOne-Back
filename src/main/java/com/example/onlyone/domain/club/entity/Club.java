@@ -55,7 +55,7 @@ public class Club extends BaseTimeEntity {
 
     @Column(name = "member_count")
     @NotNull
-    private int memberCount;
+    private Long memberCount;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "interest_id")
@@ -99,7 +99,7 @@ public class Club extends BaseTimeEntity {
     }
     
     public void decrementMemberCount() {
-        this.memberCount = Math.max(0, this.memberCount - 1);
+        this.memberCount = Math.max(0L, this.memberCount - 1);
     }
 
 }
