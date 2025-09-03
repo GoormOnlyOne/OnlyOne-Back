@@ -53,7 +53,7 @@ public class ClubRepositoryImpl implements ClubRepositoryCustom {
         if (filter.hasKeyword()) {
             String keyword = filter.getKeyword().trim();
             whereCondition.and(
-                fullTextMatchTemplate(keyword).gt(0)
+                fullTextMatchTemplate(keyword).gt(4.0)
             );
         }
 
