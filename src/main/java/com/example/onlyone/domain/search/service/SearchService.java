@@ -86,7 +86,6 @@ public class SearchService {
         User user = userService.getCurrentUser();
         List<Long> joinedClubIds = userClubRepository.findByUserUserId(user.getUserId())
                 .stream().map(uc -> uc.getClub().getClubId()).toList();
-
         return convertToClubResponseDtoWithJoinStatus(resultList, joinedClubIds);
     }
 
@@ -165,7 +164,7 @@ public class SearchService {
                     .district((String) result[3])
                     .image((String) result[4])
                     .interest(koreanCategoryName)
-                    .memberCount(((Number) result[6]).longValue())
+                    .memberCount((Long) result[6])
                     .isJoined(isJoined)
                     .build();
         }).toList();
