@@ -62,17 +62,14 @@ payment:
 app:
   base_url: http://localhost:8080
   notification:
-    sse-timeout-millis: 60000
-    max-page-size: 100
-    default-page-size: 20
-    fcm-max-retries: 3
-    fcm-retry-interval-millis: 1000
-
-firebase:
-  service-account:
-    path: firebase/service-account.json
-  web:
-    vapid-key: "test-vapid-key"
+    sse-timeout-millis: 180000              # 3분 - 테스트 환경 최적화
+    sse-ondemand-timeout-millis: 120000     # 2분 - On-Demand 연결
+    max-connections: 500                     # 테스트 환경에서 적절한 수준
+    cleanup-interval-minutes: 5              # 더 빠른 정리 주기
+    max-page-size: 50                       # 100 → 50 성능 최적화
+    default-page-size: 15                   # 20 → 15 성능 최적화
+    fcm-max-retries: 2                      # 3 → 2 빠른 테스트
+    fcm-retry-interval-millis: 500          # 1000 → 500 빠른 테스트
 
 logging:
   level:

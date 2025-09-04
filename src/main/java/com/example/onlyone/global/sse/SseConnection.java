@@ -1,5 +1,6 @@
 package com.example.onlyone.global.sse;
 
+import com.example.onlyone.domain.user.entity.User;
 import lombok.Builder;
 import lombok.Getter;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
@@ -16,6 +17,9 @@ public class SseConnection {
     private final Long userId;
     private final SseEmitter emitter;
     private final LocalDateTime connectionTime;
+    
+    // 캐시된 사용자 정보 - DB 조회 최소화
+    private final User cachedUser;
     
     /**
      * 연결 지속 시간 (밀리초)

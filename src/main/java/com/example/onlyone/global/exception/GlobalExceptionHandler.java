@@ -272,18 +272,27 @@ public class GlobalExceptionHandler {
      * 주로 예상치 못한 서버 내부 오류가 발생했을 때 실행됩니다.
      */
     @ExceptionHandler(Exception.class)
-    public ResponseEntity<CommonResponse<ErrorResponse>> handleException(
-            Exception e, HttpServletRequest request) {
+    public ResponseEntity<?> handleException(Exception e, HttpServletRequest request) {
         // 로그 기록 (스택 트레이스 포함)
         logError(request, ErrorCode.INTERNAL_SERVER_ERROR, e);
 
-        // ErrorResponse 생성 (필드별 오류 정보 포함)
+        // SSE 요청인지 확인 (Content-Type 또는 Accept 헤더 기준)
+        String accept = request.getHeader("Accept");
+        String contentType = request.getContentType();
+        
+        if ((accept != null && accept.contains("text/event-stream")) ||
+            (contentType != null && contentType.contains("text/event-stream"))) {
+            // SSE 요청의 경우 빈 응답 반환 (로그만 남기고 조용히 처리)
+            log.warn("SSE 요청에서 예외 발생, 연결 종료: {}", e.getMessage());
+            return ResponseEntity.status(HttpStatus.NO_CONTENT).build();
+        }
+
+        // 일반 REST API 요청인 경우 기존 방식 처리
         ErrorResponse errorResponse = ErrorResponse.builder()
                 .code(ErrorCode.INTERNAL_SERVER_ERROR.getCode())
                 .message(ErrorCode.INTERNAL_SERVER_ERROR.getMessage())
                 .build();
 
-        // 응답 생성 및 반환 (data 필드 없음)
         return ResponseEntity
                 .status(HttpStatus.INTERNAL_SERVER_ERROR)
                 .body(CommonResponse.error(errorResponse));

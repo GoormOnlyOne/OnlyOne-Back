@@ -80,7 +80,7 @@ class SseEmittersServiceTest {
         @DisplayName("성공")
         void success() {
             // when
-            SseEmitter emitter = sseEmittersService.createSseConnection(testUser.getUserId());
+            SseEmitter emitter = sseEmittersService.createSseConnection(testUser, null);
 
             // then
             assertThat(emitter).isNotNull();
@@ -95,7 +95,7 @@ class SseEmittersServiceTest {
             String lastEventId = "evt_1234567890_abcd1234";
 
             // when
-            SseEmitter emitter = sseEmittersService.createSseConnection(testUser.getUserId(), lastEventId);
+            SseEmitter emitter = sseEmittersService.createSseConnection(testUser, lastEventId);
 
             // then
             assertThat(emitter).isNotNull();
@@ -106,11 +106,11 @@ class SseEmittersServiceTest {
         @DisplayName("기존 연결이 있을 때 새 연결 생성 시 기존 연결 정리")
         void existingConnection_cleansUpOld() {
             // given
-            sseEmittersService.createSseConnection(testUser.getUserId());
+            sseEmittersService.createSseConnection(testUser, null);
             assertThat(sseEmittersService.getActiveConnectionCount()).isEqualTo(1);
 
             // when
-            sseEmittersService.createSseConnection(testUser.getUserId());
+            sseEmittersService.createSseConnection(testUser, null);
 
             // then
             assertThat(sseEmittersService.getActiveConnectionCount()).isEqualTo(1);
@@ -126,7 +126,7 @@ class SseEmittersServiceTest {
         @DisplayName("성공")
         void success() {
             // given
-            sseEmittersService.createSseConnection(testUser.getUserId());
+            sseEmittersService.createSseConnection(testUser, null);
             Notification notification = createTestNotification();
 
             // when & then
@@ -157,7 +157,7 @@ class SseEmittersServiceTest {
             assertThat(sseEmittersService.isUserConnected(testUser.getUserId())).isFalse();
 
             // when
-            sseEmittersService.createSseConnection(testUser.getUserId());
+            sseEmittersService.createSseConnection(testUser, null);
 
             // then
             assertThat(sseEmittersService.isUserConnected(testUser.getUserId())).isTrue();
@@ -167,9 +167,9 @@ class SseEmittersServiceTest {
         @DisplayName("모든 연결 정리 성공")
         void clearAllConnections_success() {
             // given
-            sseEmittersService.createSseConnection(testUser.getUserId());
+            sseEmittersService.createSseConnection(testUser, null);
             User anotherUser = createAnotherUser();
-            sseEmittersService.createSseConnection(anotherUser.getUserId());
+            sseEmittersService.createSseConnection(anotherUser, null);
             assertThat(sseEmittersService.getActiveConnectionCount()).isEqualTo(2);
 
             // when
@@ -203,7 +203,7 @@ class SseEmittersServiceTest {
 
                 executor.submit(() -> {
                     try {
-                        SseEmitter emitter = sseEmittersService.createSseConnection(userId);
+                        SseEmitter emitter = sseEmittersService.createSseConnection(user, null);
                         if (emitter != null) {
                             successCount.incrementAndGet();
                         }

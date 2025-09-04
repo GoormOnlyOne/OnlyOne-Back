@@ -31,6 +31,8 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.security.core.Authentication;
+import org.springframework.web.context.request.RequestContextHolder;
+import org.springframework.web.context.request.ServletRequestAttributes;
 
 import javax.crypto.SecretKey;
 import java.time.LocalDate;
@@ -61,6 +63,22 @@ public class UserService {
 
     @Transactional(readOnly = true)
     public User getCurrentUser() {
+        // SSE 요청의 경우 request attribute에서 캐시된 User 객체 우선 사용
+        try {
+            ServletRequestAttributes attr = (ServletRequestAttributes) RequestContextHolder.currentRequestAttributes();
+            if (attr != null) {
+                User cachedUser = (User) attr.getRequest().getAttribute("authenticatedUser");
+                if (cachedUser != null) {
+                    log.debug("Using cached user from request attribute: userId={}", cachedUser.getUserId());
+                    return cachedUser;
+                }
+            }
+        } catch (IllegalStateException e) {
+            // 비동기 컨텍스트에서는 RequestContextHolder를 사용할 수 없음
+            log.debug("No request context available, falling back to DB query");
+        }
+        
+        // 기본 동작: DB에서 사용자 조회
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
         if (authentication == null || !authentication.isAuthenticated()) {
             throw new CustomException(ErrorCode.UNAUTHORIZED);

@@ -7,6 +7,7 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.MediaType;
@@ -38,14 +39,22 @@ public class SseStreamController {
   @GetMapping(value = "/subscribe", produces = {MediaType.TEXT_EVENT_STREAM_VALUE, MediaType.APPLICATION_JSON_VALUE})
   public SseEmitter subscribe(
       @Parameter(description = "마지막으로 받은 이벤트 ID (재연결 시 사용)")
-      @RequestHeader(value = "Last-Event-ID", required = false) String lastEventId) {
+      @RequestHeader(value = "Last-Event-ID", required = false) String lastEventId,
+      HttpServletRequest request) {
     
-    // JWT에서 사용자 정보 추출 (SseAuthenticationFilter에서 이미 검증됨)
-    User currentUser = userService.getCurrentUser();
-    Long userId = currentUser.getUserId();
+    // SseAuthenticationFilter에서 캐시된 User 객체 사용 (DB 재조회 방지)
+    User currentUser = (User) request.getAttribute("authenticatedUser");
+    if (currentUser == null) {
+      // fallback to DB query if caching failed
+      currentUser = userService.getCurrentUser();
+    }
     
-    log.info("SSE stream connection requested: userId={}, lastEventId={}", userId, lastEventId);
-    return sseEmittersService.createSseConnection(userId, lastEventId);
+    log.info("SSE stream connection requested: userId={}, lastEventId={}", currentUser.getUserId(), lastEventId);
+    
+    // 타임아웃을 더 길게 설정 (기본 30분)
+    SseEmitter emitter = sseEmittersService.createSseConnection(currentUser, lastEventId);
+    
+    return emitter;
   }
 
   /**
@@ -57,8 +66,13 @@ public class SseStreamController {
       security = @SecurityRequirement(name = "bearerAuth")
   )
   @GetMapping("/status")
-  public SseConnectionStatusResponseDto getConnectionStatus() {
-    User currentUser = userService.getCurrentUser();
+  public SseConnectionStatusResponseDto getConnectionStatus(HttpServletRequest request) {
+    // SseAuthenticationFilter에서 캐시된 User 객체 사용 (DB 재조회 방지)
+    User currentUser = (User) request.getAttribute("authenticatedUser");
+    if (currentUser == null) {
+      // fallback to DB query if caching failed
+      currentUser = userService.getCurrentUser();
+    }
     Long userId = currentUser.getUserId();
     boolean isConnected = sseEmittersService.isUserConnected(userId);
     
@@ -70,4 +84,5 @@ public class SseStreamController {
         .connectionDuration(sseEmittersService.getConnectionDuration(userId))
         .build();
   }
+
 }

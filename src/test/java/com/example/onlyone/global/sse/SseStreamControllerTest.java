@@ -133,7 +133,7 @@ class SseStreamControllerTest {
         @DisplayName("연결된 상태 확인 성공")
         void connectedStatus_success() throws Exception {
             // given
-            sseEmittersService.createSseConnection(testUser.getUserId());
+            sseEmittersService.createSseConnection(testUser, null);
 
             // when & then
             mockMvc.perform(get("/sse/status"))
@@ -184,27 +184,27 @@ class SseStreamControllerTest {
         }
         
         @Test
-        @DisplayName("토큰 없이 SSE 연결 시도하면 401 에러")
-        void failWithoutToken() throws Exception {
-            // 실제로는 SseAuthenticationFilter에서 401이 반환되어야 하지만
-            // 테스트 환경에서는 인증 필터가 우회되므로 현재 상태 확인
+        @DisplayName("Mock 환경에서 SSE 연결 - 인증 우회됨")
+        void sseConnectInMockEnvironment() throws Exception {
+            // @WebMvcTest 환경에서는 SseAuthenticationFilter가 Mock되어
+            // 실제 인증이 우회됩니다. 실제 인증 테스트는 SseAuthenticationIntegrationTest 참조
             mockMvc.perform(get("/sse/subscribe")
                     .accept(MediaType.TEXT_EVENT_STREAM_VALUE))
                 .andDo(print())
-                .andExpect(status().isOk()) // 실제: 401, 테스트: 200 (Mock 설정으로 인해)
+                .andExpect(status().isOk()) // Mock 환경에서는 200 반환
                 .andExpect(request().asyncStarted());
         }
         
         @Test
-        @DisplayName("유효하지 않은 토큰으로 SSE 연결 시도하면 401 에러")
-        void failWithInvalidToken() throws Exception {
-            // 실제로는 SseAuthenticationFilter에서 401이 반환되어야 하지만
-            // 테스트 환경에서는 인증 필터가 우회되므로 현재 상태 확인
+        @DisplayName("Mock 환경에서 잘못된 토큰 - 실제 검증 우회됨")
+        void invalidTokenInMockEnvironment() throws Exception {
+            // @WebMvcTest 환경에서는 JWT 검증이 Mock되어 우회됩니다
+            // 실제 401 응답 테스트는 SseAuthenticationIntegrationTest 참조
             mockMvc.perform(get("/sse/subscribe")
                     .header("Authorization", "Bearer invalid.token.here")
                     .accept(MediaType.TEXT_EVENT_STREAM_VALUE))
                 .andDo(print())
-                .andExpect(status().isOk()) // 실제: 401, 테스트: 200 (Mock 설정으로 인해)
+                .andExpect(status().isOk()) // Mock 환경에서는 200 반환
                 .andExpect(request().asyncStarted());
         }
         

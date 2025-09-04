@@ -101,7 +101,10 @@ public class SseAuthenticationFilter extends OncePerRequestFilter {
                     );
             SecurityContextHolder.getContext().setAuthentication(auth);
             
-            log.debug("SSE authentication successful: kakaoId={}", kakaoId);
+            // User 객체를 request attribute로 저장하여 DB 재조회 방지
+            request.setAttribute("authenticatedUser", user);
+            
+            log.debug("SSE authentication successful: kakaoId={}, user cached in request", kakaoId);
             
         } catch (JwtException | IllegalArgumentException e) {
             log.warn("SSE JWT validation failed: {}", e.getMessage());

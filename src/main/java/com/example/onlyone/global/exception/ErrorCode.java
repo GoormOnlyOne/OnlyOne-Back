@@ -44,6 +44,7 @@ public enum ErrorCode {
     SSE_CONNECTION_FAILED(503, "NOTIFY_503_1", "SSE 연결에 실패했습니다."),
     SSE_SEND_FAILED(503, "NOTIFY_503_2", "SSE 메시지 전송에 실패했습니다."),
     SSE_CLEANUP_FAILED(500, "NOTIFY_500_5", "SSE 연결 정리 중 오류가 발생했습니다."),
+    SSE_CONNECTION_LIMIT_EXCEEDED(503, "NOTIFY_503_3", "SSE 최대 연결 수에 도달했습니다."),
     INVALID_EVENT_ID(400, "NOTIFY_400_2", "유효하지 않은 이벤트 ID입니다."),
     INVALID_NOTIFICATION_DATA(400, "NOTIFY_400_3", "유효하지 않은 알림 데이터입니다."),
     UNREAD_COUNT_UPDATE_FAILED    (500, "NOTIFY_500_1", "읽지 않은 알림 개수 업데이트에 실패했습니다."),

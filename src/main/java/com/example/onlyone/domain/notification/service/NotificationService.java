@@ -2,7 +2,6 @@ package com.example.onlyone.domain.notification.service;
 
 import com.example.onlyone.domain.notification.dto.event.NotificationCreatedEvent;
 import com.example.onlyone.domain.notification.dto.response.NotificationItemDto;
-import com.example.onlyone.domain.notification.dto.response.NotificationCreateResponseDto;
 import com.example.onlyone.domain.notification.dto.response.NotificationListResponseDto;
 import com.example.onlyone.domain.notification.entity.Notification;
 import com.example.onlyone.domain.notification.entity.NotificationType;
@@ -16,6 +15,7 @@ import com.example.onlyone.global.exception.ErrorCode;
 import com.example.onlyone.global.sse.SseEmittersService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
@@ -43,59 +43,65 @@ public class NotificationService {
   /**
    * 알림 생성 및 전송
    */
-  @Transactional
+  @Transactional(propagation = Propagation.REQUIRES_NEW)
+  @Async("dbTaskExecutor")
   public void createNotification(User user, Type type, String... args) {
-    NotificationType notificationType = findNotificationType(type);
-
-    Notification notification = createNotification(user, notificationType, args);
-
-    // 알림 전송 이벤트 발행
-    eventPublisher.publishEvent(new NotificationCreatedEvent(notification));
-
+    try {
+      NotificationType notificationType = findNotificationTypeWithCache(type);
+      Notification notification = createNotification(user, notificationType, args);
+      
+      eventPublisher.publishEvent(new NotificationCreatedEvent(notification));
+      
+      log.debug("Notification created: userId={}, type={}", user.getUserId(), type);
+    } catch (Exception e) {
+      log.error("Failed to create notification: userId={}, type={}", user.getUserId(), type, e);
+      throw new CustomException(ErrorCode.NOTIFICATION_PROCESSING_FAILED);
+    }
   }
 
   /**
    * 알림 전송 처리
    */
   @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
-  @Async
+  @Async("notificationExecutor")
   public void handleNotificationCreated(NotificationCreatedEvent event) {
     Notification notification = event.getNotification();
 
-    log.info("알림 전송 시작: id={}, type={}",
+    log.info("알림 전송 시작: id={}, type={}, thread={}",
         notification.getId(),
-        notification.getNotificationType().getType());
+        notification.getNotificationType().getType(),
+        Thread.currentThread().getName());
 
-    // SSE로 알림 전송
     sendNotification(notification);
   }
 
   /**
-   * 알림 목록 조회
+   * 알림 목록 조회 (Redis 캐시 적용)
    */
-  @Transactional(readOnly = true)
+  @Cacheable(value = "notifications", key = "'user:' + #userId + ':' + (#cursor != null ? #cursor : 'null') + ':' + #size", unless = "#result.notifications.size() == 0")
+  @Transactional(readOnly = true, timeout = 10)
   public NotificationListResponseDto getNotifications(Long userId, Long cursor, int size) {
-    // 사용자 검증 및 조회 (한 번만)
-    User user = findUser(userId);
-    size = Math.min(size, 100);
+    if (userId == null || userId <= 0) {
+      throw new CustomException(ErrorCode.USER_NOT_FOUND);
+    }
+    size = Math.min(size, 50);
     
-    // hasMore 체크용
-    List<NotificationItemDto> notifications =
-        notificationRepository.findNotificationsByUserId(user.getUserId(), cursor, size + 1);
+    User user = findUser(userId);
+    List<NotificationItemDto> notifications = 
+        notificationRepository.findNotificationsByUserId(userId, cursor, size + 1);
 
     return buildNotificationListResponse(user, notifications, size);
   }
 
-
   /**
-   * 읽지 않은 알림 개수 조회
+   * 읽지 않은 알림 개수 조회 (Redis 캐시 적용)
    */
-  @Transactional(readOnly = true)
+  @Cacheable(value = "unreadCount", key = "'user:' + #userId")
+  @Transactional(readOnly = true, timeout = 5)
   public Long getUnreadCount(Long userId) {
-    if (userId == null) {
+    if (userId == null || userId <= 0) {
       throw new CustomException(ErrorCode.USER_NOT_FOUND);
     }
-    findUser(userId);
     
     Long count = notificationRepository.countUnreadByUserId(userId);
     return count != null ? count : 0L;
@@ -111,12 +117,18 @@ public class NotificationService {
     notification.markAsRead();
   }
 
-  @Transactional(propagation = Propagation.REQUIRED)
+  @Transactional(propagation = Propagation.REQUIRES_NEW, timeout = 15)
+  @Async("dbTaskExecutor")
   public void markAllAsRead(Long userId) {
-    long markedCount = notificationRepository.markAllAsReadByUserId(userId);
-
-    if (markedCount > 0) {
-      log.info("Marked {} notifications as read for user: {}", markedCount, userId);
+    try {
+      long markedCount = notificationRepository.markAllAsReadByUserId(userId);
+      
+      if (markedCount > 0) {
+        log.debug("Marked {} notifications as read for user: {}", markedCount, userId);
+      }
+    } catch (Exception e) {
+      log.error("Failed to mark all notifications as read: userId={}", userId, e);
+      throw new CustomException(ErrorCode.NOTIFICATION_PROCESSING_FAILED);
     }
   }
 
@@ -130,107 +142,53 @@ public class NotificationService {
 
     notificationRepository.delete(notification);
 
-
     log.info("Notification deleted: id={}", notificationId);
   }
 
-  // 사용자 조회
+  // === Private Methods ===
+
   private User findUser(Long userId) {
-    return findEntityOrThrow(
-        userRepository.findById(userId),
-        "User", userId, ErrorCode.USER_NOT_FOUND
-    );
+    return userRepository.findById(userId)
+        .orElseThrow(() -> new CustomException(ErrorCode.USER_NOT_FOUND));
   }
 
-  // 알림 타입 조회
   private NotificationType findNotificationType(Type type) {
-    return findEntityOrThrow(
-        notificationTypeRepository.findByType(type),
-        "NotificationType", type, ErrorCode.NOTIFICATION_TYPE_NOT_FOUND
-    );
+    return notificationTypeRepository.findByType(type)
+        .orElseThrow(() -> new CustomException(ErrorCode.NOTIFICATION_TYPE_NOT_FOUND));
   }
 
-  // 알림 조회
+  @Cacheable(value = "notificationTypes", key = "#type.name()")
+  private NotificationType findNotificationTypeWithCache(Type type) {
+    return findNotificationType(type);
+  }
+
   private Notification findNotification(Long notificationId) {
     Notification notification = notificationRepository.findByIdWithFetchJoin(notificationId);
     if (notification == null) {
-      log.error("Notification not found: id={}", notificationId);
       throw new CustomException(ErrorCode.NOTIFICATION_NOT_FOUND);
     }
     return notification;
   }
 
-  // 엔티티 조회
-  private <T> T findEntityOrThrow(Optional<T> optional, String entityName, Object id, ErrorCode errorCode) {
-    return optional.orElseThrow(() -> {
-      log.error("{} not found: id={}", entityName, id);
-      return new CustomException(errorCode);
-    });
-  }
-
-  // 알림 생성 및 저장
   private Notification createNotification(User user, NotificationType type, String... args) {
-    Notification notification = Notification.create(user, type, args);
-    return notificationRepository.save(notification);
-  }
-
-  // 알림 전송
-  private void sendNotification(Notification notification) {
-    Long userId = notification.getUser().getUserId();
-
-    log.info("Notification sending: userId={}, notificationId={}",
-        userId, notification.getId());
-
     try {
-      sseEmittersService.sendEvent(userId, "notification", notification);
-      updateSseSentStatus(notification, true);
-
+      Notification notification = Notification.create(user, type, args);
+      return notificationRepository.save(notification);
     } catch (Exception e) {
-      // 전송 실패 처리
-      updateSseSentStatus(notification, false);
-      log.warn("Notification send failed for user: {}, error: {}", userId, e.getMessage());
+      log.error("Failed to create notification: userId={}, type={}", user.getUserId(), type.getType(), e);
+      throw new CustomException(ErrorCode.DATABASE_OPERATION_FAILED);
     }
   }
 
-  // 전송 상태 업데이트
-  private void updateSseSentStatus(Notification notification, boolean sent) {
-    try {
-      // Repository 계층을 통한 상태 업데이트
-      long updated = notificationRepository.updateSseSentStatus(notification.getId(), sent);
-      
-      if (updated > 0) {
-        log.debug("Send status updated: notificationId={}, sent={}", notification.getId(), sent);
-      }
-    } catch (Exception e) {
-      log.error("Failed to update send status: notificationId={}, error={}",
-          notification.getId(), e.getMessage(), e);
-      // 상태 업데이트 실패는 비즈니스 로직에 영향 주지 않으므로 예외를 던지지 않음
-    }
-  }
-
-
-  // 소유권 검증
-  private void validateNotificationOwnership(Notification notification, Long userId) {
-    if (!notification.getUser().getUserId().equals(userId)) {
-      log.error("Unauthorized notification access: userId={}, notificationOwnerId={}",
-          userId, notification.getUser().getUserId());
-      throw new CustomException(ErrorCode.NOTIFICATION_NOT_FOUND);
-    }
-  }
-
-
-  // 알림 목록 응답 생성
   private NotificationListResponseDto buildNotificationListResponse(User user, List<NotificationItemDto> notifications, int requestedSize) {
     boolean hasMore = notifications.size() > requestedSize;
     
-    // 실제 반환 데이터
     List<NotificationItemDto> actualNotifications = hasMore ? 
         notifications.subList(0, requestedSize) : notifications;
     
     Long nextCursor = actualNotifications.isEmpty() ? null :
         actualNotifications.get(actualNotifications.size() - 1).getNotificationId();
 
-    // User 객체가 이미 검증되었으므로 직접 조회
     Long unreadCount = notificationRepository.countUnreadByUserId(user.getUserId());
     unreadCount = unreadCount != null ? unreadCount : 0L;
 
@@ -241,7 +199,50 @@ public class NotificationService {
         .unreadCount(unreadCount)
         .build();
   }
+
+  private void sendNotification(Notification notification) {
+    Long userId = notification.getUser().getUserId();
+
+    log.info("Notification sending: userId={}, notificationId={}", userId, notification.getId());
+
+    sseEmittersService.sendEvent(userId, "notification", notification)
+        .thenAcceptAsync(success -> {
+          if (success) {
+            updateSseSentStatus(notification, true);
+            log.debug("Notification sent via persistent connection: userId={}", userId);
+          } else {
+            updateSseSentStatus(notification, false);
+            log.debug("User offline, notification stored for later: userId={}", userId);
+          }
+        })
+        .exceptionally(throwable -> {
+          log.debug("Persistent connection failed: userId={}", userId);
+          updateSseSentStatus(notification, false);
+          return null;
+        });
+  }
   
 
+  @Async("notificationExecutor")
+  private void updateSseSentStatus(Notification notification, boolean sent) {
+    try {
+      long updated = notificationRepository.updateSseSentStatus(notification.getId(), sent);
+      
+      if (updated > 0) {
+        log.debug("Send status updated: notificationId={}, sent={}", notification.getId(), sent);
+      }
+    } catch (Exception e) {
+      log.error("Failed to update send status: notificationId={}, error={}",
+          notification.getId(), e.getMessage(), e);
+    }
+  }
+
+  private void validateNotificationOwnership(Notification notification, Long userId) {
+    if (!notification.getUser().getUserId().equals(userId)) {
+      log.error("Unauthorized notification access: userId={}, notificationOwnerId={}",
+          userId, notification.getUser().getUserId());
+      throw new CustomException(ErrorCode.NOTIFICATION_NOT_FOUND);
+    }
+  }
 
 }
