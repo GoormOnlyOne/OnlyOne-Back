@@ -84,6 +84,9 @@ dependencies {
     // 모니터링
     implementation 'org.springframework.boot:spring-boot-starter-actuator'
     runtimeOnly 'io.micrometer:micrometer-registry-prometheus'
+
+    //retry
+    implementation("org.springframework.retry:spring-retry")
 }
 
 // QueryDSL 설정 (수정됨)

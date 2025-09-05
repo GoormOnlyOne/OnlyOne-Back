@@ -64,3 +64,8 @@ grafana-data
 prometheus-data
 docker-compose.yml
 prometheus.yml
+datasource.yml
+
+smoke_dummy.js
+
+k6/

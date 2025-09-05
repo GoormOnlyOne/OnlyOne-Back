@@ -9,7 +9,7 @@ import lombok.*;
 @Entity
 @Table(name = "feed_like",
         uniqueConstraints = {
-            @UniqueConstraint(name = "uq_feed_like_feed_user", columnNames = {"user_id", "feed_id"})
+            @UniqueConstraint(name = "uq_feed_like_feed_user", columnNames = {"feed_id", "user_id"})
         })
 @Getter
 @Builder

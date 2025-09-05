@@ -711,3 +711,10 @@
 1756779057733|0|statement|connection 26|url jdbc:h2:mem:testdb|drop table if exists user_settlement cascade |drop table if exists user_settlement cascade 
 1756779057733|0|statement|connection 26|url jdbc:h2:mem:testdb|drop table if exists wallet cascade |drop table if exists wallet cascade 
 1756779057733|0|statement|connection 26|url jdbc:h2:mem:testdb|drop table if exists wallet_transaction cascade |drop table if exists wallet_transaction cascade 
+1757048634509|0|rollback|connection 37495|url jdbc:mysql://172.16.24.224:3306/buddkit?createDatabaseIfNotExist=true&characterEncoding=UTF-8&characterSetResults=UTF-8||
+1757048634510|0|rollback|connection 37455|url jdbc:mysql://172.16.24.224:3306/buddkit?createDatabaseIfNotExist=true&characterEncoding=UTF-8&characterSetResults=UTF-8||
+1757048634510|0|rollback|connection 37459|url jdbc:mysql://172.16.24.224:3306/buddkit?createDatabaseIfNotExist=true&characterEncoding=UTF-8&characterSetResults=UTF-8||
+1757048634510|0|rollback|connection 37458|url jdbc:mysql://172.16.24.224:3306/buddkit?createDatabaseIfNotExist=true&characterEncoding=UTF-8&characterSetResults=UTF-8||
+1757048634510|0|rollback|connection 37490|url jdbc:mysql://172.16.24.224:3306/buddkit?createDatabaseIfNotExist=true&characterEncoding=UTF-8&characterSetResults=UTF-8||
+1757048634512|0|rollback|connection 37497|url jdbc:mysql://172.16.24.224:3306/buddkit?createDatabaseIfNotExist=true&characterEncoding=UTF-8&characterSetResults=UTF-8||
+1757048634512|0|rollback|connection 37493|url jdbc:mysql://172.16.24.224:3306/buddkit?createDatabaseIfNotExist=true&characterEncoding=UTF-8&characterSetResults=UTF-8||
