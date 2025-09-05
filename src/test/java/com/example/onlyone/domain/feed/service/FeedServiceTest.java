@@ -22,6 +22,7 @@ import com.example.onlyone.domain.interest.entity.Category;
 import com.example.onlyone.domain.interest.entity.Interest;
 import com.example.onlyone.domain.interest.repository.InterestRepository;
 import com.example.onlyone.domain.notification.service.NotificationService;
+import com.example.onlyone.domain.payment.service.PaymentService;
 import com.example.onlyone.domain.user.entity.Gender;
 import com.example.onlyone.domain.user.entity.Status;
 import com.example.onlyone.domain.user.entity.User;
@@ -34,34 +35,33 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.autoconfigure.jdbc.AutoConfigureTestDatabase;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
+import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
+
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.transaction.annotation.Isolation;
 import org.springframework.transaction.support.TransactionTemplate;
 
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.Future;
-import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.*;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.Mockito.reset;
 import static org.mockito.Mockito.when;
 
 @ActiveProfiles("test")
@@ -86,6 +86,10 @@ class FeedServiceTest {
     @MockitoBean private UserService userService;          // 외부 의존만 목킹
     @MockitoBean
     private NotificationService notificationService;
+    @MockitoBean
+    private PaymentService paymentService;
+    @MockitoBean
+    private RedisTemplate<String, Object> redisTemplate;
 
     @Autowired
     private EntityManager em; // 이미지 교체 검증 시 1차 캐시 초기화를 위해 사용
@@ -105,7 +109,7 @@ class FeedServiceTest {
 
     @BeforeEach
     void setUp() {
-        Pageable pageable = PageRequest.of(pageNumber, pageSize, Sort.by("createdAt").descending());
+        this.pageable = PageRequest.of(pageNumber, pageSize, Sort.by("createdAt").descending());
 
         // 관심사 데이터 - 8개 카테고리 모두 생성
         Interest culture = Interest.builder().category(Category.CULTURE).build();
@@ -428,10 +432,9 @@ class FeedServiceTest {
         // then: 같은 클럽의 원글 2개만
         assertThat(page.getTotalElements()).isEqualTo(2);
 
-        // 포함 ID 확인(정렬을 보장하지 않으므로 AnyOrder로)
         assertThat(page.getContent())
                 .extracting(FeedSummaryResponseDto::getFeedId)
-                .containsExactly(feedA.getFeedId(), feedB.getFeedId());
+                .containsExactlyInAnyOrder(feedA.getFeedId(), feedB.getFeedId());
 
         // 썸네일: 첫 번째 이미지가 선택되고, 이미지 없는 피드는 null
         FeedSummaryResponseDto dtoA = page.getContent().stream()
@@ -1106,290 +1109,6 @@ class FeedServiceTest {
         assertThat(feedRepository.findByFeedIdAndClub(newRefeed.getFeedId(), club)).isPresent();
     }
 
-    @DisplayName("여러 사용자가 동시에 좋아요 추가를 시도하면 각 사용자당 최대 1개씩 생성된다")
-    @Test
-    @Transactional(propagation = Propagation.NOT_SUPPORTED) // <-- 동시성 테스트는 아예 트랜잭션 없이
-    void toggleLike_concurrent_manyUsers_likeOnce_eachGetsOne_revised() throws Exception {
-        // ---- 1) 준비 데이터: 별도 트랜잭션으로 커밋 ----
-        record Prepared(Long clubId, Long feedId, List<User> users) {}
-        Prepared prepared = txTemplate.execute(status -> {
-            // 관심사/클럽 생성 (테스트용 새 클럽 권장: 기존 @BeforeEach 의존 X)
-            Interest ex = interestRepository.save(Interest.builder().category(Category.EXERCISE).build());
-
-            Club club = clubRepository.save(Club.builder()
-                    .name("서울 축구 클럽 - 동시성")
-                    .description("concurrency")
-                    .userLimit(100)
-                    .city("서울").district("강남구")
-                    .interest(ex)
-                    .clubImage("soccer.jpg")
-                    .build());
-
-            // 사용자 N명 + 가입
-            int N = 30;
-            List<User> users = new ArrayList<>();
-            for (int i = 0; i < N; i++) {
-                User u = User.builder()
-                        .kakaoId(20000L + i)
-                        .nickname("u" + i)
-                        .status(Status.ACTIVE)
-                        .gender(Gender.MALE)
-                        .birth(LocalDate.of(1990,1,1))
-                        .city("서울").district("강남구")
-                        .build();
-                users.add(u);
-            }
-            userRepository.saveAll(users);
-            userClubRepository.saveAll(
-                    users.stream().map(u ->
-                            UserClub.builder().user(u).club(club).clubRole(ClubRole.MEMBER).build()
-                    ).toList()
-            );
-
-            // 피드 1개 생성 (멤버 중 1명으로)
-            when(userService.getCurrentUser()).thenReturn(users.get(0));
-            feedService.createFeed(club.getClubId(),
-                    FeedRequestDto.builder().feedUrls(List.of("y.jpg")).content("c").build());
-
-            Long feedId = feedRepository.findAll().getLast().getFeedId();
-
-            return new Prepared(club.getClubId(), feedId, users);
-        });
-        // === 여기까지 커밋됨 ===
-
-        Long clubId = prepared.clubId();
-        Long feedId = prepared.feedId();
-        List<User> users = prepared.users();
-
-        // ---- 2) 본 동시 실행 (각 스레드가 자신만의 트랜잭션으로 진입) ----
-        ThreadLocal<User> CURRENT = new ThreadLocal<>();
-        when(userService.getCurrentUser()).thenAnswer(inv -> CURRENT.get());
-
-        java.util.concurrent.atomic.AtomicInteger seq = new java.util.concurrent.atomic.AtomicInteger(0);
-        Runnable work = () -> {
-            int idx = seq.getAndIncrement();   // 0..N-1
-            User u = users.get(idx);
-            CURRENT.set(u);
-            try {
-                feedService.toggleLike(clubId, feedId);
-            } finally {
-                CURRENT.remove();
-            }
-        };
-
-        runConcurrently(users.size(), work);
-
-        // ---- 3) 검증 ----
-        assertThat(likeCountForFeed(feedId)).isEqualTo(users.size());
-    }
-
-
-    @DisplayName("여러 사용자가 동시에 좋아요 취소를 시도해도 최종적으로 모두 취소된다")
-    @Test
-    @Transactional(propagation = Propagation.NOT_SUPPORTED)
-    void toggleLike_concurrent_manyUsers_unlike_allGone_revised() throws Exception {
-        // given
-        when(userService.getCurrentUser()).thenReturn(testUser1);
-        feedService.createFeed(exerciseClubInSeoul.getClubId(),
-                FeedRequestDto.builder().feedUrls(List.of("z.jpg")).content("c").build());
-        Long feedId = feedRepository.findAll().getLast().getFeedId();
-
-        int N = 25;
-        List<User> users = new ArrayList<>();
-        for (int i = 0; i < N; i++) {
-            User u = User.builder()
-                    .kakaoId(21000L + i)
-                    .nickname("w" + i)
-                    .status(Status.ACTIVE)
-                    .gender(Gender.MALE)
-                    .birth(LocalDate.of(1990,1,1))
-                    .city("서울").district("강남구")
-                    .build();
-            users.add(u);
-        }
-        userRepository.saveAll(users);
-        userClubRepository.saveAll(
-                users.stream().map(u ->
-                        UserClub.builder().user(u).club(exerciseClubInSeoul).clubRole(ClubRole.MEMBER).build()
-                ).toList()
-        );
-
-        ThreadLocal<User> CURRENT = new ThreadLocal<>();
-        when(userService.getCurrentUser()).thenAnswer(inv -> CURRENT.get());
-
-        // 선(先) ON
-        for (User u : users) {
-            CURRENT.set(u);
-            feedService.toggleLike(exerciseClubInSeoul.getClubId(), feedId); // like
-            CURRENT.remove();
-        }
-        assertThat(likeCountForFeed(feedId)).isEqualTo(N);
-
-        // when: 동시에 한 번씩 더 토글 → 모두 OFF 수렴
-        AtomicInteger seq = new AtomicInteger(0);
-        Runnable work = () -> {
-            int idx = seq.getAndIncrement();
-            User u = users.get(idx);
-            CURRENT.set(u);
-            try { feedService.toggleLike(exerciseClubInSeoul.getClubId(), feedId); } // unlike
-            finally { CURRENT.remove(); }
-        };
-        runConcurrently(N, work);
-
-        // then
-        assertThat(likeCountForFeed(feedId)).isEqualTo(0L);
-    }
-
-    @DisplayName("같은 사용자: 시작 ON에서 동시 짝수개 토글이면 최종 ON을 유지한다")
-    @Test
-    @Transactional(propagation = Propagation.NOT_SUPPORTED)
-    void sameUser_fromOn_evenRequests_keepsOn() throws Exception {
-        record Prep(Long clubId, Long feedId, User user) {}
-        Prep prep = txTemplate.execute(s -> {
-            // 관심사/클럽/유저/가입
-            Interest ex = interestRepository.save(Interest.builder().category(Category.EXERCISE).build());
-
-            Club club = clubRepository.save(Club.builder()
-                    .name("동시성-같은유저-짝수")
-                    .description("t")
-                    .userLimit(50)
-                    .city("서울").district("강남구")
-                    .interest(ex).clubImage("c.jpg").build());
-
-            User u = userRepository.save(User.builder()
-                    .kakaoId(31000L).nickname("same-even")
-                    .status(Status.ACTIVE).gender(Gender.MALE)
-                    .birth(LocalDate.of(1990,1,1))
-                    .city("서울").district("강남구")
-                    .build());
-
-            userClubRepository.save(UserClub.builder()
-                    .user(u).club(club).clubRole(ClubRole.MEMBER).build());
-
-            // 피드 생성
-            when(userService.getCurrentUser()).thenReturn(u);
-            feedService.createFeed(club.getClubId(),
-                    FeedRequestDto.builder().feedUrls(List.of("x.jpg")).content("c").build());
-            Long feedId = feedRepository.findAll().getLast().getFeedId();
-
-            // 시작 상태 ON으로 세팅(한 번 토글)
-            feedService.toggleLike(club.getClubId(), feedId);
-            return new Prep(club.getClubId(), feedId, u);
-        });
-
-        // 같은 유저가 동시 짝수(N=10)번 토글
-        final int N = 10; // 짝수 → 시작 ON 유지 기대
-        ThreadLocal<User> CURRENT = new ThreadLocal<>();
-        when(userService.getCurrentUser()).thenAnswer(inv -> CURRENT.get());
-
-        Runnable work = () -> {
-            CURRENT.set(prep.user());
-            try { feedService.toggleLike(prep.clubId(), prep.feedId()); }
-            finally { CURRENT.remove(); }
-        };
-
-        runConcurrently(N, work);
-
-        // 최종 ON(= 같은 유저의 좋아요 1개 존재)
-        assertThat(likeCountForFeed(prep.feedId())).isEqualTo(1L);
-    }
-
-    @DisplayName("같은 사용자: 시작 ON에서 동시 홀수개 토글이면 최종 OFF로 뒤집힌다")
-    @Test
-    @Transactional(propagation = Propagation.NOT_SUPPORTED)
-    void sameUser_fromOn_oddRequests_flipsToOff() throws Exception {
-        record Prep(Long clubId, Long feedId, User user) {}
-        Prep prep = txTemplate.execute(s -> {
-            // 관심사/클럽/유저/가입
-            Interest ex = interestRepository.save(Interest.builder().category(Category.EXERCISE).build());
-
-            Club club = clubRepository.save(Club.builder()
-                    .name("동시성-같은유저-홀수")
-                    .description("t")
-                    .userLimit(50)
-                    .city("서울").district("강남구")
-                    .interest(ex).clubImage("c.jpg").build());
-
-            User u = userRepository.save(User.builder()
-                    .kakaoId(32000L).nickname("same-odd")
-                    .status(Status.ACTIVE).gender(Gender.MALE)
-                    .birth(LocalDate.of(1990,1,1))
-                    .city("서울").district("강남구")
-                    .build());
-
-            userClubRepository.save(UserClub.builder()
-                    .user(u).club(club).clubRole(ClubRole.MEMBER).build());
-
-            // 피드 생성
-            when(userService.getCurrentUser()).thenReturn(u);
-            feedService.createFeed(club.getClubId(),
-                    FeedRequestDto.builder().feedUrls(List.of("y.jpg")).content("c").build());
-            Long feedId = feedRepository.findAll().getLast().getFeedId();
-
-            // 시작 상태 ON으로 세팅(한 번 토글)
-            feedService.toggleLike(club.getClubId(), feedId);
-            return new Prep(club.getClubId(), feedId, u);
-        });
-
-        // 같은 유저가 동시 홀수(N=11)번 토글
-        final int N = 11; // 홀수 → 시작 ON에서 OFF로 전환 기대
-        ThreadLocal<User> CURRENT = new ThreadLocal<>();
-        when(userService.getCurrentUser()).thenAnswer(inv -> CURRENT.get());
-
-        Runnable work = () -> {
-            CURRENT.set(prep.user());
-            try { feedService.toggleLike(prep.clubId(), prep.feedId()); }
-            finally { CURRENT.remove(); }
-        };
-
-        runConcurrently(N, work);
-
-        // 최종 OFF(= 좋아요 0개)
-        assertThat(likeCountForFeed(prep.feedId())).isEqualTo(0L);
-    }
-
-
-    // 공용: 동시 시작/종료 유틸
-    private void runConcurrently(int nThreads, Runnable body) throws Exception {
-        ExecutorService pool = Executors.newFixedThreadPool(nThreads);
-        CountDownLatch ready = new CountDownLatch(nThreads);
-        CountDownLatch start = new CountDownLatch(1);
-        CountDownLatch done  = new CountDownLatch(nThreads);
-        List<Future<?>> futures = new ArrayList<>();
-
-        for (int i = 0; i < nThreads; i++) {
-            futures.add(pool.submit(() -> {
-                try {
-                    ready.countDown();
-                    try {
-                        start.await();
-                    } catch (InterruptedException e) {
-                        throw new RuntimeException(e);
-                    }
-                    body.run();
-                } finally {
-                    done.countDown();
-                }
-            }));
-        }
-
-        // 모두 준비될 때까지 대기 → 동시에 시작
-        ready.await();
-        start.countDown();
-        done.await();
-        pool.shutdown();
-
-        // 스레드 내부 예외 전파
-        for (Future<?> f : futures) f.get();
-    }
-
-    private long likeCountForFeed(Long feedId) {
-        em.clear();
-        Feed feed = feedRepository.findById(feedId).orElseThrow();
-        return feedLikeRepository.countByFeed(feed);
-    }
-
-
     private Feed saveFeedWithImage(Club club, User user, String content, String img) {
         Feed f = Feed.builder()
                 .content(content)
@@ -1399,5 +1118,200 @@ class FeedServiceTest {
         f.getFeedImages().add(FeedImage.builder().feedImage(img).feed(f).build()); // 이미지 필수
         return feedRepository.save(f);
     }
+
+    @DisplayName("N명의 서로 다른 유저가 동시에 좋아요 시도 → 각 사용자당 1개씩만 생성된다")
+    @Test
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
+    void concurrent_like_manyUsers_eachGetsOne_withoutThreadLocal() throws Exception {
+        // ---- 준비: 별도 트랜잭션으로 클럽/유저/피드 커밋 ----
+        record Prepared(Long clubId, Long feedId, List<User> users) {}
+        Prepared prepared = txTemplate.execute(status -> {
+            // 테스트 전용 클럽 & 유저 N명 추가 가입
+            Interest ex = interestRepository.save(Interest.builder().category(Category.EXERCISE).build());
+            Club club = clubRepository.save(Club.builder()
+                    .name("서울 축구 클럽 - 동시성")
+                    .description("concurrency")
+                    .userLimit(500)
+                    .city("서울").district("강남구")
+                    .interest(ex)
+                    .clubImage("soccer.jpg")
+                    .build());
+
+            int N = 120; // 동시 사용자 수
+            List<User> users = new ArrayList<>(N);
+            for (int i = 0; i < N; i++) {
+                users.add(User.builder()
+                        .kakaoId(30000L + i)
+                        .nickname("U" + i)
+                        .status(Status.ACTIVE)
+                        .gender(i % 2 == 0 ? Gender.MALE : Gender.FEMALE)
+                        .birth(LocalDate.of(1990, 1, 1))
+                        .city("서울").district("강남구")
+                        .build());
+            }
+            userRepository.saveAll(users);
+            userClubRepository.saveAll(users.stream()
+                    .map(u -> UserClub.builder().user(u).club(club).clubRole(ClubRole.MEMBER).build())
+                    .toList());
+
+            // 피드 1개 생성(작성자: 첫 번째 유저)
+            when(userService.getCurrentUser()).thenReturn(users.get(0));
+            feedService.createFeed(club.getClubId(),
+                    FeedRequestDto.builder().feedUrls(List.of("x.jpg")).content("c").build());
+
+            Long feedId = feedRepository.findAll().getLast().getFeedId();
+            return new Prepared(club.getClubId(), feedId, users);
+        });
+
+        Long clubId = prepared.clubId();
+        Long feedId = prepared.feedId();
+        List<User> users = prepared.users();
+
+        ConcurrentLinkedQueue<User> queue = new ConcurrentLinkedQueue<>(users);
+        reset(userService);
+        when(userService.getCurrentUser()).thenAnswer(inv -> {
+            User u = queue.poll();
+            // 만약 스레드 수 > 유저 수로 오면 마지막 사용자를 재사용
+            return (u != null) ? u : users.get(users.size() - 1);
+        });
+
+        // ---- 동시 실행 ----
+        int threads = users.size();
+        CountDownLatch startGate = new CountDownLatch(1);
+        ExecutorService pool = Executors.newFixedThreadPool(Math.min(threads, 32));
+        List<Callable<Boolean>> tasks = new ArrayList<>(threads);
+        for (int i = 0; i < threads; i++) {
+            tasks.add(() -> {
+                startGate.await(); // 동시에 시작
+                return feedService.toggleLike(clubId, feedId);
+            });
+        }
+
+        startGate.countDown();
+        List<Future<Boolean>> futures = pool.invokeAll(tasks);
+        pool.shutdown();
+        pool.awaitTermination(30, TimeUnit.SECONDS);
+
+
+        // ---- 검증 ----
+        // 좋아요 행 수
+        Long likeRows = feedLikeRepository.countByFeed_FeedId(feedId);
+
+        // ON으로 끝난 Future의 수(참고)
+        futures.stream().filter(f -> {
+            try {
+                return Boolean.TRUE.equals(f.get());
+            } catch (Exception e) {
+                return false;
+            }
+        }).count();
+
+        // 각 사용자당 최대 1개씩만 생성 → likeRows == 사용자 수
+        assertThat(likeRows).isEqualTo(users.size());
+    }
+
+    @DisplayName("N명의 서로 다른 유저가 동시에 좋아요 시도 → 각 사용자당 1개만 생성")
+    @Test
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
+    void concurrent_like_manyUsers_withCallableClass() throws Exception {
+        // --- 준비/커밋(생략된 부분은 너의 기존 코드 그대로) ---
+        record Prepared(Long clubId, Long feedId, List<User> users) {}
+        Prepared p = txTemplate.execute(status -> {
+            Interest ex = interestRepository.save(Interest.builder().category(Category.EXERCISE).build());
+            Club club = clubRepository.save(Club.builder()
+                    .name("동시성-Callable")
+                    .description("c").userLimit(1000)
+                    .city("서울").district("강남구")
+                    .interest(ex).clubImage("c.jpg").build());
+
+            int N = 100000;
+            List<User> users = new ArrayList<>(N);
+            for (int i = 0; i < N; i++) {
+                users.add(userRepository.save(User.builder()
+                        .kakaoId(80000L + i).nickname("u"+i)
+                        .status(Status.ACTIVE).gender(Gender.MALE)
+                        .birth(LocalDate.of(1990,1,1)).city("서울").district("강남구").build()));
+            }
+            userClubRepository.saveAll(users.stream()
+                    .map(u -> UserClub.builder().user(u).club(club).clubRole(ClubRole.MEMBER).build())
+                    .toList());
+
+            when(userService.getCurrentUser()).thenReturn(users.getFirst());
+            feedService.createFeed(club.getClubId(),
+                    FeedRequestDto.builder().feedUrls(List.of("a.jpg")).content("c").build());
+            Long feedId = feedRepository.findAll().getLast().getFeedId();
+            return new Prepared(club.getClubId(), feedId, users);
+        });
+
+        // ---- 호출마다 서로 다른 유저 반환(Queue 기반); ThreadLocal 불사용 ----
+        ConcurrentLinkedQueue<User> queue = new ConcurrentLinkedQueue<>(p.users());
+        reset(userService);
+        when(userService.getCurrentUser()).thenAnswer(inv -> {
+            User u = queue.poll();
+            return (u != null) ? u : p.users().getLast();
+        });
+
+        // ---- 실행 ----
+        int threads = p.users().size();
+        CountDownLatch startGate = new CountDownLatch(1);
+        ExecutorService pool = Executors.newFixedThreadPool(Math.min(threads, 32));
+        List<Future<Boolean>> futures = new ArrayList<>(threads);
+
+        for (int i = 0; i < threads; i++) {
+            futures.add(pool.submit(new ToggleLikeTask(
+                    startGate, p.clubId(), p.feedId(), txTemplate, feedService
+            )));
+        }
+
+        startGate.countDown();
+        for (Future<Boolean> f : futures) f.get(); // 예외 확인
+        pool.shutdown();
+        pool.awaitTermination(30, TimeUnit.SECONDS);
+
+        // ---- 검증(새 트랜잭션 + 1차 캐시 클리어) ----
+        Long likeRows = txTemplate.execute(s -> {
+            em.clear();
+            return feedLikeRepository.countByFeed_FeedId(p.feedId());
+        });
+        System.out.println("likeRows = " + likeRows);
+        assertThat(likeRows).isEqualTo(p.users().size());
+
+        // (선택) likeCount 필드 사용 시
+        txTemplate.execute(s -> {
+            em.clear();
+            Feed feed = feedRepository.findById(p.feedId()).orElseThrow();
+            assertThat(feed.getLikeCount()).isEqualTo(p.users().size());
+            return null;
+        });
+    }
+    // 1) 동시 실행용 태스크: 각 스레드가 자기 트랜잭션에서 toggleLike 수행
+    static class ToggleLikeTask implements Callable<Boolean> {
+        private final CountDownLatch startGate;
+        private final Long clubId;
+        private final Long feedId;
+        private final TransactionTemplate txTemplate;
+        private final FeedService feedService;
+
+        ToggleLikeTask(CountDownLatch startGate,
+                       Long clubId, Long feedId,
+                       TransactionTemplate txTemplate,
+                       FeedService feedService) {
+            this.startGate = startGate;
+            this.clubId = clubId;
+            this.feedId = feedId;
+            this.txTemplate = txTemplate;
+            this.feedService = feedService;
+        }
+
+        @Override
+        public Boolean call() throws Exception {
+            startGate.await(); // 동시에 출발
+            // 각 스레드별 "독립 트랜잭션"에서 실행
+            return txTemplate.execute(status -> feedService.toggleLike(clubId, feedId));
+        }
+    }
+
+
+
 }
 

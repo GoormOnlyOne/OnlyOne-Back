@@ -23,19 +23,23 @@ import com.example.onlyone.domain.user.service.UserService;
 import com.example.onlyone.global.exception.CustomException;
 import com.example.onlyone.global.exception.ErrorCode;
 import jakarta.persistence.EntityManager;
+import jakarta.persistence.PersistenceContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.log4j.Log4j2;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.dao.CannotAcquireLockException;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.dao.DeadlockLoserDataAccessException;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.retry.annotation.Backoff;
+import org.springframework.retry.annotation.Retryable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Isolation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.Objects;
-import java.util.Optional;
 import java.util.stream.Collectors;
 
 @Log4j2
@@ -50,9 +54,8 @@ public class FeedService {
     private final FeedCommentRepository feedCommentRepository;
     private final UserClubRepository userClubRepository;
     private final NotificationService notificationService;
-    @Autowired
+    @PersistenceContext
     EntityManager em;
-
 
     public void createFeed(Long clubId, FeedRequestDto requestDto) {
         Club club = clubRepository.findById(clubId)
@@ -144,41 +147,30 @@ public class FeedService {
     }
 
     @Transactional(isolation = Isolation.READ_COMMITTED)
-    public boolean toggleLike(Long clubId, Long feedId) {
-        Club club = clubRepository.findById(clubId)
-                .orElseThrow(() -> new CustomException(ErrorCode.CLUB_NOT_FOUND));
-        Feed feed = feedRepository.findByFeedIdAndClub(feedId, club)
-                .orElseThrow(() -> new CustomException(ErrorCode.FEED_NOT_FOUND));
-        User currentUser = userService.getCurrentUser();
+    public boolean toggleLike(long clubId, long feedId) {
+        long uid = userService.getCurrentUser().getUserId();
 
-        int deleted = feedLikeRepository.deleteByFeedAndUser(feed, currentUser);
-        if (deleted > 0) {
-            return false; // 최종 OFF
-        }
-        FeedLike like = FeedLike.builder().feed(feed).user(currentUser).build();
-        try {
-            feedLikeRepository.save(like);
-            // 필요시 em.flush();  // (선택) 즉시 flush 하여 예외 조기 감지
-            int likeCount = Math.max(0, feedLikeRepository.countByFeed(feed) - 1);
-            if (!feed.getUser().getUserId().equals(currentUser.getUserId())) {
-                notificationService.createNotification(feed.getUser(), Type.LIKE,
-                        new String[]{ currentUser.getNickname(), String.valueOf(likeCount) });
-            }
-            return true;
-        } catch (DataIntegrityViolationException e) {
-            // ★ 핵심: 실패한 엔티티 분리
-            try { em.detach(like); } catch (Exception ignore) { em.clear(); }
-            // 또는 em.unwrap(Session.class).evict(like);
+        feedRepository.lockFeedRow(feedId);
 
-            // 이후 로직은 “이미 ON”으로 간주
-            int likeCount = Math.max(0, feedLikeRepository.countByFeed(feed) - 1);
-            if (!feed.getUser().getUserId().equals(currentUser.getUserId())) {
-                notificationService.createNotification(feed.getUser(), Type.LIKE,
-                        new String[]{ currentUser.getNickname(), String.valueOf(likeCount) });
-            }
+        // 1) 새로 누르기 시도
+        int inserted = feedLikeRepository.tryInsertIgnore(feedId, uid);
+        if (inserted == 1) {
+            feedLikeRepository.bumpLike(feedId, +1);
+            // 알림은 비동기로
+//            notificationPublisher.like(feedId, uid);
             return true;
         }
+
+        // 2) 이미 있던 경우 → 취소 시도
+        int deleted = feedLikeRepository.tryDelete(feedId, uid);
+        if (deleted == 1) {
+            feedLikeRepository.bumpLike(feedId, -1);
+            return false;  // 최종 OFF
+        }
+
+        return true;
     }
+
 
     public void createComment(Long clubId, Long feedId, FeedCommentRequestDto requestDto) {
         Club club = clubRepository.findById(clubId)
