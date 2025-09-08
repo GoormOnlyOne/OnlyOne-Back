@@ -90,6 +90,8 @@ public class SettlementProcessEventListener {
                     .orElseThrow(() -> new CustomException(ErrorCode.SETTLEMENT_NOT_FOUND));
             completedSettlement.update(TotalStatus.COMPLETED, LocalDateTime.now());
             completedSchedule.updateStatus(ScheduleStatus.CLOSED);
+            settlementRepository.save(completedSettlement);
+            scheduleRepository.save(completedSchedule);
 //            notificationService.createNotification(
 //                    user,
 //                    Type.SETTLEMENT,

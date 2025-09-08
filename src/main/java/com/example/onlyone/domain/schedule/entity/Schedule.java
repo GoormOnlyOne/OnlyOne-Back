@@ -38,7 +38,7 @@ public class Schedule extends BaseTimeEntity {
 
     @Column(name = "cost")
     @NotNull
-    private int cost;
+    private Long cost;
 
     @Column(name = "user_limit")
     @NotNull
@@ -60,7 +60,7 @@ public class Schedule extends BaseTimeEntity {
     @OneToOne(mappedBy = "schedule", cascade = CascadeType.ALL, orphanRemoval = true)
     private Settlement settlement;
 
-    public void update(String name, String location, int cost, int userLimit, LocalDateTime scheduleTime) {
+    public void update(String name, String location, Long cost, int userLimit, LocalDateTime scheduleTime) {
         this.name = name;
         this.location = location;
         this.cost = cost;

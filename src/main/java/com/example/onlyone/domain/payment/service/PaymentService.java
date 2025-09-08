@@ -98,7 +98,7 @@ public class PaymentService {
         Wallet wallet = walletRepository.findByUser(user)
                 .orElseThrow(() -> new CustomException(ErrorCode.WALLET_NOT_FOUND));
 
-        int amount = Math.toIntExact(req.getAmount());
+        Long amount = req.getAmount();
         wallet.updateBalance(wallet.getPostedBalance() + amount);
 
         WalletTransaction walletTransaction = payment.getWalletTransaction();
@@ -195,7 +195,7 @@ public class PaymentService {
 
         WalletTransaction failTx = WalletTransaction.builder()
                 .type(Type.CHARGE)
-                .amount(Math.toIntExact(req.getAmount()))
+                .amount(req.getAmount())
                 .balance(wallet.getPostedBalance())
                 .walletTransactionStatus(WalletTransactionStatus.FAILED)
                 .wallet(wallet)
