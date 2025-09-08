@@ -1,6 +1,8 @@
 package com.example.onlyone.domain.search.service;
 
+import com.example.onlyone.domain.club.document.ClubDocument;
 import com.example.onlyone.domain.club.entity.Club;
+import com.example.onlyone.domain.club.repository.ClubElasticsearchRepository;
 import com.example.onlyone.domain.club.repository.ClubRepository;
 import com.example.onlyone.domain.club.repository.UserClubRepository;
 import com.example.onlyone.domain.interest.entity.Category;
@@ -17,6 +19,8 @@ import com.example.onlyone.global.exception.ErrorCode;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -34,6 +38,7 @@ public class SearchService {
     private final UserService userService;
     private final UserInterestRepository userInterestRepository;
     private final UserSettlementRepository userSettlementRepository;
+    private final ClubElasticsearchRepository clubElasticsearchRepository;
 
     // 사용자 맞춤 추천
     public List<ClubResponseDto> recommendedClubs(int page, int size) {
@@ -104,7 +109,7 @@ public class SearchService {
         return convertToClubResponseDtoWithJoinStatus(resultList, joinedClubIds);
     }
 
-    // 통합 검색 (키워드 + 필터)
+    // 통합 검색 (키워드 + 필터) - 하이브리드 방식
     public List<ClubResponseDto> searchClubs(SearchFilterDto filter) {
         // 지역 필터 유효성 검증
         if (!filter.isLocationValid()) {
@@ -114,13 +119,20 @@ public class SearchService {
         if (!filter.isKeywordValid()) {
             throw new CustomException(ErrorCode.SEARCH_KEYWORD_TOO_SHORT);
         }
-        List<Object[]> resultList = clubRepository.searchByKeywordWithFilter(filter, filter.getPage(), 20);
 
         User user = userService.getCurrentUser();
         List<Long> joinedClubIds = userClubRepository.findByUserUserId(user.getUserId())
                 .stream().map(uc -> uc.getClub().getClubId()).toList();
 
-        return convertKeywordSearchResultsWithJoinStatus(resultList, joinedClubIds);
+        if (filter.hasKeyword()) {
+            // ES 검색 (키워드 있는 경우)
+            List<ClubDocument> esResults = searchWithElasticsearch(filter);
+            return convertElasticsearchResultsWithJoinStatus(esResults, joinedClubIds);
+        } else {
+            // MySQL 검색 (키워드 없는 경우)
+            List<Object[]> resultList = searchWithMysql(filter);
+            return convertMysqlResultsWithJoinStatus(resultList, joinedClubIds);
+        }
     }
 
     // 함께하는 멤버들의 다른 모임 조회
@@ -192,6 +204,97 @@ public class SearchService {
         boolean isUnsettledScheduleExist =
                 userSettlementRepository.existsByUserAndSettlementStatusNot(user, SettlementStatus.COMPLETED);
         return new MyMeetingListResponseDto(isUnsettledScheduleExist, clubResponseDtoList);
+    }
+
+    // ES 검색 메서드
+    private List<ClubDocument> searchWithElasticsearch(SearchFilterDto filter) {
+        String keyword = filter.getKeyword().trim();
+        Pageable pageable = createPageable(filter);
+
+        // 조건에 따라 적절한 ES 검색 메서드 호출
+        if (filter.hasLocation() && filter.getInterestId() != null) {
+            // 키워드 + 지역 + 관심사
+            return clubElasticsearchRepository.findByKeywordAndLocationAndInterest(
+                    keyword, filter.getCity().trim(), filter.getDistrict().trim(), 
+                    filter.getInterestId(), pageable);
+        } else if (filter.hasLocation()) {
+            // 키워드 + 지역
+            return clubElasticsearchRepository.findByKeywordAndLocation(
+                    keyword, filter.getCity().trim(), filter.getDistrict().trim(), pageable);
+        } else if (filter.getInterestId() != null) {
+            // 키워드 + 관심사
+            return clubElasticsearchRepository.findByKeywordAndInterest(
+                    keyword, filter.getInterestId(), pageable);
+        } else {
+            // 키워드만
+            return clubElasticsearchRepository.findByKeyword(keyword, pageable);
+        }
+    }
+
+    // MySQL 검색 메서드 (키워드 없는 필터 검색)
+    private List<Object[]> searchWithMysql(SearchFilterDto filter) {
+        PageRequest pageRequest = PageRequest.of(filter.getPage(), 20);
+        
+        if (filter.hasLocation() && filter.getInterestId() != null) {
+            // 지역 + 관심사
+            return clubRepository.searchByUserInterestAndLocation(
+                    List.of(filter.getInterestId()), 
+                    filter.getCity().trim(), 
+                    filter.getDistrict().trim(), 
+                    null, // userId는 null (전체 검색)
+                    pageRequest);
+        } else if (filter.hasLocation()) {
+            // 지역만
+            return clubRepository.searchByLocation(filter.getCity(), filter.getDistrict(), pageRequest);
+        } else if (filter.getInterestId() != null) {
+            // 관심사만
+            return clubRepository.searchByInterest(filter.getInterestId(), pageRequest);
+        } else {
+            // 조건 없음 - 빈 결과 반환
+            return new ArrayList<>();
+        }
+    }
+
+    // ES 결과를 ClubResponseDto로 변환 (가입 상태 포함)
+    private List<ClubResponseDto> convertElasticsearchResultsWithJoinStatus(List<ClubDocument> results, List<Long> joinedClubIds) {
+        return results.stream().map(document -> {
+            boolean isJoined = joinedClubIds.contains(document.getClubId());
+            return ClubResponseDto.builder()
+                    .clubId(document.getClubId())
+                    .name(document.getName())
+                    .description(document.getDescription())
+                    .district(document.getDistrict())
+                    .image(document.getClubImage())
+                    .interest(document.getInterestKoreanName())
+                    .memberCount(document.getMemberCount())
+                    .isJoined(isJoined)
+                    .build();
+        }).toList();
+    }
+
+    // MySQL 필터 결과를 ClubResponseDto로 변환 (가입 상태 포함)
+    private List<ClubResponseDto> convertMysqlResultsWithJoinStatus(List<Object[]> results, List<Long> joinedClubIds) {
+        return results.stream().map(result -> {
+            Club club = (Club) result[0];
+            Long memberCount = (Long) result[1];
+            boolean isJoined = joinedClubIds.contains(club.getClubId());
+            return ClubResponseDto.from(club, memberCount, isJoined);
+        }).toList();
+    }
+
+    // Pageable 생성 (ES용)
+    private Pageable createPageable(SearchFilterDto filter) {
+        Sort sort;
+        
+        if (filter.getSortBy() == SearchFilterDto.SortType.LATEST) {
+            sort = Sort.by(Sort.Direction.DESC, "createdAt");
+        } else {
+            // MEMBER_COUNT or default
+            sort = Sort.by(Sort.Direction.DESC, "memberCount")
+                    .and(Sort.by(Sort.Direction.DESC, "createdAt"));
+        }
+        
+        return PageRequest.of(filter.getPage(), 20, sort);
     }
 
     // 사용자의 지역 정보가 유효한지 확인
