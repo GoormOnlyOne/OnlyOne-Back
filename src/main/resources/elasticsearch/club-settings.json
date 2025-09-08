@@ -1,0 +1,48 @@
+{
+  "analysis": {
+    "tokenizer": {
+      "nori_tokenizer": {
+        "type": "nori_tokenizer",
+        "decompound_mode": "mixed"
+      }
+    },
+    "filter": {
+      "nori_part_of_speech": {
+        "type": "nori_part_of_speech",
+        "stoptags": ["E", "IC", "J", "MAG", "MAJ", "MM", "SP", "SSC", "SSO", "SC", "SE", "XPN", "XSA", "XSN", "XSV", "UNA", "NA", "VSV"]
+      },
+      "nori_readingform": {
+        "type": "nori_readingform"
+      },
+      "club_stopwords": {
+        "type": "stop",
+        "stopwords_path": "analysis/club-stopwords.txt"
+      },
+      "club_synonyms": {
+        "type": "synonym",
+        "synonyms_path": "analysis/club-synonyms.txt"
+      }
+    },
+    "analyzer": {
+      "nori": {
+        "type": "custom",
+        "tokenizer": "nori_tokenizer",
+        "filter": [
+          "nori_part_of_speech",
+          "nori_readingform",
+          "lowercase"
+        ]
+      },
+      "nori_with_stopwords": {
+        "type": "custom",
+        "tokenizer": "nori_tokenizer",
+        "filter": [
+          "nori_part_of_speech",
+          "nori_readingform",
+          "lowercase",
+          "club_stopwords"
+        ]
+      }
+    }
+  }
+}
