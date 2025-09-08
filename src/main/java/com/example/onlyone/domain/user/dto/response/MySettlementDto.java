@@ -13,7 +13,7 @@ import java.time.LocalDateTime;
 public class MySettlementDto {
     private Long clubId;
     private Long scheduleId;
-    private int amount;
+    private Long amount;
     private String mainImage;
     private SettlementStatus settlementStatus;
     private String title;
