@@ -29,11 +29,11 @@ public class WalletTransaction extends BaseTimeEntity {
 
     @Column(name = "amount")
     @NotNull
-    private int amount;
+    private Long amount;
 
     @Column(name = "balance")
     @NotNull
-    private int balance;
+    private Long balance;
 
     @Column(name = "status")
     @NotNull
@@ -75,7 +75,7 @@ public class WalletTransaction extends BaseTimeEntity {
         this.walletTransactionStatus = walletTransactionStatus;
     }
 
-    public void update(Type type, int amount, int postedBalance, WalletTransactionStatus walletTransactionStatus, Wallet wallet) {
+    public void update(Type type, Long amount, Long postedBalance, WalletTransactionStatus walletTransactionStatus, Wallet wallet) {
         this.type = type;
         this.amount = amount;
         this.balance = postedBalance;

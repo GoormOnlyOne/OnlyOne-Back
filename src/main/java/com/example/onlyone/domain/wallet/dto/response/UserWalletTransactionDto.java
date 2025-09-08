@@ -17,7 +17,7 @@ public class UserWalletTransactionDto {
     private String title;
     private WalletTransactionStatus status;
     private String mainImage;
-    private int amount;
+    private Long amount;
     private LocalDateTime createdAt;
 
     public static UserWalletTransactionDto from(WalletTransaction walletTransaction, String title, String mainImage) {
