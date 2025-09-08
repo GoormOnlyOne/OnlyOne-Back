@@ -64,3 +64,4 @@ grafana-data
 prometheus-data
 docker-compose.yml
 prometheus.yml
+.my.cnf
