@@ -3,6 +3,7 @@ package com.example.onlyone.global.sse;
 import com.example.onlyone.domain.user.entity.User;
 import com.example.onlyone.domain.user.service.UserService;
 import com.example.onlyone.global.sse.dto.SseConnectionStatusResponseDto;
+import com.example.onlyone.global.common.CommonResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
@@ -11,6 +12,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
@@ -66,7 +68,7 @@ public class SseStreamController {
       security = @SecurityRequirement(name = "bearerAuth")
   )
   @GetMapping("/status")
-  public SseConnectionStatusResponseDto getConnectionStatus(HttpServletRequest request) {
+  public ResponseEntity<CommonResponse<SseConnectionStatusResponseDto>> getConnectionStatus(HttpServletRequest request) {
     // SseAuthenticationFilter에서 캐시된 User 객체 사용 (DB 재조회 방지)
     User currentUser = (User) request.getAttribute("authenticatedUser");
     if (currentUser == null) {
@@ -76,13 +78,15 @@ public class SseStreamController {
     Long userId = currentUser.getUserId();
     boolean isConnected = sseEmittersService.isUserConnected(userId);
     
-    return SseConnectionStatusResponseDto.builder()
+    SseConnectionStatusResponseDto response = SseConnectionStatusResponseDto.builder()
         .userId(userId)
         .connected(isConnected)
         .totalConnections(sseEmittersService.getActiveConnectionCount())
         .lastConnectedAt(sseEmittersService.getLastConnectedTime(userId))
         .connectionDuration(sseEmittersService.getConnectionDuration(userId))
         .build();
+        
+    return ResponseEntity.ok(CommonResponse.success(response));
   }
 
 }

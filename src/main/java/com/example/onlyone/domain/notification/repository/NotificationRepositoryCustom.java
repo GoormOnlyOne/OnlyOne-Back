@@ -43,4 +43,5 @@ public interface NotificationRepositoryCustom {
      * SSE 전송 상태 업데이트
      */
     long updateSseSentStatus(Long notificationId, boolean sent);
+
 }

@@ -22,7 +22,10 @@ import org.springframework.context.annotation.Import;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.Arrays;
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.TimeUnit;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -75,12 +78,15 @@ class NotificationServiceTest {
     class CreateNotification {
         
         @Test
-        @DisplayName("성공")
-        void success() {
+        @DisplayName("동기 생성 성공")
+        void sync_success() {
             // when
-            notificationService.createNotification(testUser, Type.CHAT, "테스트사용자", "안녕하세요");
+            Notification result = notificationService.createNotification(testUser, Type.CHAT, "테스트사용자", "안녕하세요");
 
             // then
+            assertThat(result).isNotNull();
+            assertThat(result.getId()).isNotNull();
+            
             List<Notification> notifications = notificationRepository.findAll();
             assertThat(notifications).hasSize(1);
             
@@ -88,6 +94,65 @@ class NotificationServiceTest {
             assertThat(saved.getUser().getUserId()).isEqualTo(testUser.getUserId());
             assertThat(saved.getNotificationType().getType()).isEqualTo(Type.CHAT);
             assertThat(saved.isRead()).isFalse();
+        }
+        
+        @Test
+        @DisplayName("비동기 생성 성공")
+        void async_success() throws Exception {
+            // when
+            CompletableFuture<Notification> future = notificationService.createNotificationAsync(
+                testUser, Type.CHAT, "비동기 테스트"
+            );
+            
+            // then
+            assertThat(future).isNotNull();
+            Notification result = future.get(5, TimeUnit.SECONDS);
+            assertThat(result).isNotNull();
+            assertThat(result.getId()).isNotNull();
+            
+            // DB 확인 (비동기 처리 대기)
+            Thread.sleep(100);
+            List<Notification> notifications = notificationRepository.findAll();
+            assertThat(notifications).hasSize(1);
+        }
+        
+        @Test
+        @DisplayName("대량 알림 생성 성공")
+        void bulk_success() throws Exception {
+            // given
+            User user2 = createAnotherUser();
+            List<User> users = Arrays.asList(testUser, user2);
+            
+            // when
+            CompletableFuture<Integer> future = notificationService.createBulkNotifications(
+                users, Type.ANNOUNCEMENT, "공지사항"
+            );
+            
+            // then
+            assertThat(future).isNotNull();
+            Integer count = future.get(5, TimeUnit.SECONDS);
+            assertThat(count).isEqualTo(2);
+            
+            // DB 확인 (비동기 처리 대기)
+            Thread.sleep(100);
+            List<Notification> notifications = notificationRepository.findAll();
+            assertThat(notifications).hasSize(2);
+        }
+        
+        @Test
+        @DisplayName("빈 사용자 목록으로 대량 생성")
+        void bulk_emptyUsers() throws Exception {
+            // given
+            List<User> emptyUsers = List.of();
+            
+            // when
+            CompletableFuture<Integer> future = notificationService.createBulkNotifications(
+                emptyUsers, Type.ANNOUNCEMENT, "공지사항"
+            );
+            
+            // then
+            Integer count = future.get(5, TimeUnit.SECONDS);
+            assertThat(count).isEqualTo(0);
         }
     }
 

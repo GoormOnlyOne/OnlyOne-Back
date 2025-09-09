@@ -27,10 +27,4 @@ public interface NotificationTypeRepository extends JpaRepository<NotificationTy
    */
   Optional<NotificationType> findByType(Type type);
   
-  /**
-   * 여러 타입의 NotificationType 조회 (배치 처리용)
-   * @param types 조회할 알림 타입 목록
-   * @return 해당 타입들의 NotificationType 목록
-   */
-  List<NotificationType> findAllByTypeIn(List<Type> types);
 }

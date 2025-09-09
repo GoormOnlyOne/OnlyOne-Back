@@ -26,8 +26,6 @@ public class NotificationType extends BaseTimeEntity {
     @Column(name = "template", nullable = false)
     private String template;
 
-
-
     private NotificationType(Type type, String template) {
         this.type = type;
         this.template = template;
@@ -37,14 +35,12 @@ public class NotificationType extends BaseTimeEntity {
         return new NotificationType(type, template);
     }
 
-
     public String render(String... args) {
         if (args == null || args.length == 0) {
-            return template; //  실행이 에러를 여깃 던지나
+            return template;
         }
-        return String.format(template, (Object[]) args);
 
-        //금액 숫자 -> 문자열로 파싱하는 것에 대한 비용
+        return String.format(template, (Object[]) args);
     }
 
     @Override

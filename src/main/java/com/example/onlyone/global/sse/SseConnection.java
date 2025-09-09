@@ -1,6 +1,7 @@
 package com.example.onlyone.global.sse;
 
 import com.example.onlyone.domain.user.entity.User;
+import java.time.Duration;
 import lombok.Builder;
 import lombok.Getter;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
@@ -25,7 +26,7 @@ public class SseConnection {
      * 연결 지속 시간 (밀리초)
      */
     public long getDuration() {
-        return java.time.Duration.between(connectionTime, LocalDateTime.now()).toMillis();
+        return Duration.between(connectionTime, LocalDateTime.now()).toMillis();
     }
     
     /**

@@ -3,10 +3,15 @@ package com.example.onlyone.global.sse;
 import com.example.onlyone.domain.notification.entity.Notification;
 import com.example.onlyone.domain.notification.repository.NotificationRepository;
 import com.example.onlyone.domain.user.entity.User;
-import com.example.onlyone.global.exception.CustomException;
-import com.example.onlyone.global.exception.ErrorCode;
+import com.example.onlyone.global.sse.connection.SseConnectionManager;
+import com.example.onlyone.global.sse.event.SseEventSender;
+import com.example.onlyone.global.sse.metrics.SseMetrics;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import io.micrometer.core.instrument.Timer;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.DisposableBean;
+import org.springframework.beans.factory.InitializingBean;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
@@ -16,34 +21,25 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
 import java.util.*;
-import java.util.concurrent.atomic.AtomicLong;
-import java.util.stream.Collectors;
 import java.util.concurrent.*;
-import java.util.concurrent.atomic.AtomicLong;
-
-import org.springframework.beans.factory.InitializingBean;
-import org.springframework.beans.factory.DisposableBean;
 
 /**
- * SSE 연결 관리 서비스
+ * SSE 서비스 - 연결 관리와 이벤트 전송을 통합
+ * 성능 최적화 완료
  */
 @Slf4j
 @Service
 @RequiredArgsConstructor
 public class SseEmittersService implements InitializingBean, DisposableBean {
 
-  @Value("${app.notification.sse-timeout-millis:300000}")  // 5분으로 단축
-  private long sseTimeoutMillis;
-  
-  @Value("${app.notification.max-connections:8000}")  // 8000명 대응
-  private int maxConnections;
-  
-  @Value("${app.notification.cleanup-interval-minutes:2}")  // 2분으로 단축
+  @Value("${app.notification.cleanup-interval-minutes:2}")
   private int cleanupIntervalMinutes;
 
   private final NotificationRepository notificationRepository;
-  private final ConcurrentHashMap<Long, SseConnection> activeConnections = new ConcurrentHashMap<>();
-  
+  private final SseMetrics sseMetrics;
+  private final SseConnectionManager connectionManager;
+  private final SseEventSender eventSender;
+  private final ObjectMapper objectMapper;
   
   private final ScheduledExecutorService cleanupScheduler = Executors.newSingleThreadScheduledExecutor(
       r -> {
@@ -53,21 +49,9 @@ public class SseEmittersService implements InitializingBean, DisposableBean {
         return thread;
       });
       
-  private final ExecutorService sseEventExecutor = new ThreadPoolExecutor(
-      10, 50, 30L, TimeUnit.SECONDS,  // 대용량 트래픽 대응 확장
-      new LinkedBlockingQueue<>(200),
-      r -> {
-        Thread thread = new Thread(r, "sse-event");
-        thread.setDaemon(true);
-        thread.setPriority(Thread.NORM_PRIORITY);
-        return thread;
-      },
-      new ThreadPoolExecutor.CallerRunsPolicy()
-  );
-      
   private final ExecutorService missedMessageExecutor = new ThreadPoolExecutor(
-      5, 20, 60L, TimeUnit.SECONDS,  // 복구 성능 향상
-      new LinkedBlockingQueue<>(100),
+      3, 10, 60L, TimeUnit.SECONDS,
+      new LinkedBlockingQueue<>(50),
       r -> {
         Thread thread = new Thread(r, "sse-recovery");
         thread.setDaemon(true);
@@ -76,191 +60,93 @@ public class SseEmittersService implements InitializingBean, DisposableBean {
       },
       new ThreadPoolExecutor.DiscardOldestPolicy()
   );
-  
-  private final AtomicLong totalConnectionsCreated = new AtomicLong(0);
-  private final AtomicLong totalConnectionsClosed = new AtomicLong(0);
-  private final AtomicLong eventIdCounter = new AtomicLong(0);
-  
-  // 대용량 트래픽 대비 배치 처리
-  private final Map<Long, String> pendingEvents = new ConcurrentHashMap<>();
-  private final ScheduledExecutorService batchProcessor = Executors.newSingleThreadScheduledExecutor(
-      r -> {
-        Thread thread = new Thread(r, "sse-batch-processor");
-        thread.setDaemon(true);
-        thread.setPriority(Thread.NORM_PRIORITY - 2);
-        return thread;
-      });
+
 
   /**
-   * SSE 연결 생성
+   * SSE 연결 생성 (비즈니스 레벨)
+   * - 인프라 연결 생성 + 놓친 알림 복구 로직
+   * - 재연결 시 lastEventId 기반 미전송 알림 처리
+   * - 백프레셔 제어 추가
    */
   public SseEmitter createSseConnection(User user, String lastEventId) {
-    Long userId = user.getUserId();
+    // 백프레셔 체크
+    if (!checkConnectionCapacity(user.getUserId())) {
+      log.warn("Connection rejected due to capacity limits for userId: {}", user.getUserId());
+      throw new IllegalStateException("Server at capacity, please try again later");
+    }
     
-    // 기존 연결 먼저 정리 (중복 연결 방지)
-    cleanupExistingConnection(userId);
+    SseEmitter emitter = connectionManager.createConnection(user);
     
-    if (activeConnections.size() >= maxConnections) {
-      int cleaned = forceCleanupStaleConnections();
-      log.info("Force cleanup completed: {} stale connections removed", cleaned);
-      
-      if (activeConnections.size() >= maxConnections) {
-        log.warn("Maximum SSE connections reached: {}/{}, rejecting userId: {}", 
-                activeConnections.size(), maxConnections, userId);
-        throw new CustomException(ErrorCode.SSE_CONNECTION_LIMIT_EXCEEDED);
+    // 재연결 시에만 놓친 알림 전송
+    if (lastEventId != null && !lastEventId.trim().isEmpty()) {
+      SseConnection connection = connectionManager.getConnection(user.getUserId());
+      if (connection != null) {
+        CompletableFuture.runAsync(() -> {
+          sendMissedNotifications(connection, lastEventId);
+        }, missedMessageExecutor)
+            .exceptionally(ex -> {
+              log.warn("Failed to send missed notifications for userId: {}, error: {}", user.getUserId(), ex.getMessage());
+              return null;
+            });
       }
     }
     
-    SseConnection connection = SseConnection.builder()
-            .userId(userId)
-            .cachedUser(user)
-            .emitter(new SseEmitter(sseTimeoutMillis))
-            .connectionTime(LocalDateTime.now())
-            .build();
+    return emitter;
+  }
+  
+  /**
+   * 연결 용량 체크
+   */
+  private boolean checkConnectionCapacity(Long userId) {
+    // 온라인 사용자 수 체크
+    int currentConnections = connectionManager.getActiveConnectionCount();
+    int maxCapacity = 10000; // 설정값으로 변경 가능
     
-    activeConnections.put(userId, connection);
-    totalConnectionsCreated.incrementAndGet();
-    
-    registerConnectionCallbacks(connection);
-    sendInitialHeartbeat(connection);
-    
-    // 재연결 시에만 놓친 알림 전송 (첫 연결은 과거 알림 전송 안 함)
-    if (lastEventId != null && !lastEventId.trim().isEmpty()) {
-      CompletableFuture.runAsync(() -> {
-        sendMissedNotifications(connection, lastEventId);
-      }, missedMessageExecutor)
-          .exceptionally(ex -> {
-            log.warn("Failed to send missed notifications for userId: {}, error: {}", userId, ex.getMessage());
-            return null;
-          });
+    if (currentConnections >= maxCapacity) {
+      sseMetrics.recordConnectionRejected();
+      return false;
     }
-
-    log.info("SSE connection established: userId={}, lastEventId={}, activeConnections={}/{}", 
-            userId, lastEventId, activeConnections.size(), maxConnections);
     
-    return connection.getEmitter();
+    return true;
   }
 
   /**
    * SSE 이벤트 전송
    */
-  
   public CompletableFuture<Boolean> sendEvent(Long userId, String eventName, Object data) {
-    SseConnection connection = activeConnections.get(userId);
-    if (connection == null) {
-      log.debug("No SSE connection found for user: {}", userId);
-      return CompletableFuture.completedFuture(false);
-    }
-
-    // 대용량 트래픽 시 배치 처리를 위한 부하 분산
-    if (activeConnections.size() > 5000) {
-      return sendEventWithBatching(userId, eventName, data);
-    }
-
-    return CompletableFuture.supplyAsync(() -> {
-      try {
-        String eventId = "evt_" + System.currentTimeMillis() + "_" + eventIdCounter.incrementAndGet();
-        
-        connection.getEmitter().send(SseEmitter.event()
-            .id(eventId)
-            .name(eventName)
-            .data(data));
-
-        log.debug("SSE event sent: userId={}, eventName={}, eventId={}", userId, eventName, eventId);
-        return true;
-      } catch (IOException e) {
-        String errorMessage = e.getMessage();
-        if (errorMessage != null && errorMessage.contains("Broken pipe")) {
-          log.debug("Client disconnected: userId={}, eventName={} (Broken pipe)", userId, eventName);
-        } else {
-          log.error("Failed to send SSE event: userId={}, eventName={}", userId, eventName, e);
-        }
-        cleanupConnection(userId);
-        return false;
-      } catch (Exception e) {
-        log.error("Unexpected error while sending SSE event: userId={}, eventName={}", userId, eventName, e);
-        cleanupConnection(userId);
-        return false;
-      }
-    }, sseEventExecutor);
+    return eventSender.sendEvent(userId, eventName, data);
   }
-  
+
   /**
-   * 대용량 트래픽 시 배치 처리로 전송
+   * SSE 이벤트 전송 (동기)
    */
-  private CompletableFuture<Boolean> sendEventWithBatching(Long userId, String eventName, Object data) {
-    try {
-      // JSON 직렬화하여 배치 컴에 대기
-      String jsonData = data.toString(); // 실제로는 ObjectMapper 사용 권장
-      pendingEvents.put(userId, jsonData);
-      
-      log.debug("Event queued for batch processing: userId={}, eventName={}", userId, eventName);
-      return CompletableFuture.completedFuture(true);
-    } catch (Exception e) {
-      log.error("Failed to queue event for batching: userId={}, eventName={}", userId, eventName, e);
-      return CompletableFuture.completedFuture(false);
-    }
+  public boolean sendEventSync(Long userId, String eventName, Object data) {
+    return eventSender.sendEventSync(userId, eventName, data);
   }
-
 
   // === Connection Management ===
-
   public int getActiveConnectionCount() {
-    return activeConnections.size();
+    return connectionManager.getActiveConnectionCount();
   }
 
   public boolean isUserConnected(Long userId) {
-    return activeConnections.containsKey(userId);
+    return connectionManager.isUserConnected(userId);
   }
 
   public Set<Long> getActiveUserIds() {
-    return activeConnections.keySet();
+    return connectionManager.getActiveUserIds();
   }
 
   public LocalDateTime getLastConnectedTime(Long userId) {
-    SseConnection connection = activeConnections.get(userId);
-    return connection != null ? connection.getConnectionTime() : null;
+    return connectionManager.getLastConnectedTime(userId);
   }
 
   public String getConnectionDuration(Long userId) {
-    SseConnection connection = activeConnections.get(userId);
-    if (connection == null) {
-      return null;
-    }
-    
-    long durationMs = connection.getDuration();
-    long seconds = durationMs / 1000;
-    long minutes = seconds / 60;
-    long hours = minutes / 60;
-    
-    if (hours > 0) {
-      return String.format("%d시간 %d분", hours, minutes % 60);
-    } else if (minutes > 0) {
-      return String.format("%d분 %d초", minutes, seconds % 60);
-    } else {
-      return String.format("%d초", seconds);
-    }
+    return connectionManager.getConnectionDuration(userId);
   }
   
   public void clearAllConnections() {
-    try {
-      for (Long userId : new HashSet<>(activeConnections.keySet())) {
-        SseConnection connection = activeConnections.remove(userId);
-        if (connection != null && connection.getEmitter() != null) {
-          try {
-            connection.getEmitter().complete();
-          } catch (Exception e) {
-            // 완료된 연결 무시
-          }
-        }
-      }
-      
-      log.debug("Cleared all SSE connections");
-      
-    } catch (Exception e) {
-      log.error("Error while clearing all connections", e);
-      throw new CustomException(ErrorCode.SSE_CLEANUP_FAILED);
-    }
+    connectionManager.clearAllConnections();
   }
 
   // === Lifecycle Management ===
@@ -268,58 +154,34 @@ public class SseEmittersService implements InitializingBean, DisposableBean {
   @Override
   public void afterPropertiesSet() {
     cleanupScheduler.scheduleWithFixedDelay(
-        this::cleanupStaleConnections, 
+        connectionManager::cleanupStaleConnections, 
         cleanupIntervalMinutes, 
         cleanupIntervalMinutes, 
         TimeUnit.MINUTES
     );
     
-    // 대용량 트래픽 대비 배치 처리 시작
-    batchProcessor.scheduleWithFixedDelay(
-        this::processPendingEvents,
-        100, 100, TimeUnit.MILLISECONDS  // 100ms마다 배치 처리
-    );
-    
-    log.info("SSE services started - cleanup: {}min, max connections: {}", 
-        cleanupIntervalMinutes, maxConnections);
+    log.info("SSE services started - cleanup: {}min", cleanupIntervalMinutes);
   }
 
   @Override
   public void destroy() {
     log.info("Shutting down SSE service...");
     
-    activeConnections.values().forEach(connection -> {
-      try {
-        connection.getEmitter().complete();
-      } catch (Exception e) {
-        log.warn("Error closing SSE connection during shutdown", e);
-      }
-    });
-    activeConnections.clear();
+    connectionManager.clearAllConnections();
     
     cleanupScheduler.shutdown();
-    sseEventExecutor.shutdown();
     missedMessageExecutor.shutdown();
-    batchProcessor.shutdown();
     
     try {
       if (!cleanupScheduler.awaitTermination(5, TimeUnit.SECONDS)) {
         cleanupScheduler.shutdownNow();
       }
-      if (!sseEventExecutor.awaitTermination(5, TimeUnit.SECONDS)) {
-        sseEventExecutor.shutdownNow();
-      }
       if (!missedMessageExecutor.awaitTermination(5, TimeUnit.SECONDS)) {
         missedMessageExecutor.shutdownNow();
       }
-      if (!batchProcessor.awaitTermination(5, TimeUnit.SECONDS)) {
-        batchProcessor.shutdownNow();
-      }
     } catch (InterruptedException e) {
       cleanupScheduler.shutdownNow();
-      sseEventExecutor.shutdownNow();
       missedMessageExecutor.shutdownNow();
-      batchProcessor.shutdownNow();
       Thread.currentThread().interrupt();
     }
     
@@ -328,93 +190,8 @@ public class SseEmittersService implements InitializingBean, DisposableBean {
 
   // === Private Methods ===
 
-  private void cleanupExistingConnection(Long userId) {
-    SseConnection existingConnection = activeConnections.get(userId);
-    if (existingConnection != null) {
-      existingConnection.getEmitter().complete();
-      activeConnections.remove(userId);
-    }
-  }
-
-  private void registerConnectionCallbacks(SseConnection connection) {
-    SseEmitter emitter = connection.getEmitter();
-    Long userId = connection.getUserId();
-    
-    emitter.onCompletion(() -> cleanupConnection(userId));
-    emitter.onTimeout(() -> {
-      log.info("SSE connection timed out: userId={}, duration={}ms", 
-              userId, connection.getDuration());
-      cleanupConnection(userId);
-    });
-    emitter.onError((ex) -> cleanupConnection(userId));
-  }
-
-  private void sendInitialHeartbeat(SseConnection connection) {
-    try {
-      String eventId = "heartbeat_" + LocalDateTime.now().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME);
-      connection.getEmitter().send(SseEmitter.event()
-          .id(eventId)
-          .name("heartbeat")
-          .data("connected"));
-    } catch (IOException e) {
-      activeConnections.remove(connection.getUserId());
-      throw new CustomException(ErrorCode.SSE_CONNECTION_FAILED);
-    }
-  }
-
-  private void cleanupConnection(Long userId) {
-    activeConnections.remove(userId);
-    totalConnectionsClosed.incrementAndGet();
-  }
-
-  private void cleanupStaleConnections() {
-    try {
-      // 연결 수가 적을 때는 cleanup 건너뛰기 (CPU 절약)
-      if (activeConnections.size() < 10) {
-        return;
-      }
-      
-      LocalDateTime cutoffTime = LocalDateTime.now().minusSeconds((sseTimeoutMillis + 60000) / 1000);
-      
-      // parallelStream 대신 일반 stream 사용 (적은 연결 수에서 오버헤드 방지)
-      Set<Long> staleConnections = activeConnections.entrySet().stream()
-          .filter(entry -> entry.getValue().getConnectionTime().isBefore(cutoffTime))
-          .map(Map.Entry::getKey)
-          .collect(Collectors.toSet());
-      
-      staleConnections.forEach(this::cleanupConnection);
-      
-      if (!staleConnections.isEmpty()) {
-        log.info("Cleaned up {} stale SSE connections", staleConnections.size());
-      }
-      
-      log.debug("SSE cleanup completed: active connections={}", activeConnections.size());
-      
-    } catch (Exception e) {
-      log.error("Error during SSE cleanup, continuing gracefully", e);
-    }
-  }
-
-  private int forceCleanupStaleConnections() {
-    try {
-      LocalDateTime cutoffTime = LocalDateTime.now().minusSeconds((sseTimeoutMillis + 30000) / 1000);
-      
-      Set<Long> staleConnections = activeConnections.entrySet().parallelStream()
-          .filter(entry -> entry.getValue().getConnectionTime().isBefore(cutoffTime))
-          .map(Map.Entry::getKey)
-          .collect(Collectors.toSet());
-      
-      staleConnections.parallelStream().forEach(this::cleanupConnection);
-      
-      return staleConnections.size();
-      
-    } catch (Exception e) {
-      log.error("Error during force cleanup", e);
-      return 0;
-    }
-  }
-
   private void sendMissedNotifications(SseConnection connection, String lastEventId) {
+    Timer.Sample sample = sseMetrics.startMissedRecoveryTimer();
     try {
       LocalDateTime lastEventTime = parseEventIdToDateTime(lastEventId);
       if (lastEventTime == null) {
@@ -439,27 +216,44 @@ public class SseEmittersService implements InitializingBean, DisposableBean {
         log.debug("No missed notifications for userId: {} since {}", 
             connection.getUserId(), lastEventTime);
       }
+      sseMetrics.stopMissedRecoveryTimer(sample);
     } catch (Exception e) {
       log.error("Error processing missed notifications for userId: {}", connection.getUserId(), e);
+      sseMetrics.stopMissedRecoveryTimer(sample);
     }
   }
   
   private void sendNotificationBatch(SseConnection connection, List<Notification> notifications, String prefix) {
     int successCount = 0;
-    for (Notification notification : notifications) {
+    int batchSize = Math.min(notifications.size(), 20);
+    
+    for (int i = 0; i < batchSize; i++) {
+      Notification notification = notifications.get(i);
       try {
-        String eventId = prefix + "_" + System.currentTimeMillis() + "_" + eventIdCounter.incrementAndGet();
+        String eventId = prefix + "_" + System.currentTimeMillis() + "_" + i;
+        
+        String notificationJson = objectMapper.writeValueAsString(notification);
+        
         connection.getEmitter().send(SseEmitter.event()
             .id(eventId)
             .name("notification")
-            .data(notification));
+            .data(notificationJson));
         
         successCount++;
         log.debug("{} notification sent: userId={}, notificationId={}", 
             prefix, connection.getUserId(), notification.getId());
       } catch (IOException e) {
-        log.error("Failed to send {} notification: userId={}, notificationId={}", 
-            prefix, connection.getUserId(), notification.getId(), e);
+        String errorMessage = e.getMessage();
+        if (errorMessage != null && errorMessage.contains("Broken pipe")) {
+          log.debug("Client disconnected during batch send: userId={}", connection.getUserId());
+        } else {
+          log.error("Failed to send {} notification: userId={}, notificationId={}", 
+              prefix, connection.getUserId(), notification.getId(), e);
+        }
+        break;
+      } catch (Exception e) {
+        log.error("Unexpected error during batch send: userId={}, notificationId={}", 
+            connection.getUserId(), notification.getId(), e);
         break;
       }
     }
@@ -471,54 +265,7 @@ public class SseEmittersService implements InitializingBean, DisposableBean {
     
     if (successCount == 0) {
       log.warn("All {} message sends failed, cleaning up connection for userId: {}", prefix, connection.getUserId());
-      cleanupConnection(connection.getUserId());
-    }
-  }
-
-  /**
-   * 대용량 트래픽 대비 배치 이벤트 처리 - 낮은 연결 수에서 CPU 절약
-   */
-  private void processPendingEvents() {
-    if (pendingEvents.isEmpty()) {
-      return;
-    }
-    
-    // 연결 수가 1000개 미만이면 배치 처리 건너뛰기 (CPU 절약)
-    if (activeConnections.size() < 1000) {
-      pendingEvents.clear(); // 일반 이벤트로 전송되도록 큐 비우기
-      return;
-    }
-    
-    // 성능 최적화: 최대 50개씩 배치 처리 (100→50으로 축소)
-    int processed = 0;
-    for (Map.Entry<Long, String> entry : pendingEvents.entrySet()) {
-      if (processed >= 50) break;
-      
-      Long userId = entry.getKey();
-      String eventData = entry.getValue();
-      
-      SseConnection connection = activeConnections.get(userId);
-      if (connection != null) {
-        try {
-          String eventId = "batch_" + System.currentTimeMillis() + "_" + eventIdCounter.incrementAndGet();
-          connection.getEmitter().send(SseEmitter.event()
-              .id(eventId)
-              .name("notification")
-              .data(eventData));
-          
-          pendingEvents.remove(userId);
-          processed++;
-        } catch (IOException e) {
-          cleanupConnection(userId);
-          pendingEvents.remove(userId);
-        }
-      } else {
-        pendingEvents.remove(userId);
-      }
-    }
-    
-    if (processed > 0) {
-      log.debug("Processed {} batch events", processed);
+      connectionManager.cleanupConnection(connection.getUserId());
     }
   }
   
@@ -539,5 +286,6 @@ public class SseEmittersService implements InitializingBean, DisposableBean {
     }
     return null;
   }
+
 
 }

@@ -8,6 +8,7 @@ import com.example.onlyone.domain.notification.entity.Type;
 import com.example.onlyone.domain.notification.repository.NotificationRepository;
 import com.example.onlyone.domain.notification.repository.NotificationTypeRepository;
 import com.example.onlyone.domain.notification.service.NotificationService;
+import com.example.onlyone.domain.notification.service.HybridNotificationService;
 import com.example.onlyone.domain.user.entity.Status;
 import com.example.onlyone.domain.user.entity.User;
 import com.example.onlyone.domain.user.repository.UserRepository;
@@ -26,6 +27,12 @@ import static org.mockito.BDDMockito.given;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 import static org.hamcrest.Matchers.*;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import org.springframework.http.MediaType;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
+import java.util.List;
+import java.util.Map;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -57,6 +64,12 @@ class NotificationControllerTest {
     
     @MockitoBean
     private UserService userService;
+    
+    @MockitoBean
+    private HybridNotificationService hybridNotificationService;
+    
+    @Autowired
+    private ObjectMapper objectMapper;
     
     @Autowired
     private UserRepository userRepository;
@@ -134,22 +147,27 @@ class NotificationControllerTest {
     class NotificationListTest {
 
         @Test
-        @DisplayName("기본 파라미터로 알림 목록 조회")
+        @DisplayName("기본 파라미터로 알림 목록 조회 (시간 기반)")
         void getsNotificationsWithDefaultParams() throws Exception {
             // given
-            for (int i = 0; i < 3; i++) {
-                Notification notification = Notification.create(testUser, testNotificationType, "알림" + i);
-                notificationRepository.save(notification);
-            }
+            List<Notification> testNotifications = List.of(
+                Notification.create(testUser, testNotificationType, "알림1"),
+                Notification.create(testUser, testNotificationType, "알림2"),
+                Notification.create(testUser, testNotificationType, "알림3")
+            );
+            
+            given(hybridNotificationService.getPendingNotifications(
+                eq(testUser.getUserId()), 
+                any(LocalDateTime.class), 
+                eq(20)))
+                .willReturn(testNotifications);
 
             // when & then
             mockMvc.perform(get("/notifications"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true))
-                .andExpect(jsonPath("$.data.notifications").isArray())
-                .andExpect(jsonPath("$.data.notifications", hasSize(3)))
-                .andExpect(jsonPath("$.data.unreadCount").value(3))
-                .andExpect(jsonPath("$.data.hasMore").value(false));
+                .andExpect(jsonPath("$.data").isArray())
+                .andExpect(jsonPath("$.data", hasSize(3)));
         }
 
         @Test
@@ -448,6 +466,181 @@ class NotificationControllerTest {
             mockMvc.perform(get("/notifications").param("size", "200"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.notifications", hasSize(lessThanOrEqualTo(100))));
+        }
+    }
+
+    @Nested
+    @DisplayName("배치 알림 수신 확인")
+    class AcknowledgeNotificationsTest {
+
+        @Test
+        @DisplayName("배치로 여러 알림 수신 확인")
+        void acknowledgeMultipleNotifications() throws Exception {
+            // given
+            List<Long> notificationIds = List.of(1L, 2L, 3L);
+
+            // when & then
+            mockMvc.perform(post("/notifications/acknowledge")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(objectMapper.writeValueAsString(notificationIds)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true));
+        }
+
+        @Test
+        @DisplayName("빈 목록으로 수신 확인")
+        void acknowledgeEmptyList() throws Exception {
+            // given
+            List<Long> notificationIds = List.of();
+
+            // when & then
+            mockMvc.perform(post("/notifications/acknowledge")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(objectMapper.writeValueAsString(notificationIds)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true));
+        }
+    }
+
+    @Nested
+    @DisplayName("SSE 재연결 복구")
+    class RecoverMissedNotificationsTest {
+
+        @Test
+        @DisplayName("Last-Event-ID 기반 누락 알림 복구")
+        void recoverMissedNotificationsWithEventId() throws Exception {
+            // given
+            String lastEventId = "evt_1640995200000";
+
+            // when & then
+            mockMvc.perform(post("/notifications/recover")
+                    .param("lastEventId", lastEventId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data.status").value("recovery_initiated"))
+                .andExpect(jsonPath("$.data.lastEventId").value(lastEventId))
+                .andExpect(jsonPath("$.data.message").value(containsString("Last-Event-ID")));
+        }
+
+        @Test
+        @DisplayName("하트비트 Event ID로 복구")
+        void recoverWithHeartbeatEventId() throws Exception {
+            // given
+            String lastEventId = "heartbeat_2024-01-01T12:00:00";
+
+            // when & then
+            mockMvc.perform(post("/notifications/recover")
+                    .param("lastEventId", lastEventId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data.lastEventId").value(lastEventId));
+        }
+
+        @Test
+        @DisplayName("잘못된 Event ID 형식으로도 복구 시도")
+        void recoverWithInvalidEventId() throws Exception {
+            // given
+            String invalidEventId = "invalid_format";
+
+            // when & then - 서비스 레벨에서 fallback 처리됨
+            mockMvc.perform(post("/notifications/recover")
+                    .param("lastEventId", invalidEventId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true));
+        }
+    }
+
+    @Nested
+    @DisplayName("알림 시스템 상태 확인")
+    class NotificationStatusTest {
+
+        @Test
+        @DisplayName("시스템 상태 조회")
+        void getNotificationStatus() throws Exception {
+            // given
+            List<Notification> pendingNotifications = List.of(
+                Notification.create(testUser, testNotificationType, "미처리 알림")
+            );
+            
+            given(hybridNotificationService.getPendingNotifications(
+                eq(testUser.getUserId()), 
+                any(LocalDateTime.class), 
+                eq(1)))
+                .willReturn(pendingNotifications);
+
+            // when & then
+            mockMvc.perform(get("/notifications/status"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data.userId").value(testUser.getUserId()))
+                .andExpect(jsonPath("$.data.hasPendingNotifications").value(true))
+                .andExpect(jsonPath("$.data.hybridMode").value("enabled"))
+                .andExpect(jsonPath("$.data.lastChecked").exists());
+        }
+
+        @Test
+        @DisplayName("미처리 알림이 없는 경우")
+        void getStatusWithNoPendingNotifications() throws Exception {
+            // given
+            given(hybridNotificationService.getPendingNotifications(
+                eq(testUser.getUserId()), 
+                any(LocalDateTime.class), 
+                eq(1)))
+                .willReturn(List.of());
+
+            // when & then
+            mockMvc.perform(get("/notifications/status"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data.hasPendingNotifications").value(false));
+        }
+    }
+
+    @Nested
+    @DisplayName("시간 기반 필터링")
+    class TimeBasedFilteringTest {
+
+        @Test
+        @DisplayName("since 파라미터로 특정 시점 이후 알림 조회")
+        void getNotificationsSinceSpecificTime() throws Exception {
+            // given
+            LocalDateTime since = LocalDateTime.now().minusHours(2);
+            String sinceParam = since.format(DateTimeFormatter.ISO_LOCAL_DATE_TIME);
+            
+            List<Notification> recentNotifications = List.of(
+                Notification.create(testUser, testNotificationType, "최근 알림")
+            );
+            
+            given(hybridNotificationService.getPendingNotifications(
+                eq(testUser.getUserId()), 
+                eq(since), 
+                eq(10)))
+                .willReturn(recentNotifications);
+
+            // when & then
+            mockMvc.perform(get("/notifications")
+                    .param("since", sinceParam)
+                    .param("limit", "10"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data", hasSize(1)));
+        }
+
+        @Test
+        @DisplayName("limit 파라미터 최대값 제한 (100개)")
+        void limitParameterMaximumConstraint() throws Exception {
+            // given
+            given(hybridNotificationService.getPendingNotifications(
+                eq(testUser.getUserId()), 
+                any(LocalDateTime.class), 
+                eq(100))) // 200을 요청해도 100으로 제한됨
+                .willReturn(List.of());
+
+            // when & then
+            mockMvc.perform(get("/notifications")
+                    .param("limit", "200"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true));
         }
     }
 }

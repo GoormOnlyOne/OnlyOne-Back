@@ -11,11 +11,9 @@ import java.util.Objects;
 
 @Entity
 @Table(name = "notification", indexes = {
-    @Index(name = "idx_notification_user_created", columnList = "user_id, created_at DESC, notification_id DESC"),
-    @Index(name = "idx_notification_user_read", columnList = "user_id, is_read"),
-    @Index(name = "idx_notification_user_type_created", columnList = "user_id, type_id, created_at DESC"),
-    @Index(name = "idx_notification_sse_failed", columnList = "user_id, sse_sent"),
-    @Index(name = "idx_notification_created_at", columnList = "created_at")
+    @Index(name = "idx_notification_user_id_cursor", columnList = "user_id, notification_id DESC"),
+    @Index(name = "idx_notification_user_unread_created", columnList = "user_id, is_read, created_at DESC"),
+    @Index(name = "idx_notification_user_read_bulk", columnList = "user_id, is_read")
 })
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
@@ -74,9 +72,6 @@ public class Notification extends BaseTimeEntity {
     public boolean isSseSent() {
         return sseSent;
     }
-
-
-
 
     @Override
     public boolean equals(Object obj) {
