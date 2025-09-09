@@ -24,6 +24,7 @@ import org.springframework.transaction.event.TransactionalEventListener;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.StructuredTaskScope;
 
 @Component
 @RequiredArgsConstructor
@@ -51,22 +52,31 @@ public class SettlementProcessEventListener {
     private void processSettlementWithRetry(SettlementProcessEvent event) {
         int maxRetries = 3;
         int retryDelay = 1000;
-        for (int attempt = 1; attempt <= maxRetries; attempt++) {
-            try {
-                processSettlement(event);
-                return; // 성공 시 리턴
-            } catch (Exception e) {
-                log.warn("Settlement attempt {} failed for settlementId: {}", attempt, event.getSettlementId(), e);
-                if (attempt == maxRetries) {
-                    throw e; // 마지막 시도에서 실패하면 예외를 다시 던짐
+
+        try (var scope = new StructuredTaskScope.ShutdownOnFailure()) {
+            scope.fork(() -> {
+                for (int attempt = 1; attempt <= maxRetries; attempt++) {
+                    try {
+                        processSettlement(event);
+                        return null; // 성공 시
+                    } catch (Exception e) {
+                        log.warn("Settlement attempt {} failed for settlementId: {}", attempt, event.getSettlementId(), e);
+                        if (attempt == maxRetries) throw e;
+
+                        try {
+                            Thread.sleep(retryDelay * attempt);
+                        } catch (InterruptedException ie) {
+                            Thread.currentThread().interrupt();
+                            throw new RuntimeException("Interrupted during retry", ie);
+                        }
+                    }
                 }
-                try {
-                    Thread.sleep(retryDelay * attempt); // 백오프 지연
-                } catch (InterruptedException ie) {
-                    Thread.currentThread().interrupt();
-                    throw new RuntimeException("Interrupted during retry", ie);
-                }
-            }
+                return null;
+            });
+            scope.join();
+            scope.throwIfFailed();
+        } catch (Exception e) {
+            throw new RuntimeException("Settlement processing failed after retries", e);
         }
     }
 

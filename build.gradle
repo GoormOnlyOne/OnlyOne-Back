@@ -30,7 +30,6 @@ dependencyManagement {
     }
 }
 
-
 dependencies {
     implementation 'org.springframework.boot:spring-boot-starter-security'
     implementation 'org.springframework.boot:spring-boot-starter-web'
@@ -38,40 +37,53 @@ dependencies {
     implementation 'org.springframework.boot:spring-boot-starter-validation'
     implementation 'org.springframework.boot:spring-boot-starter-logging'
     implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:2.7.0'
+
+    // Lombok (컴파일 + 테스트 모두 지원)
     compileOnly 'org.projectlombok:lombok'
+    annotationProcessor 'org.projectlombok:lombok'
+    testCompileOnly 'org.projectlombok:lombok'
+    testAnnotationProcessor 'org.projectlombok:lombok'
+
     developmentOnly 'org.springframework.boot:spring-boot-devtools'
     runtimeOnly 'com.mysql:mysql-connector-j'
     runtimeOnly 'com.h2database:h2'
-    annotationProcessor 'org.projectlombok:lombok'
+
     testImplementation 'org.springframework.boot:spring-boot-starter-test'
     testImplementation 'org.springframework.security:spring-security-test'
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
     testImplementation 'com.h2database:h2'
+
+    // Jwt
     implementation 'io.jsonwebtoken:jjwt-api:0.11.5'
     runtimeOnly  'io.jsonwebtoken:jjwt-impl:0.11.5'
     runtimeOnly  'io.jsonwebtoken:jjwt-jackson:0.11.5'
-    // Jwt
     implementation group: 'com.auth0', name: 'java-jwt', version: '3.14.0'
-    // Oauth2
     implementation 'org.springframework.boot:spring-boot-starter-oauth2-client'
     implementation 'io.jsonwebtoken:jjwt-api:0.12.4'
     runtimeOnly 'io.jsonwebtoken:jjwt-impl:0.12.4'
     runtimeOnly 'io.jsonwebtoken:jjwt-jackson:0.12.4'
+
     // OpenFeign
     implementation 'org.springframework.cloud:spring-cloud-starter-openfeign'
     implementation 'io.github.openfeign:feign-jackson'
-    //websocket
+
+    // websocket, actuator
     implementation 'org.springframework.boot:spring-boot-starter-websocket'
     implementation 'org.springframework.boot:spring-boot-starter-actuator'
     implementation 'org.springframework.boot:spring-boot-starter'
-    //fcm
+
+    // fcm
     implementation 'com.google.firebase:firebase-admin:9.5.0'
+
     // S3
     implementation 'software.amazon.awssdk:s3:2.32.11'
+
     // Redis
     implementation 'org.springframework.boot:spring-boot-starter-data-redis'
+
     testImplementation 'org.testcontainers:junit-jupiter'
     testImplementation 'org.testcontainers:testcontainers'
+
     // jpa 쿼리 확인
     implementation 'com.github.gavlyukovskiy:p6spy-spring-boot-starter:1.9.0'
 
@@ -86,11 +98,12 @@ dependencies {
     runtimeOnly 'io.micrometer:micrometer-registry-prometheus'
 }
 
-// QueryDSL 설정 (수정됨)
+// QueryDSL 설정
 def querydslDir = layout.buildDirectory.dir('generated/querydsl')
 
 tasks.withType(JavaCompile).configureEach {
     options.generatedSourceOutputDirectory = querydslDir
+    options.compilerArgs += ["--enable-preview"] // ✅ StructuredTaskScope 활성화
 }
 
 sourceSets {
@@ -105,15 +118,21 @@ clean {
     delete querydslDir
 }
 
-// 나머지는 기존과 동일
+// test task preview 옵션 추가
 tasks.named('test') {
     useJUnitPlatform()
     finalizedBy jacocoTestReport
+    jvmArgs += "--enable-preview" // ✅ test 시 preview 활성화
 
     // notification 관련 테스트 임시 제외
     exclude '**/AppNotificationControllerTest.class'
     exclude '**/FcmServiceTest.class'
     exclude '**/AppNotificationTypeRepositoryTest.class'
+}
+
+// bootRun도 preview 활성화
+tasks.named("bootRun") {
+    jvmArgs("--enable-preview")
 }
 
 jacoco {
@@ -133,7 +152,7 @@ jacocoTestReport {
         html.outputLocation = layout.buildDirectory.dir('jacocoHtml')
         xml.outputLocation = layout.buildDirectory.file('jacoco/jacoco.xml')
     }
-    
+
     // 제외할 패키지/클래스 설정
     afterEvaluate {
         classDirectories.setFrom(files(classDirectories.files.collect {

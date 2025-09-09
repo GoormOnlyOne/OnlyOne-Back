@@ -54,27 +54,6 @@ public class SettlementService {
     private final WalletService walletService;
     private final ApplicationEventPublisher eventPublisher;
 
-//    /* 정산 Status를 REQUESTED -> COMPLETED로 스케줄링 (낙관적 락 적용)*/
-//    @Scheduled(cron = "0 0 0 * * *")
-//    @Transactional
-//    public void updateTotalStatusIfAllCompleted() {
-//        List<Settlement> settlements = settlementRepository.findAllByTotalStatus(TotalStatus.REQUESTED);
-//        for (Settlement settlement : settlements) {
-//            long totalCount = userSettlementRepository.countBySettlement(settlement);
-//            long completedCount = userSettlementRepository.countBySettlementAndSettlementStatus(settlement, SettlementStatus.COMPLETED);
-//            User leader = userScheduleRepository.findLeaderByScheduleAndScheduleRole(settlement.getSchedule(), ScheduleRole.LEADER)
-//                    .orElseThrow(() -> new CustomException(ErrorCode.LEADER_NOT_FOUND));
-//            // 모든 정산이 완료된 경우
-//            if (totalCount > 0 && totalCount == completedCount) {
-//                settlement.update(TotalStatus.COMPLETED, LocalDateTime.now());
-//                settlementRepository.save(settlement);
-//                settlement.getSchedule().updateStatus(ScheduleStatus.CLOSED);
-//                // 정산 리더에게 완료 알림
-//                notificationService.createNotification(leader, Type.SETTLEMENT, new String[]{String.valueOf(settlement.getSum())});
-//            }
-//        }
-//    }
-
     @Transactional(rollbackFor = Exception.class)
     public void automaticSettlement(Long clubId, Long scheduleId) {
         // 현재 사용자 조회
@@ -93,7 +72,7 @@ public class SettlementService {
         Settlement settlement = settlementRepository.findBySchedule(schedule)
                 .orElseThrow(() -> new CustomException(ErrorCode.SETTLEMENT_NOT_FOUND));
         // 참여자 수
-        Long userCount = userSettlementRepository.countBySettlement(settlement);
+        long userCount = userSettlementRepository.countBySettlement(settlement);
 
         // 가격이 0원이거나 참여자가 리더 1명인 경우 → 스케줄 종료 처리
         if (schedule.getCost() == 0 || userCount == 0) {
@@ -115,8 +94,7 @@ public class SettlementService {
         // 참가자 ID 목록 조회 (리더 제외, HOLD_ACTIVE 상태만)
         List<Long> targetUserIds =
                 userSettlementRepository.findAllUserSettlementIdsBySettlementIdAndStatus(
-                        settlement.getSettlementId(), SettlementStatus.HOLD_ACTIVE
-                );
+                        settlement.getSettlementId(), SettlementStatus.HOLD_ACTIVE);
 
         // 스케줄 저장
         scheduleRepository.save(schedule);
@@ -136,20 +114,6 @@ public class SettlementService {
                 totalAmount,
                 targetUserIds
         ));
-    }
-
-
-
-    /* 트랜잭션 롤백 후 실패 로그를 기록하기 위한 메서드*/
-    protected void registerFailureLogAfterRollback(long wId, long lwId, long amount,
-                                                   long usId, long wBal, long lwBal) {
-        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
-            @Override public void afterCompletion(int status) {
-                if (status == STATUS_ROLLED_BACK) {
-                    walletService.createFailedWalletTransactions(wId, lwId, amount, usId, wBal, lwBal);
-                }
-            }
-        });
     }
 
     /* 스케줄 참여자 정산 목록 조회 */
