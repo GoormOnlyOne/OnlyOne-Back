@@ -162,25 +162,25 @@ public class SearchService {
     }
 
     // 키워드 검색 결과 가입 상태와 함께 변환
-    private List<ClubResponseDto> convertKeywordSearchResultsWithJoinStatus(List<Object[]> results, List<Long> joinedClubIds) {
-        return results.stream().map(result -> {
-            Long clubId = ((Number) result[0]).longValue();
-            String categoryName = (String) result[5];
-            String koreanCategoryName = Category.valueOf(categoryName).getKoreanName();
-            boolean isJoined = joinedClubIds.contains(clubId);
-            
-            return ClubResponseDto.builder()
-                    .clubId(clubId)
-                    .name((String) result[1])
-                    .description((String) result[2])
-                    .district((String) result[3])
-                    .image((String) result[4])
-                    .interest(koreanCategoryName)
-                    .memberCount((Long) result[6])
-                    .isJoined(isJoined)
-                    .build();
-        }).toList();
-    }
+//    private List<ClubResponseDto> convertKeywordSearchResultsWithJoinStatus(List<Object[]> results, List<Long> joinedClubIds) {
+//        return results.stream().map(result -> {
+//            Long clubId = ((Number) result[0]).longValue();
+//            String categoryName = (String) result[5];
+//            String koreanCategoryName = Category.valueOf(categoryName).getKoreanName();
+//            boolean isJoined = joinedClubIds.contains(clubId);
+//
+//            return ClubResponseDto.builder()
+//                    .clubId(clubId)
+//                    .name((String) result[1])
+//                    .description((String) result[2])
+//                    .district((String) result[3])
+//                    .image((String) result[4])
+//                    .interest(koreanCategoryName)
+//                    .memberCount((Long) result[6])
+//                    .isJoined(isJoined)
+//                    .build();
+//        }).toList();
+//    }
 
     // 엔티티 -> DTO 가입 상태와 함께 변환
     private List<ClubResponseDto> convertToClubResponseDtoWithJoinStatus(List<Object[]> results, List<Long> joinedClubIds) {
