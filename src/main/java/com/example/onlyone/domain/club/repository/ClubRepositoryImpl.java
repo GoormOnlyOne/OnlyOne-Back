@@ -143,24 +143,40 @@ public class ClubRepositoryImpl implements ClubRepositoryCustom {
     @Override
     public List<Object[]> searchByUserInterestAndLocation(List<Long> interestIds, String city, String district, Long userId, Pageable pageable) {
         QUserClub excludeUserClub = new QUserClub("excludeUserClub");
+        BooleanBuilder whereCondition = new BooleanBuilder();
+
+        // 안전한 interestIds 처리
+        if (interestIds != null && !interestIds.isEmpty()) {
+            whereCondition.and(club.interest.interestId.in(interestIds));
+        }
+
+        // 안전한 city 처리
+        if (city != null && !city.trim().isEmpty()) {
+            whereCondition.and(club.city.eq(city));
+        }
+
+        // 안전한 district 처리
+        if (district != null && !district.trim().isEmpty()) {
+            whereCondition.and(club.district.eq(district));
+        }
+
+        // 안전한 userId 처리
+        if (userId != null) {
+            whereCondition.and(
+                JPAExpressions.selectOne()
+                        .from(excludeUserClub)
+                        .where(
+                                excludeUserClub.club.clubId.eq(club.clubId)
+                                        .and(excludeUserClub.user.userId.eq(userId))
+                        )
+                        .notExists()
+            );
+        }
 
         return queryFactory
                 .select(club)
                 .from(club)
-                .where(
-                        club.interest.interestId.in(interestIds)
-                                .and(club.city.eq(city))
-                                .and(club.district.eq(district))
-                                .and(
-                                        JPAExpressions.selectOne()
-                                                .from(excludeUserClub)
-                                                .where(
-                                                        excludeUserClub.club.clubId.eq(club.clubId)
-                                                                .and(excludeUserClub.user.userId.eq(userId))
-                                                )
-                                                .notExists()
-                                )
-                )
+                .where(whereCondition)
                 .orderBy(club.memberCount.desc(), club.createdAt.desc())
                 .offset(pageable.getOffset())
                 .limit(pageable.getPageSize())
@@ -206,10 +222,17 @@ public class ClubRepositoryImpl implements ClubRepositoryCustom {
 
     @Override
     public List<Object[]> searchByInterest(Long interestId, Pageable pageable) {
+        BooleanBuilder whereCondition = new BooleanBuilder();
+        
+        // 안전한 interestId 처리
+        if (interestId != null) {
+            whereCondition.and(club.interest.interestId.eq(interestId));
+        }
+        
         return queryFactory
                 .select(club)
                 .from(club)
-                .where(club.interest.interestId.eq(interestId))
+                .where(whereCondition)
                 .orderBy(club.memberCount.desc(), club.createdAt.desc())
                 .offset(pageable.getOffset())
                 .limit(pageable.getPageSize())
@@ -224,10 +247,22 @@ public class ClubRepositoryImpl implements ClubRepositoryCustom {
 
     @Override
     public List<Object[]> searchByLocation(String city, String district, Pageable pageable) {
+        BooleanBuilder whereCondition = new BooleanBuilder();
+        
+        // 안전한 city 처리
+        if (city != null && !city.trim().isEmpty()) {
+            whereCondition.and(club.city.eq(city));
+        }
+        
+        // 안전한 district 처리
+        if (district != null && !district.trim().isEmpty()) {
+            whereCondition.and(club.district.eq(district));
+        }
+        
         return queryFactory
                 .select(club)
                 .from(club)
-                .where(club.city.eq(city).and(club.district.eq(district)))
+                .where(whereCondition)
                 .orderBy(club.memberCount.desc(), club.createdAt.desc())
                 .offset(pageable.getOffset())
                 .limit(pageable.getPageSize())
