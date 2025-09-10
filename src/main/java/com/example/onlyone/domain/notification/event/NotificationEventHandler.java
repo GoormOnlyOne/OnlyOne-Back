@@ -3,8 +3,7 @@ package com.example.onlyone.domain.notification.event;
 import com.example.onlyone.domain.notification.dto.event.NotificationCreatedEvent;
 import com.example.onlyone.domain.notification.entity.Notification;
 import com.example.onlyone.domain.notification.repository.NotificationRepository;
-import com.example.onlyone.global.sse.SseEmittersService;
-import com.example.onlyone.global.sse.metrics.SseMetrics;
+import com.example.onlyone.global.sse.service.SseEmittersService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Async;
@@ -24,7 +23,6 @@ import org.springframework.transaction.event.TransactionalEventListener;
 public class NotificationEventHandler {
 
     private final SseEmittersService sseEmittersService;
-    private final SseMetrics sseMetrics;
     private final NotificationRepository notificationRepository;
 
     /**
@@ -48,7 +46,6 @@ public class NotificationEventHandler {
         } catch (Exception e) {
             log.error("알림 전송 중 오류 발생: id={}, userId={}", 
                     notification.getId(), userId, e);
-            sseMetrics.recordNotificationFailed();
         }
     }
 
@@ -66,7 +63,6 @@ public class NotificationEventHandler {
             .thenAccept(success -> {
                 if (success) {
                     updateSseSentStatus(notification, true);
-                    sseMetrics.recordNotificationSent();
                     log.debug("SSE 알림 전송 성공: userId={}, notificationId={}", userId, notification.getId());
                 } else {
                     log.debug("사용자 미연결, DB만 저장됨: userId={}", userId);
@@ -74,8 +70,7 @@ public class NotificationEventHandler {
             })
             .exceptionally(ex -> {
                 log.debug("SSE 전송 실패, 재연결 시 전송됨: userId={}, error={}", userId, ex.getMessage());
-                sseMetrics.recordNotificationFailed();
-                return null;
+                    return null;
             });
     }
 

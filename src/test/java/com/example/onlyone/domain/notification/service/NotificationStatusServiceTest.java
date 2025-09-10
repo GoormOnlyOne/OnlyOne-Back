@@ -53,16 +53,13 @@ class NotificationStatusServiceTest {
     @BeforeEach
     void setUp() {
         testUser = User.builder()
-                .email("test@example.com")
-                .name("테스트사용자")
+                .kakaoId(12345L)
+                .nickname("테스트사용자")
                 .status(Status.ACTIVE)
                 .build();
         userRepository.save(testUser);
 
-        testNotificationType = NotificationType.builder()
-                .type(Type.MENTION)
-                .template("멘션 알림입니다")
-                .build();
+        testNotificationType = NotificationType.of(Type.COMMENT, "멘션 알림입니다");
         notificationTypeRepository.save(testNotificationType);
 
         testNotification = Notification.create(testUser, testNotificationType, "테스트 알림");
@@ -117,8 +114,8 @@ class NotificationStatusServiceTest {
     void markAsRead_WithUnauthorizedUser_ThrowsException() {
         // given
         User otherUser = User.builder()
-                .email("other@example.com")
-                .name("다른사용자")
+                .kakaoId(12346L)
+                .nickname("다른사용자")
                 .status(Status.ACTIVE)
                 .build();
         userRepository.save(otherUser);

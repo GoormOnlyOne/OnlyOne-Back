@@ -10,7 +10,7 @@ import com.example.onlyone.domain.user.entity.Status;
 import com.example.onlyone.domain.user.entity.User;
 import com.example.onlyone.domain.user.repository.UserRepository;
 import com.example.onlyone.domain.notification.dto.event.NotificationCreatedEvent;
-import com.example.onlyone.global.sse.SseEmittersService;
+import com.example.onlyone.global.sse.service.SseEmittersService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -95,7 +95,8 @@ class NotificationEventHandlerTest {
             
             // when
             NotificationCreatedEvent event = new NotificationCreatedEvent(notification);
-            notificationService.handleNotificationCreated(event);
+            // Use direct notification creation instead of deprecated event handler
+            notificationService.createNotification(testUser, Type.CHAT, "테스트 메시지").join();
 
             // then
             verify(sseEmittersService, timeout(2000)).sendEvent(eq(testUser.getUserId()), eq("notification"), eq(notification));
@@ -110,7 +111,8 @@ class NotificationEventHandlerTest {
             
             // when
             NotificationCreatedEvent event = new NotificationCreatedEvent(likeNotification);
-            notificationService.handleNotificationCreated(event);
+            // Use direct notification creation instead of deprecated event handler
+            notificationService.createNotification(testUser, Type.CHAT, "테스트 메시지").join();
 
             // then
             verify(sseEmittersService, timeout(2000)).sendEvent(eq(testUser.getUserId()), eq("notification"), eq(likeNotification));
@@ -127,7 +129,8 @@ class NotificationEventHandlerTest {
             
             // when
             NotificationCreatedEvent event = new NotificationCreatedEvent(notification);
-            notificationService.handleNotificationCreated(event);
+            // Use direct notification creation instead of deprecated event handler
+            notificationService.createNotification(testUser, Type.CHAT, "테스트 메시지").join();
 
             // then
             verify(sseEmittersService, timeout(2000)).sendEvent(eq(testUser.getUserId()), eq("notification"), eq(notification));
@@ -144,7 +147,8 @@ class NotificationEventHandlerTest {
 
             // when
             NotificationCreatedEvent event = new NotificationCreatedEvent(notification);
-            notificationService.handleNotificationCreated(event);
+            // Use direct notification creation instead of deprecated event handler
+            notificationService.createNotification(testUser, Type.CHAT, "테스트 메시지").join();
 
             // then
             verify(sseEmittersService, timeout(3000)).sendEvent(eq(testUser.getUserId()), eq("notification"), eq(notification));

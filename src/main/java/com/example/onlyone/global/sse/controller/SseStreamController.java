@@ -4,6 +4,7 @@ import com.example.onlyone.domain.user.entity.User;
 import com.example.onlyone.domain.user.service.UserService;
 import com.example.onlyone.global.sse.dto.SseConnectionStatusResponseDto;
 import com.example.onlyone.global.common.CommonResponse;
+import com.example.onlyone.global.sse.service.SseEmittersService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;

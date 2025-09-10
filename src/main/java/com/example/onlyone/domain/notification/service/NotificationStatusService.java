@@ -4,7 +4,6 @@ import com.example.onlyone.domain.notification.entity.Notification;
 import com.example.onlyone.domain.notification.repository.NotificationRepository;
 import com.example.onlyone.global.exception.CustomException;
 import com.example.onlyone.global.exception.ErrorCode;
-import com.example.onlyone.global.sse.metrics.SseMetrics;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Async;
@@ -21,7 +20,6 @@ import org.springframework.transaction.annotation.Transactional;
 public class NotificationStatusService {
 
     private final NotificationRepository notificationRepository;
-    private final SseMetrics sseMetrics;
 
     /**
      * 알림 읽음 처리
@@ -31,7 +29,7 @@ public class NotificationStatusService {
         Notification notification = findNotification(notificationId);
         validateNotificationOwnership(notification, userId);
         notification.markAsRead();
-        sseMetrics.recordNotificationMarkedRead();
+        // Notification marked as read
     }
 
     /**
@@ -51,9 +49,7 @@ public class NotificationStatusService {
             
             if (markedCount > 0) {
                 log.debug("Marked {} notifications as read for user: {}", markedCount, userId);
-                for (int i = 0; i < markedCount; i++) {
-                    sseMetrics.recordNotificationMarkedRead();
-                }
+                // All notifications marked as read
             }
         } catch (Exception e) {
             log.error("Failed to mark all notifications as read: userId={}", userId, e);
@@ -70,7 +66,7 @@ public class NotificationStatusService {
         validateNotificationOwnership(notification, userId);
 
         notificationRepository.delete(notification);
-        sseMetrics.recordNotificationDeleted();
+        // Notification deleted
 
         log.info("Notification deleted: id={}", notificationId);
     }

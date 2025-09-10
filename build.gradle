@@ -74,8 +74,8 @@ dependencies {
     implementation 'org.springframework.boot:spring-boot-starter-data-redis'
     testImplementation 'org.testcontainers:junit-jupiter'
     testImplementation 'org.testcontainers:testcontainers'
-    // jpa 쿼리 확인
-    implementation 'com.github.gavlyukovskiy:p6spy-spring-boot-starter:1.9.0'
+    // jpa 쿼리 확인 (일시적 비활성화 - Jaeger와 충돌)
+    // implementation 'com.github.gavlyukovskiy:p6spy-spring-boot-starter:1.9.0'
 
     // querydsl
     implementation "com.querydsl:querydsl-jpa:${querydslVersion}:jakarta"
@@ -85,6 +85,15 @@ dependencies {
 
     // 모니터링 (중복 제거됨)
     runtimeOnly 'io.micrometer:micrometer-registry-prometheus'
+    
+    // OpenTelemetry + Jaeger 트레이싱
+    implementation 'io.micrometer:micrometer-tracing-bridge-otel'
+    implementation 'io.opentelemetry:opentelemetry-exporter-otlp'
+    implementation 'io.opentelemetry:opentelemetry-sdk-extension-jaeger-remote-sampler'
+    implementation 'io.micrometer:micrometer-tracing'
+    
+    // 추가 메트릭 및 트레이싱
+    implementation 'net.ttddyy.observation:datasource-micrometer-spring-boot:1.0.5'
 }
 
 // QueryDSL 설정 (수정됨)

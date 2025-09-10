@@ -2,8 +2,6 @@ package com.example.onlyone.global.sse.event;
 
 import com.example.onlyone.global.sse.SseConnection;
 import com.example.onlyone.global.sse.connection.SseConnectionManager;
-import com.example.onlyone.global.sse.metrics.SseMetrics;
-import io.micrometer.core.instrument.Timer;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -23,7 +21,6 @@ import java.util.concurrent.atomic.AtomicLong;
 public class SseEventSender {
 
     private final SseConnectionManager connectionManager;
-    private final SseMetrics sseMetrics;
     private final Executor sseEventExecutor;
     private final AtomicLong eventIdCounter = new AtomicLong(0);
     
@@ -33,10 +30,8 @@ public class SseEventSender {
     private static final String WRITE_ERROR_MSG = "An existing connection was forcibly closed";
 
     public SseEventSender(SseConnectionManager connectionManager, 
-                         SseMetrics sseMetrics, 
                          @Qualifier("sseEventExecutor") Executor sseEventExecutor) {
         this.connectionManager = connectionManager;
-        this.sseMetrics = sseMetrics;
         this.sseEventExecutor = sseEventExecutor;
     }
 
@@ -69,7 +64,7 @@ public class SseEventSender {
     }
     
     private boolean sendEventInternal(SseConnection connection, Long userId, String eventName, Object data) {
-        Timer.Sample sample = sseMetrics.startEventSendTimer();
+        long startTime = System.currentTimeMillis();
         try {
             if (isDataTooLarge(data)) {
                 log.warn("Event data too large: userId={}, eventName={}, truncating", userId, eventName);
@@ -83,23 +78,27 @@ public class SseEventSender {
                 .name(eventName)
                 .data(data));
 
-            sseMetrics.stopEventSendTimer(sample);
-            sseMetrics.recordEventSent();
-            log.debug("SSE event sent: userId={}, eventName={}, eventId={}", userId, eventName, eventId);
+            long duration = System.currentTimeMillis() - startTime;
+            log.debug("SSE event sent: userId={}, eventName={}, eventId={}, duration={}ms", userId, eventName, eventId, duration);
             return true;
         } catch (IOException e) {
-            handleIOException(e, userId, eventName, sample);
+            handleIOException(e, userId, eventName, startTime);
+            return false;
+        } catch (IllegalStateException e) {
+            // ResponseBodyEmitter already completed 예외 처리
+            log.debug("Emitter already completed for userId: {}, event: {}", userId, eventName);
+            long duration = System.currentTimeMillis() - startTime;
+            connectionManager.cleanupConnection(userId);
             return false;
         } catch (Exception e) {
             log.error("Unexpected error while sending SSE event: userId={}, eventName={}", userId, eventName, e);
-            sseMetrics.stopEventSendTimer(sample);
-            sseMetrics.recordEventFailed();
+            long duration = System.currentTimeMillis() - startTime;
             connectionManager.cleanupConnection(userId);
             return false;
         }
     }
     
-    private void handleIOException(IOException e, Long userId, String eventName, Timer.Sample sample) {
+    private void handleIOException(IOException e, Long userId, String eventName, long startTime) {
         String errorMessage = e.getMessage();
         boolean isClientDisconnect = errorMessage != null && 
             (errorMessage.contains(BROKEN_PIPE_MSG) || 
@@ -112,8 +111,7 @@ public class SseEventSender {
             log.error("Failed to send SSE event: userId={}, eventName={}", userId, eventName, e);
         }
         
-        sseMetrics.stopEventSendTimer(sample);
-        sseMetrics.recordEventFailed();
+        // Connection error handled
         connectionManager.cleanupConnection(userId);
     }
     

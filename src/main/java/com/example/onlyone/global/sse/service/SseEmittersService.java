@@ -1,13 +1,12 @@
-package com.example.onlyone.global.sse;
+package com.example.onlyone.global.sse.service;
 
 import com.example.onlyone.domain.notification.entity.Notification;
 import com.example.onlyone.domain.notification.repository.NotificationRepository;
 import com.example.onlyone.domain.user.entity.User;
 import com.example.onlyone.global.sse.connection.SseConnectionManager;
 import com.example.onlyone.global.sse.event.SseEventSender;
-import com.example.onlyone.global.sse.metrics.SseMetrics;
+import com.example.onlyone.global.sse.SseConnection;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import io.micrometer.core.instrument.Timer;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.DisposableBean;
@@ -36,7 +35,6 @@ public class SseEmittersService implements InitializingBean, DisposableBean {
   private int cleanupIntervalMinutes;
 
   private final NotificationRepository notificationRepository;
-  private final SseMetrics sseMetrics;
   private final SseConnectionManager connectionManager;
   private final SseEventSender eventSender;
   private final ObjectMapper objectMapper;
@@ -103,7 +101,6 @@ public class SseEmittersService implements InitializingBean, DisposableBean {
     int maxCapacity = 10000; // 설정값으로 변경 가능
     
     if (currentConnections >= maxCapacity) {
-      sseMetrics.recordConnectionRejected();
       return false;
     }
     
@@ -191,11 +188,11 @@ public class SseEmittersService implements InitializingBean, DisposableBean {
   // === Private Methods ===
 
   private void sendMissedNotifications(SseConnection connection, String lastEventId) {
-    Timer.Sample sample = sseMetrics.startMissedRecoveryTimer();
+    long startTime = System.currentTimeMillis();
     try {
       LocalDateTime lastEventTime = parseEventIdToDateTime(lastEventId);
       if (lastEventTime == null) {
-        log.warn("Invalid lastEventId format, skipping missed notifications: {}", lastEventId);
+        log.debug("Invalid lastEventId format, skipping missed notifications: {}", lastEventId);
         return;
       }
       
@@ -216,10 +213,12 @@ public class SseEmittersService implements InitializingBean, DisposableBean {
         log.debug("No missed notifications for userId: {} since {}", 
             connection.getUserId(), lastEventTime);
       }
-      sseMetrics.stopMissedRecoveryTimer(sample);
+      long duration = System.currentTimeMillis() - startTime;
+      log.debug("Missed recovery completed in {}ms", duration);
     } catch (Exception e) {
       log.error("Error processing missed notifications for userId: {}", connection.getUserId(), e);
-      sseMetrics.stopMissedRecoveryTimer(sample);
+      long duration = System.currentTimeMillis() - startTime;
+      log.debug("Missed recovery failed after {}ms", duration);
     }
   }
   
@@ -280,9 +279,19 @@ public class SseEmittersService implements InitializingBean, DisposableBean {
       } else if (eventId.startsWith("heartbeat_")) {
         String dateTimePart = eventId.substring("heartbeat_".length());
         return LocalDateTime.parse(dateTimePart, DateTimeFormatter.ISO_LOCAL_DATE_TIME);
+      } else {
+        // 단순 숫자나 기타 형식의 경우 - 최근 1시간으로 처리
+        try {
+          // 숫자인지 확인
+          Long.parseLong(eventId);
+          log.debug("Using simple eventId format, defaulting to 1 hour ago: {}", eventId);
+          return LocalDateTime.now().minusHours(1);
+        } catch (NumberFormatException ignored) {
+          // 숫자가 아닌 알 수 없는 형식
+        }
       }
     } catch (DateTimeParseException | NumberFormatException e) {
-      log.warn("Failed to parse eventId: {}, error: {}", eventId, e.getMessage());
+      log.debug("Failed to parse eventId: {}, error: {}", eventId, e.getMessage());
     }
     return null;
   }

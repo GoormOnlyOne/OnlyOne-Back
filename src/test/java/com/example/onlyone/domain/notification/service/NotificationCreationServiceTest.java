@@ -59,16 +59,13 @@ class NotificationCreationServiceTest {
     @BeforeEach
     void setUp() {
         testUser = User.builder()
-                .email("test@example.com")
-                .name("테스트사용자")
+                .kakaoId(12345L)
+                .nickname("테스트사용자")
                 .status(Status.ACTIVE)
                 .build();
         userRepository.save(testUser);
 
-        testNotificationType = NotificationType.builder()
-                .type(Type.MENTION)
-                .template("멘션 알림입니다")
-                .build();
+        testNotificationType = NotificationType.of(Type.COMMENT, "멘션 알림입니다");
         notificationTypeRepository.save(testNotificationType);
     }
 
@@ -77,13 +74,13 @@ class NotificationCreationServiceTest {
     void createNotification_Success() {
         // when
         Notification notification = notificationCreationService.createNotification(
-                testUser, Type.MENTION, "테스트 메시지"
+                testUser, Type.COMMENT, "테스트 메시지"
         );
 
         // then
         assertThat(notification).isNotNull();
         assertThat(notification.getUser()).isEqualTo(testUser);
-        assertThat(notification.getNotificationType().getType()).isEqualTo(Type.MENTION);
+        assertThat(notification.getNotificationType().getType()).isEqualTo(Type.COMMENT);
         assertThat(notification.isRead()).isFalse();
 
         // 이벤트 발행 확인
@@ -96,8 +93,8 @@ class NotificationCreationServiceTest {
     void createBulkNotifications_Success() {
         // given
         User user2 = User.builder()
-                .email("test2@example.com")
-                .name("테스트사용자2")
+                .kakaoId(12346L)
+                .nickname("테스트사용자2")
                 .status(Status.ACTIVE)
                 .build();
         userRepository.save(user2);
@@ -105,7 +102,7 @@ class NotificationCreationServiceTest {
         List<User> users = List.of(testUser, user2);
 
         // when
-        notificationCreationService.createBulkNotifications(users, Type.MENTION, "대량 알림");
+        notificationCreationService.createBulkNotifications(users, Type.COMMENT, "대량 알림");
 
         // then
         List<Notification> notifications = notificationRepository.findAll();
@@ -124,7 +121,7 @@ class NotificationCreationServiceTest {
 
         // when & then
         assertThatThrownBy(() -> notificationCreationService.createNotification(
-                testUser, Type.MENTION, "테스트 메시지"
+                testUser, Type.COMMENT, "테스트 메시지"
         )).isInstanceOf(CustomException.class);
     }
 }

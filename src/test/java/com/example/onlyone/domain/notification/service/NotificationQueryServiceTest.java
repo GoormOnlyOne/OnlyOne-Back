@@ -51,16 +51,13 @@ class NotificationQueryServiceTest {
     @BeforeEach
     void setUp() {
         testUser = User.builder()
-                .email("test@example.com")
-                .name("테스트사용자")
+                .kakaoId(12345L)
+                .nickname("테스트사용자")
                 .status(Status.ACTIVE)
                 .build();
         userRepository.save(testUser);
 
-        testNotificationType = NotificationType.builder()
-                .type(Type.MENTION)
-                .template("멘션 알림입니다")
-                .build();
+        testNotificationType = NotificationType.of(Type.COMMENT, "멘션 알림입니다");
         notificationTypeRepository.save(testNotificationType);
     }
 

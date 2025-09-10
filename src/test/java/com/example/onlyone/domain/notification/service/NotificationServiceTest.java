@@ -81,7 +81,7 @@ class NotificationServiceTest {
         @DisplayName("동기 생성 성공")
         void sync_success() {
             // when
-            Notification result = notificationService.createNotification(testUser, Type.CHAT, "테스트사용자", "안녕하세요");
+            Notification result = notificationService.createNotification(testUser, Type.CHAT, "테스트사용자", "안녕하세요").join();
 
             // then
             assertThat(result).isNotNull();
@@ -100,7 +100,7 @@ class NotificationServiceTest {
         @DisplayName("비동기 생성 성공")
         void async_success() throws Exception {
             // when
-            CompletableFuture<Notification> future = notificationService.createNotificationAsync(
+            CompletableFuture<Notification> future = notificationService.createNotification(
                 testUser, Type.CHAT, "비동기 테스트"
             );
             
@@ -124,17 +124,19 @@ class NotificationServiceTest {
             List<User> users = Arrays.asList(testUser, user2);
             
             // when
-            CompletableFuture<Integer> future = notificationService.createBulkNotifications(
-                users, Type.ANNOUNCEMENT, "공지사항"
+            List<CompletableFuture<Notification>> futures = notificationService.createBulkNotifications(
+                users, Type.SETTLEMENT, "공지사항"
             );
             
             // then
-            assertThat(future).isNotNull();
-            Integer count = future.get(5, TimeUnit.SECONDS);
-            assertThat(count).isEqualTo(2);
+            assertThat(futures).isNotNull();
+            assertThat(futures).hasSize(2);
             
-            // DB 확인 (비동기 처리 대기)
-            Thread.sleep(100);
+            // Wait for all to complete
+            CompletableFuture<Void> allOf = CompletableFuture.allOf(futures.toArray(new CompletableFuture[0]));
+            allOf.get(5, TimeUnit.SECONDS);
+            
+            // DB 확인
             List<Notification> notifications = notificationRepository.findAll();
             assertThat(notifications).hasSize(2);
         }
@@ -146,13 +148,12 @@ class NotificationServiceTest {
             List<User> emptyUsers = List.of();
             
             // when
-            CompletableFuture<Integer> future = notificationService.createBulkNotifications(
-                emptyUsers, Type.ANNOUNCEMENT, "공지사항"
+            List<CompletableFuture<Notification>> futures = notificationService.createBulkNotifications(
+                emptyUsers, Type.SETTLEMENT, "공지사항"
             );
             
             // then
-            Integer count = future.get(5, TimeUnit.SECONDS);
-            assertThat(count).isEqualTo(0);
+            assertThat(futures).isEmpty();
         }
     }
 

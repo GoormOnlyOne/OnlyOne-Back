@@ -4,7 +4,6 @@ import com.example.onlyone.domain.user.entity.User;
 import com.example.onlyone.global.exception.CustomException;
 import com.example.onlyone.global.exception.ErrorCode;
 import com.example.onlyone.global.sse.SseConnection;
-import com.example.onlyone.global.sse.metrics.SseMetrics;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -33,7 +32,6 @@ public class SseConnectionManager {
     @Value("${app.notification.max-connections:5000}")
     private int maxConnections;
 
-    private final SseMetrics sseMetrics;
     private final ConcurrentHashMap<Long, SseConnection> activeConnections = new ConcurrentHashMap<>();
     private final AtomicLong totalConnectionsCreated = new AtomicLong(0);
     private final AtomicLong totalConnectionsClosed = new AtomicLong(0);
@@ -55,7 +53,7 @@ public class SseConnectionManager {
             if (activeConnections.size() >= maxConnections) {
                 log.warn("Maximum SSE connections reached: {}/{}, rejecting userId: {}", 
                         activeConnections.size(), maxConnections, userId);
-                sseMetrics.recordMaxConnectionsReached();
+                // Max connections reached
                 throw new CustomException(ErrorCode.SSE_CONNECTION_LIMIT_EXCEEDED);
             }
         }
@@ -69,9 +67,11 @@ public class SseConnectionManager {
         
         activeConnections.put(userId, connection);
         totalConnectionsCreated.incrementAndGet();
-        sseMetrics.incrementActiveConnections();
+        // Active connections incremented
         
         registerConnectionCallbacks(connection);
+        
+        // 초기 heartbeat 전송 (예외 발생 시 내부에서 처리)
         sendInitialHeartbeat(connection);
         
         log.info("SSE connection established: userId={}, activeConnections={}/{}", 
@@ -86,7 +86,7 @@ public class SseConnectionManager {
     public void cleanupConnection(Long userId) {
         activeConnections.remove(userId);
         totalConnectionsClosed.incrementAndGet();
-        sseMetrics.decrementActiveConnections();
+        // Active connections decremented
     }
 
     /**
@@ -245,11 +245,11 @@ public class SseConnectionManager {
         emitter.onTimeout(() -> {
             log.info("SSE connection timed out: userId={}, duration={}ms", 
                     userId, connection.getDuration());
-            sseMetrics.recordConnectionTimeout();
+            // Connection timeout recorded
             cleanupConnection(userId);
         });
         emitter.onError((ex) -> {
-            sseMetrics.recordConnectionError();
+            // Connection error recorded
             cleanupConnection(userId);
         });
     }
@@ -262,8 +262,13 @@ public class SseConnectionManager {
                     .name("heartbeat")
                     .data("{\"status\":\"connected\",\"timestamp\":" + System.currentTimeMillis() + "}"));
         } catch (IOException e) {
+            log.warn("Failed to send initial heartbeat for userId: {}, error: {}", connection.getUserId(), e.getMessage());
             activeConnections.remove(connection.getUserId());
             throw new CustomException(ErrorCode.SSE_CONNECTION_FAILED);
+        } catch (IllegalStateException e) {
+            log.warn("Emitter already completed for userId: {}, skipping heartbeat", connection.getUserId());
+            activeConnections.remove(connection.getUserId());
+            // 이미 완료된 경우 예외 발생하지 않고 조용히 처리
         }
     }
 }

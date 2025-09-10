@@ -9,6 +9,7 @@ import com.example.onlyone.domain.notification.repository.NotificationTypeReposi
 import com.example.onlyone.domain.user.entity.Status;
 import com.example.onlyone.domain.user.entity.User;
 import com.example.onlyone.domain.user.repository.UserRepository;
+import com.example.onlyone.global.sse.service.SseEmittersService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -68,14 +69,14 @@ class SseEmittersServiceIntegrationTest {
         
         // 테스트 사용자 생성
         testUser = User.builder()
-                .email("test@example.com")
-                .name("테스트사용자")
+                .kakaoId(12345L)
+                .nickname("테스트사용자")
                 .status(Status.ACTIVE)
                 .build();
         testUser = userRepository.save(testUser);
         
         // 테스트 알림 타입 생성
-        testNotificationType = NotificationType.of(Type.MENTION, "멘션 알림: {0}");
+        testNotificationType = NotificationType.of(Type.COMMENT, "멘션 알림: {0}");
         testNotificationType = notificationTypeRepository.save(testNotificationType);
     }
     
@@ -130,8 +131,8 @@ class SseEmittersServiceIntegrationTest {
         void clearAllConnections_Success() {
             // given
             User user2 = User.builder()
-                    .email("test2@example.com")
-                    .name("테스트사용자2")
+                    .kakaoId(12346L)
+                    .nickname("테스트사용자2")
                     .status(Status.ACTIVE)
                     .build();
             user2 = userRepository.save(user2);
@@ -239,8 +240,8 @@ class SseEmittersServiceIntegrationTest {
             List<User> users = new ArrayList<>();
             for (int i = 0; i < userCount; i++) {
                 User user = User.builder()
-                        .email("concurrent" + i + "@example.com")
-                        .name("동시사용자" + i)
+                        .kakaoId(10000L + i)
+                        .nickname("동시사용자" + i)
                         .status(Status.ACTIVE)
                         .build();
                 users.add(userRepository.save(user));
@@ -308,8 +309,8 @@ class SseEmittersServiceIntegrationTest {
         void getActiveUserIds_Success() {
             // given
             User user2 = User.builder()
-                    .email("test2@example.com")
-                    .name("테스트사용자2")
+                    .kakaoId(12346L)
+                    .nickname("테스트사용자2")
                     .status(Status.ACTIVE)
                     .build();
             user2 = userRepository.save(user2);

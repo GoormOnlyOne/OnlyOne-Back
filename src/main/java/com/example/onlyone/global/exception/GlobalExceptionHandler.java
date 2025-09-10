@@ -267,6 +267,36 @@ public class GlobalExceptionHandler {
     }
 
     /**
+     * SSE Broken pipe 및 클라이언트 연결 중단 예외 처리
+     * 클라이언트가 SSE 연결을 중단할 때 발생하는 예외들을 조용히 처리
+     */
+    @ExceptionHandler({
+        org.springframework.web.context.request.async.AsyncRequestNotUsableException.class,
+        org.apache.catalina.connector.ClientAbortException.class,
+        java.io.IOException.class
+    })
+    public ResponseEntity<Void> handleClientDisconnection(Exception e, HttpServletRequest request) {
+        String uri = request.getRequestURI();
+        String method = request.getMethod();
+        
+        // Broken pipe, ClientAbortException 등은 DEBUG 레벨로 로깅 (정상적인 클라이언트 연결 중단)
+        if (e.getMessage() != null && 
+            (e.getMessage().contains("Broken pipe") || 
+             e.getMessage().contains("Connection reset") ||
+             e.getMessage().contains("ClientAbortException"))) {
+            log.debug("클라이언트 연결 중단 [{}] {} - {}: {}", 
+                     method, uri, e.getClass().getSimpleName(), e.getMessage());
+        } else {
+            // 기타 IOException은 WARN으로 로깅
+            log.warn("클라이언트 통신 오류 [{}] {} - {}: {}", 
+                    method, uri, e.getClass().getSimpleName(), e.getMessage());
+        }
+        
+        // 빈 응답 반환 (클라이언트가 이미 연결을 끊었으므로)
+        return ResponseEntity.status(HttpStatus.NO_CONTENT).build();
+    }
+
+    /**
      * 서버 내부 오류 처리
      * 위의 모든 핸들러에서 처리되지 않은 예외를 처리하는 기본 핸들러입니다.
      * 주로 예상치 못한 서버 내부 오류가 발생했을 때 실행됩니다.

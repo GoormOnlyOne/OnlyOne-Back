@@ -5,10 +5,11 @@ import com.example.onlyone.domain.notification.entity.Notification;
 import com.example.onlyone.domain.notification.entity.NotificationType;
 import com.example.onlyone.domain.notification.entity.Type;
 import com.example.onlyone.domain.notification.repository.NotificationRepository;
+import com.example.onlyone.domain.notification.repository.NotificationTypeRepository;
 import com.example.onlyone.domain.user.entity.User;
 import com.example.onlyone.global.exception.CustomException;
 import com.example.onlyone.global.exception.ErrorCode;
-import com.example.onlyone.global.sse.SseEmittersService;
+import com.example.onlyone.global.sse.service.SseEmittersService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.context.ApplicationEventPublisher;
@@ -28,20 +29,20 @@ import org.springframework.transaction.annotation.Transactional;
 public class NotificationCreationService {
 
     private final NotificationRepository notificationRepository;
-    private final NotificationTypeCacheService notificationTypeCacheService;
+    private final NotificationTypeRepository notificationTypeRepository;
     private final ApplicationEventPublisher eventPublisher;
     private final SseEmittersService sseEmittersService;
     private final Executor dbTaskExecutor;
     private final Executor sseEventExecutor;
 
     public NotificationCreationService(NotificationRepository notificationRepository,
-                                     NotificationTypeCacheService notificationTypeCacheService, 
+                                     NotificationTypeRepository notificationTypeRepository, 
                                      ApplicationEventPublisher eventPublisher,
                                      SseEmittersService sseEmittersService,
                                      @Qualifier("dbTaskExecutor") Executor dbTaskExecutor,
                                      @Qualifier("sseEventExecutor") Executor sseEventExecutor) {
         this.notificationRepository = notificationRepository;
-        this.notificationTypeCacheService = notificationTypeCacheService;
+        this.notificationTypeRepository = notificationTypeRepository;
         this.eventPublisher = eventPublisher;
         this.sseEmittersService = sseEmittersService;
         this.dbTaskExecutor = dbTaskExecutor;
@@ -60,7 +61,8 @@ public class NotificationCreationService {
     public Notification createNotification(User user, Type type, String... args) {
         try {
             // 1. 알림 타입 조회
-            NotificationType notificationType = notificationTypeCacheService.findByType(type);
+            NotificationType notificationType = notificationTypeRepository.findByType(type)
+                .orElseThrow(() -> new CustomException(ErrorCode.NOTIFICATION_TYPE_NOT_FOUND));
             
             // 2. 알림 엔티티 생성 및 저장
             Notification notification = createAndSaveNotification(user, notificationType, args);
@@ -92,7 +94,8 @@ public class NotificationCreationService {
     public CompletableFuture<Notification> createNotificationAsync(User user, Type type, String... args) {
         try {
             // 1. 알림 타입 조회
-            NotificationType notificationType = notificationTypeCacheService.findByType(type);
+            NotificationType notificationType = notificationTypeRepository.findByType(type)
+                .orElseThrow(() -> new CustomException(ErrorCode.NOTIFICATION_TYPE_NOT_FOUND));
             
             // 2. 알림 엔티티 생성 및 저장
             Notification notification = createAndSaveNotification(user, notificationType, args);
@@ -123,8 +126,9 @@ public class NotificationCreationService {
      */
     public CompletableFuture<Notification> createNotificationOptimized(User user, Type type, String... args) {
         try {
-            // 1. 알림 타입 조회 (로컬 캐시)
-            NotificationType notificationType = notificationTypeCacheService.findByType(type);
+            // 1. 알림 타입 조회
+            NotificationType notificationType = notificationTypeRepository.findByType(type)
+                .orElseThrow(() -> new CustomException(ErrorCode.NOTIFICATION_TYPE_NOT_FOUND));
             
             // 2. DB 저장 (비동기) - 트랜잭션은 Repository 레벨에서 처리됨
             CompletableFuture<Notification> dbFuture = CompletableFuture
@@ -169,7 +173,8 @@ public class NotificationCreationService {
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public CompletableFuture<Integer> createBulkNotifications(Iterable<User> users, Type type, String... args) {
         try {
-            NotificationType notificationType = notificationTypeCacheService.findByType(type);
+            NotificationType notificationType = notificationTypeRepository.findByType(type)
+                .orElseThrow(() -> new CustomException(ErrorCode.NOTIFICATION_TYPE_NOT_FOUND));
             int count = 0;
             
             for (User user : users) {
