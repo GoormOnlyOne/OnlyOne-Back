@@ -1,4 +1,7 @@
 {
+  "number_of_shards": 5,
+  "number_of_replicas": 1,
+  "max_result_window": 50000,
   "analysis": {
     "tokenizer": {
       "nori_tokenizer": {
@@ -20,7 +23,9 @@
       },
       "club_synonyms": {
         "type": "synonym",
-        "synonyms_path": "analysis/club-synonyms.txt"
+        "synonyms_path": "analysis/club-synonyms.txt",
+        "updateable": true,
+        "lenient": true
       }
     },
     "analyzer": {
@@ -33,14 +38,15 @@
           "lowercase"
         ]
       },
-      "nori_with_stopwords": {
+      "club_analyzer": {
         "type": "custom",
         "tokenizer": "nori_tokenizer",
         "filter": [
           "nori_part_of_speech",
           "nori_readingform",
           "lowercase",
-          "club_stopwords"
+          "club_stopwords",
+          "club_synonyms"
         ]
       }
     }

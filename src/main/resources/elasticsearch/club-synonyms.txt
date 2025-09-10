@@ -34,3 +34,4 @@ IT,프로그래밍,programming,개발
 부동산,realestate
 주식,stock,증권
 암호화폐,cryptocurrency,코인,비트코인
+클럽,모임,동호회,club

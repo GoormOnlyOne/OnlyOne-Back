@@ -15,6 +15,7 @@ import com.fasterxml.jackson.annotation.JsonFormat;
 
 @Document(indexName = "clubs")
 @Setting(settingPath = "/elasticsearch/club-settings.json")
+@Mapping(mappingPath = "/elasticsearch/club-mapping.json")
 @Getter
 @NoArgsConstructor
 @AllArgsConstructor
@@ -24,10 +25,10 @@ public class ClubDocument {
     @Id
     private Long clubId;
 
-    @Field(type = FieldType.Text, searchAnalyzer = "nori_with_stopwords")
+    @Field(type = FieldType.Text, searchAnalyzer = "club_analyzer")
     private String name;
 
-    @Field(type = FieldType.Text, searchAnalyzer = "nori_with_stopwords")
+    @Field(type = FieldType.Text, searchAnalyzer = "club_analyzer")
     private String description;
 
     @Field(type = FieldType.Keyword)
@@ -56,7 +57,7 @@ public class ClubDocument {
     @JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm:ss[.SSSSSS][.SSS]")
     private LocalDateTime createdAt;
 
-    @Field(type = FieldType.Text, searchAnalyzer = "nori_with_stopwords")
+    @Field(type = FieldType.Text, searchAnalyzer = "club_analyzer")
     private String searchText;
 
     public static ClubDocument from(Club club) {
