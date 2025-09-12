@@ -57,6 +57,7 @@ public class ClubService {
                 .clubRole(ClubRole.LEADER)
                 .build();
         userClubRepository.save(userClub);
+        club.incrementMemberCount();
         // 모임 전체 채팅방 생성
         ChatRoom chatRoom = ChatRoom.builder()
                 .club(club)
@@ -129,6 +130,7 @@ public class ClubService {
                 .clubRole(ClubRole.MEMBER)
                 .build();
         userClubRepository.save(userClub);
+        club.incrementMemberCount();
 
         ChatRoom chatRoom = chatRoomRepository.findByTypeAndClub_ClubId(Type.CLUB, clubId)
                 .orElseThrow(() -> new CustomException(ErrorCode.CHAT_ROOM_NOT_FOUND));
@@ -154,5 +156,6 @@ public class ClubService {
             throw new CustomException(ErrorCode.CLUB_LEADER_NOT_LEAVE);
         }
         userClubRepository.delete(userClub);
+        club.decrementMemberCount();
     }
 }
