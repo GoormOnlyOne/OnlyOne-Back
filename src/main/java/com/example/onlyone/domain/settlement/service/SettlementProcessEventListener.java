@@ -13,6 +13,8 @@ import com.example.onlyone.domain.wallet.repository.WalletRepository;
 import com.example.onlyone.domain.wallet.service.WalletService;
 import com.example.onlyone.global.exception.CustomException;
 import com.example.onlyone.global.exception.ErrorCode;
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.PersistenceContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Async;
@@ -38,8 +40,11 @@ public class SettlementProcessEventListener {
     private final SettlementRepository settlementRepository;
     private final ScheduleRepository scheduleRepository;
     private final UserRepository userRepository;
+    @PersistenceContext
+    private EntityManager em;
 
-    @Async("settlementExecutor") // 별도 스레드풀
+
+    @Async("settlementExecutor") // 가상스레드 기반 처리
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     public void handleSettlementProcess(SettlementProcessEvent event) {
         try {
@@ -53,7 +58,7 @@ public class SettlementProcessEventListener {
         int maxRetries = 3;
         int retryDelay = 1000;
 
-        try (var scope = new StructuredTaskScope.ShutdownOnFailure()) {
+        try (StructuredTaskScope.ShutdownOnFailure scope = new StructuredTaskScope.ShutdownOnFailure("settlement", Thread.ofVirtual().factory())) {
             scope.fork(() -> {
                 for (int attempt = 1; attempt <= maxRetries; attempt++) {
                     try {
@@ -73,6 +78,7 @@ public class SettlementProcessEventListener {
                 }
                 return null;
             });
+            // 구조적 동시성: 모든 서브태스크 종료 대기 후 실패면 예외 전파
             scope.join();
             scope.throwIfFailed();
         } catch (Exception e) {
@@ -80,6 +86,7 @@ public class SettlementProcessEventListener {
         }
     }
 
+    @Transactional
     public void processSettlement(SettlementProcessEvent event) {
         List<Long> processedParticipants = new ArrayList<>();
         long totalProcessedAmount = 0;
@@ -93,19 +100,14 @@ public class SettlementProcessEventListener {
             }
             // 모든 참가자 처리 완료 후 리더에게 가산
             userSettlementService.creditToLeader(event.getLeaderId(), totalProcessedAmount);
-            // 모두 성공한 경우
             Schedule completedSchedule = scheduleRepository.findById(event.getScheduleId())
                     .orElseThrow(() -> new CustomException(ErrorCode.SCHEDULE_NOT_FOUND));
+            completedSchedule.updateStatus(ScheduleStatus.CLOSED);
+            scheduleRepository.save(completedSchedule);
             Settlement completedSettlement = settlementRepository.findById(event.getSettlementId())
                     .orElseThrow(() -> new CustomException(ErrorCode.SETTLEMENT_NOT_FOUND));
             completedSettlement.update(TotalStatus.COMPLETED, LocalDateTime.now());
-            completedSchedule.updateStatus(ScheduleStatus.CLOSED);
             settlementRepository.save(completedSettlement);
-            scheduleRepository.save(completedSchedule);
-//            notificationService.createNotification(
-//                    user,
-//                    Type.SETTLEMENT,
-//                    new String[]{String.valueOf(settlement.getSum())});
         } catch (Exception e) {
             log.error("Settlement failed. Processed participants: {}, Total amount: {}",
                     processedParticipants, totalProcessedAmount, e);

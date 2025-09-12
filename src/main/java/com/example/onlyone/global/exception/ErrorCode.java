@@ -71,6 +71,7 @@ public enum ErrorCode {
     SETTLEMENT_NOT_FOUND(404, "SETTLEMENT_404_1", "정산을 찾을 수 없습니다."),
     USER_SETTLEMENT_NOT_FOUND(404, "SETTLEMENT_404_2", "정산 참여자를 찾을 수 없습니다."),
     ALREADY_SETTLED_USER(409, "SETTLEMENT_409_1", "이미 해당 정기 모임에 대해 정산한 유저입니다."),
+    ALREADY_COMPLETED_SETTLEMENT(409, "SETTLEMENT_409_2", "이미 종료된 정산입니다."),
     SETTLEMENT_PROCESS_FAILED(500, "SETTLEMENT_500_1", "정산 처리 중 오류가 발생했습니다. 다시 시도해 주세요."),
 
     // Wallet
@@ -80,6 +81,7 @@ public enum ErrorCode {
     WALLET_HOLD_STATE_CONFLICT(409, "WALLET_409_2", "사용자의 예약금이 부족합니다. 포인트를 충전해 주세요."),
     WALLET_HOLD_CAPTURE_FAILED(409, "WALLET_409_3", "사용자의 예약금 차감에 실패했습니다. 다시 시도해 주세요."),
     WALLET_CREDIT_APPLY_FAILED(409, "WALLET_409_4", "리더의 정산금 처리에 실패했습니다. 다시 시도해 주세요."),
+    WALLET_OPERATION_IN_PROGRESS(409, "WALLET_409_5", "사용자의 다른 거래가 처리 중입니다. 잠시 후 다시 시도해 주세요."),
 
     // Payment
     PAYMENT_IN_PROGRESS(202, "PAYMENT_202_1", "결제 처리 중입니다. 잠시 후 다시 조회해 주세요."),
