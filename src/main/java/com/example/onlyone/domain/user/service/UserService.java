@@ -63,80 +63,57 @@ public class UserService {
     private long refreshTokenExpiration;
 
 
-    @Transactional(readOnly = true)
-    public User getCurrentUser() {
-        // SSE 요청의 경우 request attribute에서 캐시된 User 객체 우선 사용
-        try {
-            ServletRequestAttributes attr = (ServletRequestAttributes) RequestContextHolder.currentRequestAttributes();
-            if (attr != null) {
-                User cachedUser = (User) attr.getRequest().getAttribute("authenticatedUser");
-                if (cachedUser != null) {
-                    log.debug("Using cached user from request attribute: userId={}", cachedUser.getUserId());
-                    return cachedUser;
-                }
-            }
-        } catch (IllegalStateException e) {
-            // 비동기 컨텍스트에서는 RequestContextHolder를 사용할 수 없음
-            log.debug("No request context available, falling back to DB query");
-        }
-        
-        // 기본 동작: DB에서 사용자 조회
-        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-        if (authentication == null || !authentication.isAuthenticated()) {
-            throw new CustomException(ErrorCode.UNAUTHORIZED);
-        }
-        Long kakaoId = 0L;
-        try {
-            kakaoId = Long.valueOf(authentication.getName());
-        } catch (NumberFormatException e) {
-            throw new  CustomException(ErrorCode.UNAUTHORIZED);
-        }
+  @Transactional(readOnly = true)
+  public User getCurrentUser() {
+    Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+    if (authentication == null || !authentication.isAuthenticated()) {
+      throw new CustomException(ErrorCode.UNAUTHORIZED);
+    }
+    Long kakaoId = 0L;
+    try {
+      kakaoId = Long.valueOf(authentication.getName());
+    } catch (NumberFormatException e) {
+      throw new  CustomException(ErrorCode.UNAUTHORIZED);
+    }
 
-        Optional<User> userOpt = userRepository.findByKakaoId(kakaoId);
-        if (userOpt.isEmpty()) {
-            throw new CustomException(ErrorCode.USER_NOT_FOUND);
-        }
+    Optional<User> userOpt = userRepository.findByKakaoId(kakaoId);
+    if (userOpt.isEmpty()) {
+      throw new CustomException(ErrorCode.USER_NOT_FOUND);
+    }
 
-        User user = userOpt.get();
-        return user;
+    User user = userOpt.get();
+    return user;
     }
 
     /**
-     * JWT 기반 사용자 정보 추출 - DB 조회 없음 (SSE/Notification 전용)
-     * JWT claims에서 직접 User 객체를 생성하여 반환
+     * JWT 기반 사용자 정보 추출 - DB 조회 없음 (K6 테스트 최적화 전용)
+     * SecurityContextHolder에서 kakaoId만 추출하여 최소한의 User 객체 생성
      */
     @Transactional(readOnly = true)
     public User getCurrentUserFromJwt() {
-        try {
-            ServletRequestAttributes attr = (ServletRequestAttributes) RequestContextHolder.currentRequestAttributes();
-            if (attr != null) {
-                HttpServletRequest request = attr.getRequest();
-                
-                // JWT 인증 필터에서 저장한 정보 추출
-                Long userId = (Long) request.getAttribute("userId");
-                Long kakaoId = (Long) request.getAttribute("kakaoId");
-                String nickname = (String) request.getAttribute("nickname");
-                
-                if (userId != null && kakaoId != null && nickname != null) {
-                    // JWT claims로부터 User 객체 생성 - DB 조회 없음!
-                    User jwtUser = User.builder()
-                            .userId(userId)
-                            .kakaoId(kakaoId)
-                            .nickname(nickname)
-                            .build();
-                    
-                    log.debug("Using JWT-based user info: userId={}, kakaoId={}, nickname={} - NO DB QUERY", 
-                             userId, kakaoId, nickname);
-                    return jwtUser;
-                }
-            }
-        } catch (IllegalStateException e) {
-            log.debug("No request context available for JWT user extraction");
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication == null || !authentication.isAuthenticated()) {
+            log.debug("No authentication found, falling back to DB query");
+            return getCurrentUser();
         }
         
-        // JWT claims가 없는 경우 기존 방식으로 fallback
-        log.debug("JWT claims not found, falling back to DB query");
-        return getCurrentUser();
+        try {
+            Long kakaoId = Long.valueOf(authentication.getName());
+            
+            // JWT 유효성은 필터에서 검증됨 - 최소한의 User 객체 생성 (DB 조회 없음)
+            User jwtUser = User.builder()
+                    .kakaoId(kakaoId)
+                    .nickname("user") // 기본값
+                    .status(Status.ACTIVE) // JWT 토큰이 유효하면 활성 사용자로 가정
+                    .build();
+            
+            log.debug("Using JWT-based user info: kakaoId={} - NO DB QUERY", kakaoId);
+            return jwtUser;
+            
+        } catch (NumberFormatException e) {
+            log.debug("Invalid kakaoId format, falling back to DB query");
+            return getCurrentUser();
+        }
     }
 
     public User getMemberById(Long memberId){

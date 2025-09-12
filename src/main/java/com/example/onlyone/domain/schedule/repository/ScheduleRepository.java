@@ -3,6 +3,7 @@ package com.example.onlyone.domain.schedule.repository;
 import com.example.onlyone.domain.club.entity.Club;
 import com.example.onlyone.domain.schedule.entity.Schedule;
 import com.example.onlyone.domain.schedule.entity.ScheduleStatus;
+import com.google.api.gax.rpc.ServerStream;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
