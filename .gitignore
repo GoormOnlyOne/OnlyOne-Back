@@ -67,3 +67,4 @@ prometheus.yml
 redis-data/dump.rdb
 .my.cnf
 src/main/resources/application-stage.yml
+k6/k6_result.json
