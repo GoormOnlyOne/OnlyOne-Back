@@ -64,3 +64,6 @@ grafana-data
 prometheus-data
 docker-compose.yml
 prometheus.yml
+redis-data/dump.rdb
+.my.cnf
+src/main/resources/application-stage.yml

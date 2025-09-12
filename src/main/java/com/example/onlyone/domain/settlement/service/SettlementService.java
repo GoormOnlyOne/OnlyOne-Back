@@ -71,9 +71,11 @@ public class SettlementService {
         // 정산 조회
         Settlement settlement = settlementRepository.findBySchedule(schedule)
                 .orElseThrow(() -> new CustomException(ErrorCode.SETTLEMENT_NOT_FOUND));
+        if(settlement.getTotalStatus() == TotalStatus.COMPLETED || schedule.getScheduleStatus() == ScheduleStatus.CLOSED) {
+            throw new CustomException(ErrorCode.ALREADY_COMPLETED_SETTLEMENT);
+        }
         // 참여자 수
         long userCount = userSettlementRepository.countBySettlement(settlement);
-
         // 가격이 0원이거나 참여자가 리더 1명인 경우 → 스케줄 종료 처리
         if (schedule.getCost() == 0 || userCount == 0) {
             schedule.updateStatus(ScheduleStatus.CLOSED);
