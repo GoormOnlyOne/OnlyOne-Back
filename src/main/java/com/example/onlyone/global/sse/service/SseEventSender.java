@@ -1,8 +1,6 @@
-package com.example.onlyone.global.sse.event;
+package com.example.onlyone.global.sse.service;
 
-import com.example.onlyone.global.sse.SseConnection;
-import com.example.onlyone.global.sse.connection.SseConnectionManager;
-import lombok.RequiredArgsConstructor;
+import com.example.onlyone.global.sse.dto.SseConnection;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Component;
@@ -30,7 +28,7 @@ public class SseEventSender {
     private static final String WRITE_ERROR_MSG = "An existing connection was forcibly closed";
 
     public SseEventSender(SseConnectionManager connectionManager, 
-                         @Qualifier("sseEventExecutor") Executor sseEventExecutor) {
+                          @Qualifier("sseEventExecutor") Executor sseEventExecutor) {
         this.connectionManager = connectionManager;
         this.sseEventExecutor = sseEventExecutor;
     }
@@ -45,9 +43,7 @@ public class SseEventSender {
             return CompletableFuture.completedFuture(false);
         }
 
-        return CompletableFuture.supplyAsync(() -> {
-            return sendEventInternal(connection, userId, eventName, data);
-        }, sseEventExecutor);
+        return CompletableFuture.supplyAsync(() -> sendEventInternal(connection, userId, eventName, data), sseEventExecutor);
     }
 
     /**

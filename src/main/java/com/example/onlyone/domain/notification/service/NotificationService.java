@@ -24,20 +24,17 @@ public class NotificationService {
     private final NotificationStatusService notificationStatusService;
 
     /**
-     * 알림 생성
+     * 알림 생성 (기본 - 비동기)
      */
     public CompletableFuture<Notification> createNotification(User user, Type type, String... args) {
-        return notificationCreationService.createNotificationOptimized(user, type, args);
+        return notificationCreationService.createNotification(user, type, args);
     }
 
-    
     /**
-     * 대량 알림 생성 - 각 사용자마다 개별 처리
+     * 알림 생성 (동기)
      */
-    public List<CompletableFuture<Notification>> createBulkNotifications(List<User> users, Type type, String... args) {
-        return users.stream()
-                .map(user -> notificationCreationService.createNotificationOptimized(user, type, args))
-                .toList();
+    public Notification createNotificationSync(User user, Type type, String... args) {
+        return notificationCreationService.createNotificationSync(user, type, args);
     }
     
 

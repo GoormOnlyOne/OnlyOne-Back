@@ -297,6 +297,22 @@ public class GlobalExceptionHandler {
     }
 
     /**
+     * 비동기 요청 타임아웃 예외 처리 (SSE 연결 전용)
+     * SSE 연결이 타임아웃될 때 발생하는 예외를 조용히 처리합니다.
+     */
+    @ExceptionHandler(org.springframework.web.context.request.async.AsyncRequestTimeoutException.class)
+    public ResponseEntity<?> handleAsyncRequestTimeoutException(
+            org.springframework.web.context.request.async.AsyncRequestTimeoutException e, 
+            HttpServletRequest request) {
+        
+        // SSE 타임아웃은 정상적인 연결 종료이므로 DEBUG 레벨로 로깅
+        log.debug("SSE 연결 타임아웃: uri={}, timeout 후 정상 종료", request.getRequestURI());
+        
+        // 클라이언트에게는 204 No Content 응답 (정상 종료)
+        return ResponseEntity.status(HttpStatus.NO_CONTENT).build();
+    }
+
+    /**
      * 서버 내부 오류 처리
      * 위의 모든 핸들러에서 처리되지 않은 예외를 처리하는 기본 핸들러입니다.
      * 주로 예상치 못한 서버 내부 오류가 발생했을 때 실행됩니다.

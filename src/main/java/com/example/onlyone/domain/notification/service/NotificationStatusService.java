@@ -36,7 +36,7 @@ public class NotificationStatusService {
      * 모든 알림 읽음 처리
      */
     @Transactional(propagation = Propagation.REQUIRES_NEW, timeout = 10)
-    @Async("dbTaskExecutor")
+    @Async("notificationExecutor")
     public void markAllAsRead(Long userId) {
         try {
             long unreadCount = notificationRepository.countUnreadByUserId(userId);

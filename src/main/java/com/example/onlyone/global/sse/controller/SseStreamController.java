@@ -1,4 +1,4 @@
-package com.example.onlyone.global.sse;
+package com.example.onlyone.global.sse.controller;
 
 import com.example.onlyone.domain.user.entity.User;
 import com.example.onlyone.domain.user.service.UserService;
@@ -14,6 +14,8 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
@@ -45,18 +47,19 @@ public class SseStreamController {
       @RequestHeader(value = "Last-Event-ID", required = false) String lastEventId,
       HttpServletRequest request) {
     
-    // SseAuthenticationFilter에서 캐시된 User 객체 사용 (DB 재조회 방지)
-    User currentUser = (User) request.getAttribute("authenticatedUser");
-    if (currentUser == null) {
-      // fallback to DB query if caching failed
-      currentUser = userService.getCurrentUser();
-    }
+    // JWT에서 kakaoId 추출 (Security Context에서)
+    Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+    Long kakaoId = Long.valueOf(authentication.getName());
     
-    log.info("SSE stream connection requested: userId={}, lastEventId={}", currentUser.getUserId(), lastEventId);
+    // SSE는 kakaoId를 userId로 사용 (JWT 기반)
+    Long userId = kakaoId;
     
-    // 타임아웃을 더 길게 설정 (기본 30분)
-    SseEmitter emitter = sseEmittersService.createSseConnection(currentUser, lastEventId);
+    log.info("SSE stream connection requested: userId={}, lastEventId={}, NO DB QUERY", userId, lastEventId);
     
+    // SSE 연결 생성 - userId만 사용 (DB 조회 없음)
+    SseEmitter emitter = sseEmittersService.createSseConnectionByUserId(userId, lastEventId);
+    
+    // 이 시점에서 DB 연결은 이미 반환되고 SSE만 유지됨
     return emitter;
   }
 
@@ -70,13 +73,12 @@ public class SseStreamController {
   )
   @GetMapping("/status")
   public ResponseEntity<CommonResponse<SseConnectionStatusResponseDto>> getConnectionStatus(HttpServletRequest request) {
-    // SseAuthenticationFilter에서 캐시된 User 객체 사용 (DB 재조회 방지)
-    User currentUser = (User) request.getAttribute("authenticatedUser");
-    if (currentUser == null) {
-      // fallback to DB query if caching failed
-      currentUser = userService.getCurrentUser();
-    }
-    Long userId = currentUser.getUserId();
+    // JWT에서 kakaoId 추출 (Security Context에서)
+    Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+    Long kakaoId = Long.valueOf(authentication.getName());
+    
+    // SSE는 kakaoId를 userId로 사용 (JWT 기반)
+    Long userId = kakaoId;
     boolean isConnected = sseEmittersService.isUserConnected(userId);
     
     SseConnectionStatusResponseDto response = SseConnectionStatusResponseDto.builder()

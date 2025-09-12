@@ -37,7 +37,7 @@ public class TestSecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                         .requestMatchers(AUTH_WHITELIST).permitAll()
-                        .requestMatchers("/actuator/prometheus", "/actuator/health", "/actuator/info").permitAll()
+                        .requestMatchers("/actuator/prometheus", "/actuator/metrics/**").permitAll()
                         .requestMatchers("/error", "/favicon.ico",
                                 "/swagger-ui/**", "/swagger-ui.html",
                                 "/v3/api-docs", "/v3/api-docs/**", "/swagger.html").permitAll()

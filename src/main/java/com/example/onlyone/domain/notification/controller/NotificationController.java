@@ -1,7 +1,6 @@
 package com.example.onlyone.domain.notification.controller;
 
 import com.example.onlyone.domain.notification.dto.response.NotificationListResponseDto;
-import com.example.onlyone.domain.notification.entity.Notification;
 import com.example.onlyone.domain.notification.service.NotificationService;
 import com.example.onlyone.domain.user.entity.User;
 import com.example.onlyone.domain.user.service.UserService;
@@ -14,7 +13,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.List;
 
 
 @Tag(name = "알림", description = "알림 관리 API")
@@ -30,7 +28,8 @@ public class NotificationController {
     @Operation(summary = "읽지 않은 알림 개수", description = "현재 사용자의 읽지 않은 알림 개수를 조회합니다")
     @GetMapping("/unread-count")
     public ResponseEntity<CommonResponse<Long>> getUnreadCount() {
-        User currentUser = userService.getCurrentUser();
+        // JWT 기반 사용자 정보 사용 (DB 조회 없음)
+        User currentUser = userService.getCurrentUserFromJwt();
         Long unreadCount = notificationService.getUnreadCount(currentUser.getUserId());
         return ResponseEntity.ok(CommonResponse.success(unreadCount));
     }
@@ -38,7 +37,7 @@ public class NotificationController {
     @Operation(summary = "알림 읽음 처리", description = "특정 알림을 읽음 처리합니다")
     @PutMapping("/{notificationId}/read")
     public ResponseEntity<CommonResponse<Void>> markAsRead(@PathVariable Long notificationId) {
-        User currentUser = userService.getCurrentUser();
+        User currentUser = userService.getCurrentUserFromJwt();
         notificationService.markAsRead(notificationId, currentUser.getUserId());
         return ResponseEntity.ok(CommonResponse.success(null));
     }
@@ -46,33 +45,15 @@ public class NotificationController {
     @Operation(summary = "모든 알림 읽음 처리", description = "현재 사용자의 모든 알림을 읽음 처리합니다 (비동기)")
     @PutMapping("/read-all")
     public ResponseEntity<CommonResponse<Void>> markAllAsRead() {
-        User currentUser = userService.getCurrentUser();
+        User currentUser = userService.getCurrentUserFromJwt();
         notificationService.markAllAsRead(currentUser.getUserId());
-        return ResponseEntity.ok(CommonResponse.success(null));
-    }
-    
-    @Operation(summary = "배치 알림 읽음 처리", description = "여러 알림들을 한번에 읽음 처리합니다")
-    @PostMapping("/read-batch")
-    public ResponseEntity<CommonResponse<Void>> markNotificationsAsRead(
-            @Parameter(description = "읽음 처리할 알림 ID 목록")
-            @RequestBody List<Long> notificationIds) {
-        
-        User currentUser = userService.getCurrentUser();
-        Long userId = currentUser.getUserId();
-        
-        notificationIds.forEach(notificationId -> 
-            notificationService.markAsRead(notificationId, userId));
-        
-        log.info("Notifications marked as read: userId={}, count={}", 
-                userId, notificationIds.size());
-        
         return ResponseEntity.ok(CommonResponse.success(null));
     }
 
     @Operation(summary = "알림 삭제", description = "특정 알림을 삭제합니다")
     @DeleteMapping("/{notificationId}")
     public ResponseEntity<CommonResponse<Void>> deleteNotification(@PathVariable Long notificationId) {
-        User currentUser = userService.getCurrentUser();
+        User currentUser = userService.getCurrentUserFromJwt();
         notificationService.deleteNotification(currentUser.getUserId(), notificationId);
         return ResponseEntity.ok(CommonResponse.success(null));
     }
@@ -85,7 +66,7 @@ public class NotificationController {
         @Parameter(description = "조회할 알림 개수 (최대 30)")
         @RequestParam(defaultValue = "20") int size) {
         
-        User currentUser = userService.getCurrentUser();
+        User currentUser = userService.getCurrentUserFromJwt();
         Long userId = currentUser.getUserId();
         
         // 최대 30개로 제한

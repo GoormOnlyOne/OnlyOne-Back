@@ -66,8 +66,6 @@ dependencies {
     implementation 'org.springframework.boot:spring-boot-starter-websocket'
     implementation 'org.springframework.boot:spring-boot-starter-actuator'
     implementation 'org.springframework.boot:spring-boot-starter'
-    //fcm
-    implementation 'com.google.firebase:firebase-admin:9.5.0'
     // S3
     implementation 'software.amazon.awssdk:s3:2.32.11'
     // Redis
@@ -86,10 +84,9 @@ dependencies {
     // 모니터링 (중복 제거됨)
     runtimeOnly 'io.micrometer:micrometer-registry-prometheus'
     
-    // OpenTelemetry + Jaeger 트레이싱
+    // OTLP + Jaeger 트레이싱 (OpenTelemetry 기반)
     implementation 'io.micrometer:micrometer-tracing-bridge-otel'
     implementation 'io.opentelemetry:opentelemetry-exporter-otlp'
-    implementation 'io.opentelemetry:opentelemetry-sdk-extension-jaeger-remote-sampler'
     implementation 'io.micrometer:micrometer-tracing'
     
     // 추가 메트릭 및 트레이싱
@@ -185,4 +182,44 @@ jacocoTestCoverageVerification {
             }
         }
     }
+}
+
+// JVM 최적화 설정 (M3 MacBook 16GB 기준)
+bootRun {
+    jvmArgs = [
+        // 메모리 설정 (10,000명 대응 - 12GB 사용)
+        '-Xms8g',
+        '-Xmx12g',
+        
+        // G1GC 사용 (대용량 힙에 최적)
+        '-XX:+UseG1GC',
+        '-XX:MaxGCPauseMillis=100',
+        '-XX:G1HeapRegionSize=16m',
+        
+        // GC 로깅 (JDK 21 호환)
+        '-Xlog:gc*:gc.log:time,pid,tid',
+        
+        // JIT 컴파일러 최적화
+        '-XX:+TieredCompilation',
+        '-XX:TieredStopAtLevel=4',
+        
+        // 스레드 성능 최적화 (JDK 21 호환)
+        '-XX:+UnlockExperimentalVMOptions',
+        
+        // 네이티브 메모리 추적
+        '-XX:NativeMemoryTracking=summary',
+        
+        // 압축 OOP 활성화 (힙이 32GB 미만일 때)
+        '-XX:+UseCompressedOops',
+        
+        // Apple Silicon 최적화
+        '-Djava.awt.headless=true',
+        '-Dfile.encoding=UTF-8',
+        
+        // 성능 모니터링
+        '-Dcom.sun.management.jmxremote=true',
+        '-Dcom.sun.management.jmxremote.port=9999',
+        '-Dcom.sun.management.jmxremote.authenticate=false',
+        '-Dcom.sun.management.jmxremote.ssl=false'
+    ]
 }

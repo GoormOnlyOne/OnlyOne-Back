@@ -1,4 +1,4 @@
-package com.example.onlyone.global.sse;
+package com.example.onlyone.global.sse.dto;
 
 import com.example.onlyone.domain.user.entity.User;
 import java.time.Duration;

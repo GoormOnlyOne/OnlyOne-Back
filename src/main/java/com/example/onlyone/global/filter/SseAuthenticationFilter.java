@@ -1,8 +1,5 @@
 package com.example.onlyone.global.filter;
 
-import com.example.onlyone.domain.user.entity.Status;
-import com.example.onlyone.domain.user.entity.User;
-import com.example.onlyone.domain.user.repository.UserRepository;
 import com.example.onlyone.global.exception.CustomException;
 import com.example.onlyone.global.exception.ErrorCode;
 import io.jsonwebtoken.Claims;
@@ -25,7 +22,6 @@ import javax.crypto.SecretKey;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.Collections;
-import java.util.Optional;
 import io.jsonwebtoken.Jwts;
 
 /**
@@ -40,7 +36,6 @@ public class SseAuthenticationFilter extends OncePerRequestFilter {
     @Value("${jwt.secret}")
     private String jwtSecret;
     
-    private final UserRepository userRepository;
     private static final String COOKIE_NAME = "access_token";
     private static final String CONTENT_TYPE_JSON = "application/json";
 
@@ -65,46 +60,26 @@ public class SseAuthenticationFilter extends OncePerRequestFilter {
         }
 
         try {
-            SecretKey key = Keys.hmacShaKeyFor(jwtSecret.getBytes(StandardCharsets.UTF_8));
+            SecretKey key = Keys.hmacShaKeyFor(jwtSecret.getBytes());
             Claims claims = Jwts.parser()
-                    .verifyWith(key)
+                    .setSigningKey(key)
                     .build()
-                    .parseSignedClaims(token)
-                    .getPayload();
+                    .parseClaimsJws(token)
+                    .getBody();
 
             String kakaoIdString = claims.getSubject();
             Long kakaoId = Long.valueOf(kakaoIdString);
 
-            // 사용자 상태 확인
-            Optional<User> userOpt = userRepository.findByKakaoId(kakaoId);
-            if (userOpt.isEmpty()) {
-                log.warn("SSE connection attempt by non-existing user: kakaoId={}", kakaoId);
-                response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
-                response.setContentType(CONTENT_TYPE_JSON);
-                response.getWriter().write("{\"error\":\"User not found\"}");
-                return;
-            }
-            User user = userOpt.get();
-            if (user.getStatus() == Status.INACTIVE) {
-                log.warn("SSE connection attempt by withdrawn user: kakaoId={}", kakaoId);
-                response.setStatus(HttpServletResponse.SC_FORBIDDEN);
-                response.setContentType(CONTENT_TYPE_JSON);
-                response.getWriter().write("{\"error\":\"User account is withdrawn\"}");
-                return;
-            }
+            // JWT가 유효하면 사용자는 존재하고 활성 상태라고 가정 (DB 조회 제거)
+            // INACTIVE 사용자는 토큰 재발급 시점에서 차단되므로 여기서는 불필요
 
             UsernamePasswordAuthenticationToken auth =
                     new UsernamePasswordAuthenticationToken(
-                            kakaoIdString,
-                            null,
-                            Collections.emptyList()
+                            kakaoIdString,   // principal
+                            null,            // credentials
+                            Collections.emptyList()  // 권한 목록
                     );
             SecurityContextHolder.getContext().setAuthentication(auth);
-            
-            // User 객체를 request attribute로 저장하여 DB 재조회 방지
-            request.setAttribute("authenticatedUser", user);
-            
-            log.debug("SSE authentication successful: kakaoId={}, user cached in request", kakaoId);
             
         } catch (JwtException | IllegalArgumentException e) {
             log.warn("SSE JWT validation failed: {}", e.getMessage());

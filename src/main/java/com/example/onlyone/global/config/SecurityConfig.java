@@ -123,7 +123,7 @@ public class SecurityConfig {
 
                         .requestMatchers("/ws/**").permitAll()
                         .requestMatchers("/ws-native/**").permitAll()
-                        .requestMatchers("/actuator/prometheus", "/actuator/health", "/actuator/info", "/actuator/sse/**").permitAll()
+                        .requestMatchers("/actuator/prometheus", "/actuator/metrics/**", "/actuator/sse/**").permitAll()
 
                         // Swagger 및 정적 자원 허용
                         .requestMatchers(

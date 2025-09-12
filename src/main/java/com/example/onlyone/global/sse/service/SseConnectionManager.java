@@ -1,9 +1,12 @@
-package com.example.onlyone.global.sse.connection;
+package com.example.onlyone.global.sse.service;
 
 import com.example.onlyone.domain.user.entity.User;
 import com.example.onlyone.global.exception.CustomException;
 import com.example.onlyone.global.exception.ErrorCode;
-import com.example.onlyone.global.sse.SseConnection;
+import com.example.onlyone.global.sse.dto.SseConnection;
+import io.micrometer.core.instrument.Counter;
+import io.micrometer.core.instrument.Gauge;
+import io.micrometer.core.instrument.MeterRegistry;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -12,7 +15,6 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import java.io.IOException;
 import java.time.LocalDateTime;
-import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
@@ -23,7 +25,6 @@ import java.util.stream.Collectors;
  */
 @Slf4j
 @Component
-@RequiredArgsConstructor
 public class SseConnectionManager {
 
     @Value("${app.notification.sse-timeout-millis:300000}")
@@ -35,11 +36,69 @@ public class SseConnectionManager {
     private final ConcurrentHashMap<Long, SseConnection> activeConnections = new ConcurrentHashMap<>();
     private final AtomicLong totalConnectionsCreated = new AtomicLong(0);
     private final AtomicLong totalConnectionsClosed = new AtomicLong(0);
+    
+    private final Counter connectionsCreatedCounter;
+    private final Counter connectionsClosedCounter;
+    private final Gauge activeConnectionsGauge;
+    private final MeterRegistry meterRegistry;
+    
+    public SseConnectionManager(MeterRegistry meterRegistry) {
+        this.meterRegistry = meterRegistry;
+        this.connectionsCreatedCounter = Counter.builder("sse.connections.created")
+                .description("Total SSE connections created")
+                .register(meterRegistry);
+        
+        this.connectionsClosedCounter = Counter.builder("sse.connections.closed")
+                .description("Total SSE connections closed")
+                .register(meterRegistry);
+        
+        this.activeConnectionsGauge = Gauge.builder("sse.connections.active", this, 
+                SseConnectionManager::getActiveConnectionCount)
+                .description("Active SSE connections")
+                .register(meterRegistry);
+    }
 
     /**
-     * SSE 연결 생성 (인프라 레벨)
-     * - SseEmitter 객체 생성 및 기술적 연결 관리
-     * - 연결 제한, 콜백 등록, 하트비트 전송
+     * SSE 연결 생성 - userId만 사용 (JWT 인증 후 DB 조회 없음)
+     */
+    public SseEmitter createConnection(Long userId) {
+        cleanupExistingConnection(userId);
+        
+        if (activeConnections.size() >= maxConnections) {
+            int cleaned = forceCleanupStaleConnections();
+            log.info("Force cleanup completed: {} stale connections removed", cleaned);
+            
+            if (activeConnections.size() >= maxConnections) {
+                log.warn("Maximum SSE connections reached: {}/{}, rejecting userId: {}", 
+                        activeConnections.size(), maxConnections, userId);
+                throw new CustomException(ErrorCode.SSE_CONNECTION_LIMIT_EXCEEDED);
+            }
+        }
+        
+        SseConnection connection = SseConnection.builder()
+                .userId(userId)
+                .cachedUser(null)  // JWT 인증이므로 User 객체 불필요
+                .emitter(new SseEmitter(sseTimeoutMillis))
+                .connectionTime(LocalDateTime.now())
+                .build();
+        
+        activeConnections.put(userId, connection);
+        totalConnectionsCreated.incrementAndGet();
+        connectionsCreatedCounter.increment();
+        
+        registerConnectionCallbacks(connection);
+        
+        // 초기 heartbeat 전송 (예외 발생 시 내부에서 처리)
+        sendInitialHeartbeat(connection);
+        
+        log.info("SSE connection established: userId={}, activeConnections={}/{}", 
+                userId, activeConnections.size(), maxConnections);
+        
+        return connection.getEmitter();
+    }
+    
+    /**
+     * SSE 연결 생성 - User 객체 사용 (기존 호환성 유지)
      */
     public SseEmitter createConnection(User user) {
         Long userId = user.getUserId();
@@ -53,7 +112,6 @@ public class SseConnectionManager {
             if (activeConnections.size() >= maxConnections) {
                 log.warn("Maximum SSE connections reached: {}/{}, rejecting userId: {}", 
                         activeConnections.size(), maxConnections, userId);
-                // Max connections reached
                 throw new CustomException(ErrorCode.SSE_CONNECTION_LIMIT_EXCEEDED);
             }
         }
@@ -67,7 +125,7 @@ public class SseConnectionManager {
         
         activeConnections.put(userId, connection);
         totalConnectionsCreated.incrementAndGet();
-        // Active connections incremented
+        connectionsCreatedCounter.increment();
         
         registerConnectionCallbacks(connection);
         
@@ -86,7 +144,7 @@ public class SseConnectionManager {
     public void cleanupConnection(Long userId) {
         activeConnections.remove(userId);
         totalConnectionsClosed.incrementAndGet();
-        // Active connections decremented
+        connectionsClosedCounter.increment();
     }
 
     /**
@@ -187,7 +245,7 @@ public class SseConnectionManager {
             List<Long> staleConnections = activeConnections.entrySet().parallelStream()
                     .filter(entry -> entry.getValue().getConnectionTime().isBefore(cutoffTime))
                     .map(Map.Entry::getKey)
-                    .collect(Collectors.toList());
+                    .toList();
             
             if (!staleConnections.isEmpty()) {
                 staleConnections.parallelStream().forEach(this::cleanupConnection);
@@ -243,13 +301,11 @@ public class SseConnectionManager {
         
         emitter.onCompletion(() -> cleanupConnection(userId));
         emitter.onTimeout(() -> {
-            log.info("SSE connection timed out: userId={}, duration={}ms", 
+            log.debug("SSE connection timed out (정상 종료): userId={}, duration={}ms", 
                     userId, connection.getDuration());
-            // Connection timeout recorded
             cleanupConnection(userId);
         });
         emitter.onError((ex) -> {
-            // Connection error recorded
             cleanupConnection(userId);
         });
     }

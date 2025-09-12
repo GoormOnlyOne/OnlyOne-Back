@@ -3,9 +3,7 @@ package com.example.onlyone.global.sse.service;
 import com.example.onlyone.domain.notification.entity.Notification;
 import com.example.onlyone.domain.notification.repository.NotificationRepository;
 import com.example.onlyone.domain.user.entity.User;
-import com.example.onlyone.global.sse.connection.SseConnectionManager;
-import com.example.onlyone.global.sse.event.SseEventSender;
-import com.example.onlyone.global.sse.SseConnection;
+import com.example.onlyone.global.sse.dto.SseConnection;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -13,6 +11,7 @@ import org.springframework.beans.factory.DisposableBean;
 import org.springframework.beans.factory.InitializingBean;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import java.io.IOException;
@@ -23,8 +22,7 @@ import java.util.*;
 import java.util.concurrent.*;
 
 /**
- * SSE 서비스 - 연결 관리와 이벤트 전송을 통합
- * 성능 최적화 완료
+ * SSE 서비스
  */
 @Slf4j
 @Service
@@ -39,72 +37,35 @@ public class SseEmittersService implements InitializingBean, DisposableBean {
   private final SseEventSender eventSender;
   private final ObjectMapper objectMapper;
   
+  // Virtual Thread로 변경: 무제한 동시성 지원
   private final ScheduledExecutorService cleanupScheduler = Executors.newSingleThreadScheduledExecutor(
-      r -> {
-        Thread thread = new Thread(r, "sse-cleanup");
-        thread.setDaemon(true);
-        thread.setPriority(Thread.NORM_PRIORITY - 1);
-        return thread;
-      });
+      Thread.ofVirtual().name("sse-cleanup-vt").factory());
       
-  private final ExecutorService missedMessageExecutor = new ThreadPoolExecutor(
-      3, 10, 60L, TimeUnit.SECONDS,
-      new LinkedBlockingQueue<>(50),
-      r -> {
-        Thread thread = new Thread(r, "sse-recovery");
-        thread.setDaemon(true);
-        thread.setPriority(Thread.NORM_PRIORITY - 1);
-        return thread;
-      },
-      new ThreadPoolExecutor.DiscardOldestPolicy()
-  );
+  // Virtual Thread로 변경: 대용량 알림 처리
+  private final ExecutorService missedMessageExecutor = Executors.newVirtualThreadPerTaskExecutor();
 
 
   /**
-   * SSE 연결 생성 (비즈니스 레벨)
-   * - 인프라 연결 생성 + 놓친 알림 복구 로직
-   * - 재연결 시 lastEventId 기반 미전송 알림 처리
-   * - 백프레셔 제어 추가
+   * SSE 연결 생성 - DB 연결 즉시 반환
    */
   public SseEmitter createSseConnection(User user, String lastEventId) {
-    // 백프레셔 체크
-    if (!checkConnectionCapacity(user.getUserId())) {
-      log.warn("Connection rejected due to capacity limits for userId: {}", user.getUserId());
-      throw new IllegalStateException("Server at capacity, please try again later");
-    }
-    
+    // SSE 연결 생성 (메모리 기반, DB 연결 불필요)
     SseEmitter emitter = connectionManager.createConnection(user);
     
-    // 재연결 시에만 놓친 알림 전송
+    // 재연결 시에만 놓친 알림 전송 (별도 트랜잭션으로 처리)
     if (lastEventId != null && !lastEventId.trim().isEmpty()) {
-      SseConnection connection = connectionManager.getConnection(user.getUserId());
-      if (connection != null) {
-        CompletableFuture.runAsync(() -> {
-          sendMissedNotifications(connection, lastEventId);
-        }, missedMessageExecutor)
-            .exceptionally(ex -> {
-              log.warn("Failed to send missed notifications for userId: {}, error: {}", user.getUserId(), ex.getMessage());
-              return null;
-            });
-      }
+      Long userId = user.getUserId();
+      CompletableFuture.runAsync(() -> {
+        sendMissedNotificationsAsync(userId, lastEventId);
+      }, missedMessageExecutor)
+          .exceptionally(ex -> {
+            log.warn("Failed to send missed notifications for userId: {}, error: {}", userId, ex.getMessage());
+            return null;
+          });
     }
     
+    // 이 시점에서 DB 연결은 반환됨, SSE만 유지
     return emitter;
-  }
-  
-  /**
-   * 연결 용량 체크
-   */
-  private boolean checkConnectionCapacity(Long userId) {
-    // 온라인 사용자 수 체크
-    int currentConnections = connectionManager.getActiveConnectionCount();
-    int maxCapacity = 10000; // 설정값으로 변경 가능
-    
-    if (currentConnections >= maxCapacity) {
-      return false;
-    }
-    
-    return true;
   }
 
   /**
@@ -119,6 +80,22 @@ public class SseEmittersService implements InitializingBean, DisposableBean {
    */
   public boolean sendEventSync(Long userId, String eventName, Object data) {
     return eventSender.sendEventSync(userId, eventName, data);
+  }
+
+  /**
+   * SSE 연결 생성 - userId만 사용 (DB 조회 없음)
+   * JWT 인증 후 userId만으로 SSE 연결 생성
+   */
+  public SseEmitter createSseConnectionByUserId(Long userId, String lastEventId) {
+    // SSE Connection 생성 및 등록
+    SseEmitter emitter = connectionManager.createConnection(userId);
+    
+    // 놓친 알림 전송 (lastEventId가 있는 경우)
+    if (lastEventId != null && !lastEventId.trim().isEmpty()) {
+      sendMissedNotificationsAsync(userId, lastEventId);
+    }
+    
+    return emitter;
   }
 
   // === Connection Management ===
@@ -187,6 +164,18 @@ public class SseEmittersService implements InitializingBean, DisposableBean {
 
   // === Private Methods ===
 
+  /**
+   * 놓친 알림 비동기 전송 - 별도 트랜잭션
+   */
+  public void sendMissedNotificationsAsync(Long userId, String lastEventId) {
+    SseConnection connection = connectionManager.getConnection(userId);
+    if (connection == null) {
+      log.debug("SSE connection not found for userId: {}", userId);
+      return;
+    }
+    sendMissedNotifications(connection, lastEventId);
+  }
+  
   private void sendMissedNotifications(SseConnection connection, String lastEventId) {
     long startTime = System.currentTimeMillis();
     try {
