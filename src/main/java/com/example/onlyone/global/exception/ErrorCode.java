@@ -136,6 +136,9 @@ public enum ErrorCode {
     INVALID_INTEREST_ID(400, "SEARCH_400_3", "유효하지 않은 interestId입니다."),
     INVALID_LOCATION(400, "SEARCH_400_4", "유효하지 않은 city 또는 district입니다."),
 
+    // Outbox
+    INVALID_TOPIC(400, "OUTBOX_400_1", "유효하지 않은 토픽입니다.")
+
     ;
 
     private final int status;
