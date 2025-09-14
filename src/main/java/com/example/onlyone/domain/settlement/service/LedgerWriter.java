@@ -158,13 +158,20 @@ public class LedgerWriter {
             }
         }
 
-        // 5) Transfer 저장
+        // 5) Transfer 저장 (성능 개선: 배치 크기 제한)
         if (!transferList.isEmpty()) {
             try {
-                transferRepository.saveAll(transferList);
+                // 배치 크기를 1000으로 제한하여 메모리 사용량 최적화
+                int batchSize = 1000;
+                for (int i = 0; i < transferList.size(); i += batchSize) {
+                    int endIndex = Math.min(i + batchSize, transferList.size());
+                    List<Transfer> batch = transferList.subList(i, endIndex);
+                    transferRepository.saveAll(batch);
+                }
                 transferRepository.flush();
             } catch (DataIntegrityViolationException dup) {
                 // 필요시 개별 재시도 가능
+                log.warn("Transfer batch insert failed, some records may be duplicates", dup);
             }
         }
     }
