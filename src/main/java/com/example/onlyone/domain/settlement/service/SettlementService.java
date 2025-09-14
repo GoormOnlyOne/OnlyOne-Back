@@ -37,6 +37,7 @@ import org.springframework.transaction.support.TransactionSynchronizationManager
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 
 @Log4j2
 @Service
@@ -53,6 +54,7 @@ public class SettlementService {
     private final NotificationService notificationService;
     private final WalletService walletService;
     private final ApplicationEventPublisher eventPublisher;
+    private final OutboxAppender outboxAppender;
 
     @Transactional(rollbackFor = Exception.class)
     public void automaticSettlement(Long clubId, Long scheduleId) {
@@ -106,16 +108,24 @@ public class SettlementService {
                 .orElseThrow(() -> new CustomException(ErrorCode.WALLET_NOT_FOUND));
 
         // 정산 프로세스 이벤트 발행
-        eventPublisher.publishEvent(new SettlementProcessEvent(
+        outboxAppender.append(
+                "Settlement",
                 settlement.getSettlementId(),
-                scheduleId,
-                clubId,
-                user.getUserId(),
-                leaderWallet.getWalletId(),
-                schedule.getCost(),
-                totalAmount,
-                targetUserIds
-        ));
+                "SettlementProcessEvent",
+                String.valueOf(settlement.getSettlementId()),
+                Map.of(
+                        "eventId", java.util.UUID.randomUUID().toString(),
+                        "occurredAt", java.time.Instant.now().toString(),
+                        "settlementId", settlement.getSettlementId(),
+                        "scheduleId", scheduleId,
+                        "clubId", clubId,
+                        "leaderId", user.getUserId(),
+                        "leaderWalletId", leaderWallet.getWalletId(),
+                        "costPerUser", schedule.getCost(),
+                        "totalAmount", totalAmount,
+                        "targetUserIds", targetUserIds
+                )
+        );
     }
 
     /* 스케줄 참여자 정산 목록 조회 */
