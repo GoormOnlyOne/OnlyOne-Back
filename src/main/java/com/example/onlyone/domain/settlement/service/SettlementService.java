@@ -60,45 +60,54 @@ public class SettlementService {
     public void automaticSettlement(Long clubId, Long scheduleId) {
         // 현재 사용자 조회
         User user = userService.getCurrentUser();
-        // 클럽/스케줄 조회
-        clubRepository.findById(clubId)
-                .orElseThrow(() -> new CustomException(ErrorCode.CLUB_NOT_FOUND));
+        
+        // 클럽 존재 여부만 확인 (실제 엔티티는 사용하지 않음)
+        if (!clubRepository.existsById(clubId)) {
+            throw new CustomException(ErrorCode.CLUB_NOT_FOUND);
+        }
+        
+        // 스케줄 조회
         Schedule schedule = scheduleRepository.findById(scheduleId)
                 .orElseThrow(() -> new CustomException(ErrorCode.SCHEDULE_NOT_FOUND));
+        
         // 종료된 스케줄인지 확인
         if (!(schedule.getScheduleStatus() == ScheduleStatus.ENDED
                 || schedule.getScheduleTime().isBefore(LocalDateTime.now()))) {
             throw new CustomException(ErrorCode.BEFORE_SCHEDULE_END);
         }
+        
         // 정산 조회
         Settlement settlement = settlementRepository.findBySchedule(schedule)
                 .orElseThrow(() -> new CustomException(ErrorCode.SETTLEMENT_NOT_FOUND));
+        
         if(settlement.getTotalStatus() == TotalStatus.COMPLETED || schedule.getScheduleStatus() == ScheduleStatus.CLOSED) {
             throw new CustomException(ErrorCode.ALREADY_COMPLETED_SETTLEMENT);
         }
-        // 참여자 수
-        long userCount = userSettlementRepository.countBySettlement(settlement);
+        
+        // 선점 트랜잭션 처리: HOLDING|FAILED → IN_PROGRESS (먼저 처리하여 동시성 제어)
+        int updated = settlementRepository.markProcessing(settlement.getSettlementId());
+        if (updated != 1) {
+            throw new CustomException(ErrorCode.ALREADY_SETTLING_SCHEDULE);
+        }
+
+        // 참가자 ID 목록과 수를 한 번에 조회 (성능 개선)
+        List<Long> targetUserIds =
+                userSettlementRepository.findAllUserSettlementIdsBySettlementIdAndStatus(
+                        settlement.getSettlementId(), SettlementStatus.HOLD_ACTIVE);
+        
+        long userCount = targetUserIds.size();
+        
         // 가격이 0원이거나 참여자가 리더 1명인 경우 → 스케줄 종료 처리
         if (schedule.getCost() == 0 || userCount == 0) {
             schedule.updateStatus(ScheduleStatus.CLOSED);
             schedule.removeSettlement(settlement);
             return;
         }
-        // 선점 트랜잭션 처리: HOLDING|FAILED → IN_PROGRESS
-        int updated = settlementRepository.markProcessing(settlement.getSettlementId());
-        if (updated != 1) {
-            throw new CustomException(ErrorCode.ALREADY_SETTLING_SCHEDULE);
-        }
 
         // 총 금액 계산 (리더 제외)
-        long totalAmount = (userCount) * schedule.getCost();
+        long totalAmount = userCount * schedule.getCost();
         settlement.updateSum(totalAmount);
         settlementRepository.save(settlement);
-
-        // 참가자 ID 목록 조회 (리더 제외, HOLD_ACTIVE 상태만)
-        List<Long> targetUserIds =
-                userSettlementRepository.findAllUserSettlementIdsBySettlementIdAndStatus(
-                        settlement.getSettlementId(), SettlementStatus.HOLD_ACTIVE);
 
         // 스케줄 저장
         scheduleRepository.save(schedule);
