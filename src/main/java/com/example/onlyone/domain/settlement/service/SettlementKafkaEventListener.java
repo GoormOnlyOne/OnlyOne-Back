@@ -97,15 +97,11 @@ public class SettlementKafkaEventListener {
             JsonNode payload = root.has("payload") ? root.get("payload") : root;
             return objectMapper.treeToValue(payload, SettlementProcessEvent.class);
         } catch (Exception e) {
-            throw new IllegalArgumentException("Invalid SettlementProcessEvent: " + json, e);
+            throw new CustomException(ErrorCode.INVALID_EVENT_PAYLOAD);
         }
     }
 
-    /**
-     * StructuredTaskScope + Semaphore 조합으로 최고 성능 달성
-     * - StructuredTaskScope: Java 21 최적화된 구조화된 동시성
-     * - Semaphore: 백프레셔 제어로 DB/Redis 보호
-     */
+    // StructuredTaskScope + Semaphore(백프레셔 제어용)
     private void processSettlementWithStructuredScope(SettlementProcessEvent event) {
         try (StructuredTaskScope.ShutdownOnFailure scope =
                      new StructuredTaskScope.ShutdownOnFailure("settlement-parallel", Thread.ofVirtual().factory())) {
@@ -113,13 +109,10 @@ public class SettlementKafkaEventListener {
             List<Long> targetUserIds = event.getTargetUserIds();
             AtomicLong totalProcessedAmount = new AtomicLong(0);
 
-            log.info("Starting StructuredTaskScope parallel processing for {} participants (concurrency: {})",
-                    targetUserIds.size(), concurrencyLimit.availablePermits());
-
             // 각 참가자별로 가상 스레드 생성 + 세마포어 백프레셔 제어
             for (Long participantId : targetUserIds) {
                 scope.fork(() -> {
-                    // 세마포어로 동시 실행 수 제한 (백프레셔)
+                    // 세마포어로 동시 실행 수 제한
                     concurrencyLimit.acquireUninterruptibly();
                     try {
                         return processParticipantWithRetry(
@@ -135,21 +128,13 @@ public class SettlementKafkaEventListener {
                     }
                 });
             }
-
-            // StructuredTaskScope의 최적화된 대기/조인
             scope.join();
             scope.throwIfFailed();
 
-            log.info("All participants processed successfully with StructuredTaskScope. Total: {}",
-                    totalProcessedAmount.get());
-
             // 모든 참가자 완료 후 리더 크레딧 및 상태 업데이트
             completeSettlement(event, totalProcessedAmount.get());
-
         } catch (Exception e) {
-            log.error("StructuredTaskScope settlement processing failed for settlementId: {}",
-                    event.getSettlementId(), e);
-            throw new RuntimeException("Structured parallel settlement processing failed", e);
+            throw new CustomException(ErrorCode.SETTLEMENT_PROCESS_FAILED);
         }
     }
 
@@ -160,9 +145,6 @@ public class SettlementKafkaEventListener {
 
         for (int attempt = 1; attempt <= maxRetries; attempt++) {
             try {
-                log.debug("Processing participant {} (attempt {}) [Thread: {}]",
-                        participantId, attempt, Thread.currentThread().getName());
-
                 // 참가자별 개별 트랜잭션 처리 (REQUIRES_NEW + Redis Lua 게이트는 UserSettlementService 내부)
                 userSettlementService.processParticipantSettlement(
                         settlementId,
@@ -171,32 +153,23 @@ public class SettlementKafkaEventListener {
                         participantId,
                         costPerUser
                 );
-
                 // 처리된 금액을 원자적으로 누적
                 totalAmount.addAndGet(costPerUser);
 
-                log.debug("Successfully processed participant {} with amount {} [Thread: {}]",
-                        participantId, costPerUser, Thread.currentThread().getName());
                 return participantId;
 
             } catch (Exception e) {
-                log.warn("Participant {} processing attempt {} failed [Thread: {}]",
-                        participantId, attempt, Thread.currentThread().getName(), e);
-
                 if (attempt == maxRetries) {
-                    log.error("Participant {} processing failed after {} attempts", participantId, maxRetries);
-                    throw new RuntimeException("Participant settlement failed: " + participantId, e);
+                    throw new CustomException(ErrorCode.SETTLEMENT_PROCESS_FAILED);
                 }
-
                 try {
-                    Thread.sleep(retryDelay * attempt); // 점진적 백오프
+                    Thread.sleep(retryDelay * attempt);
                 } catch (InterruptedException ie) {
                     Thread.currentThread().interrupt();
-                    throw new RuntimeException("Interrupted during retry for participant: " + participantId, ie);
+                    throw new CustomException(ErrorCode.SETTLEMENT_PROCESS_FAILED);
                 }
             }
         }
-
         return participantId;
     }
 
@@ -204,7 +177,6 @@ public class SettlementKafkaEventListener {
     public void completeSettlement(SettlementProcessEvent event, long totalProcessedAmount) {
         try {
             // 리더에게 크레딧
-            log.info("Crediting {} to leader {}", totalProcessedAmount, event.getLeaderId());
             userSettlementService.creditToLeader(event.getLeaderId(), totalProcessedAmount);
 
             // 스케줄 상태 업데이트
@@ -218,12 +190,7 @@ public class SettlementKafkaEventListener {
                     .orElseThrow(() -> new CustomException(ErrorCode.SETTLEMENT_NOT_FOUND));
             completedSettlement.update(TotalStatus.COMPLETED, LocalDateTime.now());
             settlementRepository.save(completedSettlement);
-
-            log.info("StructuredTaskScope settlement completed successfully for settlementId: {}",
-                    event.getSettlementId());
-
         } catch (Exception e) {
-            log.error("Failed to complete settlement for settlementId: {}", event.getSettlementId(), e);
             throw e;
         }
     }

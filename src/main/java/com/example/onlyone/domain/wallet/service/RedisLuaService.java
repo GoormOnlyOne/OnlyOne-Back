@@ -42,7 +42,7 @@ public class RedisLuaService {
 
     /** 게이트 잡고 함수 실행 (+재시도) */
     public <T> T withWalletGate(long userId, String op, int ttlSec, Supplier<T> body) {
-        final int maxAttempts = 3;
+        final int maxAttempts = 5;
         for (int attempt = 1; attempt <= maxAttempts; attempt++) {
             String owner = acquireWalletGate(userId, op, ttlSec);
             if (owner != null) {
