@@ -10,6 +10,8 @@ import com.example.onlyone.domain.wallet.entity.WalletTransactionStatus;
 import com.example.onlyone.domain.wallet.repository.WalletRepository;
 import com.example.onlyone.domain.wallet.repository.WalletTransactionRepository;
 import com.example.onlyone.domain.wallet.entity.Type;
+import com.example.onlyone.global.exception.CustomException;
+import com.example.onlyone.global.exception.ErrorCode;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
@@ -50,11 +52,8 @@ public class LedgerWriter {
     @Transactional
     public void writeBatch(List<ConsumerRecord<String, String>> records) {
         if (records == null || records.isEmpty()) {
-            log.info("✅ LedgerWriter: No records received");
             return;
         }
-
-        log.info("✅ LedgerWriter: Received {} records", records.size());
 
         List<WalletTransaction> walletTransactionList = new ArrayList<>();
         List<Transfer> transferList = new ArrayList<>();
@@ -64,17 +63,12 @@ public class LedgerWriter {
                 .map(r -> parse(r.value()))
                 .toList();
 
-        log.info("✅ LedgerWriter: Parsed {} events", events.size());
-
         Set<String> candidateoperationIds = new HashSet<>();
         for (JsonNode root : events) {
             String operationId = root.path("operationId").asText();
             candidateoperationIds.add(operationId + ":OUT");
             candidateoperationIds.add(operationId + ":IN");
         }
-
-        log.debug("✅ LedgerWriter: Candidate operationIds = {}", candidateoperationIds);
-
 
         // 2) 이미 처리된 operationId 조회
         Set<String> existing = new HashSet<>(walletTransactionRepository.findExistingOperationIds(candidateoperationIds));
@@ -170,15 +164,16 @@ public class LedgerWriter {
                 }
                 transferRepository.flush();
             } catch (DataIntegrityViolationException dup) {
-                // 필요시 개별 재시도 가능
-                log.warn("Transfer batch insert failed, some records may be duplicates", dup);
+                // 필요시 개별 재시도
             }
         }
     }
 
     private JsonNode parse(String s) {
         try { return objectMapper.readTree(s); }
-        catch (Exception e) { throw new RuntimeException("Invalid JSON: " + s, e); }
+        catch (Exception e) {
+            throw new CustomException(ErrorCode.INVALID_EVENT_PAYLOAD);
+        }
     }
 
     private void insertIndividuallyIgnoringDuplicate(List<WalletTransaction> walletTransactionList) {
