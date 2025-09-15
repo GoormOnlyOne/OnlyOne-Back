@@ -34,9 +34,6 @@ public class KafkaProducerConfig {
         config.put(ProducerConfig.MAX_IN_FLIGHT_REQUESTS_PER_CONNECTION, 5);
         config.put(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, StringSerializer.class);
         config.put(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, StringSerializer.class);
-        // 트랜잭션 (OutboxRelay가 한 배치를 하나의 트랜잭션으로 발행)
-        config.put(ProducerConfig.TRANSACTIONAL_ID_CONFIG,
-                producer.getTransactionalIdPrefix() + UUID.randomUUID());
 
         // 보안
         if (security != null && security.isEnabled()) {

@@ -9,7 +9,7 @@ public class WalletCaptureSucceededEvent {
     private Long userSettlementId;
     private Long memberWalletId;
     private Long leaderWalletId;
-    private int amount;
+    private Long amount;
     private Long memberBalanceAfter;
     private Long leaderBalanceAfter;
 }
