@@ -28,7 +28,6 @@ public class KafkaService {
             topics = "#{@kafkaProperties.consumer.userSettlementLedgerConsumerConfig.topic}",
             concurrency = "8"
     )
-    @Transactional
     public void onUserSettlementResultBatch(List<ConsumerRecord<String, String>> records, Acknowledgment ack) {
         try {
             ledgerWriter.writeBatch(records);
