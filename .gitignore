@@ -64,3 +64,6 @@ grafana-data
 prometheus-data
 docker-compose.yml
 prometheus.yml
+.my.cnf
+influxdb-data
+k6-test
