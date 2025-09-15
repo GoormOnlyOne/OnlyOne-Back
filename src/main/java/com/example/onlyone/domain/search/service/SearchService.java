@@ -116,21 +116,14 @@ public class SearchService {
         if (!filter.isKeywordValid()) {
             throw new CustomException(ErrorCode.SEARCH_KEYWORD_TOO_SHORT);
         }
-        long startTime = System.currentTimeMillis();
 
         User user = userService.getCurrentUser();
-        log.info("getCurrentUser 실행시간: {}ms", System.currentTimeMillis() - startTime);
 
-        long step2 = System.currentTimeMillis();
         List<Long> joinedClubIds = userClubRepository.findByClubIdsByUserId(user.getUserId());
-        log.info("joinedClubIds 실행시간: {}ms", System.currentTimeMillis() - step2);
 
-
-        long step3 = System.currentTimeMillis();
         if (filter.hasKeyword()) {
             // ES 검색 (키워드 있는 경우)
             List<ClubDocument> esResults = searchWithElasticsearch(filter);
-            log.info("ES 검색 실행시간: {}ms", System.currentTimeMillis() - step3);
             return convertElasticsearchResultsWithJoinStatus(esResults, joinedClubIds);
         } else {
             // MySQL 검색 (키워드 없는 경우)
