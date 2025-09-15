@@ -100,8 +100,7 @@ public class UserSettlementService {
                 userSettlementRepository.updateStatusIfRequested(us.getUserSettlementId(), SettlementStatus.FAILED);
                 failedEventAppender.appendFailedUserSettlementEvent(
                         settlementId, us.getUserSettlementId(), participantId,
-                        memberWalletId, leaderId, leaderWalletId, amount,
-                        e.getClass().getSimpleName()
+                        memberWalletId, leaderId, leaderWalletId, amount
                 );
                 throw e;
             }

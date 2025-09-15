@@ -34,7 +34,7 @@ public class KafkaTopicConfig {
         return TopicBuilder.name(topic)
                 .partitions(12)
                 .replicas(1)
-                .config(TopicConfig.MIN_IN_SYNC_REPLICAS_CONFIG, "2")
+                .config(TopicConfig.MIN_IN_SYNC_REPLICAS_CONFIG, "1")
                 .config(TopicConfig.CLEANUP_POLICY_CONFIG, TopicConfig.CLEANUP_POLICY_DELETE)
                 .config(TopicConfig.RETENTION_MS_CONFIG, String.valueOf(Duration.ofDays(7).toMillis()))
                 .build();
@@ -47,7 +47,7 @@ public class KafkaTopicConfig {
         return TopicBuilder.name(topic)
                 .partitions(24)
                 .replicas(1)
-                .config(TopicConfig.MIN_IN_SYNC_REPLICAS_CONFIG, "2")
+                .config(TopicConfig.MIN_IN_SYNC_REPLICAS_CONFIG, "1")
                 .config(TopicConfig.CLEANUP_POLICY_CONFIG, TopicConfig.CLEANUP_POLICY_DELETE)
                 .config(TopicConfig.RETENTION_MS_CONFIG, String.valueOf(Duration.ofDays(14).toMillis()))
                 .build();
