@@ -46,10 +46,15 @@ public class SettlementProcessEventListener {
     @Async("settlementExecutor") // 가상스레드 기반 처리 (정산 단위 비동기만 유지)
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     public void handleSettlementProcess(SettlementProcessEvent event) {
+        log.error("[SETTLEMENT_ORCHESTRATION_DEBUG] 🎯 정산 이벤트 리스너 시작 - settlementId: {}, targetUsers: {}, costPerUser: {}", 
+                event.getSettlementId(), event.getTargetUserIds().size(), event.getCostPerUser());
+        
         try {
             processSettlement(event);   // 🔹 정산 전체 재시도 제거
+            log.error("[SETTLEMENT_ORCHESTRATION_DEBUG] ✅ 정산 이벤트 처리 완료 - settlementId: {}", event.getSettlementId());
         } catch (Exception e) {
-            log.error("❌ Settlement handle failed: settlementId={}", event.getSettlementId(), e);
+            log.error("[SETTLEMENT_ORCHESTRATION_DEBUG] ❌ 정산 이벤트 처리 실패 - settlementId: {}, error: {}", 
+                    event.getSettlementId(), e.getMessage(), e);
             // 필요 시 실패 알림/아웃박스
         }
     }
@@ -62,12 +67,20 @@ public class SettlementProcessEventListener {
      */
     @Transactional
     public void processSettlement(SettlementProcessEvent event) {
+        log.error("[SETTLEMENT_ORCHESTRATION_DEBUG] 🚀 정산 오케스트레이션 시작 - settlementId: {}, 총 참가자: {}, 1인당 비용: {}", 
+                event.getSettlementId(), event.getTargetUserIds().size(), event.getCostPerUser());
+        
         List<Long> succeeded = new ArrayList<>();
         List<Long> failed = new ArrayList<>();
         long totalProcessedAmount = 0;
+        int processedCount = 0;
 
         try {
             for (Long participantId : event.getTargetUserIds()) {
+                processedCount++;
+                log.error("[SETTLEMENT_ORCHESTRATION_DEBUG] 📋 참가자 처리 시작 ({}/{}) - participantId: {}", 
+                        processedCount, event.getTargetUserIds().size(), participantId);
+                
                 boolean ok = processParticipantWithRetry(
                         event.getSettlementId(),
                         event.getLeaderId(),
@@ -79,39 +92,53 @@ public class SettlementProcessEventListener {
                 if (ok) {
                     succeeded.add(participantId);
                     totalProcessedAmount += event.getCostPerUser();
+                    log.error("[SETTLEMENT_ORCHESTRATION_DEBUG] ✅ 참가자 처리 성공 ({}/{}) - participantId: {}, 누적 금액: {}", 
+                            processedCount, event.getTargetUserIds().size(), participantId, totalProcessedAmount);
                 } else {
                     failed.add(participantId);
+                    log.error("[SETTLEMENT_ORCHESTRATION_DEBUG] ❌ 참가자 처리 실패 ({}/{}) - participantId: {}, 실패 수: {}", 
+                            processedCount, event.getTargetUserIds().size(), participantId, failed.size());
                 }
             }
 
+            log.error("[SETTLEMENT_ORCHESTRATION_DEBUG] 📊 참가자 처리 완료 - 성공: {}, 실패: {}, 총 금액: {}", 
+                    succeeded.size(), failed.size(), totalProcessedAmount);
+
             if (!failed.isEmpty()) {
-                log.warn("⚠️ Some participants failed. settlementId={}, failedCount={}, failedIds={}",
+                log.error("[SETTLEMENT_ORCHESTRATION_DEBUG] ❌ 일부 참가자 처리 실패 - settlementId: {}, 실패 수: {}, 실패자 ID: {}", 
                         event.getSettlementId(), failed.size(), failed);
                 // 실패자 존재 시 → 리더 가산/완료 처리 금지
                 throw new RuntimeException("Partial failure in participant settlements");
             }
 
             // 🔹 전원 성공 시에만 리더 가산
+            log.error("[SETTLEMENT_ORCHESTRATION_DEBUG] 💰 리더 크레딧 시작 - leaderId: {}, totalProcessedAmount: {}", 
+                    event.getLeaderId(), totalProcessedAmount);
             userSettlementService.creditToLeader(event.getLeaderId(), totalProcessedAmount);
+            log.error("[SETTLEMENT_ORCHESTRATION_DEBUG] ✅ 리더 크레딧 완료 - leaderId: {}", event.getLeaderId());
 
             // 스케줄 CLOSED
+            log.error("[SETTLEMENT_ORCHESTRATION_DEBUG] 📅 스케줄 상태 변경 시작 - scheduleId: {}", event.getScheduleId());
             Schedule completedSchedule = scheduleRepository.findById(event.getScheduleId())
                     .orElseThrow(() -> new CustomException(ErrorCode.SCHEDULE_NOT_FOUND));
             completedSchedule.updateStatus(ScheduleStatus.CLOSED);
             scheduleRepository.save(completedSchedule);
+            log.error("[SETTLEMENT_ORCHESTRATION_DEBUG] ✅ 스케줄 상태 변경 완료 - scheduleId: {}", event.getScheduleId());
 
             // 정산 COMPLETED
+            log.error("[SETTLEMENT_ORCHESTRATION_DEBUG] 🏁 정산 상태 변경 시작 - settlementId: {}", event.getSettlementId());
             Settlement completedSettlement = settlementRepository.findById(event.getSettlementId())
                     .orElseThrow(() -> new CustomException(ErrorCode.SETTLEMENT_NOT_FOUND));
             completedSettlement.update(TotalStatus.COMPLETED, LocalDateTime.now());
             settlementRepository.save(completedSettlement);
+            log.error("[SETTLEMENT_ORCHESTRATION_DEBUG] ✅ 정산 상태 변경 완료 - settlementId: {}", event.getSettlementId());
 
-            log.info("✅ Settlement COMPLETED: settlementId={}, users={}, totalAmount={}",
+            log.error("[SETTLEMENT_ORCHESTRATION_DEBUG] 🎉 정산 오케스트레이션 완료 - settlementId: {}, 성공 사용자: {}, 총 금액: {}", 
                     event.getSettlementId(), succeeded.size(), totalProcessedAmount);
 
         } catch (Exception e) {
-            log.error("❌ Settlement failed. succeeded={}, totalProcessedAmount={}",
-                    succeeded.size(), totalProcessedAmount, e);
+            log.error("[SETTLEMENT_ORCHESTRATION_DEBUG] ❌ 정산 오케스트레이션 실패 - 성공: {}, 실패: {}, 총 금액: {}, error: {}", 
+                    succeeded.size(), failed.size(), totalProcessedAmount, e.getMessage(), e);
             throw e; // 상위(비동기 핸들러)에서 로깅/알림
         }
     }
@@ -129,24 +156,38 @@ public class SettlementProcessEventListener {
         final int maxRetries = 3;
         final int baseDelayMs = 400;
 
+        log.error("[SETTLEMENT_RETRY_DEBUG] 🔄 참가자 재시도 시작 - participantId: {}, maxRetries: {}", 
+                participantId, maxRetries);
+
         for (int attempt = 1; attempt <= maxRetries; attempt++) {
             try {
+                log.error("[SETTLEMENT_RETRY_DEBUG] 🎯 참가자 처리 시도 ({}/{}) - participantId: {}", 
+                        attempt, maxRetries, participantId);
+                
                 userSettlementService.processParticipantSettlement(
                         settlementId, leaderId, leaderWalletId, participantId, amount
                 );
+                
+                log.error("[SETTLEMENT_RETRY_DEBUG] ✅ 참가자 처리 성공 ({}/{}) - participantId: {}", 
+                        attempt, maxRetries, participantId);
                 return true;
+                
             } catch (Exception e) {
                 // 마지막 시도 실패면 false
                 if (attempt == maxRetries) {
-                    log.error("❌ Participant permanently failed: settlementId={}, participantId={}, err={}",
-                            settlementId, participantId, e.getMessage());
+                    log.error("[SETTLEMENT_RETRY_DEBUG] ❌ 참가자 영구 실패 ({}/{}) - settlementId: {}, participantId: {}, error: {}", 
+                            attempt, maxRetries, settlementId, participantId, e.getMessage(), e);
                     return false;
                 }
-                log.warn("⏳ Participant retry {}/{}: settlementId={}, participantId={}, err={}",
-                        attempt, maxRetries, settlementId, participantId, e.getMessage());
+                log.warn("[SETTLEMENT_RETRY_DEBUG] ⏳ 참가자 재시도 ({}/{}) - settlementId: {}, participantId: {}, error: {}, 대기시간: {}ms", 
+                        attempt, maxRetries, settlementId, participantId, e.getMessage(), (long) baseDelayMs * attempt);
+                
                 try {
                     Thread.sleep((long) baseDelayMs * attempt);
+                    log.error("[SETTLEMENT_RETRY_DEBUG] ⏰ 재시도 대기 완료 - participantId: {}, 다음 시도: {}", 
+                            participantId, attempt + 1);
                 } catch (InterruptedException ie) {
+                    log.error("[SETTLEMENT_RETRY_DEBUG] ❌ 재시도 대기 중 인터럽트 - participantId: {}", participantId);
                     Thread.currentThread().interrupt();
                     return false;
                 }

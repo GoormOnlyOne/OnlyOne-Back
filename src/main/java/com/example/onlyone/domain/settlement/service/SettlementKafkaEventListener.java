@@ -160,9 +160,6 @@ public class SettlementKafkaEventListener {
 
         for (int attempt = 1; attempt <= maxRetries; attempt++) {
             try {
-                log.debug("Processing participant {} (attempt {}) [Thread: {}]",
-                        participantId, attempt, Thread.currentThread().getName());
-
                 // 참가자별 개별 트랜잭션 처리 (REQUIRES_NEW + Redis Lua 게이트는 UserSettlementService 내부)
                 userSettlementService.processParticipantSettlement(
                         settlementId,
@@ -174,20 +171,12 @@ public class SettlementKafkaEventListener {
 
                 // 처리된 금액을 원자적으로 누적
                 totalAmount.addAndGet(costPerUser);
-
-                log.debug("Successfully processed participant {} with amount {} [Thread: {}]",
-                        participantId, costPerUser, Thread.currentThread().getName());
                 return participantId;
 
             } catch (Exception e) {
-                log.warn("Participant {} processing attempt {} failed [Thread: {}]",
-                        participantId, attempt, Thread.currentThread().getName(), e);
-
                 if (attempt == maxRetries) {
-                    log.error("Participant {} processing failed after {} attempts", participantId, maxRetries);
                     throw new RuntimeException("Participant settlement failed: " + participantId, e);
                 }
-
                 try {
                     Thread.sleep(retryDelay * attempt); // 점진적 백오프
                 } catch (InterruptedException ie) {
@@ -204,7 +193,6 @@ public class SettlementKafkaEventListener {
     public void completeSettlement(SettlementProcessEvent event, long totalProcessedAmount) {
         try {
             // 리더에게 크레딧
-            log.info("Crediting {} to leader {}", totalProcessedAmount, event.getLeaderId());
             userSettlementService.creditToLeader(event.getLeaderId(), totalProcessedAmount);
 
             // 스케줄 상태 업데이트
@@ -219,7 +207,7 @@ public class SettlementKafkaEventListener {
             completedSettlement.update(TotalStatus.COMPLETED, LocalDateTime.now());
             settlementRepository.save(completedSettlement);
 
-            log.info("StructuredTaskScope settlement completed successfully for settlementId: {}",
+            log.error("⏭️ StructuredTaskScope settlement completed successfully for settlementId: {}",
                     event.getSettlementId());
 
         } catch (Exception e) {

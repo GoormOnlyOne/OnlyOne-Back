@@ -53,30 +53,51 @@ public class UserSettlementService {
                                              Long leaderWalletId,
                                              Long participantId,
                                              Long amount) {
+
+
         redisLuaService.withWalletGate(participantId, "capture", 10, () -> {
+            
             // 조회
             UserSettlement us = userSettlementRepository
                     .findBySettlement_SettlementIdAndUser_UserId(settlementId, participantId)
-                    .orElseThrow(() -> new CustomException(ErrorCode.USER_SETTLEMENT_NOT_FOUND));
+                    .orElseThrow(() -> {
+                        return new CustomException(ErrorCode.USER_SETTLEMENT_NOT_FOUND);
+                    });
+
+            
             // 이미 처리 완료면 멱등 스킵
             if (us.getSettlementStatus() == SettlementStatus.COMPLETED) {
+                log.warn("[SETTLEMENT_DEBUG] ⏭️ 이미 처리 완료된 정산 - participantId: {}, userSettlementId: {}", 
+                        participantId, us.getUserSettlementId());
                 return;
             }
+            
             User participant = userRepository.findById(participantId)
-                    .orElseThrow(() -> new CustomException(ErrorCode.USER_NOT_FOUND));
+                    .orElseThrow(() -> {
+                        return new CustomException(ErrorCode.USER_NOT_FOUND);
+                    });
+            
             Wallet memberWallet = walletRepository.findByUserWithoutLock(participant)
-                    .orElseThrow(() -> new CustomException(ErrorCode.WALLET_NOT_FOUND));
+                    .orElseThrow(() -> {
+                        return new CustomException(ErrorCode.WALLET_NOT_FOUND);
+                    });
+            
             Long memberWalletId = memberWallet.getWalletId();
             String operationId = ("stl:%d:usr:%d:v1").formatted(settlementId, participantId);
+            
             try {
                 // 조건부 UPDATE
                 int captured = walletRepository.captureHold(participantId, amount);
                 if (captured != 1) {
+                    log.error("[SETTLEMENT_DEBUG] ❌ 홀드 캡처 실패 - participantId: {}, captured: {}, amount: {}", 
+                            participantId, captured, amount);
                     throw new CustomException(ErrorCode.WALLET_HOLD_CAPTURE_FAILED);
                 }
+                
                 // 상태 변경
                 us.updateUserSettlement(SettlementStatus.COMPLETED, LocalDateTime.now());
-                userSettlementRepository.save(us);
+                UserSettlement savedUs = userSettlementRepository.save(us);
+                
                 // 성공 이벤트 Outbox 기록
                 outboxAppender.append(
                         "UserSettlement",
@@ -97,12 +118,13 @@ public class UserSettlementService {
                         )
                 );
             } catch (Exception e) {
-                userSettlementRepository.updateStatusIfRequested(us.getUserSettlementId(), SettlementStatus.FAILED);
                 failedEventAppender.appendFailedUserSettlementEvent(
                         settlementId, us.getUserSettlementId(), participantId,
                         memberWalletId, leaderId, leaderWalletId, amount,
                         e.getClass().getSimpleName()
                 );
+                log.error("[SETTLEMENT_DEBUG] ❌ 정산 처리 실패 처리 완료 - participantId: {}, userSettlementId: {}", 
+                        participantId, us.getUserSettlementId());
                 throw e;
             }
         });
@@ -145,11 +167,28 @@ public class UserSettlementService {
      */
     @Transactional(propagation = Propagation.REQUIRES_NEW, rollbackFor = Exception.class)
     public void creditToLeader(Long leaderId, long totalAmount) {
+        log.error("[SETTLEMENT_DEBUG] 🚀 리더 크레딧 처리 시작 - leaderId: {}, totalAmount: {}", 
+                leaderId, totalAmount);
+        
         redisLuaService.withWalletGate(leaderId, "credit", 10, () -> {
+            log.error("[SETTLEMENT_DEBUG] 🔐 리더 Redis 락 획득 성공 - leaderId: {}", leaderId);
+            
+            log.error("[SETTLEMENT_DEBUG] 💰 리더 크레딧 시도 - leaderId: {}, totalAmount: {}", 
+                    leaderId, totalAmount);
             int credited = walletRepository.creditByUserId(leaderId, totalAmount);
+            log.error("[SETTLEMENT_DEBUG] 🎯 리더 크레딧 결과 - leaderId: {}, credited: {}", leaderId, credited);
+            
             if (credited != 1) {
+                log.error("[SETTLEMENT_DEBUG] ❌ 리더 크레딧 실패 - leaderId: {}, credited: {}, totalAmount: {}", 
+                        leaderId, credited, totalAmount);
                 throw new CustomException(ErrorCode.WALLET_CREDIT_APPLY_FAILED);
             }
+            
+            log.error("[SETTLEMENT_DEBUG] ✅ 리더 크레딧 처리 성공 - leaderId: {}, totalAmount: {}", 
+                    leaderId, totalAmount);
         });
+        
+        log.error("[SETTLEMENT_DEBUG] 🏁 리더 크레딧 처리 메서드 종료 - leaderId: {}, totalAmount: {}", 
+                leaderId, totalAmount);
     }
 }
