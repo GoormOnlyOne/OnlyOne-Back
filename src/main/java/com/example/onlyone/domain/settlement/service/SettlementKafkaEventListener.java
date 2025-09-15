@@ -113,7 +113,13 @@ public class SettlementKafkaEventListener {
             for (Long participantId : targetUserIds) {
                 scope.fork(() -> {
                     // 세마포어로 동시 실행 수 제한
-                    concurrencyLimit.acquireUninterruptibly();
+                    try {
+                        concurrencyLimit.acquire();
+                    } catch (InterruptedException ie) {
+                        Thread.currentThread().interrupt();
+                        return null;
+                    }
+
                     try {
                         return processParticipantWithRetry(
                                 event.getSettlementId(),

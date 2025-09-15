@@ -66,6 +66,7 @@ public class LedgerWriter {
         Set<String> candidateoperationIds = new HashSet<>();
         for (JsonNode root : events) {
             String operationId = root.path("operationId").asText();
+            if (operationId == null || operationId.isBlank()) continue;
             candidateoperationIds.add(operationId + ":OUT");
             candidateoperationIds.add(operationId + ":IN");
         }
@@ -78,6 +79,7 @@ public class LedgerWriter {
         for (JsonNode root : events) {
             String type = root.path("type").asText("SUCCESS");
             String operationId = root.path("operationId").asText();
+            if (operationId == null || operationId.isBlank()) continue;
 
             long userSettlementId = root.path("userSettlementId").asLong();
             long memberWalletId   = root.path("memberWalletId").asLong();
@@ -112,11 +114,6 @@ public class LedgerWriter {
                         .build();
                 transferList.add(outTransfer);
                 outTransaction.updateTransfer(outTransfer);
-
-                transferList.add(Transfer.builder()
-                        .userSettlement(us)
-                        .walletTransaction(outTransaction)
-                        .build());
             }
             // INCOMING
             String inId = operationId + ":IN";
