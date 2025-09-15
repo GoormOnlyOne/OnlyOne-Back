@@ -30,15 +30,12 @@ public class KafkaService {
     )
     @Transactional
     public void onUserSettlementResultBatch(List<ConsumerRecord<String, String>> records, Acknowledgment ack) {
-        log.info("📩 KafkaService: Consumed {} records from user-settlement.result.v1", records.size());
         try {
-            log.info("onUserSettlementResultBatch 진입");
             ledgerWriter.writeBatch(records);
             // 오프셋 커밋
             ack.acknowledge();
         } catch (Exception e) {
-            // Kafka는 "at least once delivery" 모델이 기본 -> throw해서 컨테이너 재시도
-            log.error("❌ KafkaService: Error while processing batch", e);
+            // throw해서 컨테이너 재시도
             throw e;
         }
     }
