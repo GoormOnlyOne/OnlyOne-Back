@@ -46,7 +46,7 @@ public class SearchService {
 
         // 사용자 관심사 조회
         List<Long> interestIds = userInterestRepository.findInterestIdsByUserId(user.getUserId());
-        
+
         // 관심사가 없는 경우 빈 리스트 반환
         if (interestIds.isEmpty()) {
             return new ArrayList<>();
@@ -87,8 +87,8 @@ public class SearchService {
 
         PageRequest pageRequest = PageRequest.of(page, 20);
         List<Object[]> resultList = clubRepository.searchByInterest(interestId, pageRequest);
-        User user = userService.getCurrentUser();
-        List<Long> joinedClubIds = userClubRepository.findByClubIdsByUserId(user.getUserId());
+        Long userId = userService.getCurrentUserId();
+        List<Long> joinedClubIds = userClubRepository.findByClubIdsByUserId(userId);
         return convertToClubResponseDtoWithJoinStatus(resultList, joinedClubIds);
     }
 
@@ -100,8 +100,8 @@ public class SearchService {
 
         PageRequest pageRequest = PageRequest.of(page, 20);
         List<Object[]> resultList = clubRepository.searchByLocation(city, district, pageRequest);
-        User user = userService.getCurrentUser();
-        List<Long> joinedClubIds = userClubRepository.findByClubIdsByUserId(user.getUserId());
+        Long userId = userService.getCurrentUserId();
+        List<Long> joinedClubIds = userClubRepository.findByClubIdsByUserId(userId);
 
         return convertToClubResponseDtoWithJoinStatus(resultList, joinedClubIds);
     }
@@ -117,9 +117,9 @@ public class SearchService {
             throw new CustomException(ErrorCode.SEARCH_KEYWORD_TOO_SHORT);
         }
 
-        User user = userService.getCurrentUser();
+        Long userId = userService.getCurrentUserId(); //TODO: 이 쿼리가 실행 후 히카리에 스레드기 반환되는지 확인..
 
-        List<Long> joinedClubIds = userClubRepository.findByClubIdsByUserId(user.getUserId());
+        List<Long> joinedClubIds = userClubRepository.findByClubIdsByUserId(userId);
 
         if (filter.hasKeyword()) {
             // ES 검색 (키워드 있는 경우)
@@ -177,6 +177,7 @@ public class SearchService {
             Long memberCount = (Long) row[1];
             return ClubResponseDto.from(club, memberCount, true);
         }).toList();
+
         boolean isUnsettledScheduleExist =
                 userSettlementRepository.existsByUserAndSettlementStatusNot(user, SettlementStatus.COMPLETED);
         return new MyMeetingListResponseDto(isUnsettledScheduleExist, clubResponseDtoList);
