@@ -137,9 +137,8 @@ public enum ErrorCode {
     INVALID_LOCATION(400, "SEARCH_400_4", "유효하지 않은 city 또는 district입니다."),
 
     // Outbox
-    INVALID_TOPIC(400, "OUTBOX_400_1", "유효하지 않은 토픽입니다.")
-
-    ;
+    INVALID_TOPIC(400, "OUTBOX_400_1", "유효하지 않은 토픽입니다."),
+    INVALID_EVENT_PAYLOAD(422, "OUTBOX_422_1", "잘못된 이벤트 페이로드입니다.");
 
     private final int status;
     private final String code;
