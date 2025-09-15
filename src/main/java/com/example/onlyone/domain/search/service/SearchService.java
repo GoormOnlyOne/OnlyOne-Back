@@ -5,7 +5,6 @@ import com.example.onlyone.domain.club.entity.Club;
 import com.example.onlyone.domain.club.repository.ClubElasticsearchRepository;
 import com.example.onlyone.domain.club.repository.ClubRepository;
 import com.example.onlyone.domain.club.repository.UserClubRepository;
-import com.example.onlyone.domain.interest.entity.Category;
 import com.example.onlyone.domain.search.dto.request.SearchFilterDto;
 import com.example.onlyone.domain.search.dto.response.ClubResponseDto;
 import com.example.onlyone.domain.search.dto.response.MyMeetingListResponseDto;
@@ -89,8 +88,7 @@ public class SearchService {
         PageRequest pageRequest = PageRequest.of(page, 20);
         List<Object[]> resultList = clubRepository.searchByInterest(interestId, pageRequest);
         User user = userService.getCurrentUser();
-        List<Long> joinedClubIds = userClubRepository.findByUserUserId(user.getUserId())
-                .stream().map(uc -> uc.getClub().getClubId()).toList();
+        List<Long> joinedClubIds = userClubRepository.findByClubIdsByUserId(user.getUserId());
         return convertToClubResponseDtoWithJoinStatus(resultList, joinedClubIds);
     }
 
@@ -103,8 +101,7 @@ public class SearchService {
         PageRequest pageRequest = PageRequest.of(page, 20);
         List<Object[]> resultList = clubRepository.searchByLocation(city, district, pageRequest);
         User user = userService.getCurrentUser();
-        List<Long> joinedClubIds = userClubRepository.findByUserUserId(user.getUserId())
-                .stream().map(uc -> uc.getClub().getClubId()).toList();
+        List<Long> joinedClubIds = userClubRepository.findByClubIdsByUserId(user.getUserId());
 
         return convertToClubResponseDtoWithJoinStatus(resultList, joinedClubIds);
     }
@@ -119,14 +116,21 @@ public class SearchService {
         if (!filter.isKeywordValid()) {
             throw new CustomException(ErrorCode.SEARCH_KEYWORD_TOO_SHORT);
         }
+        long startTime = System.currentTimeMillis();
 
         User user = userService.getCurrentUser();
-        List<Long> joinedClubIds = userClubRepository.findByUserUserId(user.getUserId())
-                .stream().map(uc -> uc.getClub().getClubId()).toList();
+        log.info("getCurrentUser 실행시간: {}ms", System.currentTimeMillis() - startTime);
 
+        long step2 = System.currentTimeMillis();
+        List<Long> joinedClubIds = userClubRepository.findByClubIdsByUserId(user.getUserId());
+        log.info("joinedClubIds 실행시간: {}ms", System.currentTimeMillis() - step2);
+
+
+        long step3 = System.currentTimeMillis();
         if (filter.hasKeyword()) {
             // ES 검색 (키워드 있는 경우)
             List<ClubDocument> esResults = searchWithElasticsearch(filter);
+            log.info("ES 검색 실행시간: {}ms", System.currentTimeMillis() - step3);
             return convertElasticsearchResultsWithJoinStatus(esResults, joinedClubIds);
         } else {
             // MySQL 검색 (키워드 없는 경우)
@@ -160,27 +164,6 @@ public class SearchService {
             return ClubResponseDto.from(club, memberCount, false);
         }).toList();
     }
-
-    // 키워드 검색 결과 가입 상태와 함께 변환
-//    private List<ClubResponseDto> convertKeywordSearchResultsWithJoinStatus(List<Object[]> results, List<Long> joinedClubIds) {
-//        return results.stream().map(result -> {
-//            Long clubId = ((Number) result[0]).longValue();
-//            String categoryName = (String) result[5];
-//            String koreanCategoryName = Category.valueOf(categoryName).getKoreanName();
-//            boolean isJoined = joinedClubIds.contains(clubId);
-//
-//            return ClubResponseDto.builder()
-//                    .clubId(clubId)
-//                    .name((String) result[1])
-//                    .description((String) result[2])
-//                    .district((String) result[3])
-//                    .image((String) result[4])
-//                    .interest(koreanCategoryName)
-//                    .memberCount((Long) result[6])
-//                    .isJoined(isJoined)
-//                    .build();
-//        }).toList();
-//    }
 
     // 엔티티 -> DTO 가입 상태와 함께 변환
     private List<ClubResponseDto> convertToClubResponseDtoWithJoinStatus(List<Object[]> results, List<Long> joinedClubIds) {
@@ -285,15 +268,13 @@ public class SearchService {
     // Pageable 생성 (ES용)
     private Pageable createPageable(SearchFilterDto filter) {
         Sort sort;
-        
+
         if (filter.getSortBy() == SearchFilterDto.SortType.LATEST) {
-            sort = Sort.by(Sort.Direction.DESC, "createdAt");
+            sort = Sort.by(Sort.Order.desc("createdAt"));
         } else {
-            // MEMBER_COUNT or default
-            sort = Sort.by(Sort.Direction.DESC, "memberCount")
-                    .and(Sort.by(Sort.Direction.DESC, "createdAt"));
+            sort = Sort.by(Sort.Order.desc("memberCount"));
         }
-        
+
         return PageRequest.of(filter.getPage(), 20, sort);
     }
 
