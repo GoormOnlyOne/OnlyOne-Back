@@ -39,7 +39,7 @@ dependencies {
     implementation 'org.springframework.boot:spring-boot-starter-logging'
     implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:2.7.0'
     compileOnly 'org.projectlombok:lombok'
-    developmentOnly 'org.springframework.boot:spring-boot-devtools'
+    // developmentOnly 'org.springframework.boot:spring-boot-devtools'  // 성능 테스트를 위해 비활성화
     runtimeOnly 'com.mysql:mysql-connector-j'
     runtimeOnly 'com.h2database:h2'
     annotationProcessor 'org.projectlombok:lombok'
@@ -70,10 +70,14 @@ dependencies {
     implementation 'software.amazon.awssdk:s3:2.32.11'
     // Redis
     implementation 'org.springframework.boot:spring-boot-starter-data-redis'
+    implementation 'org.springframework.boot:spring-boot-starter-data-redis-reactive'
+    implementation 'org.springframework.boot:spring-boot-starter-cache'
+    implementation 'com.github.ben-manes.caffeine:caffeine:3.1.8'
+    
     testImplementation 'org.testcontainers:junit-jupiter'
     testImplementation 'org.testcontainers:testcontainers'
-    // jpa 쿼리 확인
-    implementation 'com.github.gavlyukovskiy:p6spy-spring-boot-starter:1.9.0'
+    // jpa 쿼리 확인 (성능 테스트를 위해 비활성화)
+    // implementation 'com.github.gavlyukovskiy:p6spy-spring-boot-starter:1.9.0'
 
     // querydsl
     implementation "com.querydsl:querydsl-jpa:${querydslVersion}:jakarta"
@@ -84,6 +88,11 @@ dependencies {
     // 모니터링
     implementation 'org.springframework.boot:spring-boot-starter-actuator'
     runtimeOnly 'io.micrometer:micrometer-registry-prometheus'
+    
+    // 트레이싱 (Jaeger/OpenTelemetry) - 수정된 설정
+    implementation 'io.micrometer:micrometer-tracing-bridge-otel'
+    implementation 'io.opentelemetry:opentelemetry-exporter-otlp'
+    implementation 'io.opentelemetry.semconv:opentelemetry-semconv'
 }
 
 // QueryDSL 설정 (수정됨)
@@ -106,6 +115,44 @@ clean {
 }
 
 // 나머지는 기존과 동일
+// 40K RPS 대응 JVM + 네트워크 최적화
+tasks.named('bootRun') {
+    jvmArgs = [
+        // M3 MacBook 최적화 메모리 설정 - SSE 3000 연결 대응
+        '-Xms3g',                              // 시작 힙 3GB
+        '-Xmx8g',                              // 최대 힙 8GB (SSE 대용량 처리)
+        '-XX:+UseG1GC',                        // G1GC 사용 (ZGC 대신)
+        '-XX:MaxGCPauseMillis=20',             // 현실적 GC 일시정지
+        
+        // 성능 최적화 (macOS 호환)
+        '-XX:+UseStringDeduplication',         // 문자열 중복 제거
+        '-XX:+OptimizeStringConcat',           // 문자열 연결 최적화
+        
+        // CPU 집약적 최적화 (8코어 활용)
+        '-XX:ConcGCThreads=8',                 // GC 병렬 스레드 8개
+        '-XX:ParallelGCThreads=8',             // 병렬 GC 스레드 8개
+        '-XX:G1HeapRegionSize=16m',            // G1 힙 영역 크기
+        
+        // 네트워크 최적화
+        '-Djava.net.preferIPv4Stack=true',
+        '-Djava.net.useSystemProxies=false',
+        '-Djava.net.SocketInputStream.bufferSize=65536',   // 64KB
+        '-Djava.net.SocketOutputStream.bufferSize=65536',  // 64KB
+        
+        // Virtual Thread 최적화
+        '-Djdk.virtualThreadScheduler.parallelism=8',      // 8코어 활용
+        '-Djdk.virtualThreadScheduler.maxPoolSize=128',    // 최대 캐리어 스레드
+        
+        // 메모리 최적화
+        '-XX:MaxDirectMemorySize=1g',          // 다이렉트 메모리 1GB
+        
+        // 컴파일러 최적화
+        '-XX:+TieredCompilation',              // 계층 컴파일
+        '-XX:TieredStopAtLevel=4',             // 최고 레벨까지
+        '-XX:ReservedCodeCacheSize=128m'       // 코드 캐시 128MB
+    ]
+}
+
 tasks.named('test') {
     useJUnitPlatform()
     finalizedBy jacocoTestReport
