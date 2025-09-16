@@ -22,7 +22,7 @@ import java.util.Map;
 
 @Log4j2
 @RestController
-@RequestMapping("/auth")
+@RequestMapping("/api/auth")
 @RequiredArgsConstructor
 public class AuthController {
     private final KakaoService kakaoService;

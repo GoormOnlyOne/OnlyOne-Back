@@ -20,7 +20,7 @@ public class ImageController {
     private final ImageService imageService;
 
     @Operation(summary = "Presigned URL 생성", description = "S3에 이미지 업로드를 위한 Presigned URL을 생성합니다.")
-    @PostMapping("/{imageFolderType}/presigned-url")
+    @PostMapping("/api/{imageFolderType}/presigned-url")
     public ResponseEntity<CommonResponse<PresignedUrlResponseDto>> generatePresignedUrl(
             @PathVariable String imageFolderType,
             @Valid @RequestBody PresignedUrlRequestDto request) {

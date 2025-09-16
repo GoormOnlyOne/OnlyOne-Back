@@ -23,7 +23,7 @@ import java.util.List;
 @RestController
 @Tag(name = "feed")
 @RequiredArgsConstructor
-@RequestMapping("/clubs/{clubId}/feeds")
+@RequestMapping("/api/clubs/{clubId}/feeds")
 public class FeedController {
     private final FeedService feedService;
 

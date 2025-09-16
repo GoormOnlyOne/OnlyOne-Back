@@ -73,6 +73,7 @@ public class SecurityConfig {
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
         configuration.setAllowedOriginPatterns(List.of(
+                "https://buddkit.com",
                 "http://localhost:8080",
                 "http://localhost:5173",
                 "https://only-one-front-delta.vercel.app",
