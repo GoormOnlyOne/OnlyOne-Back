@@ -32,5 +32,5 @@ public class MyPageResponse {
     @JsonProperty("interests_list")
     private List<String> interestsList;
     
-    private Integer balance;
+    private Long balance;
 }

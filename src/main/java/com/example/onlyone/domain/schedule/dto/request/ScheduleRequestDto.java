@@ -19,7 +19,7 @@ public class ScheduleRequestDto {
     private String location;
     @NotNull
     @Min(value = 0, message = "정기 모임 금액은 0원 이상이어야 합니다.")
-    private int cost;
+    private Long cost;
     @NotNull
     @Min(value = 1, message = "정기 모임 정원은 1명 이상이어야 합니다.")
     @Max(value = 100, message = "정기 모임 정원은 100명 이하여야 합니다.")

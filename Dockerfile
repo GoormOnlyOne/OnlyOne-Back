@@ -1,11 +1,9 @@
-# 사용할 base 이미지 선택
-FROM openjdk:21
+FROM eclipse-temurin:21-jre
+WORKDIR /app
 
-# build/libs/ 에 있는 jar 파일을 JAR_FILE 변수에 저장
-ARG JAR_FILE=build/libs/*.jar
-
-# JAR_FILE을 app.jar로 복사
-COPY ${JAR_FILE} app.jar
+# 실행 가능한 fat jar만 복사
+COPY build/libs/onlyone-0.0.1-SNAPSHOT.jar app.jar
 
 EXPOSE 8080
-ENTRYPOINT ["java", "-jar", "-Duser.timezone=Asia/Seoul", "app.jar"]
+ENTRYPOINT ["java","--enable-preview","-jar","app.jar"]
+
