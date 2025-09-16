@@ -6,6 +6,7 @@ import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.context.annotation.Profile;
 import org.springframework.data.jpa.repository.config.EnableJpaAuditing;
+import org.springframework.retry.annotation.EnableRetry;
 import org.springframework.scheduling.annotation.EnableAsync;
 import org.springframework.scheduling.annotation.EnableScheduling;
 import org.springframework.security.core.parameters.P;
@@ -14,6 +15,7 @@ import org.springframework.security.core.parameters.P;
 @EnableJpaAuditing
 @EnableAsync
 @EnableScheduling
+@EnableRetry
 @OpenAPIDefinition(
         servers = {
                 @Server(url = "https://api.buddkit.p-e.kr", description = "Production Server"),

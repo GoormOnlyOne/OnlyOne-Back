@@ -30,6 +30,7 @@ dependencyManagement {
     }
 }
 
+
 dependencies {
     implementation 'org.springframework.boot:spring-boot-starter-security'
     implementation 'org.springframework.boot:spring-boot-starter-web'
@@ -81,6 +82,11 @@ dependencies {
     // Redis
     implementation 'org.springframework.boot:spring-boot-starter-data-redis'
 
+    // Elasticsearch
+    implementation 'org.springframework.boot:spring-boot-starter-data-elasticsearch'
+    // Spring Retry
+    implementation 'org.springframework.retry:spring-retry'
+    implementation 'org.springframework:spring-aspects'
     testImplementation 'org.testcontainers:junit-jupiter'
     testImplementation 'org.testcontainers:testcontainers'
 
@@ -101,7 +107,7 @@ dependencies {
     implementation 'org.springframework.kafka:spring-kafka'
 }
 
-// QueryDSL 설정
+// QueryDSL 설정 (수정됨)
 def querydslDir = layout.buildDirectory.dir('generated/querydsl')
 
 tasks.withType(JavaCompile).configureEach {
@@ -155,7 +161,7 @@ jacocoTestReport {
         html.outputLocation = layout.buildDirectory.dir('jacocoHtml')
         xml.outputLocation = layout.buildDirectory.file('jacoco/jacoco.xml')
     }
-
+    
     // 제외할 패키지/클래스 설정
     afterEvaluate {
         classDirectories.setFrom(files(classDirectories.files.collect {
