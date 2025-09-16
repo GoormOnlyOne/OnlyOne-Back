@@ -60,6 +60,11 @@ public class Feed extends BaseTimeEntity {
     @Column(name = "root_feed_id")
     private Long rootFeedId;
 
+    @Column(name = "like_count", nullable = false)
+    @Builder.Default
+    private Long likeCount = 0L;
+
+
     @Builder.Default
     @OneToMany(mappedBy = "feed", cascade = CascadeType.ALL, orphanRemoval = true)
     @BatchSize(size = 100)
@@ -96,5 +101,4 @@ public class Feed extends BaseTimeEntity {
                             ") STORED"
     )
     private Long activeParent;
-
 }
