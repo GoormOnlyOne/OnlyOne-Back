@@ -14,6 +14,7 @@ import org.springframework.security.core.parameters.P;
 @SpringBootApplication
 @EnableJpaAuditing
 @EnableAsync
+@EnableRetry
 @EnableScheduling
 @EnableRetry
 @OpenAPIDefinition(

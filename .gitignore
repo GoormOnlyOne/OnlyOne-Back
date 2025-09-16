@@ -64,6 +64,8 @@ grafana-data
 prometheus-data
 docker-compose.yml
 prometheus.yml
+influxdb-data
+k6-test
 redis-data/dump.rdb
 .my.cnf
 src/main/resources/application-stage.yml
