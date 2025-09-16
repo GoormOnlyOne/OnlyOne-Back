@@ -53,7 +53,7 @@ public class RedisConfig {
         GenericObjectPoolConfig<?> pool = new GenericObjectPoolConfig<>();
         pool.setMaxTotal(64);
         pool.setMaxIdle(32);
-        pool.setMinIdle(8);
+        pool.setMinIdle(16);
 
         // 2) 클라이언트 옵션 + 타임아웃(Streams BLOCK보다 길게)
         LettuceClientConfiguration clientCfg =

@@ -40,7 +40,7 @@ public class FeedLikeStreamConsumer implements SmartLifecycle {
     private static final String CONSUMER_NAME = "c-" + UUID.randomUUID().toString().substring(0, 8);
 
     private static final Duration BLOCK_TIMEOUT = Duration.ofSeconds(5);
-    private static final int      BATCH_COUNT   = 200;
+    private static final int      BATCH_COUNT   = 8;
 
     private volatile boolean running = false;
     private Thread worker;
@@ -75,13 +75,13 @@ public class FeedLikeStreamConsumer implements SmartLifecycle {
                         redis.opsForStream().read(consumer, opts, StreamOffset.create(STREAM, ReadOffset.lastConsumed()));
 
                 if (records == null || records.isEmpty()) {
-                    // (선택) 주기적 XAUTOCLAIM 회수 넣을 곳
                     continue;
                 }
 
                 // 1) 레코드 파싱
                 record Event(String reqId, long feedId, long userId, int delta, String op, RecordId rid) {}
                 List<Event> events = new ArrayList<>(records.size());
+                List<RecordId> invalidIds = new ArrayList<>();
                 for (var r : records) {
                     var v = r.getValue();
                     Object feedIdRaw = v.get("feedId");
@@ -92,6 +92,7 @@ public class FeedLikeStreamConsumer implements SmartLifecycle {
 
                     if (feedIdRaw == null || userIdRaw == null || deltaRaw == null || opRaw == null || reqIdRaw == null) {
                         log.warn("[likes] invalid event (missing fields) id={}, value={}", r.getId(), v);
+                        invalidIds.add(r.getId());
                         continue; // 잘못된 이벤트는 이번 배치에서 제외 (ACK는 아래 트랜잭션 결과에 따라)
                     }
                     events.add(new Event(
@@ -103,10 +104,18 @@ public class FeedLikeStreamConsumer implements SmartLifecycle {
                             r.getId()
                     ));
                 }
+
+                // invalid는 즉시 ACK해서 PEL 비우기
+                if (!invalidIds.isEmpty()) {
+                    try {
+                        redis.opsForStream().acknowledge(STREAM, GROUP, invalidIds.toArray(RecordId[]::new));
+                    } catch (Exception ackEx) {
+                        log.warn("[likes] invalid ack failed: {}", ackEx.toString());
+                    }
+                }
+
                 if (events.isEmpty()) {
-                    // 모두 invalid라면 소비만 하고 ACK (여기선 간단히 넘어감)
-                    // 원하면 invalid만 선별 ack 가능
-                    continue;
+                    continue; // 처리할 유효 이벤트가 없으면 다음 루프
                 }
 
                 // 2) 트랜잭션으로 멱등+배치 반영
@@ -131,6 +140,8 @@ public class FeedLikeStreamConsumer implements SmartLifecycle {
                     for (int i = 0; i < upCounts.length; i++) {
                         if (upCounts[i] == 1) firsts.add(events.get(i));
                     }
+
+                    // 얼마나 중복됐는지 남기는 로그
                     if (log.isDebugEnabled()) {
                         long ins = Arrays.stream(upCounts).filter(x -> x == 1).count();
                         long dup = upCounts.length - ins;
