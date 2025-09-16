@@ -111,7 +111,7 @@ public class ScheduleService {
         userChatRoomRepository.save(userChatRoom);
         Settlement settlement = Settlement.builder()
                 .schedule(schedule)
-                .sum(0) // 정산 시작 시 참여자 수 * COST
+                .sum(0L) // 정산 시작 시 참여자 수 * COST
                 .totalStatus(TotalStatus.HOLDING)
                 .receiver(user) // 리더가 receiver
                 .build();
@@ -140,7 +140,7 @@ public class ScheduleService {
         // 정산 금액이 변경되는 경우
         if (schedule.getCost() != requestDto.getCost()) {
             int memberCount = userScheduleRepository.countBySchedule(schedule) - 1;
-            int delta = requestDto.getCost() - schedule.getCost();
+            Long delta = requestDto.getCost() - schedule.getCost();
 
             if (memberCount > 0 && delta != 0) {
                 List<UserSettlement> targets =
@@ -256,7 +256,7 @@ public class ScheduleService {
             return;
         }
 
-        final int amount = schedule.getCost();
+        final Long amount = schedule.getCost();
         int flag = walletRepository.releaseHoldBalance(user.getUserId(), amount);
         if (flag == 0) throw new CustomException(ErrorCode.WALLET_HOLD_STATE_CONFLICT);
 

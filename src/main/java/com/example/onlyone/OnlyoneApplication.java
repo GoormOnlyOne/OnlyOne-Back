@@ -16,6 +16,7 @@ import org.springframework.security.core.parameters.P;
 @EnableAsync
 @EnableRetry
 @EnableScheduling
+@EnableRetry
 @OpenAPIDefinition(
         servers = {
                 @Server(url = "https://api.buddkit.p-e.kr", description = "Production Server"),

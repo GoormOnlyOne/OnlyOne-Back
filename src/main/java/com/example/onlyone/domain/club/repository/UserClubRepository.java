@@ -18,6 +18,9 @@ public interface UserClubRepository extends JpaRepository<UserClub,Long> {
 
     List<UserClub> findByUserUserId(Long userId);
 
+    @Query("SELECT uc.club.clubId FROM UserClub uc WHERE uc.user.userId = :userId")
+    List<Long> findByClubIdsByUserId(Long userId);
+
     @Query("SELECT DISTINCT uc.user.userId FROM UserClub uc WHERE uc.club.clubId IN :clubIds")
     List<Long> findUserIdByClubIds(@Param("clubIds") List<Long> clubIds);
 

@@ -56,7 +56,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                     .parseClaimsJws(token)
                     .getBody();
 
-            String kakaoIdString = claims.getSubject();
+            String kakaoIdString = claims.get("kakaoId").toString();
             Long kakaoId = Long.valueOf(kakaoIdString);
 
             // 사용자 상태 확인 - 탈퇴한 사용자인 경우 인증 거부, GUEST와 ACTIVE는 허용
