@@ -17,7 +17,8 @@ public class ChatPublisher {
      * @param message 발행할 메시지 (JSON or Text)
      */
     public void publish(Long roomId, String message) {
-        String channel = "chat.room." + roomId;  // Redis Pub/Sub 채널명
+        if (roomId == null || message == null || message.isBlank()) return;
+        String channel = "chat.room." + roomId;
         redisTemplate.convertAndSend(channel, message);
     }
 }
