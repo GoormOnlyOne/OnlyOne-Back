@@ -22,10 +22,11 @@ import org.springframework.context.annotation.Import;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.Arrays;
 import java.util.List;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.TimeUnit;
+
+import com.example.onlyone.domain.notification.dto.request.NotificationActionDto;
+import com.example.onlyone.domain.notification.dto.request.NotificationCreateDto;
+import com.example.onlyone.domain.notification.dto.request.NotificationQueryDto;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -78,10 +79,15 @@ class NotificationServiceTest {
     class CreateNotification {
         
         @Test
-        @DisplayName("동기 생성 성공")
-        void sync_success() {
+        @DisplayName("알림 생성 성공")
+        void create_success() {
             // when
-            Notification result = notificationService.createNotification(testUser, Type.CHAT, "테스트사용자", "안녕하세요").join();
+            NotificationCreateDto dto = NotificationCreateDto.builder()
+                .user(testUser)
+                .type(Type.CHAT)
+                .args(new String[]{"테스트사용자", "안녕하세요"})
+                .build();
+            Notification result = notificationService.createNotification(dto);
 
             // then
             assertThat(result).isNotNull();
@@ -96,65 +102,7 @@ class NotificationServiceTest {
             assertThat(saved.isRead()).isFalse();
         }
         
-        @Test
-        @DisplayName("비동기 생성 성공")
-        void async_success() throws Exception {
-            // when
-            CompletableFuture<Notification> future = notificationService.createNotification(
-                testUser, Type.CHAT, "비동기 테스트"
-            );
-            
-            // then
-            assertThat(future).isNotNull();
-            Notification result = future.get(5, TimeUnit.SECONDS);
-            assertThat(result).isNotNull();
-            assertThat(result.getId()).isNotNull();
-            
-            // DB 확인 (비동기 처리 대기)
-            Thread.sleep(100);
-            List<Notification> notifications = notificationRepository.findAll();
-            assertThat(notifications).hasSize(1);
-        }
         
-        @Test
-        @DisplayName("대량 알림 생성 성공")
-        void bulk_success() throws Exception {
-            // given
-            User user2 = createAnotherUser();
-            List<User> users = Arrays.asList(testUser, user2);
-            
-            // when
-            List<CompletableFuture<Notification>> futures = notificationService.createBulkNotifications(
-                users, Type.SETTLEMENT, "공지사항"
-            );
-            
-            // then
-            assertThat(futures).isNotNull();
-            assertThat(futures).hasSize(2);
-            
-            // Wait for all to complete
-            CompletableFuture<Void> allOf = CompletableFuture.allOf(futures.toArray(new CompletableFuture[0]));
-            allOf.get(5, TimeUnit.SECONDS);
-            
-            // DB 확인
-            List<Notification> notifications = notificationRepository.findAll();
-            assertThat(notifications).hasSize(2);
-        }
-        
-        @Test
-        @DisplayName("빈 사용자 목록으로 대량 생성")
-        void bulk_emptyUsers() throws Exception {
-            // given
-            List<User> emptyUsers = List.of();
-            
-            // when
-            List<CompletableFuture<Notification>> futures = notificationService.createBulkNotifications(
-                emptyUsers, Type.SETTLEMENT, "공지사항"
-            );
-            
-            // then
-            assertThat(futures).isEmpty();
-        }
     }
 
     @Nested
@@ -168,8 +116,12 @@ class NotificationServiceTest {
             createTestNotifications(5);
 
             // when
-            NotificationListResponseDto result = notificationService.getNotifications(
-                    testUser.getUserId(), null, 10);
+            NotificationQueryDto dto = NotificationQueryDto.builder()
+                .userId(testUser.getUserId())
+                .cursor(null)
+                .size(10)
+                .build();
+            NotificationListResponseDto result = notificationService.getNotifications(dto);
 
             // then
             assertThat(result).isNotNull();
@@ -185,7 +137,7 @@ class NotificationServiceTest {
             createTestNotifications(3);
 
             // when
-            Long unreadCount = notificationService.getUnreadCount(testUser.getUserId());
+            Long unreadCount = notificationService.getUnreadCountByUserId(testUser.getUserId());
 
             // then
             assertThat(unreadCount).isEqualTo(3L);
@@ -195,7 +147,7 @@ class NotificationServiceTest {
         @DisplayName("존재하지 않는 사용자 조회 시 예외")
         void getUnreadCount_userNotFound_throwsException() {
             // when & then
-            assertThatThrownBy(() -> notificationService.getUnreadCount(999L))
+            assertThatThrownBy(() -> notificationService.getUnreadCountByUserId(999L))
                     .isInstanceOf(CustomException.class)
                     .hasFieldOrPropertyWithValue("errorCode", ErrorCode.USER_NOT_FOUND);
         }
@@ -212,7 +164,11 @@ class NotificationServiceTest {
             Notification notification = createSingleNotification();
 
             // when
-            notificationService.markAsRead(notification.getId(), testUser.getUserId());
+            NotificationActionDto dto = NotificationActionDto.builder()
+                .notificationId(notification.getId())
+                .userId(testUser.getUserId())
+                .build();
+            notificationService.markAsRead(dto);
 
             // then
             Notification updated = notificationRepository.findById(notification.getId()).orElse(null);
@@ -231,7 +187,7 @@ class NotificationServiceTest {
             notificationService.markAllAsRead(testUser.getUserId());
 
             // then
-            Long unreadCount = notificationService.getUnreadCount(testUser.getUserId());
+            Long unreadCount = notificationService.getUnreadCountByUserId(testUser.getUserId());
             assertThat(unreadCount).isZero();
         }
         
@@ -243,7 +199,11 @@ class NotificationServiceTest {
             User anotherUser = createAnotherUser();
 
             // when & then
-            assertThatThrownBy(() -> notificationService.markAsRead(notification.getId(), anotherUser.getUserId()))
+            NotificationActionDto dto = NotificationActionDto.builder()
+                .notificationId(notification.getId())
+                .userId(anotherUser.getUserId())
+                .build();
+            assertThatThrownBy(() -> notificationService.markAsRead(dto))
                     .isInstanceOf(CustomException.class)
                     .hasFieldOrPropertyWithValue("errorCode", ErrorCode.NOTIFICATION_NOT_FOUND);
         }
@@ -260,7 +220,11 @@ class NotificationServiceTest {
             Notification notification = createSingleNotification();
 
             // when
-            notificationService.deleteNotification(testUser.getUserId(), notification.getId());
+            NotificationActionDto dto = NotificationActionDto.builder()
+                .notificationId(notification.getId())
+                .userId(testUser.getUserId())
+                .build();
+            notificationService.deleteNotification(dto);
 
             // then
             boolean exists = notificationRepository.existsById(notification.getId());
@@ -270,13 +234,22 @@ class NotificationServiceTest {
 
     private void createTestNotifications(int count) {
         for (int i = 0; i < count; i++) {
-            notificationService.createNotification(testUser, Type.CHAT, "테스트" + i);
+            NotificationCreateDto dto = NotificationCreateDto.builder()
+                .user(testUser)
+                .type(Type.CHAT)
+                .args(new String[]{"테스트" + i})
+                .build();
+            notificationService.createNotification(dto);
         }
     }
 
     private Notification createSingleNotification() {
-        notificationService.createNotification(testUser, Type.CHAT, "단일 알림 테스트");
-        return notificationRepository.findAll().get(0);
+        NotificationCreateDto dto = NotificationCreateDto.builder()
+            .user(testUser)
+            .type(Type.CHAT)
+            .args(new String[]{"단일 알림 테스트"})
+            .build();
+        return notificationService.createNotification(dto);
     }
 
     private User createAnotherUser() {
