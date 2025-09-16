@@ -18,6 +18,7 @@ import com.example.onlyone.domain.feed.repository.FeedRepository;
 import com.example.onlyone.domain.interest.entity.Category;
 import com.example.onlyone.domain.interest.entity.Interest;
 import com.example.onlyone.domain.interest.repository.InterestRepository;
+import com.example.onlyone.domain.search.service.ClubElasticsearchService;
 import com.example.onlyone.domain.user.entity.User;
 import com.example.onlyone.domain.user.service.UserService;
 import com.example.onlyone.global.exception.CustomException;
@@ -42,6 +43,7 @@ public class ClubService {
     private final ChatRoomRepository chatRoomRepository;
     private final UserService userService;
     private final UserChatRoomRepository userChatRoomRepository;
+    private final ClubElasticsearchService clubElasticsearchService;
 
     /* 모임 생성*/
     public ClubCreateResponseDto createClub(ClubRequestDto requestDto) {
@@ -57,6 +59,7 @@ public class ClubService {
                 .clubRole(ClubRole.LEADER)
                 .build();
         userClubRepository.save(userClub);
+        club.incrementMemberCount();
         // 모임 전체 채팅방 생성
         ChatRoom chatRoom = ChatRoom.builder()
                 .club(club)
@@ -70,11 +73,15 @@ public class ClubService {
                 .chatRole(ChatRole.LEADER)
                 .build();
         userChatRoomRepository.save(userChatRoom);
+        
+        // ES 인덱싱 (비동기)
+        clubElasticsearchService.indexClub(club);
+        
         return new ClubCreateResponseDto(club.getClubId());
     }
 
     /* 모임 수정*/
-    public void updateClub(long clubId, ClubRequestDto requestDto) {
+    public ClubCreateResponseDto updateClub(long clubId, ClubRequestDto requestDto) {
         Club club = clubRepository.findById(clubId)
                 .orElseThrow(() -> new CustomException(ErrorCode.CLUB_NOT_FOUND));
         Interest interest = interestRepository.findByCategory(Category.from(requestDto.getCategory()))
@@ -94,6 +101,11 @@ public class ClubService {
                 requestDto.getDistrict(),
                 interest
         );
+        
+        // ES 업데이트 (비동기)
+        clubElasticsearchService.updateClub(club);
+        
+        return new ClubCreateResponseDto(club.getClubId());
     }
 
     /* 모임 상세 조회*/
@@ -128,6 +140,7 @@ public class ClubService {
                 .clubRole(ClubRole.MEMBER)
                 .build();
         userClubRepository.save(userClub);
+        club.incrementMemberCount();
 
         ChatRoom chatRoom = chatRoomRepository.findByTypeAndClub_ClubId(Type.CLUB, clubId)
                 .orElseThrow(() -> new CustomException(ErrorCode.CHAT_ROOM_NOT_FOUND));
@@ -137,6 +150,9 @@ public class ClubService {
                 .chatRole(ChatRole.MEMBER)
                 .build();
         userChatRoomRepository.save(userChatRoom);
+        
+        // ES 업데이트 (memberCount 변경)
+        clubElasticsearchService.updateClub(club);
     }
 
     /* 모임 탈퇴*/
@@ -153,5 +169,9 @@ public class ClubService {
             throw new CustomException(ErrorCode.CLUB_LEADER_NOT_LEAVE);
         }
         userClubRepository.delete(userClub);
+        club.decrementMemberCount();
+        
+        // ES 업데이트 (memberCount 변경)
+        clubElasticsearchService.updateClub(club);
     }
 }

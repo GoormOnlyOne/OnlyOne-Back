@@ -32,7 +32,7 @@ public class Settlement extends BaseTimeEntity {
 
     @Column(name = "sum")
     @NotNull
-    private int sum;
+    private Long sum;
 
     @Column(name = "total_status")
     @NotNull
@@ -56,7 +56,7 @@ public class Settlement extends BaseTimeEntity {
         this.completedTime = completedTime;
     }
 
-    public void updateSum(int sum) {
+    public void updateSum(Long sum) {
         this.sum = sum;
     }
 

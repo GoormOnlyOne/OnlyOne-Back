@@ -14,6 +14,9 @@ public enum ErrorCode {
     INTERNAL_SERVER_ERROR(500, "GLOBAL_500_1", "서버 내부 오류가 발생했습니다."),
     EXTERNAL_API_ERROR(503, "GLOBAL_503_1", "외부 API 서버 호출 중 오류가 발생했습니다."),
     UNAUTHORIZED(401, "GLOBAL_401_1", "인증되지 않은 사용자입니다."),
+    NO_PERMISSION(403, "GLOBAL_403_1", "권한이 없습니다."),
+    RESOURCE_NOT_FOUND(404, "GLOBAL_404_1", "요청한 리소스를 찾을 수 없습니다."),
+    ALREADY_JOINED(409, "GLOBAL_409_1", "이미 참여 중입니다."),
 
     // User
     USER_NOT_FOUND(404, "USER_404_1", "유저를 찾을 수 없습니다."),
@@ -40,17 +43,12 @@ public enum ErrorCode {
     NOTIFICATION_NOT_FOUND(404, "NOTIFY_404_2", "알림이 존재하지 않습니다."),
     SSE_CONNECTION_FAILED(503, "NOTIFY_503_1", "SSE 연결에 실패했습니다."),
     SSE_SEND_FAILED(503, "NOTIFY_503_2", "SSE 메시지 전송에 실패했습니다."),
+    SSE_CLEANUP_FAILED(500, "NOTIFY_500_5", "SSE 연결 정리 중 오류가 발생했습니다."),
+    INVALID_EVENT_ID(400, "NOTIFY_400_2", "유효하지 않은 이벤트 ID입니다."),
+    INVALID_NOTIFICATION_DATA(400, "NOTIFY_400_3", "유효하지 않은 알림 데이터입니다."),
     UNREAD_COUNT_UPDATE_FAILED    (500, "NOTIFY_500_1", "읽지 않은 알림 개수 업데이트에 실패했습니다."),
-    FCM_TOKEN_NOT_FOUND           (404, "NOTIFY_404_3", "FCM 토큰을 찾을 수 없습니다."),
-    FCM_TOKEN_REFRESH_REQUIRED    (409, "NOTIFY_409_1", "FCM 토큰을 새로 등록해야 합니다."),
-    FCM_INITIALIZATION_FAILED     (500, "NOTIFY_500_2", "Firebase 초기화에 실패했습니다."),
-    FCM_MESSAGE_SEND_FAILED       (502, "NOTIFY_502_1", "FCM 메시지 전송에 실패했습니다."),
-    FCM_TOKEN_INVALID(400, "NOTIFY_400_1", "FCM 토큰이 유효하지 않습니다."),
-    FCM_TOKEN_EXPIRED(401, "NOTIFY_401_1", "FCM 토큰이 만료되었습니다."),
-    FCM_MESSAGE_TOO_LARGE(413, "NOTIFY_413_1", "FCM 메시지 크기가 너무 큽니다."),
-    FCM_QUOTA_EXCEEDED(429, "NOTIFY_429_1", "FCM 전송 할당량을 초과했습니다."),
-    FCM_SERVICE_UNAVAILABLE(503, "NOTIFY_503_3", "Firebase 서비스를 일시적으로 사용할 수 없습니다."),
-    FCM_AUTHENTICATION_FAILED(401, "NOTIFY_401_2", "Firebase 인증에 실패했습니다."),
+    DATABASE_OPERATION_FAILED(500, "NOTIFY_500_3", "데이터베이스 작업 중 오류가 발생했습니다."),
+    NOTIFICATION_PROCESSING_FAILED(500, "NOTIFY_500_4", "알림 처리 중 오류가 발생했습니다."),
 
     // Schedule
     INVALID_SCHEDULE_DELETE(400, "SCHEDULE_400_1", "이미 시작한 스케줄은 삭제할 수 없습니다."),
@@ -66,12 +64,14 @@ public enum ErrorCode {
     BEFORE_SCHEDULE_END(409, "SCHEDULE_409_5", "아직 진행되지 않은 정기 모임입니다."),
     ALREADY_EXCEEDED_SCHEDULE(409, "SCHEDULE_409_6", "이미 정원이 마감된 정기 모임입니다."),
     ALREADY_SETTLING_SCHEDULE(409, "SCHEDULE_409_7", "이미 정산 진행 중인 정기 모임입니다."),
+    SCHEDULE_NOT_JOIN(403,"SCHEDULE_403_3", "정기 모임(스케줄)에 참여하지 않은 사용자입니다."),
 
     // Settlement
     MEMBER_CANNOT_CREATE_SETTLEMENT(403, "SETTLEMENT_403_1", "리더만 정산 요청을 할 수 있습니다."),
     SETTLEMENT_NOT_FOUND(404, "SETTLEMENT_404_1", "정산을 찾을 수 없습니다."),
     USER_SETTLEMENT_NOT_FOUND(404, "SETTLEMENT_404_2", "정산 참여자를 찾을 수 없습니다."),
     ALREADY_SETTLED_USER(409, "SETTLEMENT_409_1", "이미 해당 정기 모임에 대해 정산한 유저입니다."),
+    ALREADY_COMPLETED_SETTLEMENT(409, "SETTLEMENT_409_2", "이미 종료된 정산입니다."),
     SETTLEMENT_PROCESS_FAILED(500, "SETTLEMENT_500_1", "정산 처리 중 오류가 발생했습니다. 다시 시도해 주세요."),
 
     // Wallet
@@ -81,6 +81,7 @@ public enum ErrorCode {
     WALLET_HOLD_STATE_CONFLICT(409, "WALLET_409_2", "사용자의 예약금이 부족합니다. 포인트를 충전해 주세요."),
     WALLET_HOLD_CAPTURE_FAILED(409, "WALLET_409_3", "사용자의 예약금 차감에 실패했습니다. 다시 시도해 주세요."),
     WALLET_CREDIT_APPLY_FAILED(409, "WALLET_409_4", "리더의 정산금 처리에 실패했습니다. 다시 시도해 주세요."),
+    WALLET_OPERATION_IN_PROGRESS(409, "WALLET_409_5", "사용자의 다른 거래가 처리 중입니다. 잠시 후 다시 시도해 주세요."),
 
     // Payment
     PAYMENT_IN_PROGRESS(202, "PAYMENT_202_1", "결제 처리 중입니다. 잠시 후 다시 조회해 주세요."),
@@ -134,8 +135,20 @@ public enum ErrorCode {
     SEARCH_KEYWORD_TOO_SHORT(400, "SEARCH_400_2", "검색어는 최소 2글자 이상이어야 합니다."),
     INVALID_INTEREST_ID(400, "SEARCH_400_3", "유효하지 않은 interestId입니다."),
     INVALID_LOCATION(400, "SEARCH_400_4", "유효하지 않은 city 또는 district입니다."),
+    
+    // Elasticsearch
+    ELASTICSEARCH_INDEX_ERROR(500, "ES_500_1", "Elasticsearch 인덱싱 중 오류가 발생했습니다."),
+    ELASTICSEARCH_DELETE_ERROR(500, "ES_500_2", "Elasticsearch 삭제 중 오류가 발생했습니다."),
+    ELASTICSEARCH_UPDATE_ERROR(500, "ES_500_3", "Elasticsearch 업데이트 중 오류가 발생했습니다."),
+    ELASTICSEARCH_SEARCH_ERROR(500, "ES_500_4", "Elasticsearch 검색 중 오류가 발생했습니다."),
+    ELASTICSEARCH_SYNC_ERROR(500, "ES_500_5", "Elasticsearch 동기화 중 오류가 발생했습니다."),
+    
+    // Database
+    DATABASE_CONNECTION_ERROR(503, "DB_503_1", "데이터베이스 연결 중 오류가 발생했습니다."),
 
-    ;
+    // Outbox
+    INVALID_TOPIC(400, "OUTBOX_400_1", "유효하지 않은 토픽입니다."),
+    INVALID_EVENT_PAYLOAD(422, "OUTBOX_422_1", "잘못된 이벤트 페이로드입니다.");
 
     private final int status;
     private final String code;

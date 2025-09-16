@@ -1,12 +1,14 @@
 package com.example.onlyone.global.config;
 
 import com.example.onlyone.global.filter.JwtAuthenticationFilter;
+import com.example.onlyone.global.filter.SseAuthenticationFilter;
 import lombok.AllArgsConstructor;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.security.servlet.PathRequest;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Profile;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.authentication.AuthenticationManager;
@@ -34,8 +36,10 @@ import java.util.List;
 @EnableWebSecurity
 @EnableMethodSecurity(securedEnabled = true)
 @RequiredArgsConstructor
+@Profile("!test")
 public class SecurityConfig {
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
+    private final SseAuthenticationFilter sseAuthenticationFilter;
     @Value("${app.base-url}")
     private String baseUrl;
 
@@ -55,9 +59,13 @@ public class SecurityConfig {
             "/email/**",
             "/ws/**",          // WebSocket STOMP 엔드포인트 허용
             "/ws/chat/**",      // SockJS는 /info, /websocket, /xhr 등 내부 경로 씀
-            "/sse/subscribe/**",    // SSE 구독 엔드포인트 허용
+            // "/sse/subscribe/**",    // SSE는 별도 필터에서 인증 처리
+            "/ws-native",
             "/kakao/**",
             "/auth/**",
+            "/grafana/**",     // Grafana 대시보드
+            "/influxdb/**",    // InfluxDB API
+            "/write",          // InfluxDB write
     };
 
     // CORS 설정
@@ -68,8 +76,10 @@ public class SecurityConfig {
                 "http://localhost:8080",
                 "http://localhost:5173",
                 "https://only-one-front-delta.vercel.app",
+                "https://*.ngrok-free.app",
                 baseUrl
         ));
+
         configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"));
         configuration.addAllowedHeader("*");
         configuration.setExposedHeaders(Arrays.asList("Set-Cookie", "Location"));
@@ -107,6 +117,8 @@ public class SecurityConfig {
                 .httpBasic(AbstractHttpConfigurer::disable)
                 .addFilterBefore(jwtAuthenticationFilter,
                         UsernamePasswordAuthenticationFilter.class)
+                .addFilterBefore(sseAuthenticationFilter,
+                        JwtAuthenticationFilter.class)
                 .sessionManagement(session -> session
                         .sessionCreationPolicy(SessionCreationPolicy.IF_REQUIRED)
                         .sessionFixation().migrateSession())
@@ -116,6 +128,9 @@ public class SecurityConfig {
                         .requestMatchers(AUTH_WHITELIST).permitAll()
 
                         .requestMatchers("/ws/**").permitAll()
+                        .requestMatchers("/ws-native", "/ws-native/**").permitAll()
+                        .requestMatchers("/actuator/prometheus", "/actuator/health", "/actuator/info").permitAll()
+
                         // Swagger 및 정적 자원 허용
                         .requestMatchers(
                                 "/error", "/favicon.ico",

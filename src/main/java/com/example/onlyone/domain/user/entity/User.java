@@ -9,7 +9,7 @@ import lombok.*;
 import java.time.*;
 
 @Entity
-@Table(name = "user")
+@Table(name = "`user`")
 @Getter
 @Builder
 @NoArgsConstructor
@@ -49,24 +49,10 @@ public class User extends BaseTimeEntity {
     @Column(name = "district")
     private String district;
 
-  @Column(name = "fcm_token")
-  private String fcmToken;
 
   @Column(name = "kakao_access_token")
   private String kakaoAccessToken;
 
-  public void updateFcmToken(String fcmToken) {
-    validateFcmTokenFormat(fcmToken);
-    this.fcmToken = fcmToken;
-  }
-
-  public void clearFcmToken() {
-    this.fcmToken = null;
-  }
-
-  public boolean hasFcmToken() {
-    return fcmToken != null && !fcmToken.isBlank();
-  }
 
   public void update(String city, String district, String profileImage, String nickname, Gender gender, LocalDate birth) {
     this.city = city;
@@ -94,17 +80,4 @@ public class User extends BaseTimeEntity {
     this.status = Status.ACTIVE;
   }
 
-  /**
-   * FCM 토큰 형식 유효성 검증 (MVP용 - 최소한의 검증)
-   * 실제 Firebase 전송 결과로 유효성 최종 판단
-   */
-  private void validateFcmTokenFormat(String fcmToken) {
-    if (fcmToken == null || fcmToken.isBlank()) {
-      throw new IllegalArgumentException("FCM token cannot be null or empty");
-    }
-
-    // MVP 단계에서는 null/빈값 체크만 수행
-    // 길이, 패턴 검증은 실제 FCM 전송 결과로 판단
-    // 프로덕션에서는 실제 토큰 샘플 기반으로 검증 로직 추가 예정
-  }
 }

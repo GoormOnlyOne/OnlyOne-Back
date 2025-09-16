@@ -7,7 +7,10 @@ import jakarta.validation.constraints.NotNull;
 import lombok.*;
 
 @Entity
-@Table(name = "feed_like")
+@Table(name = "feed_like",
+        uniqueConstraints = {
+            @UniqueConstraint(name = "uq_feed_like_feed_user", columnNames = {"user_id", "feed_id"})
+        })
 @Getter
 @Builder
 @AllArgsConstructor

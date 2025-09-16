@@ -16,7 +16,7 @@ public class ScheduleResponseDto {
     private String name;
     private ScheduleStatus scheduleStatus;
     private LocalDateTime scheduleTime;
-    private int cost;
+    private Long cost;
     private int userLimit;
     private int userCount;
     private boolean isJoined;

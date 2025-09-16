@@ -37,7 +37,6 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.*;
 import java.util.stream.Collectors;
-import java.util.Objects;
 
 @Log4j2
 @Service
@@ -80,6 +79,22 @@ public class UserService {
 
         User user = userOpt.get();
         return user;
+    }
+
+    @Transactional(readOnly = true)
+    public Long getCurrentUserId() {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication == null || !authentication.isAuthenticated()) {
+            throw new CustomException(ErrorCode.UNAUTHORIZED);
+        }
+        Long userId = 0L;
+        try {
+            userId = Long.valueOf(authentication.getName());
+        } catch (NumberFormatException e) {
+            throw new CustomException(ErrorCode.UNAUTHORIZED);
+        }
+
+        return userId;
     }
 
     public User getMemberById(Long memberId){
@@ -145,7 +160,7 @@ public class UserService {
         SecretKey key = Keys.hmacShaKeyFor(jwtSecret.getBytes());
         
         return Jwts.builder()
-                .subject(user.getKakaoId().toString())
+                .subject(user.getUserId().toString())
                 .claim("kakaoId", user.getKakaoId())
                 .claim("nickname", user.getNickname())
                 .claim("type", "access")
@@ -220,7 +235,7 @@ public class UserService {
         // 사용자 지갑 생성 및 웰컴 포인트 100000원 지급
         Wallet wallet = Wallet.builder()
                 .user(user)
-                .postedBalance(100000)
+                .postedBalance(100000L)
                 .build();
         
         walletRepository.save(wallet);
@@ -264,7 +279,7 @@ public class UserService {
 
         // 사용자 지갑 정보 조회
         Optional<Wallet> walletOpt = walletRepository.findByUserWithoutLock(user);
-        Integer balance = walletOpt.map(Wallet::getPostedBalance).orElse(0);
+        Long balance = walletOpt.map(Wallet::getPostedBalance).orElse(0L);
 
         return MyPageResponse.builder()
                 .nickname(user.getNickname())
@@ -338,46 +353,6 @@ public class UserService {
         }
     }
 
-    /**
-     * FCM 토큰 상태 확인
-     */
-    public boolean hasFcmToken(Long userId) {
-        User user = getMemberById(userId);
-        return user.hasFcmToken();
-    }
-
-    /**
-     * FCM 토큰 업데이트 (중복 등록 방지, Null-safe 비교)
-     */
-    @Transactional
-    public void updateFcmToken(Long userId, String fcmToken) {
-        User user = getMemberById(userId);
-
-        // Null-safe 비교로 중복 등록 방지
-        if (Objects.equals(fcmToken, user.getFcmToken())) {
-            log.debug("FCM token already registered for user: {}", userId);
-            return;
-        }
-
-        try {
-            user.updateFcmToken(fcmToken);
-            log.info("FCM token updated for user: {}", userId);
-        } catch (IllegalArgumentException e) {
-            log.error("FCM token validation failed for user: {}, error: {}", userId, e.getMessage());
-            throw new CustomException(ErrorCode.FCM_TOKEN_INVALID);
-        }
-    }
-
-    /**
-     * FCM 토큰 삭제 (로그아웃 시)
-     */
-    @Transactional
-    public void clearFcmToken(Long userId) {
-        User user = getMemberById(userId);
-        user.clearFcmToken();
-
-        log.info("FCM token cleared for user: {}", userId);
-    }
 
     @Transactional(readOnly = true)
     public MySettlementResponseDto getMySettlementList(Pageable pageable) {
