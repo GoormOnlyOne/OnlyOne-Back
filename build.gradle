@@ -102,17 +102,13 @@ dependencies {
     implementation 'org.springframework.boot:spring-boot-starter-actuator'
     runtimeOnly 'io.micrometer:micrometer-registry-prometheus'
 
-<<<<<<< HEAD
     //retry
     implementation("org.springframework.retry:spring-retry")
 
     implementation 'org.apache.commons:commons-pool2:2.12.0'
-=======
-    implementation 'org.springframework.retry:spring-retry'
     implementation 'org.springframework.boot:spring-boot-starter-aop'
     // kafka
     implementation 'org.springframework.kafka:spring-kafka'
->>>>>>> 1191fa0d327320b6ba956954cf597dcb07feda36
 }
 
 // QueryDSL 설정 (수정됨)
