@@ -22,7 +22,11 @@ public class AsyncConfig {
         executor.setMaxPoolSize(100);      // 최대 동시 처리 스레드
         executor.setQueueCapacity(2000);   // 큐 크기
         executor.setThreadNamePrefix("Async-");
-        executor.setRejectedExecutionHandler(new ThreadPoolExecutor.CallerRunsPolicy());
+        executor.setRejectedExecutionHandler(new ThreadPoolExecutor.AbortPolicy());
+        executor.setWaitForTasksToCompleteOnShutdown(true);
+        executor.setAwaitTerminationSeconds(30);
+        executor.setKeepAliveSeconds(60);
+        executor.setAllowCoreThreadTimeOut(true);
         executor.initialize();
         return executor;
     }

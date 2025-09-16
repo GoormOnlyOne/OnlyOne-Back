@@ -11,7 +11,7 @@ import org.springframework.data.redis.connection.RedisConnectionFactory;
 import org.springframework.data.redis.connection.lettuce.LettuceConnectionFactory;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.core.StringRedisTemplate;
-import org.springframework.data.redis.listener.ChannelTopic;
+import org.springframework.data.redis.listener.PatternTopic;
 import org.springframework.data.redis.listener.RedisMessageListenerContainer;
 import org.springframework.data.redis.serializer.GenericJackson2JsonRedisSerializer;
 import org.springframework.data.redis.serializer.StringRedisSerializer;
@@ -65,7 +65,7 @@ public class RedisConfig {
         container.setConnectionFactory(connectionFactory);
 
         // 테스트용: 채팅방 98980번 구독
-        container.addMessageListener(chatSubscriber, new ChannelTopic("chat.room.98980"));
+        container.addMessageListener(chatSubscriber, new PatternTopic("chat.room.*"));
 
         return container;
     }
