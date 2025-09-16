@@ -65,7 +65,7 @@ prometheus-data
 docker-compose.yml
 prometheus.yml
 datasource.yml
+k6/
 
 smoke_dummy.js
 
-k6/
