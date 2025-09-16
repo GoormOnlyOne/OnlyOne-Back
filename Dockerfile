@@ -1,11 +1,15 @@
-# 사용할 base 이미지 선택
-FROM openjdk:21
+# 1단계: 빌드
+FROM gradle:8.10.0-jdk21 AS builder
+WORKDIR /app
+COPY . .
+RUN gradle clean bootJar -x test
 
-# build/libs/ 에 있는 jar 파일을 JAR_FILE 변수에 저장
-ARG JAR_FILE=build/libs/*.jar
+# 2단계: 실행 (JRE만 사용 → 이미지 크기 ↓)
+FROM eclipse-temurin:21-jre
+WORKDIR /app
 
-# JAR_FILE을 app.jar로 복사
-COPY ${JAR_FILE} app.jar
+# 실행 가능한 fat jar만 복사 (버전 번호 상관없이 *.jar)
+COPY --from=builder /app/build/libs/*.jar app.jar
 
 EXPOSE 8080
-ENTRYPOINT ["java", "-jar", "-Duser.timezone=Asia/Seoul", "app.jar"]
+ENTRYPOINT ["java", "--enable-preview", "-Duser.timezone=Asia/Seoul", "-jar", "app.jar"]

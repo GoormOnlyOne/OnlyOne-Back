@@ -81,6 +81,22 @@ public class UserService {
         return user;
     }
 
+    @Transactional(readOnly = true)
+    public Long getCurrentUserId() {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication == null || !authentication.isAuthenticated()) {
+            throw new CustomException(ErrorCode.UNAUTHORIZED);
+        }
+        Long userId = 0L;
+        try {
+            userId = Long.valueOf(authentication.getName());
+        } catch (NumberFormatException e) {
+            throw new CustomException(ErrorCode.UNAUTHORIZED);
+        }
+
+        return userId;
+    }
+
     public User getMemberById(Long memberId){
         return userRepository.findById(memberId)
                 .orElseThrow(() -> new CustomException(ErrorCode.USER_NOT_FOUND));
@@ -144,7 +160,7 @@ public class UserService {
         SecretKey key = Keys.hmacShaKeyFor(jwtSecret.getBytes());
         
         return Jwts.builder()
-                .subject(user.getKakaoId().toString())
+                .subject(user.getUserId().toString())
                 .claim("kakaoId", user.getKakaoId())
                 .claim("nickname", user.getNickname())
                 .claim("type", "access")
@@ -219,7 +235,7 @@ public class UserService {
         // 사용자 지갑 생성 및 웰컴 포인트 100000원 지급
         Wallet wallet = Wallet.builder()
                 .user(user)
-                .postedBalance(100000)
+                .postedBalance(100000L)
                 .build();
         
         walletRepository.save(wallet);
@@ -263,7 +279,7 @@ public class UserService {
 
         // 사용자 지갑 정보 조회
         Optional<Wallet> walletOpt = walletRepository.findByUserWithoutLock(user);
-        Integer balance = walletOpt.map(Wallet::getPostedBalance).orElse(0);
+        Long balance = walletOpt.map(Wallet::getPostedBalance).orElse(0L);
 
         return MyPageResponse.builder()
                 .nickname(user.getNickname())

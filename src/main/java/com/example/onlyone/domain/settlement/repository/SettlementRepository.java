@@ -8,6 +8,7 @@ import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
@@ -23,6 +24,14 @@ public interface SettlementRepository extends JpaRepository<Settlement,Long> {
            AND total_status in ('HOLDING', 'FAILED')
     """, nativeQuery = true)
     int markProcessing(@Param("id") Long settlementId);
+
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query("UPDATE Settlement s " +
+            "SET s.totalStatus = :status, s.completedTime = :time " +
+            "WHERE s.settlementId = :id AND s.totalStatus <> 'COMPLETED'")
+    int markCompleted(@Param("id") Long id,
+                      @Param("status") TotalStatus status,
+                      @Param("time") LocalDateTime time);
 
     @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Query("delete from Settlement s where s.schedule.scheduleId = :scheduleId")
