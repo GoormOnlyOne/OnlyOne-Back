@@ -4,6 +4,7 @@ import com.example.onlyone.domain.notification.dto.request.NotificationActionDto
 import com.example.onlyone.domain.notification.dto.request.NotificationQueryDto;
 import com.example.onlyone.domain.notification.dto.response.NotificationListResponseDto;
 import com.example.onlyone.domain.notification.service.NotificationService;
+import com.example.onlyone.domain.notification.service.NotificationBatchService;
 import com.example.onlyone.domain.user.entity.User;
 import com.example.onlyone.domain.user.service.UserService;
 import com.example.onlyone.global.common.CommonResponse;
@@ -21,6 +22,7 @@ import org.springframework.web.bind.annotation.*;
 public class NotificationController {
 
     private final NotificationService notificationService;
+    private final NotificationBatchService notificationBatchService;
     private final UserService userService;
 
     @Operation(summary = "읽지 않은 알림 개수", description = "현재 사용자의 읽지 않은 알림 개수를 조회합니다")
@@ -80,5 +82,11 @@ public class NotificationController {
 
         NotificationListResponseDto notifications = notificationService.getNotifications(dto);
         return ResponseEntity.ok(CommonResponse.success(notifications));
+    }
+    
+    @Operation(summary = "배치 처리 상태", description = "알림 배치 처리 큐 상태를 조회합니다 (모니터링용)")
+    @GetMapping("/batch-status")
+    public ResponseEntity<CommonResponse<Object>> getBatchStatus() {
+        return ResponseEntity.ok(CommonResponse.success(notificationBatchService.getBatchStatus()));
     }
 }

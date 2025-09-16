@@ -14,6 +14,7 @@ import com.example.onlyone.domain.notification.repository.NotificationTypeReposi
 import com.example.onlyone.domain.user.entity.User;
 import com.example.onlyone.global.exception.CustomException;
 import com.example.onlyone.global.exception.ErrorCode;
+import com.example.onlyone.global.sse.service.SseEmittersService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.cache.annotation.Cacheable;
@@ -33,6 +34,7 @@ public class NotificationService {
     private final NotificationRepository notificationRepository;
     private final NotificationTypeRepository notificationTypeRepository;
     private final ApplicationEventPublisher eventPublisher;
+    private final SseEmittersService sseEmittersService;
 
     @Transactional
     public Notification createNotification(NotificationCreateDto dto) {
@@ -107,12 +109,19 @@ public class NotificationService {
     }
 
 
+    @Async
     private void publishNotificationCreatedEvent(Notification notification) {
         try {
-            // Spring Event Publisher로 비동기 발행 (단순하고 안정적)
-            NotificationCreatedEvent event = new NotificationCreatedEvent(notification);
-            eventPublisher.publishEvent(event);
-            log.debug("알림 이벤트 발행: id={}, userId={}", notification.getId(), notification.getUser().getUserId());
+            Long userId = notification.getUser().getUserId();
+            
+            // 조건부 처리: 사용자가 온라인인 경우만 이벤트 발행
+            if (sseEmittersService.isUserConnected(userId)) {
+                NotificationCreatedEvent event = new NotificationCreatedEvent(notification);
+                eventPublisher.publishEvent(event);
+                log.debug("온라인 사용자 알림 이벤트 발행: id={}, userId={}", notification.getId(), userId);
+            } else {
+                log.debug("오프라인 사용자 알림 이벤트 스킵: id={}, userId={}", notification.getId(), userId);
+            }
         } catch (Exception e) {
             log.warn("알림 이벤트 발행 실패: id={}", notification.getId(), e);
         }
