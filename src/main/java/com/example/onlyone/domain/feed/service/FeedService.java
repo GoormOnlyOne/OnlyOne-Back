@@ -160,10 +160,10 @@ public class FeedService {
             feedLikeRepository.save(like);
             // 필요시 em.flush();  // (선택) 즉시 flush 하여 예외 조기 감지
             int likeCount = Math.max(0, feedLikeRepository.countByFeed(feed) - 1);
-            if (!feed.getUser().getUserId().equals(currentUser.getUserId())) {
-                notificationService.createNotification(feed.getUser(), Type.LIKE,
-                        new String[]{ currentUser.getNickname(), String.valueOf(likeCount) });
-            }
+//            if (!feed.getUser().getUserId().equals(currentUser.getUserId())) {
+//                notificationService.createNotification(feed.getUser(), Type.LIKE,
+//                        new String[]{ currentUser.getNickname(), String.valueOf(likeCount) });
+//            }
             return true;
         } catch (DataIntegrityViolationException e) {
             // ★ 핵심: 실패한 엔티티 분리
@@ -172,10 +172,10 @@ public class FeedService {
 
             // 이후 로직은 “이미 ON”으로 간주
             int likeCount = Math.max(0, feedLikeRepository.countByFeed(feed) - 1);
-            if (!feed.getUser().getUserId().equals(currentUser.getUserId())) {
-                notificationService.createNotification(feed.getUser(), Type.LIKE,
-                        new String[]{ currentUser.getNickname(), String.valueOf(likeCount) });
-            }
+//            if (!feed.getUser().getUserId().equals(currentUser.getUserId())) {
+//                notificationService.createNotification(feed.getUser(), Type.LIKE,
+//                        new String[]{ currentUser.getNickname(), String.valueOf(likeCount) });
+//            }
             return true;
         }
     }
@@ -193,9 +193,9 @@ public class FeedService {
         }
         FeedComment feedComment = requestDto.toEntity(feed, currentUser);
         feedCommentRepository.save(feedComment);
-        if (!feed.getUser().getUserId().equals(currentUser.getUserId())) {
-            notificationService.createNotification(feed.getUser(), Type.COMMENT, new String[]{currentUser.getNickname()});
-        }
+//        if (!feed.getUser().getUserId().equals(currentUser.getUserId())) {
+//            notificationService.createNotification(feed.getUser(), Type.COMMENT, new String[]{currentUser.getNickname()});
+//        }
     }
 
     public void deleteComment(Long clubId, Long feedId, Long commentId) {

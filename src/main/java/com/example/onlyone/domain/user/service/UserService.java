@@ -29,12 +29,9 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.security.core.Authentication;
-import org.springframework.web.context.request.RequestContextHolder;
-import org.springframework.web.context.request.ServletRequestAttributes;
-
-import jakarta.servlet.http.HttpServletRequest;
 
 import javax.crypto.SecretKey;
 import java.time.LocalDate;
@@ -63,63 +60,43 @@ public class UserService {
     private long refreshTokenExpiration;
 
 
-  @Transactional(readOnly = true)
-  public User getCurrentUser() {
+    @Transactional(readOnly = true)
+    public User getCurrentUser() {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication == null || !authentication.isAuthenticated()) {
+            throw new CustomException(ErrorCode.UNAUTHORIZED);
+        }
+        Long kakaoId = 0L;
+        try {
+            kakaoId = Long.valueOf(authentication.getName());
+        } catch (NumberFormatException e) {
+            throw new  CustomException(ErrorCode.UNAUTHORIZED);
+        }
+
+        Optional<User> userOpt = userRepository.findByKakaoId(kakaoId);
+        if (userOpt.isEmpty()) {
+            throw new CustomException(ErrorCode.USER_NOT_FOUND);
+        }
+
+        User user = userOpt.get();
+        return user;
+    }
+
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
+    public Long getCurrentUserId() {
     Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
     if (authentication == null || !authentication.isAuthenticated()) {
       throw new CustomException(ErrorCode.UNAUTHORIZED);
     }
-    Long kakaoId = 0L;
+    Long userId = 0L;
     try {
-      kakaoId = Long.valueOf(authentication.getName());
+      userId = Long.valueOf(authentication.getName());
     } catch (NumberFormatException e) {
-      throw new  CustomException(ErrorCode.UNAUTHORIZED);
+      throw new CustomException(ErrorCode.UNAUTHORIZED);
     }
 
-    Optional<User> userOpt = userRepository.findByKakaoId(kakaoId);
-    if (userOpt.isEmpty()) {
-      throw new CustomException(ErrorCode.USER_NOT_FOUND);
-    }
-
-    User user = userOpt.get();
-    return user;
-    }
-
-    /**
-     * JWT 기반 사용자 정보 추출 - DB 조회 없음 (K6 테스트 최적화 전용)
-     * SecurityContextHolder에서 kakaoId만 추출하여 최소한의 User 객체 생성
-     */
-    @Transactional(readOnly = true)
-    public User getCurrentUserFromJwt() {
-        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-        if (authentication == null || !authentication.isAuthenticated()) {
-            log.debug("No authentication found, falling back to DB query");
-            return getCurrentUser();
-        }
-        
-        try {
-            Long kakaoId = Long.valueOf(authentication.getName());
-            
-            // JWT 유효성은 필터에서 검증됨 - 최소한의 User 객체 생성 (DB 조회 없음)
-            User jwtUser = User.builder()
-                    .kakaoId(kakaoId)
-                    .nickname("user") // 기본값
-                    .status(Status.ACTIVE) // JWT 토큰이 유효하면 활성 사용자로 가정
-                    .build();
-            
-            log.debug("Using JWT-based user info: kakaoId={} - NO DB QUERY", kakaoId);
-            return jwtUser;
-            
-        } catch (NumberFormatException e) {
-            log.debug("Invalid kakaoId format, falling back to DB query");
-            return getCurrentUser();
-        }
-    }
-
-    public User getMemberById(Long memberId){
-        return userRepository.findById(memberId)
-                .orElseThrow(() -> new CustomException(ErrorCode.USER_NOT_FOUND));
-    }
+    return userId;
+  }
 
     /**
      * 카카오 로그인 처리: 기존 사용자 조회 또는 신규 사용자 생성
@@ -180,7 +157,6 @@ public class UserService {
         
         return Jwts.builder()
                 .subject(user.getKakaoId().toString())
-                .claim("userId", user.getUserId())  // SSE/Notification에서 필요
                 .claim("kakaoId", user.getKakaoId())
                 .claim("nickname", user.getNickname())
                 .claim("type", "access")

@@ -96,14 +96,13 @@ public class AuthController {
 
     @GetMapping("/me")
     public ResponseEntity<?> getCurrentUser() {
-        // JWT 기반 사용자 정보 사용 (DB 조회 없음) - K6 테스트 최적화
-        User currentUser = userService.getCurrentUserFromJwt();
+        User currentUser = userService.getCurrentUser();
 
         Map<String, Object> userInfo = Map.of(
             "userId", currentUser.getUserId(),
             "kakaoId", currentUser.getKakaoId(),
             "nickname", currentUser.getNickname(),
-            "status", currentUser.getStatus() != null ? currentUser.getStatus() : "ACTIVE", // JWT에서는 status 없음
+            "status", currentUser.getStatus(),
             "profileImage", currentUser.getProfileImage() != null ? currentUser.getProfileImage() : ""
         );
         

@@ -96,7 +96,7 @@ public class MessageService {
             User target = userChatRoom.getUser();
             if (target == null) continue;
             if (target.getUserId().equals(sender.getUserId())) continue;
-            notificationService.createNotification(target, com.example.onlyone.domain.notification.entity.Type.CHAT, new String[]{sender.getNickname()});
+//            notificationService.createNotification(target, com.example.onlyone.domain.notification.entity.Type.CHAT, new String[]{sender.getNickname()});
         }
     }
 

@@ -267,22 +267,21 @@ public class FeedMainService {
 
         try {
             feedRepository.save(reFeed);
-            
+
             // 원본 피드 작성자에게 리피드 알림 발송 (자신이 리피드한 경우 제외)
             User originalAuthor = parent.getUser();
-            if (!originalAuthor.getUserId().equals(user.getUserId())) {
-                notificationService.createNotification(
-                    originalAuthor,
-                    Type.REFEED,
-                    user.getNickname()   // 리피드한 사용자 닉네임
-                );
-                log.info("Refeed notification sent: originalAuthor={}, refeedUser={}", 
-                    originalAuthor.getUserId(), user.getUserId());
-            }
-            
+//            if (!originalAuthor.getUserId().equals(user.getUserId())) {
+//                notificationService.createNotification(
+//                    originalAuthor,
+//                    Type.REFEED,
+//                    user.getNickname()   // 리피드한 사용자 닉네임
+//                );
+//                log.info("Refeed notification sent: originalAuthor={}, refeedUser={}",
+//                    originalAuthor.getUserId(), user.getUserId());
+//            }
+//
         } catch (DataIntegrityViolationException e) {
             throw new CustomException(ErrorCode.DUPLICATE_REFEED);
         }
     }
-
 }
