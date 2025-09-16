@@ -2,9 +2,11 @@ package com.example.onlyone.domain.feed.repository;
 
 import com.example.onlyone.domain.club.entity.Club;
 import com.example.onlyone.domain.feed.entity.Feed;
+import jakarta.persistence.LockModeType;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -38,8 +40,6 @@ public interface FeedRepository extends JpaRepository<Feed,Long> {
 
     Page<Feed> findByClubAndParentFeedIdIsNull(Club club, Pageable pageable);
 
-    Feed findByFeedId(Long feedId);
-
     @Query("SELECT f FROM Feed f WHERE f.club.clubId IN :clubIds")
     List<Feed> findByClubIds(List<Long> clubIds, Pageable pageable);
 
@@ -71,35 +71,35 @@ public interface FeedRepository extends JpaRepository<Feed,Long> {
     """, nativeQuery = true)
     List<Feed> findPopularByClubIds(@Param("clubIds") List<Long> clubIds, Pageable pageable);
 
-        // 나(= parentId)를 인용하던 '직계 자식'들의 parent/root를 모두 NULL
-        @Modifying(clearAutomatically = true, flushAutomatically = true)
-        @Query("""
-        UPDATE Feed f
-           SET f.parentFeedId = NULL,
-               f.rootFeedId   = NULL
-         WHERE f.parentFeedId = :parentId
-           AND f.deleted = FALSE
-    """)
-        int clearParentAndRootForChildren(@Param("parentId") Long parentId);
+    // 나(= parentId)를 인용하던 '직계 자식'들의 parent/root를 모두 NULL
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query("""
+    UPDATE Feed f
+       SET f.parentFeedId = NULL,
+           f.rootFeedId   = NULL
+     WHERE f.parentFeedId = :parentId
+       AND f.deleted = FALSE
+""")
+    int clearParentAndRootForChildren(@Param("parentId") Long parentId);
 
-        // 나(= rootId)를 루트로 바라보던 모든 후손들의 root를 NULL
-        @Modifying(clearAutomatically = true, flushAutomatically = true)
-        @Query("""
-        UPDATE Feed f
-           SET f.rootFeedId = NULL
-         WHERE f.rootFeedId = :rootId
-           AND f.deleted = FALSE
-    """)
-        int clearRootForDescendants(@Param("rootId") Long rootId);
+    // 나(= rootId)를 루트로 바라보던 모든 후손들의 root를 NULL
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query("""
+    UPDATE Feed f
+       SET f.rootFeedId = NULL
+     WHERE f.rootFeedId = :rootId
+       AND f.deleted = FALSE
+""")
+    int clearRootForDescendants(@Param("rootId") Long rootId);
 
-        // 소프트 삭제 (엔티티 @SQLDelete 호출 대신 직접 UPDATE)
-        @Modifying(clearAutomatically = true, flushAutomatically = true)
-        @Query("""
-        UPDATE Feed f
-           SET f.deleted  = TRUE,
-               f.deletedAt = CURRENT_TIMESTAMP
-         WHERE f.feedId = :feedId
-           AND f.deleted = FALSE
-    """)
-        int softDeleteById(@Param("feedId") Long feedId);
+    // 소프트 삭제 (엔티티 @SQLDelete 호출 대신 직접 UPDATE)
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query("""
+    UPDATE Feed f
+       SET f.deleted  = TRUE,
+           f.deletedAt = CURRENT_TIMESTAMP
+     WHERE f.feedId = :feedId
+       AND f.deleted = FALSE
+""")
+    int softDeleteById(@Param("feedId") Long feedId);
 }
