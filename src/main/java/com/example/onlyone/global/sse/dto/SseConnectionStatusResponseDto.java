@@ -14,7 +14,7 @@ import java.time.LocalDateTime;
 @Builder
 public class SseConnectionStatusResponseDto {
     
-    @Schema(description = "사용자 ID", example = "1")
+    @Schema(description = "사용자 ID", example = "1234567890")
     private final Long userId;
     
     @Schema(description = "연결 여부", example = "true")

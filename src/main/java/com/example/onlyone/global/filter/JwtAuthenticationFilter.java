@@ -1,5 +1,8 @@
 package com.example.onlyone.global.filter;
 
+import com.example.onlyone.domain.user.entity.Status;
+import com.example.onlyone.domain.user.entity.User;
+import com.example.onlyone.domain.user.repository.UserRepository;
 import com.example.onlyone.global.exception.CustomException;
 import com.example.onlyone.global.exception.ErrorCode;
 import io.jsonwebtoken.Claims;
@@ -8,8 +11,10 @@ import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.log4j.Log4j2;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.HttpStatus;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.oauth2.jwt.JwtException;
@@ -19,14 +24,18 @@ import org.springframework.web.filter.OncePerRequestFilter;
 import javax.crypto.SecretKey;
 import java.io.IOException;
 import java.util.Collections;
+import java.util.Optional;
 import io.jsonwebtoken.Jwts;
 
 @Log4j2
 @Component
+@RequiredArgsConstructor
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     @Value("${jwt.secret}")
     private String jwtSecret;
+    
+    private final UserRepository userRepository;
 
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain) throws ServletException, IOException {
@@ -50,8 +59,18 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             String kakaoIdString = claims.getSubject();
             Long kakaoId = Long.valueOf(kakaoIdString);
 
-            // JWT가 유효하면 사용자는 존재하고 활성 상태라고 가정 (DB 조회 제거)
-            // INACTIVE 사용자는 토큰 재발급 시점에서 차단되므로 여기서는 불필요
+            // 사용자 상태 확인 - 탈퇴한 사용자인 경우 인증 거부, GUEST와 ACTIVE는 허용
+            Optional<User> userOpt = userRepository.findByKakaoId(kakaoId);
+            if (userOpt.isPresent()) {
+                User user = userOpt.get();
+
+                if (Status.INACTIVE.name().equals(user.getStatus())) {
+                    // 로그아웃 요청은 탈퇴한 사용자도 허용 (토큰 정리를 위해)
+                    if (!"/auth/logout".equals(request.getRequestURI())) {
+                        throw new CustomException(ErrorCode.USER_WITHDRAWN);
+                    }
+                }
+            }
 
             UsernamePasswordAuthenticationToken auth =
                     new UsernamePasswordAuthenticationToken(

@@ -267,6 +267,29 @@ public class GlobalExceptionHandler {
     }
 
     /**
+     * IllegalArgumentException 처리
+     * 잘못된 인자값이 전달되었을 때 발생하는 예외를 처리합니다.
+     * 주로 Enum 변환 실패나 비즈니스 로직에서 발생하는 잘못된 입력값 처리
+     */
+    @ExceptionHandler(IllegalArgumentException.class)
+    public ResponseEntity<CommonResponse<ErrorResponse>> handleIllegalArgumentException(
+            IllegalArgumentException e, HttpServletRequest request) {
+        // 로그 기록
+        logError(request, ErrorCode.INVALID_INPUT_VALUE, e);
+
+        // ErrorResponse 생성
+        ErrorResponse errorResponse = ErrorResponse.builder()
+                .code(ErrorCode.INVALID_INPUT_VALUE.name())
+                .message("잘못된 입력값입니다: " + e.getMessage())
+                .build();
+
+        // 응답 생성 및 반환
+        return ResponseEntity
+                .status(HttpStatus.BAD_REQUEST)
+                .body(CommonResponse.error(errorResponse));
+    }
+
+    /**
      * SSE Broken pipe 및 클라이언트 연결 중단 예외 처리
      * 클라이언트가 SSE 연결을 중단할 때 발생하는 예외들을 조용히 처리
      */

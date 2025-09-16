@@ -1,6 +1,5 @@
 package com.example.onlyone.global.sse.dto;
 
-import com.example.onlyone.domain.user.entity.User;
 import java.time.Duration;
 import lombok.Builder;
 import lombok.Getter;
@@ -10,17 +9,15 @@ import java.time.LocalDateTime;
 
 /**
  * SSE 연결 정보 모델
- * SSE 연결 상태 관리를 위한 도메인 모델
+ * JWT 기반 인증으로 userId 저장
  */
 @Getter
 @Builder
 public class SseConnection {
+
     private final Long userId;
     private final SseEmitter emitter;
     private final LocalDateTime connectionTime;
-    
-    // 캐시된 사용자 정보 - DB 조회 최소화
-    private final User cachedUser;
     
     /**
      * 연결 지속 시간 (밀리초)
