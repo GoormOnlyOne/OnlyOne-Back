@@ -18,6 +18,7 @@ import com.example.onlyone.domain.feed.repository.FeedRepository;
 import com.example.onlyone.domain.interest.entity.Category;
 import com.example.onlyone.domain.interest.entity.Interest;
 import com.example.onlyone.domain.interest.repository.InterestRepository;
+import com.example.onlyone.domain.search.service.ClubElasticsearchService;
 import com.example.onlyone.domain.user.entity.User;
 import com.example.onlyone.domain.user.service.UserService;
 import com.example.onlyone.global.exception.CustomException;
@@ -42,6 +43,7 @@ public class ClubService {
     private final ChatRoomRepository chatRoomRepository;
     private final UserService userService;
     private final UserChatRoomRepository userChatRoomRepository;
+    private final ClubElasticsearchService clubElasticsearchService;
 
     /* 모임 생성*/
     public ClubCreateResponseDto createClub(ClubRequestDto requestDto) {
@@ -71,6 +73,10 @@ public class ClubService {
                 .chatRole(ChatRole.LEADER)
                 .build();
         userChatRoomRepository.save(userChatRoom);
+        
+        // ES 인덱싱 (비동기)
+        clubElasticsearchService.indexClub(club);
+        
         return new ClubCreateResponseDto(club.getClubId());
     }
 
@@ -95,6 +101,10 @@ public class ClubService {
                 requestDto.getDistrict(),
                 interest
         );
+        
+        // ES 업데이트 (비동기)
+        clubElasticsearchService.updateClub(club);
+        
         return new ClubCreateResponseDto(club.getClubId());
     }
 
@@ -140,6 +150,9 @@ public class ClubService {
                 .chatRole(ChatRole.MEMBER)
                 .build();
         userChatRoomRepository.save(userChatRoom);
+        
+        // ES 업데이트 (memberCount 변경)
+        clubElasticsearchService.updateClub(club);
     }
 
     /* 모임 탈퇴*/
@@ -157,5 +170,8 @@ public class ClubService {
         }
         userClubRepository.delete(userClub);
         club.decrementMemberCount();
+        
+        // ES 업데이트 (memberCount 변경)
+        clubElasticsearchService.updateClub(club);
     }
 }

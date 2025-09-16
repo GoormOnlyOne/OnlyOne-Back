@@ -80,7 +80,7 @@ public class WalletService {
         }
     }
 
-    public void createSuccessfulWalletTransactions(Long walletId, Long leaderWalletId, int amount,
+    public void createSuccessfulWalletTransactions(Long walletId, Long leaderWalletId, Long amount,
                                                     UserSettlement userSettlement) {
         Wallet wallet = walletRepository.findById(walletId).orElseThrow();
         Wallet leaderWallet = walletRepository.findById(leaderWalletId).orElseThrow();
@@ -127,8 +127,8 @@ public class WalletService {
 
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
-    public void createFailedWalletTransactions(Long walletId, Long leaderWalletId, int amount,
-                                                  Long userSettlementId, int walletBalance, int leaderWalletBalance) {
+    public void createFailedWalletTransactions(Long walletId, Long leaderWalletId, Long amount,
+                                                  Long userSettlementId, Long walletBalance, Long leaderWalletBalance) {
         Wallet wallet = walletRepository.getReferenceById(walletId);
         Wallet leaderWallet   = walletRepository.getReferenceById(leaderWalletId);
         UserSettlement userSettlement = userSettlementRepository.getReferenceById(userSettlementId);

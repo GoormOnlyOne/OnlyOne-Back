@@ -15,7 +15,7 @@ public class ScheduleDetailResponseDto {
     private Long scheduleId;
     private String name;
     private LocalDateTime scheduleTime;
-    private int cost;
+    private Long cost;
     private int userLimit;
     private String location;
 
