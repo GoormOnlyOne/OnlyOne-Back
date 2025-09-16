@@ -19,7 +19,7 @@ public class SseConnectionManager {
     @Value("${app.notification.sse-timeout-millis:60000}")
     private long sseTimeoutMillis;
 
-    @Value("${app.notification.max-connections:5000}")
+    @Value("${app.notification.max-connections:7000}")
     private int maxConnections;
 
     private final ConcurrentHashMap<Long, SseConnection> activeConnections = new ConcurrentHashMap<>();
