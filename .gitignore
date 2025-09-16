@@ -64,8 +64,19 @@ grafana-data
 prometheus-data
 docker-compose.yml
 prometheus.yml
+<<<<<<< HEAD
 datasource.yml
 k6/
 
 smoke_dummy.js
 
+=======
+influxdb-data
+k6-test
+redis-data/dump.rdb
+.my.cnf
+src/main/resources/application-stage.yml
+k6/k6_result.json
+k6/settlement_test.js
+ngrinder-controller
+>>>>>>> 1191fa0d327320b6ba956954cf597dcb07feda36

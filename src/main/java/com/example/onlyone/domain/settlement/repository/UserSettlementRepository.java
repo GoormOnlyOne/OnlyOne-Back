@@ -15,7 +15,6 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
 
 public interface UserSettlementRepository extends JpaRepository<UserSettlement, Long> {
@@ -117,7 +116,30 @@ public interface UserSettlementRepository extends JpaRepository<UserSettlement, 
     List<UserSettlement> findAllBySettlement_SettlementIdAndSettlementStatus(
             Long settlementId, SettlementStatus settlementStatus);
 
+    @Query("""
+    SELECT us.user.userId
+    FROM UserSettlement us
+    WHERE us.settlement.settlementId = :settlementId
+      AND us.settlementStatus = :settlementStatus
+""")
+    List<Long> findAllUserSettlementIdsBySettlementIdAndStatus(
+            @Param("settlementId") Long settlementId,
+            @Param("settlementStatus") SettlementStatus settlementStatus);
+
+    // 성능 개선: 참가자 수와 ID 목록을 한 번에 조회하는 메서드 (사용하지 않음 - 위의 메서드로 대체)
+    @Query("""
+    SELECT us.user.userId
+    FROM UserSettlement us
+    WHERE us.settlement.settlementId = :settlementId
+      AND us.settlementStatus = :settlementStatus
+""")
+    List<Long> findActiveParticipantIds(@Param("settlementId") Long settlementId, 
+                                       @Param("settlementStatus") SettlementStatus settlementStatus);
+
+
     @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Query("delete from UserSettlement us where us.settlement.settlementId = :settlementId")
     void deleteAllBySettlementId(@Param("settlementId") Long settlementId);
+
+   Optional<UserSettlement> findBySettlement_SettlementIdAndUser_UserId(Long settlementId, Long participantId);
 }

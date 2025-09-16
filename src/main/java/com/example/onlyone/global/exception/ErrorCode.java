@@ -71,6 +71,7 @@ public enum ErrorCode {
     SETTLEMENT_NOT_FOUND(404, "SETTLEMENT_404_1", "정산을 찾을 수 없습니다."),
     USER_SETTLEMENT_NOT_FOUND(404, "SETTLEMENT_404_2", "정산 참여자를 찾을 수 없습니다."),
     ALREADY_SETTLED_USER(409, "SETTLEMENT_409_1", "이미 해당 정기 모임에 대해 정산한 유저입니다."),
+    ALREADY_COMPLETED_SETTLEMENT(409, "SETTLEMENT_409_2", "이미 종료된 정산입니다."),
     SETTLEMENT_PROCESS_FAILED(500, "SETTLEMENT_500_1", "정산 처리 중 오류가 발생했습니다. 다시 시도해 주세요."),
 
     // Wallet
@@ -80,6 +81,7 @@ public enum ErrorCode {
     WALLET_HOLD_STATE_CONFLICT(409, "WALLET_409_2", "사용자의 예약금이 부족합니다. 포인트를 충전해 주세요."),
     WALLET_HOLD_CAPTURE_FAILED(409, "WALLET_409_3", "사용자의 예약금 차감에 실패했습니다. 다시 시도해 주세요."),
     WALLET_CREDIT_APPLY_FAILED(409, "WALLET_409_4", "리더의 정산금 처리에 실패했습니다. 다시 시도해 주세요."),
+    WALLET_OPERATION_IN_PROGRESS(409, "WALLET_409_5", "사용자의 다른 거래가 처리 중입니다. 잠시 후 다시 시도해 주세요."),
 
     // Payment
     PAYMENT_IN_PROGRESS(202, "PAYMENT_202_1", "결제 처리 중입니다. 잠시 후 다시 조회해 주세요."),
@@ -133,8 +135,20 @@ public enum ErrorCode {
     SEARCH_KEYWORD_TOO_SHORT(400, "SEARCH_400_2", "검색어는 최소 2글자 이상이어야 합니다."),
     INVALID_INTEREST_ID(400, "SEARCH_400_3", "유효하지 않은 interestId입니다."),
     INVALID_LOCATION(400, "SEARCH_400_4", "유효하지 않은 city 또는 district입니다."),
+    
+    // Elasticsearch
+    ELASTICSEARCH_INDEX_ERROR(500, "ES_500_1", "Elasticsearch 인덱싱 중 오류가 발생했습니다."),
+    ELASTICSEARCH_DELETE_ERROR(500, "ES_500_2", "Elasticsearch 삭제 중 오류가 발생했습니다."),
+    ELASTICSEARCH_UPDATE_ERROR(500, "ES_500_3", "Elasticsearch 업데이트 중 오류가 발생했습니다."),
+    ELASTICSEARCH_SEARCH_ERROR(500, "ES_500_4", "Elasticsearch 검색 중 오류가 발생했습니다."),
+    ELASTICSEARCH_SYNC_ERROR(500, "ES_500_5", "Elasticsearch 동기화 중 오류가 발생했습니다."),
+    
+    // Database
+    DATABASE_CONNECTION_ERROR(503, "DB_503_1", "데이터베이스 연결 중 오류가 발생했습니다."),
 
-    ;
+    // Outbox
+    INVALID_TOPIC(400, "OUTBOX_400_1", "유효하지 않은 토픽입니다."),
+    INVALID_EVENT_PAYLOAD(422, "OUTBOX_422_1", "잘못된 이벤트 페이로드입니다.");
 
     private final int status;
     private final String code;
