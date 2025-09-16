@@ -16,6 +16,7 @@ import com.example.onlyone.domain.schedule.entity.Schedule;
 import com.example.onlyone.domain.schedule.repository.ScheduleRepository;
 import com.example.onlyone.domain.schedule.repository.UserScheduleRepository;
 import com.example.onlyone.domain.user.entity.User;
+import com.example.onlyone.domain.user.repository.UserRepository;
 import com.example.onlyone.domain.user.service.UserService;
 import com.example.onlyone.global.exception.CustomException;
 import com.example.onlyone.global.exception.ErrorCode;
@@ -42,6 +43,7 @@ public class ChatRoomService {
     private final UserService userService;
     private final ScheduleRepository scheduleRepository;
     private final UserScheduleRepository userScheduleRepository;
+    private final UserRepository userRepository;
 
     // 채팅방 삭제
     @Transactional
