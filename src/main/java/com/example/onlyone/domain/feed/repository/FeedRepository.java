@@ -40,8 +40,6 @@ public interface FeedRepository extends JpaRepository<Feed,Long> {
 
     Page<Feed> findByClubAndParentFeedIdIsNull(Club club, Pageable pageable);
 
-    Feed findByFeedId(Long feedId);
-
     @Query("SELECT f FROM Feed f WHERE f.club.clubId IN :clubIds")
     List<Feed> findByClubIds(List<Long> clubIds, Pageable pageable);
 
@@ -104,7 +102,4 @@ public interface FeedRepository extends JpaRepository<Feed,Long> {
        AND f.deleted = FALSE
 """)
     int softDeleteById(@Param("feedId") Long feedId);
-
-    @Query(value = "SELECT feed_id FROM feed WHERE feed_id = :feedId FOR UPDATE", nativeQuery = true)
-    Long lockFeedRow(@Param("feedId") long feedId);
 }

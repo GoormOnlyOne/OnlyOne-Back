@@ -16,26 +16,4 @@ public interface FeedLikeRepository extends JpaRepository<FeedLike, Long> {
     int countByFeed(Feed feed);
 
     long countByFeed_FeedId(Long feedId);
-
-    @Modifying
-    @Query(value = """
-        INSERT IGNORE INTO feed_like(feed_id, user_id)
-        VALUES (:feedId, :userId)
-        """, nativeQuery = true)
-    int tryInsertIgnore(@Param("feedId") long feedId, @Param("userId") long userId);
-
-    @Modifying
-    @Query(value = """
-        DELETE FROM feed_like
-        WHERE feed_id = :feedId AND user_id = :userId
-        """, nativeQuery = true)
-    int tryDelete(@Param("feedId") long feedId, @Param("userId") long userId);
-
-    @Modifying
-    @Query(value = """
-        UPDATE feed
-           SET like_count = GREATEST(like_count + :delta, 0)
-         WHERE feed_id = :feedId
-        """, nativeQuery = true)
-    int bumpLike(@Param("feedId") long feedId, @Param("delta") int delta);
 }

@@ -28,6 +28,7 @@ import com.example.onlyone.domain.user.entity.Status;
 import com.example.onlyone.domain.user.entity.User;
 import com.example.onlyone.domain.user.repository.UserRepository;
 import com.example.onlyone.domain.user.service.UserService;
+//import com.example.onlyone.global.batch.feed.FeedLikeFlushWorker;
 import com.example.onlyone.global.exception.CustomException;
 import com.example.onlyone.global.exception.ErrorCode;
 import jakarta.persistence.EntityManager;
@@ -44,6 +45,10 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.redis.core.RedisTemplate;
+import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 
@@ -51,18 +56,19 @@ import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionTemplate;
 
+import java.sql.SQLOutput;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.*;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.mockito.Mockito.reset;
-import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.*;
 
 @ActiveProfiles("test")
 @SpringBootTest(classes = OnlyoneApplication.class)
@@ -90,6 +96,11 @@ class FeedServiceTest {
     private PaymentService paymentService;
     @MockitoBean
     private RedisTemplate<String, Object> redisTemplate;
+
+//    @Autowired
+//    FeedLikeFlushWorker likeFlushWorker;
+    @Autowired
+    StringRedisTemplate redis;
 
     @Autowired
     private EntityManager em; // 이미지 교체 검증 시 1차 캐시 초기화를 위해 사용
@@ -1122,7 +1133,7 @@ class FeedServiceTest {
     @DisplayName("N명의 서로 다른 유저가 동시에 좋아요 시도 → 각 사용자당 1개씩만 생성된다")
     @Test
     @Transactional(propagation = Propagation.NOT_SUPPORTED)
-    void concurrent_like_manyUsers_eachGetsOne_withoutThreadLocal() throws Exception {
+    void concurrent_like_manyUsers() throws Exception {
         // ---- 준비: 별도 트랜잭션으로 클럽/유저/피드 커밋 ----
         record Prepared(Long clubId, Long feedId, List<User> users) {}
         Prepared prepared = txTemplate.execute(status -> {
@@ -1137,7 +1148,7 @@ class FeedServiceTest {
                     .clubImage("soccer.jpg")
                     .build());
 
-            int N = 120; // 동시 사용자 수
+            int N = 10000; // 동시 사용자 수
             List<User> users = new ArrayList<>(N);
             for (int i = 0; i < N; i++) {
                 users.add(User.builder()
@@ -1171,8 +1182,8 @@ class FeedServiceTest {
         reset(userService);
         when(userService.getCurrentUser()).thenAnswer(inv -> {
             User u = queue.poll();
-            // 만약 스레드 수 > 유저 수로 오면 마지막 사용자를 재사용
-            return (u != null) ? u : users.get(users.size() - 1);
+            if (u == null) throw new IllegalStateException("getCurrentUser() called more than users.size()");
+            return u;
         });
 
         // ---- 동시 실행 ----
@@ -1206,25 +1217,27 @@ class FeedServiceTest {
             }
         }).count();
 
+        System.out.println("likeRows = " + likeRows);
         // 각 사용자당 최대 1개씩만 생성 → likeRows == 사용자 수
         assertThat(likeRows).isEqualTo(users.size());
     }
 
-    @DisplayName("N명의 서로 다른 유저가 동시에 좋아요 시도 → 각 사용자당 1개만 생성")
+
+    @DisplayName("N명의 서로 다른 유저가 동시에 좋아요 시도 → 각 사용자당 1개만 생성 (ThreadLocal)")
     @Test
     @Transactional(propagation = Propagation.NOT_SUPPORTED)
-    void concurrent_like_manyUsers_withCallableClass() throws Exception {
-        // --- 준비/커밋(생략된 부분은 너의 기존 코드 그대로) ---
+    void concurrent_like_manyUsers_withThreadLocal() throws Exception {
+
+        // ---- 준비 ----
         record Prepared(Long clubId, Long feedId, List<User> users) {}
         Prepared p = txTemplate.execute(status -> {
-            Interest ex = interestRepository.save(Interest.builder().category(Category.EXERCISE).build());
+            Interest ex = interestRepository.save(Interest.builder()
+                    .category(Category.EXERCISE).build());
             Club club = clubRepository.save(Club.builder()
-                    .name("동시성-Callable")
-                    .description("c").userLimit(1000)
-                    .city("서울").district("강남구")
-                    .interest(ex).clubImage("c.jpg").build());
+                    .name("동시성-Callable").description("c").userLimit(100000)
+                    .city("서울").district("강남구").interest(ex).clubImage("c.jpg").build());
 
-            int N = 100000;
+            final int N = 10_000;
             List<User> users = new ArrayList<>(N);
             for (int i = 0; i < N; i++) {
                 users.add(userRepository.save(User.builder()
@@ -1236,82 +1249,58 @@ class FeedServiceTest {
                     .map(u -> UserClub.builder().user(u).club(club).clubRole(ClubRole.MEMBER).build())
                     .toList());
 
+            // 피드 1개 생성(임시 스텁 1회)
+            reset(userService);
             when(userService.getCurrentUser()).thenReturn(users.getFirst());
             feedService.createFeed(club.getClubId(),
                     FeedRequestDto.builder().feedUrls(List.of("a.jpg")).content("c").build());
             Long feedId = feedRepository.findAll().getLast().getFeedId();
+
             return new Prepared(club.getClubId(), feedId, users);
         });
 
-        // ---- 호출마다 서로 다른 유저 반환(Queue 기반); ThreadLocal 불사용 ----
-        ConcurrentLinkedQueue<User> queue = new ConcurrentLinkedQueue<>(p.users());
+        // ---- ThreadLocal + mock 1회 스텁 ----
+        final ThreadLocal<User> TL_USER = new ThreadLocal<>();
         reset(userService);
         when(userService.getCurrentUser()).thenAnswer(inv -> {
-            User u = queue.poll();
-            return (u != null) ? u : p.users().getLast();
+            User u = TL_USER.get();
+            if (u == null) throw new IllegalStateException("No user bound to this thread");
+            return u;
         });
 
-        // ---- 실행 ----
-        int threads = p.users().size();
-        CountDownLatch startGate = new CountDownLatch(1);
-        ExecutorService pool = Executors.newFixedThreadPool(Math.min(threads, 32));
-        List<Future<Boolean>> futures = new ArrayList<>(threads);
+        try {
+            // ---- 실행 ----
+            CountDownLatch startGate = new CountDownLatch(1);
+            ExecutorService pool = Executors.newFixedThreadPool(32);
+            List<Future<Boolean>> futures = new ArrayList<>(p.users().size());
 
-        for (int i = 0; i < threads; i++) {
-            futures.add(pool.submit(new ToggleLikeTask(
-                    startGate, p.clubId(), p.feedId(), txTemplate, feedService
-            )));
-        }
+            for (User u : p.users()) {
+                futures.add(pool.submit(() -> {
+                    startGate.await();
+                    TL_USER.set(u);
+                    try {
+                        return txTemplate.execute(s -> feedService.toggleLike(p.clubId(), p.feedId()));
+                    } finally {
+                        TL_USER.remove();
+                    }
+                }));
+            }
 
-        startGate.countDown();
-        for (Future<Boolean> f : futures) f.get(); // 예외 확인
-        pool.shutdown();
-        pool.awaitTermination(30, TimeUnit.SECONDS);
+            startGate.countDown();
+            for (Future<Boolean> f : futures) f.get();  // 모든 작업 완료 대기
+            pool.shutdown();
+            pool.awaitTermination(120, TimeUnit.SECONDS);
 
-        // ---- 검증(새 트랜잭션 + 1차 캐시 클리어) ----
-        Long likeRows = txTemplate.execute(s -> {
-            em.clear();
-            return feedLikeRepository.countByFeed_FeedId(p.feedId());
-        });
-        System.out.println("likeRows = " + likeRows);
-        assertThat(likeRows).isEqualTo(p.users().size());
-
-        // (선택) likeCount 필드 사용 시
-        txTemplate.execute(s -> {
-            em.clear();
-            Feed feed = feedRepository.findById(p.feedId()).orElseThrow();
-            assertThat(feed.getLikeCount()).isEqualTo(p.users().size());
-            return null;
-        });
-    }
-    // 1) 동시 실행용 태스크: 각 스레드가 자기 트랜잭션에서 toggleLike 수행
-    static class ToggleLikeTask implements Callable<Boolean> {
-        private final CountDownLatch startGate;
-        private final Long clubId;
-        private final Long feedId;
-        private final TransactionTemplate txTemplate;
-        private final FeedService feedService;
-
-        ToggleLikeTask(CountDownLatch startGate,
-                       Long clubId, Long feedId,
-                       TransactionTemplate txTemplate,
-                       FeedService feedService) {
-            this.startGate = startGate;
-            this.clubId = clubId;
-            this.feedId = feedId;
-            this.txTemplate = txTemplate;
-            this.feedService = feedService;
-        }
-
-        @Override
-        public Boolean call() throws Exception {
-            startGate.await(); // 동시에 출발
-            // 각 스레드별 "독립 트랜잭션"에서 실행
-            return txTemplate.execute(status -> feedService.toggleLike(clubId, feedId));
+            // ---- 검증: 사실 테이블 ----
+            Long likeRows = txTemplate.execute(s -> {
+                em.clear();
+                return feedLikeRepository.countByFeed_FeedId(p.feedId());
+            });
+            System.out.println("likeRows = " + likeRows);
+            assertThat(likeRows).isEqualTo(p.users().size());
+        } finally {
+            reset(userService); // 다른 테스트 영향 방지
         }
     }
-
-
-
 }
 

@@ -87,6 +87,8 @@ dependencies {
 
     //retry
     implementation("org.springframework.retry:spring-retry")
+
+    implementation 'org.apache.commons:commons-pool2:2.12.0'
 }
 
 // QueryDSL 설정 (수정됨)

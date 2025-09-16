@@ -22,24 +22,28 @@ import com.example.onlyone.domain.user.entity.User;
 import com.example.onlyone.domain.user.service.UserService;
 import com.example.onlyone.global.exception.CustomException;
 import com.example.onlyone.global.exception.ErrorCode;
-import jakarta.persistence.EntityManager;
-import jakarta.persistence.PersistenceContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.log4j.Log4j2;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.dao.CannotAcquireLockException;
-import org.springframework.dao.DataIntegrityViolationException;
-import org.springframework.dao.DeadlockLoserDataAccessException;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
-import org.springframework.retry.annotation.Backoff;
-import org.springframework.retry.annotation.Retryable;
+import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.data.redis.core.script.DefaultRedisScript;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Isolation;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
+
+import java.time.Clock;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import java.util.UUID;
 import java.util.stream.Collectors;
 
 @Log4j2
@@ -50,12 +54,13 @@ public class FeedService {
     private final ClubRepository clubRepository;
     private final FeedRepository feedRepository;
     private final UserService userService;
-    private final FeedLikeRepository feedLikeRepository;
     private final FeedCommentRepository feedCommentRepository;
     private final UserClubRepository userClubRepository;
     private final NotificationService notificationService;
-    @PersistenceContext
-    EntityManager em;
+
+    private final DefaultRedisScript<List> likeToggleScript;
+    private final StringRedisTemplate redis;
+    private final Clock clock;
 
     public void createFeed(Long clubId, FeedRequestDto requestDto) {
         Club club = clubRepository.findById(clubId)
@@ -97,6 +102,37 @@ public class FeedService {
                 .forEach(feed.getFeedImages()::add);
     }
 
+    public boolean toggleLike(long clubId, long feedId) {
+        Club club = clubRepository.findById(clubId)
+                .orElseThrow(() -> new CustomException(ErrorCode.CLUB_NOT_FOUND));
+        long userId = userService.getCurrentUser().getUserId();
+        String reqId = UUID.randomUUID().toString();
+
+        List<String> keys = List.of(
+                "feed:" + feedId + ":likers",
+                "feed:" + feedId + ":like_count",
+                "like:events",
+                "idemp:" + reqId
+        );
+        Object[] args = {
+                String.valueOf(userId),
+                String.valueOf(feedId),
+                reqId,
+                String.valueOf(clock.millis())
+        };
+
+        List<?> raw = redis.execute(likeToggleScript, keys, args);
+        if (raw == null || raw.size() < 3) throw new IllegalStateException("toggle script failed");
+
+        // Redis가 숫자를 Long/Integer 등으로 줄 수 있으니 Number로 받아서 longValue()
+        List<Long> r = new ArrayList<>(3);
+        for (Object o : raw) r.add(((Number) o).longValue());
+
+        boolean nowOn = r.get(0) == 1L; // 토글 후 현재 상태 (1이면 좋아요 ON, 0이면 OFF)
+        // r.get(1) = delta: +1 또는 -1, r.get(2) = newCount: Redis 카운터의 최신 값
+        return nowOn;
+    }
+
     @Transactional(readOnly = true)
     public Page<FeedSummaryResponseDto> getFeedList(Long clubId, Pageable pageable) {
         Club club = clubRepository.findById(clubId)
@@ -105,19 +141,19 @@ public class FeedService {
         Page<Feed> feeds = feedRepository.findByClubAndParentFeedIdIsNull(club, pageable);
 
         return feeds.map(feed -> {
-                    String thumbnailUrl = null;
-                    List<FeedImage> imgs = feed.getFeedImages();
-                    if (imgs != null && !imgs.isEmpty()) {           // ★ 빈 리스트 가드
-                        thumbnailUrl = imgs.get(0).getFeedImage();
-                    }
+            String thumbnailUrl = null;
+            List<FeedImage> imgs = feed.getFeedImages();
+            if (imgs != null && !imgs.isEmpty()) {           // ★ 빈 리스트 가드
+                thumbnailUrl = imgs.get(0).getFeedImage();
+            }
 
-                    return new FeedSummaryResponseDto(
-                            feed.getFeedId(),
-                            thumbnailUrl,
-                            feed.getFeedLikes().size(),
-                            feed.getFeedComments().size()
-                    );
-                });
+            return new FeedSummaryResponseDto(
+                    feed.getFeedId(),
+                    thumbnailUrl,
+                    feed.getFeedLikes().size(),
+                    feed.getFeedComments().size()
+            );
+        });
 
     }
 
@@ -144,31 +180,6 @@ public class FeedService {
         long repostCount = feedRepository.countByParentFeedId(feedId);
 
         return FeedDetailResponseDto.from(feed, imageUrls, isLiked, isMine, commentResponseDtos, repostCount);
-    }
-
-    @Transactional(isolation = Isolation.READ_COMMITTED)
-    public boolean toggleLike(long clubId, long feedId) {
-        long uid = userService.getCurrentUser().getUserId();
-
-        feedRepository.lockFeedRow(feedId);
-
-        // 1) 새로 누르기 시도
-        int inserted = feedLikeRepository.tryInsertIgnore(feedId, uid);
-        if (inserted == 1) {
-            feedLikeRepository.bumpLike(feedId, +1);
-            // 알림은 비동기로
-//            notificationPublisher.like(feedId, uid);
-            return true;
-        }
-
-        // 2) 이미 있던 경우 → 취소 시도
-        int deleted = feedLikeRepository.tryDelete(feedId, uid);
-        if (deleted == 1) {
-            feedLikeRepository.bumpLike(feedId, -1);
-            return false;  // 최종 OFF
-        }
-
-        return true;
     }
 
 

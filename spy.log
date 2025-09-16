@@ -718,3 +718,8 @@
 1757048634510|0|rollback|connection 37490|url jdbc:mysql://172.16.24.224:3306/buddkit?createDatabaseIfNotExist=true&characterEncoding=UTF-8&characterSetResults=UTF-8||
 1757048634512|0|rollback|connection 37497|url jdbc:mysql://172.16.24.224:3306/buddkit?createDatabaseIfNotExist=true&characterEncoding=UTF-8&characterSetResults=UTF-8||
 1757048634512|0|rollback|connection 37493|url jdbc:mysql://172.16.24.224:3306/buddkit?createDatabaseIfNotExist=true&characterEncoding=UTF-8&characterSetResults=UTF-8||
+1757901399178|0|rollback|connection 79933|url jdbc:mysql://172.16.24.224:3306/buddkit?createDatabaseIfNotExist=true&characterEncoding=UTF-8&characterSetResults=UTF-8||
+1757903329322|0|rollback|connection 128358|url jdbc:mysql://172.16.24.224:3306/buddkit?createDatabaseIfNotExist=true&characterEncoding=UTF-8&characterSetResults=UTF-8||
+1757912281471|0|rollback|connection 122180|url jdbc:mysql://172.16.24.224:3306/buddkit?createDatabaseIfNotExist=true&characterEncoding=UTF-8&characterSetResults=UTF-8||
+1757913731469|0|rollback|connection 107811|url jdbc:mysql://172.16.24.224:3306/buddkit?createDatabaseIfNotExist=true&characterEncoding=UTF-8&characterSetResults=UTF-8||
+1757920814033|0|rollback|connection 109722|url jdbc:mysql://172.16.24.224:3306/buddkit?createDatabaseIfNotExist=true&characterEncoding=UTF-8&characterSetResults=UTF-8&rewriteBatchedStatements=true&cachePrepStmts=true&prepStmtCacheSize=256&prepStmtCacheSqlLimit=2048||
