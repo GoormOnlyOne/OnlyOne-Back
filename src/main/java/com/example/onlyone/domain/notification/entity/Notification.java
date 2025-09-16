@@ -4,6 +4,7 @@ import com.example.onlyone.domain.user.entity.User;
 import com.example.onlyone.global.BaseTimeEntity;
 import jakarta.persistence.*;
 import lombok.AccessLevel;
+import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
@@ -11,9 +12,20 @@ import java.util.Objects;
 
 @Entity
 @Table(name = "notification", indexes = {
-    @Index(name = "idx_notification_user_id_cursor", columnList = "user_id, notification_id DESC"),
-    @Index(name = "idx_notification_user_unread_created", columnList = "user_id, is_read, created_at DESC"),
-    @Index(name = "idx_notification_user_read_bulk", columnList = "user_id, is_read")
+    // 메인 알림 조회 최적화 (user_id로 조회 후 notification_id DESC 정렬)
+    @Index(name = "idx_notification_user_id_desc", columnList = "user_id, notification_id DESC"),
+    
+    // JOIN 성능 개선을 위한 복합 인덱스
+    @Index(name = "idx_notification_composite", columnList = "user_id, type_id, notification_id DESC"),
+
+    // 읽지 않은 알림 개수 조회용 (COUNT 최적화)
+    @Index(name = "idx_notification_user_unread", columnList = "user_id, is_read"),
+    
+    // 읽지 않은 알림 상세 조회용
+    @Index(name = "idx_notification_user_unread_detail", columnList = "user_id, is_read, notification_id DESC"),
+
+    // SSE 전송용 (미전송 + 사용자별 + 생성시간 순)
+    @Index(name = "idx_notification_sse_unsent", columnList = "sse_sent, user_id, created_at ASC")
 })
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)

@@ -10,11 +10,11 @@ import lombok.Getter;
  */
 @Getter
 public enum Type {
-  CHAT("CHAT"),           // 채팅방으로 이동
-  SETTLEMENT("SETTLEMENT"), // 정산 페이지로 이동
-  LIKE("POST"),          // 좋아요 받은 게시글로 이동
-  COMMENT("POST"),       // 댓글 달린 게시글로 이동
-  REFEED("FEED");        // 리피드된 피드로 이동
+  CHAT("CHAT"),
+  SETTLEMENT("SETTLEMENT"),
+  LIKE("POST"),
+  COMMENT("POST"),
+  REFEED("FEED");
 
   private final String targetType;
 
