@@ -52,8 +52,9 @@ public class SecurityConfig {
     }
 
     private static final String[] AUTH_WHITELIST = {
+            "/api/auth/kakao/callback/**",
             "/api/signup/**",
-            "/api//login/**",
+            "/api/login/**",
             "/api/token",
             "/api/center",
             "/api/email/**",

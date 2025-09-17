@@ -61,6 +61,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
             // 사용자 상태 확인 - 탈퇴한 사용자인 경우 인증 거부, GUEST와 ACTIVE는 허용
             Optional<User> userOpt = userRepository.findByKakaoId(kakaoId);
+            log.error("userOpt = {}", userOpt.orElse(null));
             if (userOpt.isPresent()) {
                 User user = userOpt.get();
 
