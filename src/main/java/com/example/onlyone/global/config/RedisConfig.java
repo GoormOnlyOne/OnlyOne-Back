@@ -1,30 +1,37 @@
 package com.example.onlyone.global.config;
 
-import io.lettuce.core.ClientOptions;
-import io.lettuce.core.SocketOptions;
-import io.lettuce.core.TimeoutOptions;
-import io.lettuce.core.resource.ClientResources;
-import io.lettuce.core.resource.DefaultClientResources;
-import lombok.extern.slf4j.Slf4j;
+import io.lettuce.core.api.StatefulConnection;
+import org.apache.commons.pool2.impl.GenericObjectPoolConfig;
+import com.example.onlyone.domain.chat.service.ChatSubscriber;
+import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.cache.annotation.EnableCaching;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Primary;
 import org.springframework.context.annotation.Profile;
+import org.springframework.core.io.ClassPathResource;
 import org.springframework.data.redis.connection.RedisConnectionFactory;
+import org.springframework.data.redis.connection.RedisPassword;
+import org.springframework.data.redis.connection.RedisStandaloneConfiguration;
 import org.springframework.data.redis.connection.lettuce.LettuceClientConfiguration;
 import org.springframework.data.redis.connection.lettuce.LettuceConnectionFactory;
+import org.springframework.data.redis.connection.lettuce.LettucePoolingClientConfiguration;
 import org.springframework.data.redis.core.RedisTemplate;
+import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.data.redis.core.script.DefaultRedisScript;
+import org.springframework.data.redis.listener.PatternTopic;
+import org.springframework.data.redis.listener.RedisMessageListenerContainer;
 import org.springframework.data.redis.serializer.GenericJackson2JsonRedisSerializer;
 import org.springframework.data.redis.serializer.StringRedisSerializer;
 
 import java.time.Duration;
+import java.util.List;
 
-@Slf4j
 @Configuration
 @EnableCaching
 @Profile("!test")
+@RequiredArgsConstructor
 public class RedisConfig {
     @Value("${spring.data.redis.host}")
     private String host;
@@ -33,70 +40,73 @@ public class RedisConfig {
     @Value("${spring.data.redis.password}")
     private String password;
 
-    /**
-     * Lettuce Client Resources 설정 - 극한 성능 최적화
-     */
-    @Bean(destroyMethod = "shutdown")
-    public ClientResources clientResources() {
-        return DefaultClientResources.builder()
-                .ioThreadPoolSize(32)           // I/O 스레드 대폭 증가
-                .computationThreadPoolSize(16)  // 연산 스레드 대폭 증가
-                .build();
-    }
+    private final ChatSubscriber chatSubscriber;
 
-    /**
-     * Lettuce Client 설정
-     */
     @Bean
-    public LettuceClientConfiguration lettuceClientConfiguration(ClientResources clientResources) {
-        ClientOptions clientOptions = ClientOptions.builder()
-                .autoReconnect(true)
-                .disconnectedBehavior(ClientOptions.DisconnectedBehavior.REJECT_COMMANDS)
-                .publishOnScheduler(true)
-                .socketOptions(SocketOptions.builder()
-                        .connectTimeout(Duration.ofSeconds(10))
-                        .keepAlive(true)
-                        .tcpNoDelay(true)
-                        .build())
-                .timeoutOptions(TimeoutOptions.enabled(Duration.ofSeconds(10)))
-                .build();
+    public RedisConnectionFactory redisConnectionFactory() {
+        // 풀 설정
+        GenericObjectPoolConfig<?> pool = new GenericObjectPoolConfig<>();
+        pool.setMaxTotal(64);
+        pool.setMaxIdle(32);
+        pool.setMinIdle(16);
 
-        return LettuceClientConfiguration.builder()
-                .clientOptions(clientOptions)
-                .clientResources(clientResources)
-                .commandTimeout(Duration.ofSeconds(10))
-                .shutdownTimeout(Duration.ofSeconds(2))
-                .build();
-    }
+        // Lettuce 클라이언트 옵션 (BLOCK 10s보다 크게)
+        LettuceClientConfiguration clientCfg =
+                LettucePoolingClientConfiguration.builder()
+                        .poolConfig((GenericObjectPoolConfig<StatefulConnection<?, ?>>) pool)
+                        .commandTimeout(Duration.ofSeconds(15))
+                        .clientOptions(io.lettuce.core.ClientOptions.builder()
+                                .autoReconnect(true)
+                                .pingBeforeActivateConnection(true)
+                                .build())
+                        .build();
 
-    /**
-     * 기본 Redis Connection Factory (동기용)
-     */
-    @Bean
-    @Primary
-    public RedisConnectionFactory redisConnectionFactory(LettuceClientConfiguration clientConfig) {
-        LettuceConnectionFactory factory = new LettuceConnectionFactory(
-                new org.springframework.data.redis.connection.RedisStandaloneConfiguration(host, port),
-                clientConfig
-        );
-        
-        if (password != null && !password.isEmpty()) {
-            factory.getStandaloneConfiguration().setPassword(password);
+        // 서버 설정
+        RedisStandaloneConfiguration server = new RedisStandaloneConfiguration(host, port);
+        if (password != null && !password.isBlank()) {
+            server.setPassword(RedisPassword.of(password));
         }
-        
-        log.info("Redis Connection Factory 초기화: {}:{}", host, port);
-        return factory;
+
+        return new LettuceConnectionFactory(server, clientCfg);
     }
 
-    /**
-     * 기본 Redis Template (캐시용)
-     */
+
+    // redis template를 사용하여 redis에 직접 데이터를 저장하고 조회
     @Bean
-    public RedisTemplate<String, Object> redisTemplate(RedisConnectionFactory redisConnectionFactory) {
+    public RedisTemplate<String, Object> redisTemplate(
+            RedisConnectionFactory redisConnectionFactory) {
         RedisTemplate<String, Object> template = new RedisTemplate<>();
         template.setConnectionFactory(redisConnectionFactory);
         template.setKeySerializer(new StringRedisSerializer());
         template.setValueSerializer(new GenericJackson2JsonRedisSerializer());
         return template;
+    }
+
+    @Bean
+    public DefaultRedisScript<List> likeToggleScript() {
+        DefaultRedisScript<List> script = new DefaultRedisScript<>();
+        script.setLocation(new ClassPathResource("redis/like_toggle.lua"));
+        script.setResultType(List.class); // EVAL의 MULTI 결과를 List로 받음
+        return script;
+    }
+
+    // Pub/Sub 발행용 StringRedisTemplate
+    @Bean
+    public StringRedisTemplate stringRedisTemplate(RedisConnectionFactory redisConnectionFactory) {
+        return new StringRedisTemplate(redisConnectionFactory);
+    }
+
+    // Pub/Sub 수신용 ListenerContainer
+    @Bean
+    public RedisMessageListenerContainer redisMessageListenerContainer(
+            RedisConnectionFactory connectionFactory
+    ) {
+        RedisMessageListenerContainer container = new RedisMessageListenerContainer();
+        container.setConnectionFactory(connectionFactory);
+
+        // 테스트용: 채팅방 98980번 구독
+        container.addMessageListener(chatSubscriber, new PatternTopic("chat.room.*"));
+
+        return container;
     }
 }

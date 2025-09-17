@@ -22,20 +22,28 @@ import com.example.onlyone.domain.user.entity.User;
 import com.example.onlyone.domain.user.service.UserService;
 import com.example.onlyone.global.exception.CustomException;
 import com.example.onlyone.global.exception.ErrorCode;
-import jakarta.persistence.EntityManager;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.log4j.Log4j2;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.data.redis.core.script.DefaultRedisScript;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Isolation;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
+
+import java.time.Clock;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
-import java.util.Optional;
+import java.util.UUID;
 import java.util.stream.Collectors;
 
 @Log4j2
@@ -46,13 +54,13 @@ public class FeedService {
     private final ClubRepository clubRepository;
     private final FeedRepository feedRepository;
     private final UserService userService;
-    private final FeedLikeRepository feedLikeRepository;
     private final FeedCommentRepository feedCommentRepository;
     private final UserClubRepository userClubRepository;
     private final NotificationService notificationService;
-    @Autowired
-    EntityManager em;
 
+    private final DefaultRedisScript<List> likeToggleScript;
+    private final StringRedisTemplate redis;
+    private final Clock clock;
 
     public void createFeed(Long clubId, FeedRequestDto requestDto) {
         Club club = clubRepository.findById(clubId)
@@ -94,6 +102,37 @@ public class FeedService {
                 .forEach(feed.getFeedImages()::add);
     }
 
+    public boolean toggleLike(long clubId, long feedId) {
+        Club club = clubRepository.findById(clubId)
+                .orElseThrow(() -> new CustomException(ErrorCode.CLUB_NOT_FOUND));
+        long userId = userService.getCurrentUser().getUserId();
+        String reqId = UUID.randomUUID().toString();
+
+        List<String> keys = List.of(
+                "feed:" + feedId + ":likers",
+                "feed:" + feedId + ":like_count",
+                "like:events",
+                "idemp:" + reqId
+        );
+        Object[] args = {
+                String.valueOf(userId),
+                String.valueOf(feedId),
+                reqId,
+                String.valueOf(clock.millis())
+        };
+
+        List<?> raw = redis.execute(likeToggleScript, keys, args);
+        if (raw == null || raw.size() < 3) throw new IllegalStateException("toggle script failed");
+
+        // Redis가 숫자를 Long/Integer 등으로 줄 수 있으니 Number로 받아서 longValue()
+        List<Long> r = new ArrayList<>(3);
+        for (Object o : raw) r.add(((Number) o).longValue());
+
+        boolean nowOn = r.get(0) == 1L; // 토글 후 현재 상태 (1이면 좋아요 ON, 0이면 OFF)
+        // r.get(1) = delta: +1 또는 -1, r.get(2) = newCount: Redis 카운터의 최신 값
+        return nowOn;
+    }
+
     @Transactional(readOnly = true)
     public Page<FeedSummaryResponseDto> getFeedList(Long clubId, Pageable pageable) {
         Club club = clubRepository.findById(clubId)
@@ -102,19 +141,19 @@ public class FeedService {
         Page<Feed> feeds = feedRepository.findByClubAndParentFeedIdIsNull(club, pageable);
 
         return feeds.map(feed -> {
-                    String thumbnailUrl = null;
-                    List<FeedImage> imgs = feed.getFeedImages();
-                    if (imgs != null && !imgs.isEmpty()) {           // ★ 빈 리스트 가드
-                        thumbnailUrl = imgs.get(0).getFeedImage();
-                    }
+            String thumbnailUrl = null;
+            List<FeedImage> imgs = feed.getFeedImages();
+            if (imgs != null && !imgs.isEmpty()) {           // ★ 빈 리스트 가드
+                thumbnailUrl = imgs.get(0).getFeedImage();
+            }
 
-                    return new FeedSummaryResponseDto(
-                            feed.getFeedId(),
-                            thumbnailUrl,
-                            feed.getFeedLikes().size(),
-                            feed.getFeedComments().size()
-                    );
-                });
+            return new FeedSummaryResponseDto(
+                    feed.getFeedId(),
+                    thumbnailUrl,
+                    feed.getFeedLikes().size(),
+                    feed.getFeedComments().size()
+            );
+        });
 
     }
 
@@ -143,42 +182,6 @@ public class FeedService {
         return FeedDetailResponseDto.from(feed, imageUrls, isLiked, isMine, commentResponseDtos, repostCount);
     }
 
-    @Transactional(isolation = Isolation.READ_COMMITTED)
-    public boolean toggleLike(Long clubId, Long feedId) {
-        Club club = clubRepository.findById(clubId)
-                .orElseThrow(() -> new CustomException(ErrorCode.CLUB_NOT_FOUND));
-        Feed feed = feedRepository.findByFeedIdAndClub(feedId, club)
-                .orElseThrow(() -> new CustomException(ErrorCode.FEED_NOT_FOUND));
-        User currentUser = userService.getCurrentUser();
-
-        int deleted = feedLikeRepository.deleteByFeedAndUser(feed, currentUser);
-        if (deleted > 0) {
-            return false; // 최종 OFF
-        }
-        FeedLike like = FeedLike.builder().feed(feed).user(currentUser).build();
-        try {
-            feedLikeRepository.save(like);
-            // 필요시 em.flush();  // (선택) 즉시 flush 하여 예외 조기 감지
-            int likeCount = Math.max(0, feedLikeRepository.countByFeed(feed) - 1);
-//            if (!feed.getUser().getUserId().equals(currentUser.getUserId())) {
-//                notificationService.createNotification(feed.getUser(), Type.LIKE,
-//                        new String[]{ currentUser.getNickname(), String.valueOf(likeCount) });
-//            }
-            return true;
-        } catch (DataIntegrityViolationException e) {
-            // ★ 핵심: 실패한 엔티티 분리
-            try { em.detach(like); } catch (Exception ignore) { em.clear(); }
-            // 또는 em.unwrap(Session.class).evict(like);
-
-            // 이후 로직은 “이미 ON”으로 간주
-            int likeCount = Math.max(0, feedLikeRepository.countByFeed(feed) - 1);
-//            if (!feed.getUser().getUserId().equals(currentUser.getUserId())) {
-//                notificationService.createNotification(feed.getUser(), Type.LIKE,
-//                        new String[]{ currentUser.getNickname(), String.valueOf(likeCount) });
-//            }
-            return true;
-        }
-    }
 
     public void createComment(Long clubId, Long feedId, FeedCommentRequestDto requestDto) {
         Club club = clubRepository.findById(clubId)
@@ -187,12 +190,12 @@ public class FeedService {
                 .orElseThrow(() -> new CustomException(ErrorCode.FEED_NOT_FOUND));
         User currentUser = userService.getCurrentUser();
         Long userId = currentUser.getUserId();
-      boolean isMember = userClubRepository.existsByUser_UserIdAndClub_ClubId(userId, clubId);
-      if (!isMember) {
-        throw new CustomException(ErrorCode.CLUB_NOT_JOIN);
-      }
-      FeedComment feedComment = requestDto.toEntity(feed, currentUser);
-      feedCommentRepository.save(feedComment);
+        boolean isMember = userClubRepository.existsByUser_UserIdAndClub_ClubId(userId, clubId);
+        if(!isMember) {
+            throw new CustomException(ErrorCode.CLUB_NOT_JOIN);
+        }
+        FeedComment feedComment = requestDto.toEntity(feed, currentUser);
+        feedCommentRepository.save(feedComment);
 //        if (!feed.getUser().getUserId().equals(currentUser.getUserId())) {
 //            notificationService.createNotification(feed.getUser(), Type.COMMENT, new String[]{currentUser.getNickname()});
 //        }

@@ -36,15 +36,15 @@ public class Wallet extends BaseTimeEntity {
 //    private int balance;
 
     @Column(name = "posted_balance")
-    private int postedBalance;
+    private Long postedBalance;
 
     @Column(name = "pending_out")
-    private int pendingOut;
+    private Long pendingOut;
 
     @OneToMany(mappedBy = "wallet", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<WalletTransaction> walletTransactions = new ArrayList<>();
 
-    public void updateBalance(int balance) {
+    public void updateBalance(Long balance) {
         this.postedBalance = balance;
     }
 }

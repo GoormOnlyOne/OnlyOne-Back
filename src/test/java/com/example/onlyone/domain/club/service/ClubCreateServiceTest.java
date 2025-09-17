@@ -32,7 +32,7 @@ import org.springframework.test.context.ActiveProfiles;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
-@ActiveProfiles("test")   // application-test.yml 적용 // 테스트 끝나면 롤백
+@ActiveProfiles("test")
 @DataJpaTest
 @Import({ClubService.class, UserService.class})
 class ClubCreateServiceTest {
