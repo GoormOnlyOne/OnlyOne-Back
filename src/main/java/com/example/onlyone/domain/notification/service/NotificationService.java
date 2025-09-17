@@ -5,7 +5,6 @@ import com.example.onlyone.domain.notification.dto.request.NotificationActionDto
 import com.example.onlyone.domain.notification.dto.request.NotificationCreateDto;
 import com.example.onlyone.domain.notification.dto.request.NotificationQueryDto;
 import com.example.onlyone.domain.notification.dto.response.NotificationItemDto;
-import com.example.onlyone.domain.notification.dto.response.NotificationCreateResponseDto;
 import com.example.onlyone.domain.notification.dto.response.NotificationListResponseDto;
 import com.example.onlyone.domain.notification.entity.Notification;
 import com.example.onlyone.domain.notification.entity.NotificationType;

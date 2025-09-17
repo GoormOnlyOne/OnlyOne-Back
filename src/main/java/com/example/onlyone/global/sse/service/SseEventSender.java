@@ -1,6 +1,6 @@
 package com.example.onlyone.global.sse.service;
 
-import com.example.onlyone.global.sse.dto.SseConnection;
+import com.example.onlyone.global.sse.SseConnection;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Component;

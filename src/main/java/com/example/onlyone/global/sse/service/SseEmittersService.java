@@ -2,7 +2,7 @@ package com.example.onlyone.global.sse.service;
 
 import com.example.onlyone.domain.notification.entity.Notification;
 import com.example.onlyone.domain.notification.repository.NotificationRepository;
-import com.example.onlyone.global.sse.dto.SseConnection;
+import com.example.onlyone.global.sse.SseConnection;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;

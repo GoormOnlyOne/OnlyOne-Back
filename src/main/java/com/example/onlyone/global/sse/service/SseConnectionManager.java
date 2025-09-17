@@ -2,7 +2,7 @@ package com.example.onlyone.global.sse.service;
 
 import com.example.onlyone.global.exception.CustomException;
 import com.example.onlyone.global.exception.ErrorCode;
-import com.example.onlyone.global.sse.dto.SseConnection;
+import com.example.onlyone.global.sse.SseConnection;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
