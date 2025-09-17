@@ -1,4 +1,4 @@
-package com.example.onlyone.global.sse.dto;
+package com.example.onlyone.global.sse;
 
 import java.time.Duration;
 import lombok.Builder;

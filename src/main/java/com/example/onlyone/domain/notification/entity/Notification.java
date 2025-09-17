@@ -12,20 +12,23 @@ import java.util.Objects;
 
 @Entity
 @Table(name = "notification", indexes = {
-    // 메인 알림 조회 최적화 (user_id로 조회 후 notification_id DESC 정렬)
-    @Index(name = "idx_notification_user_id_desc", columnList = "user_id, notification_id DESC"),
+    // 메인 알림 조회 최적화 (user_id로 조회 후 created_at DESC, notification_id DESC 정렬)
+    @Index(name = "idx_notification_user_created", columnList = "user_id, created_at DESC, notification_id DESC"),
     
-    // JOIN 성능 개선을 위한 복합 인덱스
-    @Index(name = "idx_notification_composite", columnList = "user_id, type_id, notification_id DESC"),
-
-    // 읽지 않은 알림 개수 조회용 (COUNT 최적화)
-    @Index(name = "idx_notification_user_unread", columnList = "user_id, is_read"),
+    // 읽지 않은 알림 개수 및 상세 조회용 (COUNT 및 필터링 최적화)
+    @Index(name = "idx_notification_user_read", columnList = "user_id, is_read"),
     
-    // 읽지 않은 알림 상세 조회용
-    @Index(name = "idx_notification_user_unread_detail", columnList = "user_id, is_read, notification_id DESC"),
-
+    // 타입별 알림 조회 최적화 (user_id + type_id + 시간순 정렬)
+    @Index(name = "idx_notification_user_type_created", columnList = "user_id, type_id, created_at DESC"),
+    
+    // SSE 전송 실패 재시도용 (미전송 알림 조회)
+    @Index(name = "idx_notification_sse_failed", columnList = "user_id, sse_sent"),
+    
     // SSE 전송용 (미전송 + 사용자별 + 생성시간 순)
-    @Index(name = "idx_notification_sse_unsent", columnList = "sse_sent, user_id, created_at ASC")
+    @Index(name = "idx_notification_sse_unsent", columnList = "sse_sent, user_id, created_at ASC"),
+    
+    // 전체 알림 관리용 (관리자 페이지 등)
+    @Index(name = "idx_notification_created_at", columnList = "created_at")
 })
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)

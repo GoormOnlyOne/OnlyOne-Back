@@ -2,6 +2,7 @@ package com.example.onlyone.domain.notification.repository;
 
 import com.example.onlyone.domain.notification.dto.response.NotificationItemDto;
 import com.example.onlyone.domain.notification.entity.Notification;
+import com.example.onlyone.domain.notification.entity.Type;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -22,6 +23,11 @@ public interface NotificationRepositoryCustom {
      * 읽지 않은 알림 개수 조회 - userId 기반
      */
     Long countUnreadByUserId(Long userId);
+    
+    /**
+     * 읽지 않은 알림 목록 조회 (전체)
+     */
+    List<Notification> findUnreadNotificationsByUserId(Long userId);
     
     /**
      * ID로 단일 알림 조회 (fetchJoin 포함)

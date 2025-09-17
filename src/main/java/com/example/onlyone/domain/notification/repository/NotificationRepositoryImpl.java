@@ -2,6 +2,7 @@ package com.example.onlyone.domain.notification.repository;
 
 import com.example.onlyone.domain.notification.dto.response.NotificationItemDto;
 import com.example.onlyone.domain.notification.entity.Notification;
+import com.example.onlyone.domain.notification.entity.Type;
 import com.querydsl.core.types.Projections;
 import com.querydsl.core.types.dsl.BooleanExpression;
 import com.querydsl.jpa.impl.JPAQueryFactory;
@@ -40,7 +41,8 @@ public class NotificationRepositoryImpl implements NotificationRepositoryCustom 
                         notification.content,
                         notificationType.type,
                         notification.isRead,
-                        notification.createdAt))
+                        notification.createdAt
+                ))
                 .from(notification)
                 .join(notification.notificationType, notificationType)
                 .where(
@@ -53,10 +55,8 @@ public class NotificationRepositoryImpl implements NotificationRepositoryCustom 
     }
     
     
-    
     @Override
     public Long countUnreadByUserId(Long userId) {
-
         Long count = queryFactory
                 .select(notification.count())
                 .from(notification)
@@ -69,6 +69,19 @@ public class NotificationRepositoryImpl implements NotificationRepositoryCustom 
         return count != null ? count : 0L;
     }
     
+    @Override
+    public List<Notification> findUnreadNotificationsByUserId(Long userId) {
+        return queryFactory
+                .selectFrom(notification)
+                .join(notification.notificationType, notificationType).fetchJoin()
+                .join(notification.user, user).fetchJoin()
+                .where(
+                        notification.user.userId.eq(userId),
+                        notification.isRead.eq(false)
+                )
+                .orderBy(notification.createdAt.desc())
+                .fetch();
+    }
     
     @Override
     public Notification findByIdWithFetchJoin(Long notificationId) {
@@ -83,7 +96,6 @@ public class NotificationRepositoryImpl implements NotificationRepositoryCustom 
     @Override
     @Transactional
     public long markAllAsReadByUserId(Long userId) {
-
         long updated = queryFactory
                 .update(notification)
                 .set(notification.isRead, true)
@@ -94,7 +106,7 @@ public class NotificationRepositoryImpl implements NotificationRepositoryCustom 
                 .execute();
 
         entityManager.flush();
-        entityManager.clear();
+        entityManager.clear(); // 벌크 업데이트 후 1차 캐시 무효화
         return updated;
     }
     
@@ -106,7 +118,7 @@ public class NotificationRepositoryImpl implements NotificationRepositoryCustom 
                 .set(notification.sseSent, sent)
                 .where(notification.id.eq(notificationId))
                 .execute();
-        entityManager.clear();
+        entityManager.clear(); // 벌크 업데이트 후 1차 캐시 무효화
         return updated;
     }
     
@@ -114,7 +126,6 @@ public class NotificationRepositoryImpl implements NotificationRepositoryCustom 
     @Override
     public List<Notification> findUnsentNotificationsByUserId(Long userId) {
         try {
-
             return queryFactory
                     .selectFrom(notification)
                     .join(notification.notificationType, notificationType).fetchJoin()
@@ -135,7 +146,6 @@ public class NotificationRepositoryImpl implements NotificationRepositoryCustom 
     @Override
     public List<Notification> findUnsentNotificationsByUserIdAfterTime(Long userId, LocalDateTime afterTime) {
         try {
-
             return queryFactory
                     .selectFrom(notification)
                     .join(notification.notificationType, notificationType).fetchJoin()

@@ -12,13 +12,16 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
+import org.springframework.util.StopWatch;
 import org.springframework.web.bind.annotation.*;
 
-@Tag(name = "알림", description = "알림 API")
+@Tag(name = "알림", description = "알림 관리 API")
 @RestController
 @RequestMapping("/notifications")
 @RequiredArgsConstructor
+@Slf4j
 public class NotificationController {
 
     private final NotificationService notificationService;
@@ -65,14 +68,17 @@ public class NotificationController {
         return ResponseEntity.ok(CommonResponse.success(null));
     }
 
-    @Operation(summary = "알림 목록 조회", description = "현재 사용자의 알림 목록을 조회합니다")
+    @Operation(summary = "알림 목록 조회", description = "현재 사용자의 알림 목록을 페이징하여 조회합니다")
     @GetMapping
     public ResponseEntity<CommonResponse<NotificationListResponseDto>> getNotifications(
-            @Parameter(description = "커서 (페이지네이션)")
+            @Parameter(description = "커서 (이전 조회의 마지막 알림 ID)")
             @RequestParam(required = false) Long cursor,
-            @Parameter(description = "조회할 알림 개수 (최대 30)")
+            @Parameter(description = "페이지 크기 (최대 30)")
             @RequestParam(defaultValue = "20") int size) {
 
+        StopWatch stopWatch = new StopWatch();
+        stopWatch.start();
+        
         Long userId = userService.getCurrentUserId();
         NotificationQueryDto dto = NotificationQueryDto.builder()
                 .userId(userId)
@@ -81,6 +87,12 @@ public class NotificationController {
                 .build();
 
         NotificationListResponseDto notifications = notificationService.getNotifications(dto);
+        
+        stopWatch.stop();
+        log.info("Notification list query completed in {}ms: userId={}, size={}, results={}", 
+                stopWatch.getTotalTimeMillis(), userId, size, 
+                notifications.getNotifications().size());
+        
         return ResponseEntity.ok(CommonResponse.success(notifications));
     }
     

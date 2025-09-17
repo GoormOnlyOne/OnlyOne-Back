@@ -82,21 +82,26 @@ public class UserService {
         return user;
     }
 
-    @Transactional(propagation = Propagation.NOT_SUPPORTED)
+    @Transactional(readOnly = true)
     public Long getCurrentUserId() {
-    Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-    if (authentication == null || !authentication.isAuthenticated()) {
-      throw new CustomException(ErrorCode.UNAUTHORIZED);
-    }
-    Long userId = 0L;
-    try {
-      userId = Long.valueOf(authentication.getName());
-    } catch (NumberFormatException e) {
-      throw new CustomException(ErrorCode.UNAUTHORIZED);
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication == null || !authentication.isAuthenticated()) {
+            throw new CustomException(ErrorCode.UNAUTHORIZED);
+        }
+        Long userId = 0L;
+        try {
+            userId = Long.valueOf(authentication.getName());
+        } catch (NumberFormatException e) {
+            throw new CustomException(ErrorCode.UNAUTHORIZED);
+        }
+
+        return userId;
     }
 
-    return userId;
-  }
+    public User getMemberById(Long memberId){
+        return userRepository.findById(memberId)
+                .orElseThrow(() -> new CustomException(ErrorCode.USER_NOT_FOUND));
+    }
 
     /**
      * 카카오 로그인 처리: 기존 사용자 조회 또는 신규 사용자 생성
@@ -156,7 +161,7 @@ public class UserService {
         SecretKey key = Keys.hmacShaKeyFor(jwtSecret.getBytes());
         
         return Jwts.builder()
-                .subject(user.getKakaoId().toString())
+                .subject(user.getUserId().toString())
                 .claim("kakaoId", user.getKakaoId())
                 .claim("nickname", user.getNickname())
                 .claim("type", "access")
