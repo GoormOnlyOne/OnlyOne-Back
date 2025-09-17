@@ -52,20 +52,20 @@ public class SecurityConfig {
     }
 
     private static final String[] AUTH_WHITELIST = {
-            "/signup/**",
-            "/login/**",
-            "/token",
-            "/center",
-            "/email/**",
-            "/ws/**",          // WebSocket STOMP 엔드포인트 허용
-            "/ws/chat/**",      // SockJS는 /info, /websocket, /xhr 등 내부 경로 씀
+            "**/signup/**",
+            "**/login/**",
+            "**/token",
+            "**/center",
+            "**/email/**",
+            "**/ws/**",          // WebSocket STOMP 엔드포인트 허용
+            "**/ws/chat/**",      // SockJS는 /info, /websocket, /xhr 등 내부 경로 씀
             // "/sse/subscribe/**",    // SSE는 별도 필터에서 인증 처리
-            "/ws-native",
-            "/kakao/**",
-            "/auth/**",
-            "/grafana/**",     // Grafana 대시보드
-            "/influxdb/**",    // InfluxDB API
-            "/write",          // InfluxDB write
+            "**/ws-native",
+            "**/kakao/**",
+            "**/auth/**",
+            "**/grafana/**",     // Grafana 대시보드
+            "**/influxdb/**",    // InfluxDB API
+            "**/write",          // InfluxDB write
     };
 
     // CORS 설정
