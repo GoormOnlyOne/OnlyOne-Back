@@ -2,6 +2,7 @@ package com.example.onlyone.domain.notification.service;
 
 import com.example.onlyone.domain.notification.dto.event.NotificationCreatedEvent;
 import com.example.onlyone.domain.notification.entity.Notification;
+import com.example.onlyone.domain.notification.repository.NotificationRepository;
 import com.example.onlyone.global.sse.service.SseEmittersService;
 import jakarta.annotation.PreDestroy;
 import lombok.RequiredArgsConstructor;
@@ -29,6 +30,7 @@ import java.util.stream.Collectors;
 public class NotificationBatchService {
 
     private final SseEmittersService sseEmittersService;
+    private final NotificationRepository notificationRepository;
     
     // 사용자별 알림 큐 (배치 처리용)
     private final Map<Long, BlockingQueue<Notification>> userNotificationQueues = new ConcurrentHashMap<>();
@@ -78,7 +80,6 @@ public class NotificationBatchService {
      * 더 자주 처리하여 지연 최소화
      */
     @Scheduled(fixedDelay = 50)
-    @Async("notificationExecutor")
     public void processBatchNotifications() {
         if (shuttingDown || userNotificationQueues.isEmpty()) {
             return;
@@ -138,6 +139,17 @@ public class NotificationBatchService {
                         .exceptionally(ex -> {
                             log.debug("배치 SSE 전송 실패: userId={}, notificationId={}", userId, notification.getId());
                             return false;
+                        })
+                        .thenApply(success -> {
+                            if (success) {
+                                try {
+                                    // 전송 성공 시 sseSent=true로 업데이트
+                                    notificationRepository.updateSseSentStatus(notification.getId(), true);
+                                } catch (Exception e) {
+                                    log.warn("sseSent 업데이트 실패: notificationId={}", notification.getId(), e);
+                                }
+                            }
+                            return success;
                         })
                 )
                 .collect(Collectors.toList());

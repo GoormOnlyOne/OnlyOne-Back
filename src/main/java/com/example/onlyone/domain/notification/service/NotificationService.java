@@ -24,8 +24,6 @@ import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.transaction.event.TransactionPhase;
-import org.springframework.transaction.event.TransactionalEventListener;
 
 import java.util.List;
 import java.util.Optional;
@@ -52,8 +50,8 @@ public class NotificationService {
         NotificationType notificationType = findNotificationType(type);
         Notification notification = createAndSaveNotification(user, notificationType, args);
         
-        // 알림 전송 이벤트 발행
-        eventPublisher.publishEvent(new NotificationCreatedEvent(notification));
+        // 온라인 사용자에 한해 전송 이벤트 발행 (오프라인은 미전송 상태로 재전송 경로 활용)
+        publishNotificationCreatedEvent(notification);
         log.info("알림 생성 완료: userId={}, type={}, id={}", user.getUserId(), type, notification.getId());
     }
 
@@ -74,21 +72,6 @@ public class NotificationService {
         return saved;
     }
 
-    /**
-     * 알림 전송 처리
-     */
-    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
-    @Async
-    public void handleNotificationCreated(NotificationCreatedEvent event) {
-        Notification notification = event.getNotification();
-
-        log.info("알림 전송 시작: id={}, type={}",
-            notification.getId(),
-            notification.getNotificationType().getType());
-
-        // SSE로 알림 전송
-        sendNotification(notification);
-    }
 
     /**
      * 알림 목록 조회 (DTO 기반)
