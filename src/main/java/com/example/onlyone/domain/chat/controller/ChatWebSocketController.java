@@ -30,19 +30,19 @@ public class ChatWebSocketController {
             @DestinationVariable Long chatRoomId,
             @Payload ChatMessageRequest request) {
 
-        log.info("🔥 WebSocket 메시지 수신: userId={}, text={}", request.getUserId(), request.getText());
+        log.error("🔥 WebSocket 메시지 수신: userId={}, text={}", request.getUserId(), request.getText());
 
         try {
             // 1. 메시지 저장
             ChatMessageResponse response = messageService.saveMessage(chatRoomId, request.getUserId(), request.getText());
-            log.info("✅ 메시지 저장 완료, 전송 준비: {}", response.getText());
+            log.error("✅ 메시지 저장 완료, 전송 준비: {}", response.getText());
 
             // 2. 대상 경로 구성 및 전송
             String destination = "/sub/chat/" + chatRoomId + "/messages";
             messagingTemplate.convertAndSend(destination, response);
 
         } catch (CustomException e) {
-            log.error("❌ CustomException: {}", e.getMessage());
+            log.error("❌ CustomException: {}", e);
             throw e; // -> @MessageExceptionHandler 로 위임
         } catch (Exception e) {
             log.error("❌ 처리 중 알 수 없는 예외 발생: {}", e.getMessage(), e);
