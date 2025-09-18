@@ -1,8 +1,8 @@
-name:  CI/CD with Docker
+name: CI/CD with Docker & ASG
 
 on:
   push:
-    branches: [ "deploy" ]
+    branches: [ "stage" ]
 
 jobs:
   deploy:
@@ -20,7 +20,7 @@ jobs:
         run: |
           mkdir -p ./src/main/resources/firebase
           touch ./src/main/resources/application.yml
-          echo "${{ secrets.APPLICATION }}" > ./src/main/resources/application.yml
+          echo "${{ secrets.APPLICATION_STAGE }}" > ./src/main/resources/application.yml
 
       - name: create-json
         uses: jsdaniell/create-json@v1.2.2
@@ -50,16 +50,16 @@ jobs:
           push: true
           tags: ${{ secrets.DOCKER_REPO }}:latest
 
-      - name: Deploy to Server
-        uses: appleboy/ssh-action@master
+      - name: AWS credentials
+        uses: aws-actions/configure-aws-credentials@v2
         with:
-          host: ${{ secrets.HOST }}
-          username: ${{ secrets.USERNAME }}
-          key: ${{ secrets.KEY }}
-          envs: GITHUB_SHA
-          script: |
-            echo "${{ secrets.DOCKER_COMPOSE }}" | sudo tee ./docker-compose.yml
-            sudo docker ps -q | xargs -r sudo docker stop && sudo docker ps -aq | xargs -r sudo docker rm
-            sudo docker compose -f ./docker-compose.yml down --rmi all
-            sudo docker pull ${{ secrets.DOCKER_REPO}}:latest
-            sudo docker compose -f ./docker-compose.yml up -d
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_KEY }}
+          aws-region: ap-northeast-2
+
+      - name: Auto Scaling Group Refresh
+        run: |
+          aws autoscaling start-instance-refresh \
+            --auto-scaling-group-name onlyone-buddkit-back-asg \
+            --strategy "Rolling" \
+            --preferences "MinHealthyPercentage=50"

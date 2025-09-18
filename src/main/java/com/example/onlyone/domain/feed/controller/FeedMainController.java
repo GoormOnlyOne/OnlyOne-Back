@@ -25,7 +25,7 @@ import java.util.List;
 @Tag(name = "feed-main", description = "전체 피드 조회 API")
 @RestController
 @RequiredArgsConstructor
-@RequestMapping("/feeds")
+@RequestMapping("/api/feeds")
 public class FeedMainController {
     private final FeedMainService feedMainService;
 

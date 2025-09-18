@@ -50,7 +50,9 @@ public class ClubService {
         Interest interest = interestRepository.findByCategory(Category.from(requestDto.getCategory()))
                 .orElseThrow(() -> new CustomException(ErrorCode.INTEREST_NOT_FOUND));
         Club club = requestDto.toEntity(interest);
+        club.incrementMemberCount();
         clubRepository.save(club);
+
         // 모임장의 UserClub 생성
         User user = userService.getCurrentUser();
         UserClub userClub = UserClub.builder()
@@ -59,7 +61,7 @@ public class ClubService {
                 .clubRole(ClubRole.LEADER)
                 .build();
         userClubRepository.save(userClub);
-        club.incrementMemberCount();
+
         // 모임 전체 채팅방 생성
         ChatRoom chatRoom = ChatRoom.builder()
                 .club(club)

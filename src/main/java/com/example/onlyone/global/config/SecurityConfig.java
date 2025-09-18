@@ -52,17 +52,18 @@ public class SecurityConfig {
     }
 
     private static final String[] AUTH_WHITELIST = {
-            "/signup/**",
-            "/login/**",
-            "/token",
-            "/center",
-            "/email/**",
+            "/api/auth/kakao/callback/**",
+            "/api/signup/**",
+            "/api/login/**",
+            "/api/token",
+            "/api/center",
+            "/api/email/**",
             "/ws/**",          // WebSocket STOMP 엔드포인트 허용
             "/ws/chat/**",      // SockJS는 /info, /websocket, /xhr 등 내부 경로 씀
             // "/sse/subscribe/**",    // SSE는 별도 필터에서 인증 처리
             "/ws-native",
-            "/kakao/**",
-            "/auth/**",
+            "/api/kakao/**",
+            "/api/auth/**",
             "/grafana/**",     // Grafana 대시보드
             "/influxdb/**",    // InfluxDB API
             "/write",          // InfluxDB write
@@ -73,6 +74,7 @@ public class SecurityConfig {
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
         configuration.setAllowedOriginPatterns(List.of(
+                "https://buddkit.com",
                 "http://localhost:8080",
                 "http://localhost:5173",
                 "https://only-one-front-delta.vercel.app",

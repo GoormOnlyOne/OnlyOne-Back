@@ -17,7 +17,7 @@ import org.springframework.util.StopWatch;
 
 @Tag(name = "알림", description = "알림 관리 API")
 @RestController
-@RequestMapping("/notifications")
+@RequestMapping("/api/notifications")
 @RequiredArgsConstructor
 @Slf4j
 public class NotificationController {

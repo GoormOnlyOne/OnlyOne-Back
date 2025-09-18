@@ -19,7 +19,7 @@ import java.util.List;
 @RestController
 @Tag(name = "Schedule")
 @RequiredArgsConstructor
-@RequestMapping("/clubs/{clubId}/schedules")
+@RequestMapping("/api/clubs/{clubId}/schedules")
 public class ScheduleController {
     private final ScheduleService scheduleService;
 

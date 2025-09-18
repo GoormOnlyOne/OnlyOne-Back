@@ -40,12 +40,12 @@ public class MessageService {
      * 메시지 저장
      */
     @Transactional
-    public ChatMessageResponse saveMessage(Long chatRoomId, Long kakaoId, String text) {
+    public ChatMessageResponse saveMessage(Long chatRoomId, Long userId, String text) {
         if (text == null || text.isBlank()) throw new CustomException(ErrorCode.MESSAGE_BAD_REQUEST);
 
         ChatRoom chatRoom = chatRoomRepository.findById(chatRoomId)
                 .orElseThrow(() -> new CustomException(ErrorCode.CHAT_ROOM_NOT_FOUND));
-        User user = userRepository.findByKakaoId(kakaoId)
+        User user = userRepository.findByUserId(userId)
                 .orElseThrow(() -> new CustomException(ErrorCode.USER_NOT_FOUND));
 
         // 채팅방 미참여자 차단

@@ -22,7 +22,7 @@ import java.util.Map;
 
 @Log4j2
 @RestController
-@RequestMapping("/auth")
+@RequestMapping("/api/auth")
 @RequiredArgsConstructor
 public class AuthController {
     private final KakaoService kakaoService;
@@ -31,22 +31,29 @@ public class AuthController {
 
     @PostMapping("/kakao/callback")
     public ResponseEntity<?> kakaoLogin(@RequestParam String code) {
+        log.error("🔍 [DEBUG] kakaoLogin 시작 - code={}", code);
+
         try {
             // 1. 인증 코드로 카카오 액세스 토큰 받기
             String kakaoAccessToken = kakaoService.getAccessToken(code);
+            log.error("✅ [DEBUG] kakaoAccessToken={}", kakaoAccessToken);
 
             // 2. 카카오 액세스 토큰으로 사용자 정보 받기
             Map<String, Object> kakaoUserInfo = kakaoService.getUserInfo(kakaoAccessToken);
+            log.error("✅ [DEBUG] kakaoUserInfo={}", kakaoUserInfo);
 
             // 3. 사용자 정보 저장 또는 업데이트
             Map<String, Object> loginResult = userService.processKakaoLogin(kakaoUserInfo, kakaoAccessToken);
             User user = (User) loginResult.get("user");
             boolean isNewUser = (boolean) loginResult.get("isNewUser");
+            log.error("✅ [DEBUG] userId={}, isNewUser={}", user.getUserId(), isNewUser);
 
             // 4. JWT 토큰 생성 (Access + Refresh)
             Map<String, String> tokens = userService.generateTokenPair(user);
+            log.error("✅ [DEBUG] tokens 생성됨 - accessToken={}, refreshToken={}",
+                    tokens.get("accessToken"), tokens.get("refreshToken"));
 
-            // 5. refreshToken Redis에 저장 (VITE_API_BASE_URL local 시, 주석)
+            // 5. refreshToken Redis에 저장 (local dev 시 주석 처리 가능)
             // redisTemplate.opsForValue()
             //         .set(user.getUserId().toString(), tokens.get("refreshToken"), Duration.ofMillis(REFRESH_TOKEN_EXPIRE_TIME));
 
@@ -57,12 +64,15 @@ public class AuthController {
                     isNewUser
             );
 
+            log.error("✅ [DEBUG] 로그인 성공 - userId={}", user.getUserId());
             return ResponseEntity.ok(CommonResponse.success(response));
+
         } catch (CustomException e) {
-            // CustomException은 그대로 재던지기 (탈퇴한 사용자 403 에러 포함)
-            throw e;
+            log.error("❌ [DEBUG] CustomException 발생 - code={}, message={}",
+                    e.getErrorCode(), e.getMessage(), e);
+            throw e; // CustomException은 그대로 재던지기
         } catch (Exception e) {
-            // 기타 예외는 502 에러로 처리
+            log.error("❌ [DEBUG] Exception 발생 - message={}", e.getMessage(), e);
             throw new CustomException(ErrorCode.KAKAO_LOGIN_FAILED);
         }
     }

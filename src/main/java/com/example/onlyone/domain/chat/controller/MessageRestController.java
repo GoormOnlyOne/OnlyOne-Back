@@ -20,7 +20,7 @@ import java.time.LocalDateTime;
 
 @RestController
 @RequiredArgsConstructor
-@RequestMapping("/chat")
+@RequestMapping("/api/chat")
 public class MessageRestController {
 
     private final MessageService messageService;

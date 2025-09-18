@@ -25,7 +25,7 @@ import java.util.Map;
  */
 @Tag(name = "사용자", description = "사용자 정보 및 설정 관리 API")
 @RestController
-@RequestMapping("/users")
+@RequestMapping("/api/users")
 @RequiredArgsConstructor
 @Slf4j
 public class UserController {

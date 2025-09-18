@@ -17,7 +17,7 @@ import java.util.List;
 @RestController
 @Tag(name = "Club")
 @RequiredArgsConstructor
-@RequestMapping("/clubs")
+@RequestMapping("/api/clubs")
 public class ClubController {
 
     private final ClubService clubService;

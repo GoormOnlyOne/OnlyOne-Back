@@ -98,7 +98,11 @@ public class Club extends BaseTimeEntity {
     }
 
     public void incrementMemberCount() {
-        this.memberCount++;
+        if (this.memberCount == null) {
+            this.memberCount = 1L;
+        } else {
+            this.memberCount++;
+        }
     }
     
     public void decrementMemberCount() {
