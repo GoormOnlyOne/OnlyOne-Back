@@ -86,6 +86,7 @@ public class RedisConfig {
         return template;
     }
 
+
     @Bean
     public DefaultRedisScript<List> likeToggleScript() {
         DefaultRedisScript<List> script = new DefaultRedisScript<>();
@@ -93,4 +94,10 @@ public class RedisConfig {
         script.setResultType(List.class); // EVAL의 MULTI 결과를 List로 받음
         return script;
     }
+
+    @Bean
+    public StringRedisTemplate stringRedisTemplate(RedisConnectionFactory cf) {
+        return new StringRedisTemplate(cf);
+    }
+
 }

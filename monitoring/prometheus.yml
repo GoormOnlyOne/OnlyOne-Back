@@ -1,0 +1,14 @@
+global:
+  scrape_interval: 15s
+
+scrape_configs:
+  # Prometheus 자체 메트릭(상태 확인용)
+  - job_name: "prometheus"
+    static_configs:
+      - targets: ["localhost:9090"]
+
+  - job_name: 'mysqld'
+    static_configs:
+      - targets: [ 'mysqld-exporter:9104' ]
+
+# k6는 remote write로 push하므로 scrape_configs에 k6 항목이 없어도 됩니다.

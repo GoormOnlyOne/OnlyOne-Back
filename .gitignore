@@ -60,12 +60,12 @@ src/main/resources/ValidationMessages.properties
 ngrinder-controller
 
 ### monitoring ###
-grafana-data
-prometheus-data
-docker-compose.yml
-prometheus.yml
-datasource.yml
-k6/
-
-smoke_dummy.js
+#grafana-data
+#prometheus-data
+#docker-compose.yml
+#prometheus.yml
+#datasource.yml
+#k6/
+#
+#smoke_dummy.js
 

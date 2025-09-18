@@ -1,0 +1,298 @@
+services:
+  # ==========================
+  # Monitoring
+  # ==========================
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --web.enable-remote-write-receiver
+      # 필요 시 네이티브 히스토그램 켜기
+      # - --enable-feature=native-histograms
+    restart: unless-stopped
+    networks:
+      - monitor-net
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: grafana
+    ports:
+      - "3000:3000"
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin   # 첫 로그인 후 변경 권장
+    volumes:
+      - grafana-storage:/var/lib/grafana
+      - ./monitoring/grafana/provisioning/datasources:/etc/grafana/provisioning/datasources:ro
+    depends_on:
+      - prometheus
+    restart: unless-stopped
+    networks:
+      - monitor-net
+
+  mysqld-exporter:
+    image: prom/mysqld-exporter:latest
+    container_name: mysqld-exporter
+    restart: unless-stopped
+    volumes:
+      - ./.my.cnf:/etc/my.cnf:ro
+    command:
+      - --config.my-cnf=/etc/my.cnf
+    ports:
+      - "9104:9104"
+    networks:
+      - monitor-net
+
+  # ==========================
+  # Elasticsearch Stack
+  # ==========================
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.18.1
+    container_name: onlyone-elasticsearch
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=false
+      - "ES_JAVA_OPTS=-Xms2G -Xmx2G -XX:MaxGCPauseMillis=50 -XX:InitialCodeCacheSize=85m -XX:ReservedCodeCacheSize=170m"
+      - http.cors.enabled=true
+      - http.cors.allow-origin="*"
+    ports:
+      - "9200:9200"
+      - "9300:9300"
+    volumes:
+      - elasticsearch_data:/usr/share/elasticsearch/data
+      - ./src/main/resources/elasticsearch:/usr/share/elasticsearch/config/analysis:ro
+    deploy:
+      resources:
+        limits:
+          cpus: '3.0'
+          memory: 5G
+        reservations:
+          cpus: '2.0'
+          memory: 3G
+    command: >
+      bash -c "
+        if [ ! -d /usr/share/elasticsearch/plugins/analysis-nori ]; then
+          echo 'Installing nori plugin...'
+          bin/elasticsearch-plugin install --batch analysis-nori
+        else
+          echo 'Nori plugin already installed, skipping...'
+        fi
+        echo 'Starting Elasticsearch...'
+        bin/elasticsearch
+      "
+    restart: unless-stopped
+    networks:
+      - monitor-net
+
+  elasticsearch-exporter:
+    image: prometheuscommunity/elasticsearch-exporter:latest
+    container_name: elasticsearch-exporter
+    restart: unless-stopped
+    command:
+      - --es.uri=http://elasticsearch:9200
+      - --es.all
+      - --es.indices
+      - --es.shards
+    ports:
+      - "9114:9114"
+    depends_on:
+      - elasticsearch
+    networks:
+      - monitor-net
+
+  kibana:
+    image: docker.elastic.co/kibana/kibana:8.18.1
+    container_name: onlyone-kibana
+    environment:
+      - ELASTICSEARCH_HOSTS=http://elasticsearch:9200
+      - XPACK_SECURITY_ENABLED=false
+      - ELASTICSEARCH_REQUESTTIMEOUT=120000
+      - ELASTICSEARCH_PINGTIMEOUT=5000
+      - SERVER_HOST=0.0.0.0
+      - SERVER_NAME=kibana
+      - SERVER_MAXPAYLOAD=1048576
+      - LOGGING_QUIET=true
+      - LOGGING_ROOT_LEVEL=warn
+      - KIBANA_DEFAULTAPPID=discover
+      - NEWSFEED_ENABLED=false
+      - TELEMETRY_ENABLED=false
+    ports:
+      - "5601:5601"
+    depends_on:
+      - elasticsearch
+    restart: unless-stopped
+    networks:
+      - monitor-net
+
+  # ==========================
+  # Kafka
+  # ==========================
+  kafka:
+    image: bitnami/kafka:3.7
+    container_name: kafka
+    ports:
+      - "9092:9092"   # 내부용
+      - "29092:29092" # 외부용
+    environment:
+      KAFKA_ENABLE_KRAFT: "yes"
+      KAFKA_CFG_PROCESS_ROLES: "broker,controller"
+      KAFKA_CFG_NODE_ID: "1"
+      KAFKA_CFG_CONTROLLER_QUORUM_VOTERS: "1@kafka:9093"
+      KAFKA_CFG_LISTENERS: "PLAINTEXT://:9092,CONTROLLER://:9093,EXTERNAL://:29092"
+      KAFKA_CFG_ADVERTISED_LISTENERS: "PLAINTEXT://localhost:9092"
+      KAFKA_CFG_LISTENER_SECURITY_PROTOCOL_MAP: "CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,EXTERNAL:PLAINTEXT"
+      KAFKA_CFG_CONTROLLER_LISTENER_NAMES: "CONTROLLER"
+      KAFKA_CFG_INTER_BROKER_LISTENER_NAME: "PLAINTEXT"
+      KAFKA_CFG_AUTO_CREATE_TOPICS_ENABLE: "false"
+      KAFKA_CFG_OFFSETS_TOPIC_REPLICATION_FACTOR: "1"
+      KAFKA_CFG_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: "1"
+      KAFKA_CFG_TRANSACTION_STATE_LOG_MIN_ISR: "1"
+    volumes:
+      - kafka-data:/bitnami/kafka
+    restart: unless-stopped
+    networks:
+      - monitor-net
+    healthcheck:
+      test: [ "CMD-SHELL", "kafka-topics.sh --bootstrap-server localhost:9092 --list >/dev/null 2>&1" ]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+
+  kafka-init:
+    image: bitnami/kafka:3.7
+    container_name: kafka-init
+    depends_on:
+      kafka:
+        condition: service_healthy
+    entrypoint: [ "/bin/bash","-lc" ]
+    command: |
+      set -e
+      kafka-topics.sh --bootstrap-server kafka:9092 \
+        --create --topic settlement.process.v1 --partitions 6 --replication-factor 1 || true
+      kafka-topics.sh --bootstrap-server kafka:9092 \
+        --create --topic user-settlement.result.v1 --partitions 32 --replication-factor 1 || true
+      echo "topics ready"
+    restart: "no"
+    networks:
+      - monitor-net
+
+  # ==========================
+  # Redis
+  # ==========================
+  redis:
+    image: redis:7-alpine
+    container_name: redis
+    environment:
+      - REDIS_PASSWORD=password
+    command: redis-server --requirepass password --appendonly yes
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - monitor-net
+    dns:
+      - 8.8.8.8
+      - 1.1.1.1
+
+  # ==========================
+  # k6 (수동 실행 권장)
+  # ==========================
+  k6:
+    image: grafana/k6:latest
+    container_name: k6
+    volumes:
+      - ./k6:/scripts
+    working_dir: /scripts
+    # run 시 환경변수/옵션을 오버라이드해서 사용하세요.
+    environment:
+      - K6_PROMETHEUS_RW_SERVER_URL=http://prometheus:9090/api/v1/write
+      # - K6_PROMETHEUS_RW_TREND_AS_NATIVE_HISTOGRAM=true
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    depends_on:
+      - prometheus
+    networks:
+      - monitor-net
+    restart: "no"
+
+volumes:
+  grafana-storage:
+  prometheus-data:
+  elasticsearch_data:
+  kafka-data:
+  redis_data:
+
+networks:
+  monitor-net:
+    driver: bridge
+
+
+
+#version: "3.9"
+#
+#services:
+#  prometheus:
+#    image: prom/prometheus:latest
+#    command:
+#      - --config.file=/etc/prometheus/prometheus.yml
+#      - --web.enable-remote-write-receiver
+#      # (옵션) 네이티브 히스토그램 쓰고 싶으면 아래 주석 해제
+#      # - --enable-feature=native-histograms
+#    volumes:
+#      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+#    ports:
+#      - "9090:9090"
+#    networks:
+#      - monnet
+#
+#  grafana:
+#    image: grafana/grafana:latest
+#    ports:
+#      - "3000:3000"
+#    environment:
+#      GF_SECURITY_ADMIN_USER: admin
+#      GF_SECURITY_ADMIN_PASSWORD: admin  # 처음만 이렇게 쓰고 로그인 후 꼭 변경!
+#    volumes:
+#      - grafana-storage:/var/lib/grafana
+#      - ./monitoring/grafana/provisioning/datasources:/etc/grafana/provisioning/datasources:ro
+#    depends_on:
+#      - prometheus
+#    networks:
+#      - monnet
+#
+#  mysqld-exporter:
+#    image: prom/mysqld-exporter:latest
+#    container_name: mysqld-exporter
+#    restart: unless-stopped
+#    volumes:
+#      - ./.my.cnf:/etc/my.cnf:ro
+#    command:
+#      - "--config.my-cnf=/etc/my.cnf"
+#    ports:
+#      - "9104:9104"
+#    networks:
+#      - monnet
+#
+#
+#  k6:
+#    image: grafana/k6:latest
+#    # 기본은 대기 상태. 필요할 때 run으로 실행(아래 실행 예시 참고)
+#    volumes:
+#      - ./k6:/scripts:ro
+#    working_dir: /scripts
+#    networks:
+#      - monnet
+#
+#networks:
+#  monnet:
+#
+#volumes:
+#  grafana-storage:

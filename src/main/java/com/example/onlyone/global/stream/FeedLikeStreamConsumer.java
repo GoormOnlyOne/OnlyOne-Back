@@ -1,12 +1,13 @@
 package com.example.onlyone.global.stream;
 
-import com.example.onlyone.global.common.util.UuidUtils;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.SmartLifecycle;
 import org.springframework.dao.DataAccessException;
 import org.springframework.data.redis.connection.stream.*;
-import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.data.redis.core.*;
+import org.springframework.data.redis.core.types.Expiration;
+import org.springframework.data.redis.serializer.RedisSerializer;
 import org.springframework.jdbc.core.BatchPreparedStatementSetter;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
@@ -16,6 +17,8 @@ import java.sql.PreparedStatement;
 import java.sql.SQLException;
 import java.time.Duration;
 import java.util.*;
+
+import static org.springframework.data.redis.connection.RedisStringCommands.SetOption.SET_IF_ABSENT;
 
 
 /**
@@ -31,9 +34,9 @@ import java.util.*;
 @RequiredArgsConstructor
 public class FeedLikeStreamConsumer implements SmartLifecycle {
 
-    private final StringRedisTemplate redis;
+    private final StringRedisTemplate redis;  // StringRedisTemplate 권장
     private final JdbcTemplate jdbc;
-    private final TransactionTemplate tx; // <-- PlatformTransactionManager 주입 필요
+    private final TransactionTemplate tx;
 
     public static final String STREAM = "like:events";
     public static final String GROUP  = "likes-v1";
@@ -41,6 +44,10 @@ public class FeedLikeStreamConsumer implements SmartLifecycle {
 
     private static final Duration BLOCK_TIMEOUT = Duration.ofSeconds(5);
     private static final int      BATCH_COUNT   = 8;
+
+    // Redis 멱등 마킹 TTL (재전달/재시도 가능 창에 맞춰 조정)
+    private static final Duration APPLIED_TTL = Duration.ofHours(48);
+    private static final String   APPLIED_KEY_PREFIX = "idemp:applied:";
 
     private volatile boolean running = false;
     private Thread worker;
@@ -93,7 +100,7 @@ public class FeedLikeStreamConsumer implements SmartLifecycle {
                     if (feedIdRaw == null || userIdRaw == null || deltaRaw == null || opRaw == null || reqIdRaw == null) {
                         log.warn("[likes] invalid event (missing fields) id={}, value={}", r.getId(), v);
                         invalidIds.add(r.getId());
-                        continue; // 잘못된 이벤트는 이번 배치에서 제외 (ACK는 아래 트랜잭션 결과에 따라)
+                        continue;
                     }
                     events.add(new Event(
                             reqIdRaw.toString(),
@@ -105,7 +112,7 @@ public class FeedLikeStreamConsumer implements SmartLifecycle {
                     ));
                 }
 
-                // invalid는 즉시 ACK해서 PEL 비우기
+                // invalid는 즉시 ACK
                 if (!invalidIds.isEmpty()) {
                     try {
                         redis.opsForStream().acknowledge(STREAM, GROUP, invalidIds.toArray(RecordId[]::new));
@@ -113,112 +120,125 @@ public class FeedLikeStreamConsumer implements SmartLifecycle {
                         log.warn("[likes] invalid ack failed: {}", ackEx.toString());
                     }
                 }
+                if (events.isEmpty()) continue;
 
-                if (events.isEmpty()) {
-                    continue; // 처리할 유효 이벤트가 없으면 다음 루프
+                // 2) Redis로 멱등(applied) 사전 필터 (MGET)
+                List<String> appliedKeys = new ArrayList<>(events.size());
+                for (Event e : events) appliedKeys.add(APPLIED_KEY_PREFIX + e.reqId());
+                List<String> existed = redis.opsForValue().multiGet(appliedKeys);
+
+                List<Event> firsts = new ArrayList<>();
+                for (int i = 0; i < events.size(); i++) {
+                    if (existed == null || existed.get(i) == null) firsts.add(events.get(i));
+                }
+                if (log.isDebugEnabled()) {
+                    log.debug("[likes] idempotency(applied) filter: total={}, first={}, dup={}",
+                            events.size(), firsts.size(), events.size() - firsts.size());
                 }
 
-                // 2) 트랜잭션으로 멱등+배치 반영
+                // 3) 트랜잭션: '처음 보는 것'만 DB 반영 (엣지 멱등 + 카운트 정확화)
                 List<RecordId> ackList = tx.execute(status -> {
-                    // 2-1) like_applied: 배치 INSERT IGNORE 로 "이번에 처음"인 것만 선별
-                    int[] upCounts = jdbc.batchUpdate(
-                            "INSERT IGNORE INTO like_applied(req_id, feed_id, user_id, delta) VALUES (?, ?, ?, ?)",
-                            new BatchPreparedStatementSetter() {
-                                @Override public void setValues(PreparedStatement ps, int i) throws SQLException {
-                                    Event e = events.get(i);
-                                    ps.setString(1, e.reqId());
-                                    ps.setLong  (2, e.feedId());
-                                    ps.setLong  (3, e.userId());
-                                    ps.setInt   (4, e.delta());
-                                }
-                                @Override public int getBatchSize() { return events.size(); }
-                            }
-                    );
 
-                    // upCounts[i] == 1 -> 신규 / ==0 -> 중복
-                    List<Event> firsts = new ArrayList<>();
-                    for (int i = 0; i < upCounts.length; i++) {
-                        if (upCounts[i] == 1) firsts.add(events.get(i));
-                    }
+                    if (!firsts.isEmpty()) {
+                        // 3-1) 엣지 ON/OFF 준비
+                        List<long[]> onPairs  = new ArrayList<>();
+                        List<long[]> offPairs = new ArrayList<>();
+                        Set<Long> touchedFeeds = new HashSet<>();
 
-                    // 얼마나 중복됐는지 남기는 로그
-                    if (log.isDebugEnabled()) {
-                        long ins = Arrays.stream(upCounts).filter(x -> x == 1).count();
-                        long dup = upCounts.length - ins;
-                        log.debug("[likes] idempotency filtered: total={}, first={}, dup={}", upCounts.length, ins, dup);
-                    }
+                        for (Event e : firsts) {
+                            touchedFeeds.add(e.feedId());
+                            if ("ON".equals(e.op())) onPairs.add(new long[]{e.feedId(), e.userId()});
+                            else                     offPairs.add(new long[]{e.feedId(), e.userId()});
+                        }
 
-                    // 2-2) 이번 배치 '최초'들만 집계(coalesce) + 엣지 last-op
-                    Map<Long, Long> countDelta = new HashMap<>();                  // feedId -> sum(delta)
-                    Map<Long, Map<Long, String>> edgeOps = new HashMap<>();        // feedId -> (userId -> "ON"/"OFF")
-                    for (Event e : firsts) {
-                        countDelta.merge(e.feedId(), (long) e.delta(), Long::sum);
-                        edgeOps.computeIfAbsent(e.feedId(), k -> new HashMap<>()).put(e.userId(), e.op());
-                    }
-
-                    // 2-3) like_count 배치 반영
-                    if (!countDelta.isEmpty()) {
-                        final var entries = new ArrayList<>(countDelta.entrySet());
-                        int[] r1 = jdbc.batchUpdate(
-                                "UPDATE feed SET like_count = GREATEST(like_count + ?, 0) WHERE feed_id = ?",
-                                new BatchPreparedStatementSetter() {
-                                    @Override public void setValues(PreparedStatement ps, int i) throws SQLException {
-                                        var e = entries.get(i);
-                                        ps.setLong(1, e.getValue());
-                                        ps.setLong(2, e.getKey());
+                        // 3-2) 엣지 적용 (멱등)
+                        if (!onPairs.isEmpty()) {
+                            jdbc.batchUpdate(
+                                    "INSERT IGNORE INTO feed_like(feed_id, user_id) VALUES (?, ?)",
+                                    new BatchPreparedStatementSetter() {
+                                        @Override public void setValues(PreparedStatement ps, int i) throws SQLException {
+                                            long[] p = onPairs.get(i);
+                                            ps.setLong(1, p[0]); ps.setLong(2, p[1]);
+                                        }
+                                        @Override public int getBatchSize() { return onPairs.size(); }
                                     }
-                                    @Override public int getBatchSize() { return entries.size(); }
-                                }
-                        );
-                        if (log.isDebugEnabled()) {
-                            log.debug("[likes] like_count updated rows={}", Arrays.stream(r1).sum());
+                            );
+                        }
+                        if (!offPairs.isEmpty()) {
+                            jdbc.batchUpdate(
+                                    "DELETE FROM feed_like WHERE feed_id = ? AND user_id = ?",
+                                    new BatchPreparedStatementSetter() {
+                                        @Override public void setValues(PreparedStatement ps, int i) throws SQLException {
+                                            long[] p = offPairs.get(i);
+                                            ps.setLong(1, p[0]); ps.setLong(2, p[1]);
+                                        }
+                                        @Override public int getBatchSize() { return offPairs.size(); }
+                                    }
+                            );
+                        }
+
+                        // 3-3) like_count 정확 재계산(해당 feed만) → 중복/재전달에도 일치
+                        if (!touchedFeeds.isEmpty()) {
+                            String in = String.join(",", Collections.nCopies(touchedFeeds.size(), "?"));
+                            List<Long> feedIds = new ArrayList<>(touchedFeeds);
+
+                            List<Map<String, Object>> rows = jdbc.queryForList(
+                                    "SELECT feed_id, COUNT(*) AS cnt FROM feed_like WHERE feed_id IN (" + in + ") GROUP BY feed_id",
+                                    feedIds.toArray()
+                            );
+                            Map<Long, Long> counts = new HashMap<>();
+                            for (var r : rows) {
+                                counts.put(((Number) r.get("feed_id")).longValue(),
+                                        ((Number) r.get("cnt")).longValue());
+                            }
+                            for (Long fid : feedIds) counts.putIfAbsent(fid, 0L);
+
+                            jdbc.batchUpdate(
+                                    "UPDATE feed SET like_count = ? WHERE feed_id = ?",
+                                    new BatchPreparedStatementSetter() {
+                                        final List<Map.Entry<Long, Long>> list = new ArrayList<>(counts.entrySet());
+                                        @Override public void setValues(PreparedStatement ps, int i) throws SQLException {
+                                            var e = list.get(i);
+                                            ps.setLong(1, e.getValue());
+                                            ps.setLong(2, e.getKey());
+                                        }
+                                        @Override public int getBatchSize() { return list.size(); }
+                                    }
+                            );
                         }
                     }
 
-                    // 2-4) 엣지 배치 (ON: INSERT IGNORE, OFF: DELETE)
-                    List<long[]> onPairs  = new ArrayList<>();
-                    List<long[]> offPairs = new ArrayList<>();
-                    edgeOps.forEach((fid, byUser) ->
-                            byUser.forEach((uid, op) -> {
-                                if ("ON".equals(op)) onPairs.add(new long[]{fid, uid});
-                                else                 offPairs.add(new long[]{fid, uid});
-                            })
-                    );
-
-                    if (!onPairs.isEmpty()) {
-                        int[] r2 = jdbc.batchUpdate(
-                                "INSERT IGNORE INTO feed_like(feed_id, user_id) VALUES (?, ?)",
-                                new BatchPreparedStatementSetter() {
-                                    @Override public void setValues(PreparedStatement ps, int i) throws SQLException {
-                                        long[] p = onPairs.get(i);
-                                        ps.setLong(1, p[0]); ps.setLong(2, p[1]);
-                                    }
-                                    @Override public int getBatchSize() { return onPairs.size(); }
-                                }
-                        );
-                        if (log.isDebugEnabled()) log.debug("[likes] edge ON inserted rows={}", Arrays.stream(r2).sum());
-                    }
-                    if (!offPairs.isEmpty()) {
-                        int[] r3 = jdbc.batchUpdate(
-                                "DELETE FROM feed_like WHERE feed_id = ? AND user_id = ?",
-                                new BatchPreparedStatementSetter() {
-                                    @Override public void setValues(PreparedStatement ps, int i) throws SQLException {
-                                        long[] p = offPairs.get(i);
-                                        ps.setLong(1, p[0]); ps.setLong(2, p[1]);
-                                    }
-                                    @Override public int getBatchSize() { return offPairs.size(); }
-                                }
-                        );
-                        if (log.isDebugEnabled()) log.debug("[likes] edge OFF deleted rows={}", Arrays.stream(r3).sum());
-                    }
-
-                    // 트랜잭션 성공 → 이 배치의 **모든** 레코드 ACK (invalid는 제외하고 싶으면 분기)
+                    // 이 배치 레코드 모두 ACK 대상으로 반환 (invalid는 이미 ACK됨)
                     List<RecordId> ack = new ArrayList<>(events.size());
                     for (Event e : events) ack.add(e.rid());
                     return ack;
                 });
 
-                // 3) 커밋 성공 후에만 ACK
+                // 4) 커밋 성공 후 '처리 완료' 멱등 마킹 (NX+TTL, 파이프라인) — try-catch 한 겹
+                try {
+                    if (!firsts.isEmpty()) {
+                        final long ttlMs = APPLIED_TTL.toMillis();
+                        final RedisSerializer<String> s = redis.getStringSerializer();
+
+                        redis.executePipelined((RedisCallback<Object>) connection -> {
+                            for (Event e : firsts) {
+                                String key = APPLIED_KEY_PREFIX + e.reqId();
+                                connection.stringCommands().set(
+                                        s.serialize(key),
+                                        s.serialize("1"),
+                                        Expiration.milliseconds(ttlMs),
+                                        SET_IF_ABSENT // NX
+                                );
+                            }
+                            return null;
+                        });
+                    }
+                } catch (Exception markEx) {
+                    // 마킹 실패해도 DB 상태는 정확; 재전달 시에도 엣지 멱등 + 재계산으로 일치
+                    log.warn("[likes] idempotency mark failed: {}", markEx.toString());
+                }
+
+                // 5) 커밋/마킹 후 ACK
                 if (ackList != null && !ackList.isEmpty()) {
                     redis.opsForStream().acknowledge(STREAM, GROUP, ackList.toArray(RecordId[]::new));
                 }
@@ -258,4 +278,3 @@ public class FeedLikeStreamConsumer implements SmartLifecycle {
     @Override public boolean isAutoStartup() { return true; }
     @Override public int getPhase()          { return Integer.MIN_VALUE; }
 }
-
