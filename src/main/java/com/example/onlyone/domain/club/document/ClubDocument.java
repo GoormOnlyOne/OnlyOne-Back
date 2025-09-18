@@ -11,6 +11,8 @@ import org.springframework.data.elasticsearch.annotations.*;
 import org.springframework.data.elasticsearch.annotations.DateFormat;
 
 import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
+
 import com.fasterxml.jackson.annotation.JsonFormat;
 
 @Document(indexName = "clubs")
@@ -52,10 +54,8 @@ public class ClubDocument {
     @Field(type = FieldType.Keyword)
     private String interestKoreanName;
 
-    @Field(type = FieldType.Date, 
-           pattern = "yyyy-MM-dd'T'HH:mm:ss.SSSSSS||yyyy-MM-dd'T'HH:mm:ss.SSS||yyyy-MM-dd'T'HH:mm:ss")
-    @JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm:ss[.SSSSSS][.SSS]")
-    private LocalDateTime createdAt;
+    @Field(type = FieldType.Date, pattern = "yyyy-MM-dd'T'HH:mm:ss")
+    private String createdAt;
 
     @Field(type = FieldType.Text, searchAnalyzer = "club_analyzer")
     private String searchText;
@@ -74,7 +74,7 @@ public class ClubDocument {
                 .interestId(club.getInterest().getInterestId())
                 .interestCategory(category.name())
                 .interestKoreanName(category.getKoreanName())
-                .createdAt(club.getCreatedAt())
+                .createdAt(club.getCreatedAt().format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss")))
                 .searchText(club.getName() + " " + club.getDescription())
                 .build();
     }

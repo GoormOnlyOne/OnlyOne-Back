@@ -1,5 +1,7 @@
 package com.example.onlyone.global.config;
 
+import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
+import java.util.concurrent.ThreadPoolExecutor;
 import org.springframework.beans.factory.DisposableBean;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
@@ -19,6 +21,25 @@ import java.util.concurrent.TimeUnit;
 public class AsyncConfig {
 
     /**
+     * 비동기 처리 전용 스레드풀 (DB 저장, 메일 발송 등)
+     */
+    @Bean(name = "customAsyncExecutor")
+    public Executor customAsyncExecutor() {
+        ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
+        executor.setCorePoolSize(16);      // CPU 코어 * 2
+        executor.setMaxPoolSize(100);      // 최대 동시 처리 스레드
+        executor.setQueueCapacity(2000);   // 큐 크기
+        executor.setThreadNamePrefix("Async-");
+        executor.setRejectedExecutionHandler(new ThreadPoolExecutor.AbortPolicy());
+        executor.setWaitForTasksToCompleteOnShutdown(true);
+        executor.setAwaitTerminationSeconds(30);
+        executor.setKeepAliveSeconds(60);
+        executor.setAllowCoreThreadTimeOut(true);
+        executor.initialize();
+        return executor;
+    }
+    
+     /**
      * 가상 스레드 기반 정산 실행기
      * - 동시 실행 상한(permits)으로 DB/Redis 백프레셔
      * - 종료 시 작업 완료 대기(awaitSec)

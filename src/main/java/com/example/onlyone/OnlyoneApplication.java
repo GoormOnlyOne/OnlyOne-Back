@@ -14,8 +14,8 @@ import org.springframework.security.core.parameters.P;
 @SpringBootApplication
 @EnableJpaAuditing
 @EnableAsync
-@EnableScheduling
 @EnableRetry
+@EnableScheduling
 @OpenAPIDefinition(
         servers = {
                 @Server(url = "https://api.buddkit.p-e.kr", description = "Production Server"),
