@@ -128,10 +128,10 @@ const testUsers = new SharedArray('schedule_test_users', function () {
 
 const scheduleData = new SharedArray('schedule_data', function () {
     const data = [];
-    for (let i = 1; i <= 500; i++) {
+    for (let i = 1; i <= 5000; i++) {
         data.push({
             scheduleId: i,
-            clubId: ((i - 1) % 1000) + 1,
+            clubId: ((i - 1) % 10000) + 1,
         });
     }
     return data;

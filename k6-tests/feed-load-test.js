@@ -138,7 +138,7 @@ const testUsers = new SharedArray('feed_test_users', function () {
 
 const clubIds = new SharedArray('feed_club_ids', function () {
     const ids = [];
-    for (let i = 1; i <= 1000; i++) {
+    for (let i = 1; i <= 10000; i++) {
         ids.push(i);
     }
     return ids;
@@ -146,7 +146,7 @@ const clubIds = new SharedArray('feed_club_ids', function () {
 
 const feedIds = new SharedArray('feed_feed_ids', function () {
     const ids = [];
-    for (let i = 1; i <= 10000; i++) {
+    for (let i = 1; i <= 100000; i++) {
         ids.push(i);
     }
     return ids;

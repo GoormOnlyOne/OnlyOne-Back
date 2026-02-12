@@ -106,7 +106,7 @@ const testUsers = new SharedArray('club_test_users', function () {
 
 const clubIds = new SharedArray('club_ids', function () {
     const ids = [];
-    for (let i = 1; i <= 1000; i++) {
+    for (let i = 1; i <= 10000; i++) {
         ids.push(i);
     }
     return ids;

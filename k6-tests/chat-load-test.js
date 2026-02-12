@@ -129,7 +129,7 @@ const testUsers = new SharedArray('chat_test_users', function () {
 
 const chatRoomIds = new SharedArray('chat_room_ids', function () {
     const ids = [];
-    for (let i = 1; i <= 100; i++) {
+    for (let i = 1; i <= 1000; i++) {
         ids.push(i);
     }
     return ids;

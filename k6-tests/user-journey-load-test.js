@@ -192,7 +192,7 @@ export function journeyOnboarding() {
         sleep(1);
 
         // Step 3: 클럽 가입
-        const clubId = ((__VU % 100) + 1);
+        const clubId = ((__VU % 10000) + 1);
         const res3 = http.post(
             `${BASE_URL}/clubs/${clubId}/join`,
             null,
@@ -210,7 +210,7 @@ export function journeyOnboarding() {
         sleep(1);
 
         // Step 5: 좋아요
-        const feedId = ((__VU * 10 + __ITER) % 10000) + 1;
+        const feedId = ((__VU * 10 + __ITER) % 100000) + 1;
         const res5 = http.put(
             `${BASE_URL}/clubs/${clubId}/feeds/${feedId}/likes`,
             null,
@@ -228,8 +228,8 @@ export function journeyOnboarding() {
         sleep(1);
 
         // Step 7: 일정 참여
-        const scheduleId = ((__VU % 500) + 1);
-        const scheduleClubId = ((scheduleId - 1) % 1000) + 1;
+        const scheduleId = ((__VU % 5000) + 1);
+        const scheduleClubId = ((scheduleId - 1) % 10000) + 1;
         const res7 = http.request(
             'PATCH',
             `${BASE_URL}/clubs/${scheduleClubId}/schedules/${scheduleId}/users`,
@@ -263,7 +263,7 @@ export function journeyDailyActive() {
     const startTime = Date.now();
     let stepsCompleted = 0;
     const totalSteps = 8;
-    const clubId = ((user.userId - 1) % 1000) + 1;
+    const clubId = ((user.userId - 1) % 10000) + 1;
 
     group('Journey B: Daily Active', () => {
         // Step 1: 읽지 않은 알림 확인
@@ -289,7 +289,7 @@ export function journeyDailyActive() {
 
         // Step 4-6: 좋아요 3회
         for (let i = 0; i < 3; i++) {
-            const feedId = ((user.userId * 10 + i) % 10000) + 1;
+            const feedId = ((user.userId * 10 + i) % 100000) + 1;
             const res = http.put(
                 `${BASE_URL}/clubs/${clubId}/feeds/${feedId}/likes`,
                 null,
@@ -300,7 +300,7 @@ export function journeyDailyActive() {
         }
 
         // Step 7: 댓글 작성
-        const feedId = ((user.userId * 7) % 10000) + 1;
+        const feedId = ((user.userId * 7) % 100000) + 1;
         const commentPayload = JSON.stringify({
             content: `Daily comment from user ${user.userId}`,
         });
@@ -379,7 +379,7 @@ export function journeyLeader() {
         sleep(1);
 
         // Step 4: 일정 참여자 확인
-        const scheduleId = ((user.userId - 1) % 500) + 1;
+        const scheduleId = ((user.userId - 1) % 5000) + 1;
         const res4 = http.get(
             `${BASE_URL}/clubs/${clubId}/schedules/${scheduleId}/users`,
             { headers }

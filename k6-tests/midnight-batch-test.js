@@ -153,7 +153,7 @@ export function backgroundLoad() {
     const token = generateJWT(user);
     const headers = getHeaders(token);
     const phase = getCurrentPhase();
-    const clubId = ((user.userId - 1) % 1000) + 1;
+    const clubId = ((user.userId - 1) % 10000) + 1;
 
     group('Background Load', () => {
         const action = Math.random();
@@ -234,13 +234,13 @@ export function triggerBatch() {
     // 실제 updateScheduleStatus()는 대량 UPDATE이므로,
     // 동일 테이블에 대한 대량 읽기/쓰기를 시뮬레이션
     for (let i = 0; i < 100; i++) {
-        const clubId = (i % 1000) + 1;
+        const clubId = (i % 10000) + 1;
 
         // 일정 목록 조회 (배치가 UPDATE하는 동일 테이블)
         http.get(`${BASE_URL}/clubs/${clubId}/schedules`, { headers });
 
         // 일정 참여 시도 (row lock 경합 시뮬레이션)
-        const scheduleId = (i % 500) + 1;
+        const scheduleId = (i % 5000) + 1;
         http.request(
             'PATCH',
             `${BASE_URL}/clubs/${clubId}/schedules/${scheduleId}/users`,
@@ -265,7 +265,7 @@ export function batchMonitor() {
     const user = getRandomUser();
     const token = generateJWT(user);
     const headers = getHeaders(token);
-    const clubId = ((user.userId - 1) % 1000) + 1;
+    const clubId = ((user.userId - 1) % 10000) + 1;
 
     group('Batch Monitor', () => {
         // 배치 영향을 받는 일정 관련 API 집중 호출
