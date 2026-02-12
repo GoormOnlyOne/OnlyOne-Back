@@ -1,6 +1,0 @@
-.gradle
-target
-out
-node_modules
-*.iml
-*.log
