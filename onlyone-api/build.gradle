@@ -1,0 +1,176 @@
+plugins {
+    id 'java'
+    id 'org.springframework.boot' version '3.5.4'
+    id 'io.spring.dependency-management' version '1.1.7'
+    id 'jacoco'
+}
+
+group = 'com.example'
+version = '0.0.1-SNAPSHOT'
+
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(21)
+    }
+}
+
+repositories {
+    mavenCentral()
+}
+
+ext {
+    set('springCloudVersion', "2025.0.0")
+    set('testcontainersVersion', '1.20.2')
+}
+
+dependencyManagement {
+    imports {
+        mavenBom "org.springframework.cloud:spring-cloud-dependencies:${springCloudVersion}"
+        mavenBom "org.testcontainers:testcontainers-bom:${testcontainersVersion}"
+    }
+}
+
+dependencies {
+    // 공통 모듈
+    implementation project(':onlyone-common')
+    implementation project(':onlyone-security')
+    implementation project(':onlyone-infra')
+
+    // 도메인 모듈
+    implementation project(':onlyone-domain-user')
+    implementation project(':onlyone-domain-notification')
+    implementation project(':onlyone-domain-club')
+    implementation project(':onlyone-domain-chat')
+    implementation project(':onlyone-domain-feed')
+    implementation project(':onlyone-domain-finance')  // payment + wallet 통합
+    implementation project(':onlyone-domain-settlement')
+    implementation project(':onlyone-domain-schedule')
+    implementation project(':onlyone-domain-interest')
+    implementation project(':onlyone-domain-search')
+    implementation project(':onlyone-domain-image')
+
+    // Spring Boot Starters
+    implementation 'org.springframework.boot:spring-boot-starter-web'
+    implementation 'org.springframework.boot:spring-boot-starter-logging'
+    implementation 'org.springframework.boot:spring-boot-starter-actuator'
+    implementation 'org.springframework.boot:spring-boot-starter-aop'
+
+    // OpenAPI
+    implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:2.7.0'
+
+    // Database
+    runtimeOnly 'com.mysql:mysql-connector-j'
+    runtimeOnly 'com.h2database:h2'
+
+    // Monitoring
+    runtimeOnly 'io.micrometer:micrometer-registry-prometheus'
+
+    // Utilities
+    implementation 'com.github.gavlyukovskiy:p6spy-spring-boot-starter:1.9.0'
+
+    // DevTools
+    developmentOnly 'org.springframework.boot:spring-boot-devtools'
+
+    // Lombok
+    compileOnly 'org.projectlombok:lombok'
+    annotationProcessor 'org.projectlombok:lombok'
+    testCompileOnly 'org.projectlombok:lombok'
+    testAnnotationProcessor 'org.projectlombok:lombok'
+
+    // Test
+    testImplementation 'org.springframework.boot:spring-boot-starter-test'
+    testImplementation 'org.springframework.security:spring-security-test'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+    testImplementation 'com.h2database:h2'
+    testImplementation 'org.testcontainers:testcontainers'
+    testImplementation 'org.testcontainers:junit-jupiter'
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.compilerArgs += ["--enable-preview"]
+}
+
+tasks.named('test') {
+    useJUnitPlatform()
+    finalizedBy jacocoTestReport
+    jvmArgs += "--enable-preview"
+}
+
+tasks.named("bootRun") {
+    jvmArgs("--enable-preview", "-Xmx2g", "-Xss512k")
+
+    // Load .env file from root project directory
+    def envFile = rootProject.file('.env')
+    if (envFile.exists()) {
+        envFile.readLines().each { line ->
+            def trimmed = line.trim()
+            if (trimmed && !trimmed.startsWith('#')) {
+                def parts = trimmed.split('=', 2)
+                if (parts.length == 2) {
+                    environment parts[0].trim(), parts[1].trim()
+                }
+            }
+        }
+    }
+}
+
+jacoco {
+    toolVersion = "0.8.13"
+}
+
+test {
+    doFirst {
+        jvmArgs "-javaagent:${configurations.testRuntimeClasspath.find { it.name.contains('mockito-core') }.absolutePath}"
+    }
+}
+
+jacocoTestReport {
+    dependsOn test
+    reports {
+        html.required = true
+        xml.required = true
+        csv.required = false
+        html.outputLocation = layout.buildDirectory.dir('jacocoHtml')
+        xml.outputLocation = layout.buildDirectory.file('jacoco/jacoco.xml')
+    }
+
+    afterEvaluate {
+        classDirectories.setFrom(files(classDirectories.files.collect {
+            fileTree(dir: it, exclude: [
+                    '**/config/**',
+                    '**/configuration/**',
+                    '**/dto/**',
+                    '**/entity/**',
+                    '**/domain/**/entity/**',
+                    '**/*Application*',
+                    '**/exception/**',
+                    '**/global/exception/**',
+                    '**/util/**',
+                    '**/common/**',
+            ])
+        }))
+    }
+}
+
+jacocoTestCoverageVerification {
+    dependsOn jacocoTestReport
+    violationRules {
+        rule {
+            limit {
+                minimum = 0.80
+            }
+        }
+
+        rule {
+            enabled = true
+            element = 'CLASS'
+            includes = ['com.example.onlyone.domain.*.service.*']
+
+            limit {
+                counter = 'LINE'
+                value = 'COVEREDRATIO'
+                minimum = 0.75
+            }
+        }
+    }
+}
