@@ -223,7 +223,7 @@ export function feedNPlusOneTest() {
 
         for (const size of sizes) {
             const res = http.get(
-                `${BASE_URL}/clubs/${clubId}/feeds?page=0&size=${size}`,
+                `${BASE_URL}/api/v1/clubs/${clubId}/feeds?page=0&size=${size}`,
                 { headers }
             );
 
@@ -261,7 +261,7 @@ export function likeToggleContention() {
     const feedId = getRandomFeedId();
 
     const res = http.put(
-        `${BASE_URL}/clubs/${clubId}/feeds/${feedId}/likes`,
+        `${BASE_URL}/api/v1/clubs/${clubId}/feeds/${feedId}/likes`,
         null,
         { headers }
     );
@@ -286,7 +286,7 @@ export function popularFeedStress() {
         const pages = [0, 1, 2];
         for (const page of pages) {
             const res = http.get(
-                `${BASE_URL}/feeds/popular?page=${page}&size=20`,
+                `${BASE_URL}/api/v1/feeds/popular?page=${page}&size=20`,
                 { headers }
             );
 
@@ -320,7 +320,7 @@ export function personalFeedBulk() {
     group('Personal Feed Bulk', () => {
         // 개인화 피드 조회
         const res = http.get(
-            `${BASE_URL}/feeds?page=0&size=20`,
+            `${BASE_URL}/api/v1/feeds?page=0&size=20`,
             { headers }
         );
 
@@ -330,7 +330,7 @@ export function personalFeedBulk() {
 
         // 두 번째 페이지
         const res2 = http.get(
-            `${BASE_URL}/feeds?page=1&size=20`,
+            `${BASE_URL}/api/v1/feeds?page=1&size=20`,
             { headers }
         );
 
@@ -342,7 +342,7 @@ export function personalFeedBulk() {
         const clubId = getRandomClubId();
         const feedId = getRandomFeedId();
         const res3 = http.get(
-            `${BASE_URL}/clubs/${clubId}/feeds/${feedId}`,
+            `${BASE_URL}/api/v1/clubs/${clubId}/feeds/${feedId}`,
             { headers }
         );
 
@@ -372,7 +372,7 @@ export function commentWriteHeavy() {
         });
 
         const res = http.post(
-            `${BASE_URL}/clubs/${clubId}/feeds/${feedId}/comments`,
+            `${BASE_URL}/api/v1/clubs/${clubId}/feeds/${feedId}/comments`,
             commentPayload,
             { headers }
         );
@@ -386,7 +386,7 @@ export function commentWriteHeavy() {
 
         // 댓글 목록 조회
         const res2 = http.get(
-            `${BASE_URL}/feeds/${feedId}/comments?page=0&size=20`,
+            `${BASE_URL}/api/v1/feeds/${feedId}/comments?page=0&size=20`,
             { headers }
         );
 
@@ -415,7 +415,7 @@ export function mixedFeedWorkload() {
         if (action < 0.3) {
             // 30%: 피드 목록 조회
             const res = http.get(
-                `${BASE_URL}/clubs/${clubId}/feeds?page=0&size=20`,
+                `${BASE_URL}/api/v1/clubs/${clubId}/feeds?page=0&size=20`,
                 { headers }
             );
             validateResponse(res, 200, 'mixed_feed_list');
@@ -423,7 +423,7 @@ export function mixedFeedWorkload() {
         } else if (action < 0.5) {
             // 20%: 인기 피드
             const res = http.get(
-                `${BASE_URL}/feeds/popular?page=0&size=20`,
+                `${BASE_URL}/api/v1/feeds/popular?page=0&size=20`,
                 { headers }
             );
             validateResponse(res, 200, 'mixed_popular');
@@ -431,7 +431,7 @@ export function mixedFeedWorkload() {
         } else if (action < 0.7) {
             // 20%: 좋아요 토글
             const res = http.put(
-                `${BASE_URL}/clubs/${clubId}/feeds/${feedId}/likes`,
+                `${BASE_URL}/api/v1/clubs/${clubId}/feeds/${feedId}/likes`,
                 null,
                 { headers }
             );
@@ -442,7 +442,7 @@ export function mixedFeedWorkload() {
         } else if (action < 0.85) {
             // 15%: 개인화 피드
             const res = http.get(
-                `${BASE_URL}/feeds?page=0&size=20`,
+                `${BASE_URL}/api/v1/feeds?page=0&size=20`,
                 { headers }
             );
             validateResponse(res, 200, 'mixed_personal');
@@ -453,7 +453,7 @@ export function mixedFeedWorkload() {
                 content: `Mixed workload comment ${Date.now()}`,
             });
             const res = http.post(
-                `${BASE_URL}/clubs/${clubId}/feeds/${feedId}/comments`,
+                `${BASE_URL}/api/v1/clubs/${clubId}/feeds/${feedId}/comments`,
                 payload,
                 { headers }
             );

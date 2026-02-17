@@ -181,7 +181,7 @@ export function clubCreateWithEvents() {
         });
 
         const res = http.post(
-            `${BASE_URL}/clubs`,
+            `${BASE_URL}/api/v1/clubs`,
             payload,
             { headers }
         );
@@ -221,7 +221,7 @@ export function concurrentJoinLeave() {
         if (action < 0.6) {
             // 60%: 가입
             const res = http.post(
-                `${BASE_URL}/clubs/${hotClubId}/join`,
+                `${BASE_URL}/api/v1/clubs/${hotClubId}/join`,
                 null,
                 { headers }
             );
@@ -241,7 +241,7 @@ export function concurrentJoinLeave() {
         } else {
             // 40%: 탈퇴
             const res = http.del(
-                `${BASE_URL}/clubs/${hotClubId}/leave`,
+                `${BASE_URL}/api/v1/clubs/${hotClubId}/leave`,
                 null,
                 { headers }
             );
@@ -269,7 +269,7 @@ export function joinLimitStress() {
     const limitedClubId = (__VU % 50) + 1;
 
     const res = http.post(
-        `${BASE_URL}/clubs/${limitedClubId}/join`,
+        `${BASE_URL}/api/v1/clubs/${limitedClubId}/join`,
         null,
         { headers }
     );
@@ -309,22 +309,22 @@ export function mixedClubWorkload() {
                 district: '강남구',
                 interestId: (((__VU + __ITER) % 8) + 1),
             });
-            const res = http.post(`${BASE_URL}/clubs`, payload, { headers });
+            const res = http.post(`${BASE_URL}/api/v1/clubs`, payload, { headers });
             clubCreateDuration.add(res.timings.duration);
         } else if (action < 0.5) {
             // 40%: 가입
             const clubId = getRandomClubId();
-            const res = http.post(`${BASE_URL}/clubs/${clubId}/join`, null, { headers });
+            const res = http.post(`${BASE_URL}/api/v1/clubs/${clubId}/join`, null, { headers });
             clubJoinDuration.add(res.timings.duration);
         } else if (action < 0.8) {
             // 30%: 탈퇴
             const clubId = getRandomClubId();
-            const res = http.del(`${BASE_URL}/clubs/${clubId}/leave`, null, { headers });
+            const res = http.del(`${BASE_URL}/api/v1/clubs/${clubId}/leave`, null, { headers });
             clubLeaveDuration.add(res.timings.duration);
         } else {
             // 20%: 검색 (부수 부하)
             const res = http.get(
-                `${BASE_URL}/search/recommendations`,
+                `${BASE_URL}/api/v1/search/recommendations`,
                 { headers }
             );
             check(res, { 'mixed search: status 200': (r) => r.status === 200 });

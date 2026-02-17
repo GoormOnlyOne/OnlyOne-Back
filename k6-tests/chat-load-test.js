@@ -1,542 +1,425 @@
+// 채팅 도메인 고강도 부하 테스트 - 병목지점 탐색
+//
+// WebSocket STOMP 프로토콜 기반 극한 부하 테스트
+// - DB: 1,000 채팅방, 10,000 user_chat_room (방당 10명), 1,000,000 메시지
+// - 목표: 서버 한계점(병목) 발견 - 연결 실패, 메시지 지연, 타임아웃 등
+//
+// 시나리오 (점진적 부하 증가):
+//   1. 워밍업 (100 VU, 1m) - 기본 동작 확인
+//   2. 중부하 (0→500 VU, 3m) - 연결 스트레스 증가
+//   3. 고부하 유지 (500 VU, 2m) - 안정성 확인
+//   4. 극한 부하 (500→1000 VU, 3m) - 한계 도달
+//   5. 최대 부하 (1000 VU, 2m) - 병목 관찰
+//   6. 초과 부하 (1000→1500 VU, 2m) - 브레이킹 포인트
+// 총 ~13분
+
 import http from 'k6/http';
-import { check, sleep, group } from 'k6';
-import { Rate, Trend, Counter } from 'k6/metrics';
-import { SharedArray } from 'k6/data';
+import ws from 'k6/ws';
+import { check, sleep } from 'k6';
+import { Rate, Trend, Counter, Gauge } from 'k6/metrics';
 import { hmac } from 'k6/crypto';
 import encoding from 'k6/encoding';
-import ws from 'k6/ws';
 
 // ============================================
-// Chat 도메인 부하 테스트
-// 대상 병목: REST 메시지 처리량, 커서 페이징, WebSocket STOMP, Redis Pub/Sub
-// 총 소요시간: ~32분
-// ============================================
-
 // 커스텀 메트릭
-const errorRate = new Rate('errors');
-const chatSendDuration = new Trend('chat_send_duration');
-const chatHistoryDuration = new Trend('chat_history_duration');
-const wsConnectionDuration = new Trend('ws_connection_duration');
-const wsMessageLatency = new Trend('ws_message_latency');
-const messageDeliveryRate = new Rate('message_delivery_rate');
-const wsConnectionFailRate = new Rate('ws_connection_fail_rate');
-const messagesSent = new Counter('messages_sent');
-const messagesReceived = new Counter('messages_received');
+// ============================================
+const wsConnectSuccess = new Rate('ws_connect_success');
+const wsConnectTime = new Trend('ws_connect_time_ms');
+const wsMessageSent = new Counter('ws_messages_sent');
+const wsMessageReceived = new Counter('ws_messages_received');
+const wsMsgRoundtrip = new Trend('ws_msg_roundtrip_ms');
+const wsConnectFailed = new Counter('ws_connect_failed');
+const wsErrors = new Counter('ws_errors');
+const totalChatOps = new Counter('total_chat_ops');
+const msgSaveLatency = new Trend('msg_save_latency_ms');
 
 // ============================================
-// 테스트 설정
+// 설정
 // ============================================
 const BASE_URL = __ENV.BASE_URL || 'http://localhost:8080';
-const WS_URL = __ENV.WS_URL || 'ws://localhost:8080/ws';
-const JWT_SECRET = __ENV.JWT_SECRET || 'test-secret-key-for-testing-min-256-bits';
+const WS_URL = BASE_URL.replace('http://', 'ws://').replace('https://', 'wss://');
+const JWT_SECRET = __ENV.JWT_SECRET || 'test-secret-key';
+
+const TOTAL_ROOMS = 1000;
+const USERS_PER_ROOM = 10;
+const TOTAL_USERS = 10000;
 
 export const options = {
     scenarios: {
-        // 시나리오 1: REST 메시지 처리량
-        rest_message_throughput: {
-            executor: 'ramping-arrival-rate',
-            exec: 'restMessageThroughput',
-            startRate: 50,
-            timeUnit: '1s',
-            preAllocatedVUs: 50,
-            maxVUs: 300,
-            stages: [
-                { duration: '1m', target: 100 },
-                { duration: '2m', target: 500 },
-                { duration: '2m', target: 1000 },
-                { duration: '1m', target: 200 },
-            ],
-            gracefulStop: '30s',
-        },
-
-        // 시나리오 2: 채팅 히스토리 커서 페이징
-        chat_history_pagination: {
+        // 1. 워밍업 - 100 VU 기본 확인
+        warmup: {
             executor: 'constant-vus',
-            exec: 'chatHistoryPagination',
-            vus: 200,
-            duration: '4m',
-            startTime: '7m',
+            exec: 'wsWorkload',
+            vus: 100,
+            duration: '1m',
             gracefulStop: '30s',
         },
 
-        // 시나리오 3: WebSocket STOMP 동시접속 유지
-        ws_stomp_sustained: {
-            executor: 'constant-vus',
-            exec: 'wsStompSustained',
-            vus: 500,
-            duration: '8m',
-            startTime: '12m',
-            gracefulStop: '30s',
-        },
-
-        // 시나리오 4: WebSocket 메시지 폭주 (Redis Pub/Sub)
-        ws_message_flood: {
+        // 2. 중부하 - 0→500 VU 점진 증가
+        ramp_mid: {
             executor: 'ramping-vus',
-            exec: 'wsMessageFlood',
+            exec: 'wsBurstWorkload',
             startVUs: 0,
             stages: [
-                { duration: '1m', target: 200 },
-                { duration: '2m', target: 500 },
-                { duration: '1m', target: 300 },
-                { duration: '1m', target: 0 },
+                { duration: '1m', target: 250 },
+                { duration: '1m', target: 500 },
+                { duration: '1m', target: 500 },
             ],
-            startTime: '21m',
+            startTime: '1m10s',
             gracefulRampDown: '30s',
         },
 
-        // 시나리오 5: REST + WS 복합 부하
-        mixed_chat_workload: {
+        // 3. 고부하 유지 - 500 VU 지속
+        sustain_high: {
+            executor: 'constant-vus',
+            exec: 'wsBurstWorkload',
+            vus: 500,
+            duration: '2m',
+            startTime: '4m20s',
+            gracefulStop: '30s',
+        },
+
+        // 4. 극한 부하 - 500→1000 VU
+        ramp_extreme: {
             executor: 'ramping-vus',
-            exec: 'mixedChatWorkload',
-            startVUs: 0,
+            exec: 'wsBurstWorkload',
+            startVUs: 500,
             stages: [
-                { duration: '1m', target: 100 },
-                { duration: '2m', target: 300 },
-                { duration: '1m', target: 150 },
-                { duration: '1m', target: 0 },
+                { duration: '1m', target: 750 },
+                { duration: '1m', target: 1000 },
+                { duration: '1m', target: 1000 },
             ],
-            startTime: '27m',
+            startTime: '6m30s',
+            gracefulRampDown: '30s',
+        },
+
+        // 5. 최대 부하 - 1000 VU 유지
+        sustain_max: {
+            executor: 'constant-vus',
+            exec: 'wsBurstWorkload',
+            vus: 1000,
+            duration: '2m',
+            startTime: '9m40s',
+            gracefulStop: '30s',
+        },
+
+        // 6. 초과 부하 - 1000→1500 VU (브레이킹 포인트)
+        breaking_point: {
+            executor: 'ramping-vus',
+            exec: 'wsBurstWorkload',
+            startVUs: 1000,
+            stages: [
+                { duration: '1m', target: 1250 },
+                { duration: '1m', target: 1500 },
+            ],
+            startTime: '11m50s',
             gracefulRampDown: '30s',
         },
     },
 
     thresholds: {
-        chat_send_duration: ['p(95)<300'],
-        ws_message_latency: ['p(95)<500'],
-        message_delivery_rate: ['rate>0.9'],
-        chat_history_duration: ['p(95)<400'],
-        http_req_duration: ['p(95)<1000'],
-        http_req_failed: ['rate<0.05'],
-        errors: ['rate<0.05'],
+        // 병목 탐색용: 느슨한 임계값 (실패 시 병목 발견)
+        'ws_connect_success': ['rate>0.70'],     // 70% 이하면 연결 병목
+        'ws_connect_time_ms': ['p(95)<5000'],    // 5초 이상이면 연결 지연 병목
+        'ws_msg_roundtrip_ms': ['p(95)<10000'],  // 10초 이상이면 메시지 처리 병목
     },
 };
 
 // ============================================
-// 테스트 데이터
+// 유틸리티
 // ============================================
-const testUsers = new SharedArray('chat_test_users', function () {
-    const users = [];
-    for (let i = 1; i <= 1000; i++) {
-        users.push({
-            userId: i,
-            kakaoId: 10000000 + i,
-            status: 'ACTIVE',
-            role: 'ROLE_USER',
-        });
-    }
-    return users;
-});
+function getUserRoom(userId) {
+    return Math.ceil(userId / USERS_PER_ROOM);
+}
 
-const chatRoomIds = new SharedArray('chat_room_ids', function () {
-    const ids = [];
-    for (let i = 1; i <= 1000; i++) {
-        ids.push(i);
-    }
-    return ids;
-});
+function randomUserId() {
+    return Math.floor(Math.random() * TOTAL_USERS) + 1;
+}
+
+function randomText() {
+    const texts = [
+        '안녕하세요!', '오늘 모임 어디서 해요?', '네 좋아요~',
+        '시간 괜찮으시죠?', '장소 정했나요?', '저도 참여할게요!',
+        '다들 잘 지내시죠?', '오랜만이에요~', '주말에 봐요!',
+        '사진 공유해주세요', '감사합니다!', '알겠습니다~',
+    ];
+    return texts[Math.floor(Math.random() * texts.length)];
+}
 
 // ============================================
-// 유틸리티 함수
+// JWT 생성
 // ============================================
-function generateJWT(user) {
+function generateJWT(userId) {
+    const kakaoId = 10000000 + userId;
     const now = Date.now();
-    const expiryDate = now + (3600 * 1000);
-
     const header = { alg: 'HS512', typ: 'JWT' };
     const payload = {
-        sub: user.userId.toString(),
-        kakaoId: user.kakaoId.toString(),
-        nickname: `testuser${user.userId}`,
-        status: user.status,
-        role: user.role,
+        sub: userId.toString(),
+        kakaoId: kakaoId.toString(),
+        nickname: 'testuser' + userId,
+        status: 'ACTIVE',
+        role: 'ROLE_USER',
         type: 'access',
         iat: Math.floor(now / 1000),
-        exp: Math.floor(expiryDate / 1000),
+        exp: Math.floor((now + 3600000) / 1000),
     };
-
-    const headerEncoded = encoding.b64encode(JSON.stringify(header), 'rawurl');
-    const payloadEncoded = encoding.b64encode(JSON.stringify(payload), 'rawurl');
-    const signatureInput = `${headerEncoded}.${payloadEncoded}`;
-    const signature = hmac('sha512', JWT_SECRET, signatureInput, 'base64rawurl');
-
-    return `${signatureInput}.${signature}`;
-}
-
-function getHeaders(token) {
-    return {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json',
-    };
-}
-
-function getRandomUser() {
-    return testUsers[Math.floor(Math.random() * testUsers.length)];
-}
-
-function getRandomChatRoomId() {
-    return chatRoomIds[Math.floor(Math.random() * chatRoomIds.length)];
-}
-
-// STOMP 프레임 생성 헬퍼
-function stompConnect(token) {
-    return `CONNECT\naccept-version:1.2\nhost:localhost\nAuthorization:Bearer ${token}\n\n\0`;
-}
-
-function stompSubscribe(id, destination) {
-    return `SUBSCRIBE\nid:${id}\ndestination:${destination}\n\n\0`;
-}
-
-function stompSend(destination, body) {
-    return `SEND\ndestination:${destination}\ncontent-type:application/json\n\n${body}\0`;
+    const h = encoding.b64encode(JSON.stringify(header), 'rawurl');
+    const p = encoding.b64encode(JSON.stringify(payload), 'rawurl');
+    const sig = hmac('sha512', JWT_SECRET, h + '.' + p, 'base64rawurl');
+    return h + '.' + p + '.' + sig;
 }
 
 // ============================================
-// 시나리오 1: REST 메시지 처리량
+// STOMP 프레임 유틸
 // ============================================
-export function restMessageThroughput() {
-    const user = getRandomUser();
-    const token = generateJWT(user);
-    const headers = getHeaders(token);
-    const chatRoomId = getRandomChatRoomId();
-
-    const payload = JSON.stringify({
-        text: `Load test message from VU ${__VU} at ${Date.now()}`,
-    });
-
-    const res = http.post(
-        `${BASE_URL}/chat/${chatRoomId}/messages`,
-        payload,
-        { headers }
-    );
-
-    check(res, {
-        'REST send: status 200 or 201': (r) => r.status === 200 || r.status === 201,
-    });
-
-    chatSendDuration.add(res.timings.duration);
-    messagesSent.add(1);
-    errorRate.add(res.status !== 200 && res.status !== 201);
-}
-
-// ============================================
-// 시나리오 2: 채팅 히스토리 커서 페이징
-// ============================================
-export function chatHistoryPagination() {
-    const user = getRandomUser();
-    const token = generateJWT(user);
-    const headers = getHeaders(token);
-    const chatRoomId = getRandomChatRoomId();
-
-    group('Chat History Pagination', () => {
-        // 첫 페이지
-        const res1 = http.get(
-            `${BASE_URL}/chat/${chatRoomId}/messages?size=30`,
-            { headers }
-        );
-
-        check(res1, {
-            'chat history page 1: status 200': (r) => r.status === 200,
-        });
-        chatHistoryDuration.add(res1.timings.duration);
-        sleep(0.5);
-
-        // 커서 기반 다음 페이지
-        if (res1.status === 200) {
-            try {
-                const body = JSON.parse(res1.body);
-                const cursor = body.data && body.data.cursor;
-                if (cursor) {
-                    const res2 = http.get(
-                        `${BASE_URL}/chat/${chatRoomId}/messages?cursor=${cursor}&size=30`,
-                        { headers }
-                    );
-                    check(res2, {
-                        'chat history page 2: status 200': (r) => r.status === 200,
-                    });
-                    chatHistoryDuration.add(res2.timings.duration);
-                    sleep(0.5);
-
-                    // 세 번째 페이지
-                    if (res2.status === 200) {
-                        const body2 = JSON.parse(res2.body);
-                        const cursor2 = body2.data && body2.data.cursor;
-                        if (cursor2) {
-                            const res3 = http.get(
-                                `${BASE_URL}/chat/${chatRoomId}/messages?cursor=${cursor2}&size=30`,
-                                { headers }
-                            );
-                            chatHistoryDuration.add(res3.timings.duration);
-                        }
-                    }
-                }
-            } catch (e) {
-                // JSON 파싱 실패 무시
-            }
-        }
-    });
-
-    sleep(1);
-}
-
-// ============================================
-// 시나리오 3: WebSocket STOMP 동시접속 유지
-// ============================================
-export function wsStompSustained() {
-    const user = getRandomUser();
-    const token = generateJWT(user);
-    const chatRoomId = getRandomChatRoomId();
-
-    const wsUrl = `${WS_URL}?token=${token}`;
-
-    const res = ws.connect(wsUrl, {}, function (socket) {
-        let connected = false;
-        let messageCount = 0;
-
-        socket.on('open', function () {
-            // STOMP CONNECT
-            socket.send(stompConnect(token));
-        });
-
-        socket.on('message', function (data) {
-            if (data.startsWith('CONNECTED')) {
-                connected = true;
-                wsConnectionDuration.add(0);  // 성공 기록
-
-                // SUBSCRIBE
-                socket.send(stompSubscribe(
-                    `sub-${__VU}`,
-                    `/sub/chat/${chatRoomId}/messages`
-                ));
-
-                // 주기적으로 메시지 전송
-                socket.setInterval(function () {
-                    if (connected) {
-                        const sendTime = Date.now();
-                        const body = JSON.stringify({
-                            text: `WS sustained msg ${__VU}-${messageCount}`,
-                            sendTime: sendTime,
-                        });
-                        socket.send(stompSend(
-                            `/pub/chat/${chatRoomId}/messages`,
-                            body
-                        ));
-                        messagesSent.add(1);
-                        messageCount++;
-                    }
-                }, 5000);  // 5초마다 메시지
-            }
-
-            if (data.startsWith('MESSAGE')) {
-                messagesReceived.add(1);
-                messageDeliveryRate.add(1);
-
-                // 메시지 지연 측정
-                try {
-                    const bodyStart = data.indexOf('\n\n') + 2;
-                    const bodyEnd = data.indexOf('\0');
-                    const msgBody = JSON.parse(data.substring(bodyStart, bodyEnd));
-                    if (msgBody.sendTime) {
-                        wsMessageLatency.add(Date.now() - msgBody.sendTime);
-                    }
-                } catch (e) {
-                    // 파싱 실패 무시
-                }
-            }
-
-            if (data.startsWith('ERROR')) {
-                wsConnectionFailRate.add(1);
-            }
-        });
-
-        socket.on('error', function (e) {
-            wsConnectionFailRate.add(1);
-            errorRate.add(1);
-        });
-
-        socket.on('close', function () {
-            connected = false;
-        });
-
-        // 연결 유지 시간 (시나리오 duration 내에서)
-        socket.setTimeout(function () {
-            socket.close();
-        }, 30000);  // 30초 유지 후 재연결
-    });
-
-    check(res, {
-        'WS connection: status 101': (r) => r && r.status === 101,
-    });
-
-    if (!res || res.status !== 101) {
-        wsConnectionFailRate.add(1);
-    } else {
-        wsConnectionFailRate.add(0);
+function stompFrame(command, hdrs, body) {
+    let frame = command + '\n';
+    for (const key of Object.keys(hdrs || {})) {
+        frame += key + ':' + hdrs[key] + '\n';
     }
+    frame += '\n';
+    if (body) frame += body;
+    frame += '\0';
+    return frame;
+}
 
-    sleep(1);
+function parseStompFrame(data) {
+    const nullIdx = data.indexOf('\0');
+    const raw = nullIdx >= 0 ? data.substring(0, nullIdx) : data;
+    const parts = raw.split('\n\n');
+    const headerLines = parts[0].split('\n');
+    const command = headerLines[0];
+    const body = parts.length > 1 ? parts[1] : '';
+    return { command, body };
 }
 
 // ============================================
-// 시나리오 4: WebSocket 메시지 폭주 (Redis Pub/Sub)
+// Setup
 // ============================================
-export function wsMessageFlood() {
-    const user = getRandomUser();
-    const token = generateJWT(user);
-    const chatRoomId = getRandomChatRoomId();
+export function setup() {
+    console.log('=== Chat WebSocket Bottleneck Test ===');
+    console.log(`WS URL: ${WS_URL}/ws-native`);
+    console.log(`DB: ${TOTAL_ROOMS} rooms, ${TOTAL_USERS} users, 1M messages`);
+    console.log(`Max VU: 1500, Duration: ~14 min`);
+    console.log('======================================');
 
-    const wsUrl = `${WS_URL}?token=${token}`;
+    const healthRes = http.get(`${BASE_URL}/actuator/health`);
+    check(healthRes, { 'Setup: health OK': (r) => r.status === 200 });
 
-    const res = ws.connect(wsUrl, {}, function (socket) {
-        let connected = false;
-
+    // STOMP 연결 확인 (JWT 인증 포함)
+    const setupToken = generateJWT(1);
+    let wsOk = false;
+    ws.connect(`${WS_URL}/ws-native`, {}, function (socket) {
         socket.on('open', function () {
-            socket.send(stompConnect(token));
+            socket.send(stompFrame('CONNECT', {
+                'accept-version': '1.1,1.2',
+                'heart-beat': '0,0',
+                'Authorization': 'Bearer ' + setupToken,
+            }));
+        });
+        socket.on('message', function (msg) {
+            const frame = parseStompFrame(msg);
+            if (frame.command === 'CONNECTED') {
+                wsOk = true;
+                socket.send(stompFrame('DISCONNECT', {}));
+                socket.close();
+            }
+        });
+        socket.setTimeout(function () { socket.close(); }, 5000);
+    });
+
+    console.log(`STOMP connect: ${wsOk}`);
+    check(null, { 'Setup: STOMP connected': () => wsOk });
+    return { wsOk };
+}
+
+// ============================================
+// 일반 워크로드 (연결 + 메시지 3~5개, 긴 세션)
+// ============================================
+export function wsWorkload() {
+    const userId = randomUserId();
+    const roomId = getUserRoom(userId);
+    const kakaoId = 10000000 + userId;
+    const token = generateJWT(userId);
+
+    const wsUrl = `${WS_URL}/ws-native`;
+    const connectStart = Date.now();
+    let connected = false;
+
+    ws.connect(wsUrl, {}, function (socket) {
+        socket.on('open', function () {
+            socket.send(stompFrame('CONNECT', {
+                'accept-version': '1.1,1.2',
+                'heart-beat': '10000,10000',
+                'Authorization': 'Bearer ' + token,
+            }));
         });
 
-        socket.on('message', function (data) {
-            if (data.startsWith('CONNECTED')) {
+        socket.on('message', function (msg) {
+            const frame = parseStompFrame(msg);
+
+            if (frame.command === 'CONNECTED') {
                 connected = true;
+                wsConnectTime.add(Date.now() - connectStart);
+                wsConnectSuccess.add(true);
 
-                // SUBSCRIBE
-                socket.send(stompSubscribe(
-                    `sub-flood-${__VU}`,
-                    `/sub/chat/${chatRoomId}/messages`
-                ));
+                socket.send(stompFrame('SUBSCRIBE', {
+                    'id': 'sub-' + roomId,
+                    'destination': '/sub/chat/' + roomId + '/messages',
+                }));
 
-                // 빠른 메시지 전송 (200ms 간격)
-                socket.setInterval(function () {
-                    if (connected) {
-                        const body = JSON.stringify({
-                            text: `Flood msg ${__VU}-${Date.now()}`,
-                            sendTime: Date.now(),
+                const msgTotal = Math.floor(Math.random() * 3) + 3;
+                for (let i = 0; i < msgTotal; i++) {
+                    socket.setTimeout(function () {
+                        const sendTime = Date.now();
+                        const chatMsg = JSON.stringify({
+                            userId: kakaoId,
+                            text: randomText(),
+                            _ts: sendTime,
                         });
-                        socket.send(stompSend(
-                            `/pub/chat/${chatRoomId}/messages`,
-                            body
-                        ));
-                        messagesSent.add(1);
-                    }
-                }, 200);
+                        socket.send(stompFrame('SEND', {
+                            'destination': '/pub/chat/' + roomId + '/messages',
+                            'content-type': 'application/json',
+                        }, chatMsg));
+                        wsMessageSent.add(1);
+                        totalChatOps.add(1);
+                    }, (i + 1) * (Math.random() * 2000 + 2000));
+                }
             }
 
-            if (data.startsWith('MESSAGE')) {
-                messagesReceived.add(1);
-                messageDeliveryRate.add(1);
+            if (frame.command === 'MESSAGE') {
+                wsMessageReceived.add(1);
+                try {
+                    const msgBody = JSON.parse(frame.body);
+                    if (msgBody._ts && msgBody.userId === kakaoId) {
+                        wsMsgRoundtrip.add(Date.now() - msgBody._ts);
+                    }
+                } catch (e) { /* ignore */ }
+            }
+
+            if (frame.command === 'ERROR') {
+                wsErrors.add(1);
             }
         });
 
         socket.on('error', function () {
-            errorRate.add(1);
+            wsConnectSuccess.add(false);
+            wsConnectFailed.add(1);
         });
 
+        const holdTime = Math.floor(Math.random() * 10000) + 15000;
         socket.setTimeout(function () {
+            if (connected) {
+                socket.send(stompFrame('DISCONNECT', { 'receipt': 'disc-1' }));
+            }
             socket.close();
-        }, 15000);  // 15초 유지
+        }, holdTime);
     });
 
-    sleep(2);
-}
-
-// ============================================
-// 시나리오 5: REST + WS 복합 부하
-// ============================================
-export function mixedChatWorkload() {
-    const user = getRandomUser();
-    const token = generateJWT(user);
-    const headers = getHeaders(token);
-    const chatRoomId = getRandomChatRoomId();
-
-    group('Mixed Chat Workload', () => {
-        const action = Math.random();
-
-        if (action < 0.4) {
-            // 40%: REST 메시지 전송
-            const payload = JSON.stringify({
-                text: `Mixed chat msg ${Date.now()}`,
-            });
-            const res = http.post(
-                `${BASE_URL}/chat/${chatRoomId}/messages`,
-                payload,
-                { headers }
-            );
-            check(res, {
-                'mixed send: status 200 or 201': (r) => r.status === 200 || r.status === 201,
-            });
-            chatSendDuration.add(res.timings.duration);
-            messagesSent.add(1);
-        } else if (action < 0.7) {
-            // 30%: 히스토리 조회
-            const res = http.get(
-                `${BASE_URL}/chat/${chatRoomId}/messages?size=30`,
-                { headers }
-            );
-            check(res, {
-                'mixed history: status 200': (r) => r.status === 200,
-            });
-            chatHistoryDuration.add(res.timings.duration);
-        } else {
-            // 30%: WebSocket 단발 연결
-            const wsUrl = `${WS_URL}?token=${token}`;
-            const res = ws.connect(wsUrl, {}, function (socket) {
-                socket.on('open', function () {
-                    socket.send(stompConnect(token));
-                });
-
-                socket.on('message', function (data) {
-                    if (data.startsWith('CONNECTED')) {
-                        const body = JSON.stringify({
-                            text: `Mixed WS msg ${Date.now()}`,
-                        });
-                        socket.send(stompSend(
-                            `/pub/chat/${chatRoomId}/messages`,
-                            body
-                        ));
-                        messagesSent.add(1);
-
-                        socket.setTimeout(function () {
-                            socket.close();
-                        }, 3000);
-                    }
-
-                    if (data.startsWith('MESSAGE')) {
-                        messagesReceived.add(1);
-                    }
-                });
-
-                socket.setTimeout(function () {
-                    socket.close();
-                }, 5000);
-            });
-        }
-    });
+    if (!connected) {
+        wsConnectSuccess.add(false);
+        wsConnectFailed.add(1);
+    }
 
     sleep(0.5);
 }
 
 // ============================================
-// 테스트 라이프사이클
+// 버스트 워크로드 (빠른 메시지, 짧은 세션)
 // ============================================
-export function setup() {
-    console.log('=== Chat Domain Load Test Started ===');
-    console.log(`Base URL: ${BASE_URL}`);
-    console.log(`WebSocket URL: ${WS_URL}`);
-    console.log(`Test Users: ${testUsers.length}`);
-    console.log('');
-    console.log('Testing 5 scenarios:');
-    console.log('1. REST Message Throughput (0-6m, 50->1000/s)');
-    console.log('2. Chat History Pagination (7-11m, 200 VU)');
-    console.log('3. WS STOMP Sustained (12-20m, 500 VU)');
-    console.log('4. WS Message Flood (21-26m, 0->500 VU)');
-    console.log('5. Mixed Chat Workload (27-32m, 0->300 VU)');
-    console.log('');
-    console.log('Total Duration: ~32 minutes');
-    console.log('=====================================');
+export function wsBurstWorkload() {
+    const userId = randomUserId();
+    const roomId = getUserRoom(userId);
+    const kakaoId = 10000000 + userId;
+    const token = generateJWT(userId);
+
+    const wsUrl = `${WS_URL}/ws-native`;
+    const connectStart = Date.now();
+    let connected = false;
+
+    ws.connect(wsUrl, {}, function (socket) {
+        socket.on('open', function () {
+            socket.send(stompFrame('CONNECT', {
+                'accept-version': '1.1,1.2',
+                'heart-beat': '10000,10000',
+                'Authorization': 'Bearer ' + token,
+            }));
+        });
+
+        socket.on('message', function (msg) {
+            const frame = parseStompFrame(msg);
+
+            if (frame.command === 'CONNECTED') {
+                connected = true;
+                wsConnectTime.add(Date.now() - connectStart);
+                wsConnectSuccess.add(true);
+
+                socket.send(stompFrame('SUBSCRIBE', {
+                    'id': 'sub-' + roomId,
+                    'destination': '/sub/chat/' + roomId + '/messages',
+                }));
+
+                // 메시지 8~15개 빠르게 전송 (0.3~1초 간격)
+                const msgTotal = Math.floor(Math.random() * 8) + 8;
+                for (let i = 0; i < msgTotal; i++) {
+                    socket.setTimeout(function () {
+                        const sendTime = Date.now();
+                        const chatMsg = JSON.stringify({
+                            userId: kakaoId,
+                            text: randomText(),
+                            _ts: sendTime,
+                        });
+                        socket.send(stompFrame('SEND', {
+                            'destination': '/pub/chat/' + roomId + '/messages',
+                            'content-type': 'application/json',
+                        }, chatMsg));
+                        wsMessageSent.add(1);
+                        totalChatOps.add(1);
+                    }, (i + 1) * (Math.random() * 700 + 300));
+                }
+            }
+
+            if (frame.command === 'MESSAGE') {
+                wsMessageReceived.add(1);
+                try {
+                    const msgBody = JSON.parse(frame.body);
+                    if (msgBody._ts && msgBody.userId === kakaoId) {
+                        wsMsgRoundtrip.add(Date.now() - msgBody._ts);
+                    }
+                } catch (e) { /* ignore */ }
+            }
+
+            if (frame.command === 'ERROR') {
+                wsErrors.add(1);
+            }
+        });
+
+        socket.on('error', function () {
+            wsConnectSuccess.add(false);
+            wsConnectFailed.add(1);
+        });
+
+        // 6~12초 후 disconnect (짧은 세션)
+        const holdTime = Math.floor(Math.random() * 6000) + 6000;
+        socket.setTimeout(function () {
+            if (connected) {
+                socket.send(stompFrame('DISCONNECT', { 'receipt': 'disc-1' }));
+            }
+            socket.close();
+        }, holdTime);
+    });
+
+    if (!connected) {
+        wsConnectSuccess.add(false);
+        wsConnectFailed.add(1);
+    }
+
+    sleep(0.3);
 }
 
-export function teardown(data) {
-    console.log('');
-    console.log('=== Chat Domain Load Test Completed ===');
-    console.log('Review metrics: chat_send_duration, ws_message_latency,');
-    console.log('message_delivery_rate, ws_connection_fail_rate');
-    console.log('========================================');
+// ============================================
+// Teardown
+// ============================================
+export function teardown() {
+    console.log('=== Chat WebSocket Bottleneck Test Completed ===');
 }

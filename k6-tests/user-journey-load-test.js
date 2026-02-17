@@ -179,13 +179,13 @@ export function journeyOnboarding() {
 
     group('Journey A: Onboarding', () => {
         // Step 1: auth/me 확인
-        const res1 = http.get(`${BASE_URL}/auth/me`, { headers });
+        const res1 = http.get(`${BASE_URL}/api/v1/auth/me`, { headers });
         if (stepCheck(res1, 'auth/me', [200])) stepsCompleted++;
         sleep(1);
 
         // Step 2: 검색으로 클럽 찾기
         const res2 = http.get(
-            `${BASE_URL}/search/recommendations`,
+            `${BASE_URL}/api/v1/search/recommendations`,
             { headers }
         );
         if (stepCheck(res2, 'search recommendations', [200])) stepsCompleted++;
@@ -194,7 +194,7 @@ export function journeyOnboarding() {
         // Step 3: 클럽 가입
         const clubId = ((__VU % 10000) + 1);
         const res3 = http.post(
-            `${BASE_URL}/clubs/${clubId}/join`,
+            `${BASE_URL}/api/v1/clubs/${clubId}/join`,
             null,
             { headers }
         );
@@ -203,7 +203,7 @@ export function journeyOnboarding() {
 
         // Step 4: 피드 목록 조회
         const res4 = http.get(
-            `${BASE_URL}/clubs/${clubId}/feeds?page=0&size=20`,
+            `${BASE_URL}/api/v1/clubs/${clubId}/feeds?page=0&size=20`,
             { headers }
         );
         if (stepCheck(res4, 'browse feeds', [200])) stepsCompleted++;
@@ -212,7 +212,7 @@ export function journeyOnboarding() {
         // Step 5: 좋아요
         const feedId = ((__VU * 10 + __ITER) % 100000) + 1;
         const res5 = http.put(
-            `${BASE_URL}/clubs/${clubId}/feeds/${feedId}/likes`,
+            `${BASE_URL}/api/v1/clubs/${clubId}/feeds/${feedId}/likes`,
             null,
             { headers }
         );
@@ -221,7 +221,7 @@ export function journeyOnboarding() {
 
         // Step 6: 채팅방 조회
         const res6 = http.get(
-            `${BASE_URL}/clubs/${clubId}/chat`,
+            `${BASE_URL}/api/v1/clubs/${clubId}/chat`,
             { headers }
         );
         if (stepCheck(res6, 'get chat rooms', [200])) stepsCompleted++;
@@ -232,7 +232,7 @@ export function journeyOnboarding() {
         const scheduleClubId = ((scheduleId - 1) % 10000) + 1;
         const res7 = http.request(
             'PATCH',
-            `${BASE_URL}/clubs/${scheduleClubId}/schedules/${scheduleId}/users`,
+            `${BASE_URL}/api/v1/clubs/${scheduleClubId}/schedules/${scheduleId}/users`,
             null,
             { headers }
         );
@@ -267,13 +267,13 @@ export function journeyDailyActive() {
 
     group('Journey B: Daily Active', () => {
         // Step 1: 읽지 않은 알림 확인
-        const res1 = http.get(`${BASE_URL}/notifications/unread-count`, { headers });
+        const res1 = http.get(`${BASE_URL}/api/v1/notifications/unread-count`, { headers });
         if (stepCheck(res1, 'unread count', [200])) stepsCompleted++;
         sleep(0.5);
 
         // Step 2: 피드 목록
         const res2 = http.get(
-            `${BASE_URL}/feeds?page=0&size=20`,
+            `${BASE_URL}/api/v1/feeds?page=0&size=20`,
             { headers }
         );
         if (stepCheck(res2, 'feed list', [200])) stepsCompleted++;
@@ -281,7 +281,7 @@ export function journeyDailyActive() {
 
         // Step 3: 인기 피드
         const res3 = http.get(
-            `${BASE_URL}/feeds/popular?page=0&size=20`,
+            `${BASE_URL}/api/v1/feeds/popular?page=0&size=20`,
             { headers }
         );
         if (stepCheck(res3, 'popular feeds', [200])) stepsCompleted++;
@@ -291,7 +291,7 @@ export function journeyDailyActive() {
         for (let i = 0; i < 3; i++) {
             const feedId = ((user.userId * 10 + i) % 100000) + 1;
             const res = http.put(
-                `${BASE_URL}/clubs/${clubId}/feeds/${feedId}/likes`,
+                `${BASE_URL}/api/v1/clubs/${clubId}/feeds/${feedId}/likes`,
                 null,
                 { headers }
             );
@@ -305,7 +305,7 @@ export function journeyDailyActive() {
             content: `Daily comment from user ${user.userId}`,
         });
         const res7 = http.post(
-            `${BASE_URL}/clubs/${clubId}/feeds/${feedId}/comments`,
+            `${BASE_URL}/api/v1/clubs/${clubId}/feeds/${feedId}/comments`,
             commentPayload,
             { headers }
         );
@@ -313,7 +313,7 @@ export function journeyDailyActive() {
         sleep(0.5);
 
         // Step 8: 마이페이지
-        const res8 = http.get(`${BASE_URL}/users/mypage`, { headers });
+        const res8 = http.get(`${BASE_URL}/api/v1/users/mypage`, { headers });
         if (stepCheck(res8, 'mypage', [200])) stepsCompleted++;
     });
 
@@ -342,7 +342,7 @@ export function journeyLeader() {
     group('Journey C: Leader', () => {
         // Step 1: 내 클럽 검색
         const res1 = http.get(
-            `${BASE_URL}/search/user`,
+            `${BASE_URL}/api/v1/search/user`,
             { headers }
         );
         if (stepCheck(res1, 'my clubs', [200])) stepsCompleted++;
@@ -358,7 +358,7 @@ export function journeyLeader() {
             userLimit: 20,
         });
         const res2 = http.post(
-            `${BASE_URL}/clubs/${clubId}/schedules`,
+            `${BASE_URL}/api/v1/clubs/${clubId}/schedules`,
             schedulePayload,
             { headers }
         );
@@ -371,7 +371,7 @@ export function journeyLeader() {
             type: 'ORIGINAL',
         });
         const res3 = http.post(
-            `${BASE_URL}/clubs/${clubId}/feeds`,
+            `${BASE_URL}/api/v1/clubs/${clubId}/feeds`,
             feedPayload,
             { headers }
         );
@@ -381,7 +381,7 @@ export function journeyLeader() {
         // Step 4: 일정 참여자 확인
         const scheduleId = ((user.userId - 1) % 5000) + 1;
         const res4 = http.get(
-            `${BASE_URL}/clubs/${clubId}/schedules/${scheduleId}/users`,
+            `${BASE_URL}/api/v1/clubs/${clubId}/schedules/${scheduleId}/users`,
             { headers }
         );
         if (stepCheck(res4, 'check participants', [200, 404])) stepsCompleted++;
@@ -393,7 +393,7 @@ export function journeyLeader() {
         });
         const res5 = http.request(
             'PATCH',
-            `${BASE_URL}/clubs/${clubId}`,
+            `${BASE_URL}/api/v1/clubs/${clubId}`,
             updatePayload,
             { headers }
         );

@@ -162,7 +162,7 @@ export function backgroundLoad() {
         if (action < 0.3) {
             // 30%: 일정 목록
             const res = http.get(
-                `${BASE_URL}/clubs/${clubId}/schedules`,
+                `${BASE_URL}/api/v1/clubs/${clubId}/schedules`,
                 { headers }
             );
             check(res, { 'bg schedule list: 200': (r) => r.status === 200 });
@@ -171,7 +171,7 @@ export function backgroundLoad() {
         } else if (action < 0.6) {
             // 30%: 피드 목록
             const res = http.get(
-                `${BASE_URL}/clubs/${clubId}/feeds?page=0&size=20`,
+                `${BASE_URL}/api/v1/clubs/${clubId}/feeds?page=0&size=20`,
                 { headers }
             );
             check(res, { 'bg feed list: 200': (r) => r.status === 200 });
@@ -180,7 +180,7 @@ export function backgroundLoad() {
         } else if (action < 0.8) {
             // 20%: 알림
             const res = http.get(
-                `${BASE_URL}/notifications?size=20`,
+                `${BASE_URL}/api/v1/notifications?size=20`,
                 { headers }
             );
             check(res, { 'bg notifications: 200': (r) => r.status === 200 });
@@ -189,7 +189,7 @@ export function backgroundLoad() {
         } else {
             // 20%: 인기 피드
             const res = http.get(
-                `${BASE_URL}/feeds/popular?page=0&size=20`,
+                `${BASE_URL}/api/v1/feeds/popular?page=0&size=20`,
                 { headers }
             );
             check(res, { 'bg popular: 200': (r) => r.status === 200 });
@@ -237,13 +237,13 @@ export function triggerBatch() {
         const clubId = (i % 10000) + 1;
 
         // 일정 목록 조회 (배치가 UPDATE하는 동일 테이블)
-        http.get(`${BASE_URL}/clubs/${clubId}/schedules`, { headers });
+        http.get(`${BASE_URL}/api/v1/clubs/${clubId}/schedules`, { headers });
 
         // 일정 참여 시도 (row lock 경합 시뮬레이션)
         const scheduleId = (i % 5000) + 1;
         http.request(
             'PATCH',
-            `${BASE_URL}/clubs/${clubId}/schedules/${scheduleId}/users`,
+            `${BASE_URL}/api/v1/clubs/${clubId}/schedules/${scheduleId}/users`,
             null,
             { headers }
         );
@@ -270,7 +270,7 @@ export function batchMonitor() {
     group('Batch Monitor', () => {
         // 배치 영향을 받는 일정 관련 API 집중 호출
         const res1 = http.get(
-            `${BASE_URL}/clubs/${clubId}/schedules`,
+            `${BASE_URL}/api/v1/clubs/${clubId}/schedules`,
             { headers }
         );
 

@@ -206,7 +206,7 @@ export function walletHoldContention() {
     group('Wallet Hold Contention', () => {
         const res = http.request(
             'PATCH',
-            `${BASE_URL}/clubs/${schedule.clubId}/schedules/${schedule.scheduleId}/users`,
+            `${BASE_URL}/api/v1/clubs/${schedule.clubId}/schedules/${schedule.scheduleId}/users`,
             null,
             { headers }
         );
@@ -250,7 +250,7 @@ export function scheduleJoinLeaveCycle() {
         // 참여
         const joinRes = http.request(
             'PATCH',
-            `${BASE_URL}/clubs/${schedule.clubId}/schedules/${schedule.scheduleId}/users`,
+            `${BASE_URL}/api/v1/clubs/${schedule.clubId}/schedules/${schedule.scheduleId}/users`,
             null,
             { headers }
         );
@@ -264,7 +264,7 @@ export function scheduleJoinLeaveCycle() {
 
         // 탈퇴
         const leaveRes = http.del(
-            `${BASE_URL}/clubs/${schedule.clubId}/schedules/${schedule.scheduleId}/users`,
+            `${BASE_URL}/api/v1/clubs/${schedule.clubId}/schedules/${schedule.scheduleId}/users`,
             null,
             { headers }
         );
@@ -290,7 +290,7 @@ export function scheduleListNPlusOne() {
 
     group('Schedule List N+1', () => {
         const res = http.get(
-            `${BASE_URL}/clubs/${clubId}/schedules`,
+            `${BASE_URL}/api/v1/clubs/${clubId}/schedules`,
             { headers }
         );
 
@@ -319,7 +319,7 @@ export function walletTransactionRead() {
         const pages = [0, 1, 2];
         for (const page of pages) {
             const res = http.get(
-                `${BASE_URL}/users/wallet?page=${page}&size=20`,
+                `${BASE_URL}/api/v1/users/wallet?page=${page}&size=20`,
                 { headers }
             );
 
@@ -345,7 +345,7 @@ export function concurrentScheduleDelete() {
 
     group('Concurrent Schedule Delete', () => {
         const res = http.del(
-            `${BASE_URL}/clubs/${schedule.clubId}/schedules/${schedule.scheduleId}`,
+            `${BASE_URL}/api/v1/clubs/${schedule.clubId}/schedules/${schedule.scheduleId}`,
             null,
             { headers }
         );
@@ -380,7 +380,7 @@ export function mixedScheduleWorkflow() {
         if (action < 0.3) {
             // 30%: 일정 목록 조회
             const res = http.get(
-                `${BASE_URL}/clubs/${clubId}/schedules`,
+                `${BASE_URL}/api/v1/clubs/${clubId}/schedules`,
                 { headers }
             );
             validateResponse(res, 200, 'mixed_schedule_list');
@@ -389,7 +389,7 @@ export function mixedScheduleWorkflow() {
             // 20%: 일정 참여
             const res = http.request(
                 'PATCH',
-                `${BASE_URL}/clubs/${clubId}/schedules/${schedule.scheduleId}/users`,
+                `${BASE_URL}/api/v1/clubs/${clubId}/schedules/${schedule.scheduleId}/users`,
                 null,
                 { headers }
             );
@@ -401,7 +401,7 @@ export function mixedScheduleWorkflow() {
         } else if (action < 0.7) {
             // 20%: 일정 탈퇴
             const res = http.del(
-                `${BASE_URL}/clubs/${clubId}/schedules/${schedule.scheduleId}/users`,
+                `${BASE_URL}/api/v1/clubs/${clubId}/schedules/${schedule.scheduleId}/users`,
                 null,
                 { headers }
             );
@@ -413,7 +413,7 @@ export function mixedScheduleWorkflow() {
         } else if (action < 0.85) {
             // 15%: 지갑 거래내역
             const res = http.get(
-                `${BASE_URL}/users/wallet?page=0&size=20`,
+                `${BASE_URL}/api/v1/users/wallet?page=0&size=20`,
                 { headers }
             );
             validateResponse(res, 200, 'mixed_wallet');
@@ -421,7 +421,7 @@ export function mixedScheduleWorkflow() {
         } else {
             // 15%: 일정 상세
             const res = http.get(
-                `${BASE_URL}/clubs/${clubId}/schedules/${schedule.scheduleId}`,
+                `${BASE_URL}/api/v1/clubs/${clubId}/schedules/${schedule.scheduleId}`,
                 { headers }
             );
             check(res, {

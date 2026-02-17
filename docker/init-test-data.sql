@@ -967,6 +967,38 @@ DELIMITER ;
 -- | message         | 1,000,000   |
 -- | wallet          | 10,000      |
 -- | notification    | 10,000,000  |
+
+-- ============================================
+-- 20. 결제 부하 테스트 전용 경량 시딩
+-- ============================================
+-- User + Wallet만 생성 (다른 도메인 데이터 불필요)
+-- k6 JWT: kakaoId = 10000000 + userId, sub = userId
+-- 소요 시간: ~10초
+-- ============================================
+DROP PROCEDURE IF EXISTS setup_payment_load_test_data;
+
+DELIMITER //
+CREATE PROCEDURE setup_payment_load_test_data()
+BEGIN
+    DECLARE start_time DATETIME DEFAULT NOW();
+
+    SELECT '=== Payment Load Test Data Setup ===' AS status;
+
+    -- 1. 테스트 유저 10,000명
+    SELECT '>>> 1/2: Users 10,000...' AS step;
+    CALL insert_test_users(10000);
+
+    -- 2. 지갑 10,000개 (초기 잔액 100,000)
+    SELECT '>>> 2/2: Wallets 10,000...' AS step;
+    CALL insert_test_wallets(10000);
+
+    SELECT CONCAT('=== Payment data ready! Duration: ',
+        TIMESTAMPDIFF(SECOND, start_time, NOW()), 's ===') AS status;
+
+    SELECT 'Users' AS entity, COUNT(*) AS count FROM `user`
+    UNION ALL SELECT 'Wallets', COUNT(*) FROM wallet;
+END //
+DELIMITER ;
 -- |-----------------|-------------|
 -- | 합계            | ~12,355,000 |
 --

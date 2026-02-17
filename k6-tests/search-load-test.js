@@ -194,7 +194,7 @@ export function teammatesQueryStress() {
 
     group('Teammates Query Stress', () => {
         const res = http.get(
-            `${BASE_URL}/search/teammates-clubs`,
+            `${BASE_URL}/api/v1/search/teammates-clubs`,
             { headers }
         );
 
@@ -227,7 +227,7 @@ export function esKeywordSearch() {
     const keyword = getRandomKeyword();
 
     const res = http.get(
-        `${BASE_URL}/search?keyword=${encodeURIComponent(keyword)}&page=0&size=20`,
+        `${BASE_URL}/api/v1/search?keyword=${encodeURIComponent(keyword)}&page=0&size=20`,
         { headers }
     );
 
@@ -259,7 +259,7 @@ export function recommendationFallback() {
 
     group('Recommendation Fallback', () => {
         const res = http.get(
-            `${BASE_URL}/search/recommendations`,
+            `${BASE_URL}/api/v1/search/recommendations`,
             { headers }
         );
 
@@ -292,7 +292,7 @@ export function hybridSearchMixed() {
             // 35%: ES 키워드 검색
             const keyword = getRandomKeyword();
             const res = http.get(
-                `${BASE_URL}/search?keyword=${encodeURIComponent(keyword)}&page=0&size=20`,
+                `${BASE_URL}/api/v1/search?keyword=${encodeURIComponent(keyword)}&page=0&size=20`,
                 { headers }
             );
             check(res, { 'hybrid ES: status 200': (r) => r.status === 200 });
@@ -300,7 +300,7 @@ export function hybridSearchMixed() {
         } else if (action < 0.6) {
             // 25%: Teammates
             const res = http.get(
-                `${BASE_URL}/search/teammates-clubs`,
+                `${BASE_URL}/api/v1/search/teammates-clubs`,
                 { headers }
             );
             check(res, { 'hybrid teammates: status 200': (r) => r.status === 200 });
@@ -308,7 +308,7 @@ export function hybridSearchMixed() {
         } else if (action < 0.8) {
             // 20%: 추천
             const res = http.get(
-                `${BASE_URL}/search/recommendations`,
+                `${BASE_URL}/api/v1/search/recommendations`,
                 { headers }
             );
             check(res, { 'hybrid recommendations: status 200': (r) => r.status === 200 });
@@ -317,7 +317,7 @@ export function hybridSearchMixed() {
             // 20%: Interest 필터
             const category = getRandomCategory();
             const res = http.get(
-                `${BASE_URL}/search/interests?category=${category}&page=0&size=20`,
+                `${BASE_URL}/api/v1/search/interests?category=${category}&page=0&size=20`,
                 { headers }
             );
             check(res, { 'hybrid interest: status 200': (r) => r.status === 200 });
@@ -343,7 +343,7 @@ export function mysqlFilterSearch() {
             // 50%: Interest 필터
             const category = getRandomCategory();
             const res = http.get(
-                `${BASE_URL}/search/interests?category=${category}&page=0&size=20`,
+                `${BASE_URL}/api/v1/search/interests?category=${category}&page=0&size=20`,
                 { headers }
             );
             check(res, {
@@ -354,7 +354,7 @@ export function mysqlFilterSearch() {
             // 50%: Location 필터
             const city = getRandomCity();
             const res = http.get(
-                `${BASE_URL}/search/locations?city=${encodeURIComponent(city)}&page=0&size=20`,
+                `${BASE_URL}/api/v1/search/locations?city=${encodeURIComponent(city)}&page=0&size=20`,
                 { headers }
             );
             check(res, {
