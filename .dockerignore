@@ -1,0 +1,9 @@
+.git
+.gradle
+**/build
+k6-results
+k6-tests
+*.md
+.env
+.env.example
+.idea
