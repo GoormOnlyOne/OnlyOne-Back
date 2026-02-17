@@ -1,0 +1,160 @@
+package com.example.onlyone.domain.chat.event;
+
+import com.example.onlyone.common.event.ScheduleCreatedEvent;
+import com.example.onlyone.common.event.ScheduleDeletedEvent;
+import com.example.onlyone.common.event.ScheduleJoinedEvent;
+import com.example.onlyone.common.event.ScheduleLeftEvent;
+import com.example.onlyone.domain.chat.entity.ChatRole;
+import com.example.onlyone.domain.chat.entity.ChatRoom;
+import com.example.onlyone.domain.chat.entity.ChatRoomType;
+import com.example.onlyone.domain.chat.entity.UserChatRoom;
+import com.example.onlyone.domain.chat.repository.ChatRoomRepository;
+import com.example.onlyone.domain.chat.repository.UserChatRoomRepository;
+import com.example.onlyone.domain.club.entity.Club;
+import com.example.onlyone.domain.club.repository.ClubRepository;
+import com.example.onlyone.domain.user.entity.User;
+import com.example.onlyone.domain.user.repository.UserRepository;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Propagation;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.event.TransactionPhase;
+import org.springframework.transaction.event.TransactionalEventListener;
+
+/**
+ * Schedule 이벤트 리스너 (Chat 도메인)
+ * - ScheduleCreatedEvent를 구독하여 일정 전용 채팅방 생성
+ */
+@Slf4j
+@Component
+@RequiredArgsConstructor
+public class ChatScheduleEventListener {
+
+    private final ChatRoomRepository chatRoomRepository;
+    private final UserChatRoomRepository userChatRoomRepository;
+    private final ClubRepository clubRepository;
+    private final UserRepository userRepository;
+
+    /**
+     * 일정 생성 이벤트 처리
+     * - 일정 전용 채팅방 생성
+     * - 일정 생성자(리더)를 채팅방에 추가
+     */
+    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void handleScheduleCreatedEvent(ScheduleCreatedEvent event) {
+        log.info("[Event.Received] type=ScheduleCreatedEvent, scheduleId={}, scheduleName={}", event.scheduleId(), event.scheduleName());
+
+        try {
+            Club club = clubRepository.findById(event.clubId())
+                    .orElseThrow(() -> new IllegalArgumentException("Club not found: " + event.clubId()));
+
+            User user = userRepository.findById(event.leaderUserId())
+                    .orElseThrow(() -> new IllegalArgumentException("User not found: " + event.leaderUserId()));
+
+            // 일정 전용 채팅방 생성
+            ChatRoom chatRoom = ChatRoom.builder()
+                    .club(club)
+                    .scheduleId(event.scheduleId())
+                    .type(ChatRoomType.SCHEDULE)
+                    .build();
+            chatRoomRepository.save(chatRoom);
+
+            // 일정 생성자(리더)를 채팅방에 추가
+            UserChatRoom userChatRoom = UserChatRoom.builder()
+                    .chatRoom(chatRoom)
+                    .user(user)
+                    .chatRole(ChatRole.LEADER)
+                    .build();
+            userChatRoomRepository.save(userChatRoom);
+
+            log.info("[Event.Completed] type=ScheduleCreatedEvent, scheduleId={}, chatRoomId={}", event.scheduleId(), chatRoom.getChatRoomId());
+        } catch (Exception e) {
+            log.error("[Event.Failed] type=ScheduleCreatedEvent, scheduleId={}", event.scheduleId(), e);
+            throw e;
+        }
+    }
+
+    /**
+     * 일정 참여 이벤트 처리
+     * - 참여자를 일정 채팅방에 추가
+     */
+    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void handleScheduleJoinedEvent(ScheduleJoinedEvent event) {
+        log.info("[Event.Received] type=ScheduleJoinedEvent, scheduleId={}, userId={}", event.scheduleId(), event.userId());
+
+        try {
+            ChatRoom chatRoom = chatRoomRepository.findByTypeAndScheduleId(ChatRoomType.SCHEDULE, event.scheduleId())
+                    .orElseThrow(() -> new IllegalArgumentException("ChatRoom not found for scheduleId: " + event.scheduleId()));
+
+            User user = userRepository.findById(event.userId())
+                    .orElseThrow(() -> new IllegalArgumentException("User not found: " + event.userId()));
+
+            // 참여자를 채팅방에 추가
+            UserChatRoom userChatRoom = UserChatRoom.builder()
+                    .chatRoom(chatRoom)
+                    .user(user)
+                    .chatRole(ChatRole.MEMBER)
+                    .build();
+            userChatRoomRepository.save(userChatRoom);
+
+            log.info("[Event.Completed] type=ScheduleJoinedEvent, scheduleId={}, userId={}, chatRoomId={}",
+                    event.scheduleId(), event.userId(), chatRoom.getChatRoomId());
+        } catch (Exception e) {
+            log.error("[Event.Failed] type=ScheduleJoinedEvent, scheduleId={}, userId={}", event.scheduleId(), event.userId(), e);
+            throw e;
+        }
+    }
+
+    /**
+     * 일정 참여 취소 이벤트 처리
+     * - 참여자를 일정 채팅방에서 제거
+     */
+    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void handleScheduleLeftEvent(ScheduleLeftEvent event) {
+        log.info("[Event.Received] type=ScheduleLeftEvent, scheduleId={}, userId={}", event.scheduleId(), event.userId());
+
+        try {
+            ChatRoom chatRoom = chatRoomRepository.findByTypeAndScheduleId(ChatRoomType.SCHEDULE, event.scheduleId())
+                    .orElseThrow(() -> new IllegalArgumentException("ChatRoom not found for scheduleId: " + event.scheduleId()));
+
+            UserChatRoom userChatRoom = userChatRoomRepository.findByUserUserIdAndChatRoomChatRoomId(
+                            event.userId(), chatRoom.getChatRoomId())
+                    .orElseThrow(() -> new IllegalArgumentException(
+                            "UserChatRoom not found: userId=" + event.userId() + ", chatRoomId=" + chatRoom.getChatRoomId()));
+
+            userChatRoomRepository.delete(userChatRoom);
+
+            log.info("[Event.Completed] type=ScheduleLeftEvent, scheduleId={}, userId={}", event.scheduleId(), event.userId());
+        } catch (Exception e) {
+            log.error("[Event.Failed] type=ScheduleLeftEvent, scheduleId={}, userId={}", event.scheduleId(), event.userId(), e);
+            throw e;
+        }
+    }
+
+    /**
+     * 일정 삭제 이벤트 처리
+     * - 일정 전용 채팅방과 모든 참여자 삭제
+     */
+    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void handleScheduleDeletedEvent(ScheduleDeletedEvent event) {
+        log.info("[Event.Received] type=ScheduleDeletedEvent, scheduleId={}", event.scheduleId());
+
+        try {
+            ChatRoom chatRoom = chatRoomRepository.findByTypeAndScheduleId(ChatRoomType.SCHEDULE, event.scheduleId())
+                    .orElseThrow(() -> new IllegalArgumentException("ChatRoom not found for scheduleId: " + event.scheduleId()));
+
+            // 채팅방 삭제 (cascade로 UserChatRoom도 함께 삭제됨)
+            chatRoomRepository.delete(chatRoom);
+
+            log.info("[Event.Completed] type=ScheduleDeletedEvent, scheduleId={}, chatRoomId={}", event.scheduleId(), chatRoom.getChatRoomId());
+        } catch (Exception e) {
+            log.error("[Event.Failed] type=ScheduleDeletedEvent, scheduleId={}", event.scheduleId(), e);
+            throw e;
+        }
+    }
+}

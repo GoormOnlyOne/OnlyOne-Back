@@ -3,3 +3,23 @@ plugins {
 }
 
 rootProject.name = 'onlyone'
+
+// 공통 모듈
+include 'onlyone-common'
+include 'onlyone-security'
+include 'onlyone-infra'
+
+// 도메인 모듈
+include 'onlyone-domain-user'
+include 'onlyone-domain-notification'
+include 'onlyone-domain-club'
+include 'onlyone-domain-chat'
+include 'onlyone-domain-feed'
+include 'onlyone-domain-finance'  // payment + wallet + settlement 통합
+include 'onlyone-domain-schedule'
+include 'onlyone-domain-interest'
+include 'onlyone-domain-search'
+include 'onlyone-domain-image'
+
+// API 모듈 (메인 애플리케이션)
+include 'onlyone-api'

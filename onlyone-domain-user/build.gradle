@@ -1,0 +1,95 @@
+plugins {
+    id 'java'
+    id 'java-library'
+    id 'java-test-fixtures'
+    id 'org.springframework.boot' version '3.5.4'
+    id 'io.spring.dependency-management' version '1.1.7'
+}
+
+group = 'com.example'
+version = '0.0.1-SNAPSHOT'
+
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(21)
+    }
+}
+
+repositories {
+    mavenCentral()
+}
+
+ext {
+    set('querydslVersion', '5.1.0')
+}
+
+dependencies {
+    // 공통 모듈 의존성
+    api project(':onlyone-common')
+    api project(':onlyone-security')
+
+    // 도메인 간 의존성
+    api project(':onlyone-domain-interest')
+    // compileOnly project(':onlyone-domain-finance')  // 순환 의존성 방지 - API 모듈에서 주입
+    // compileOnly project(':onlyone-domain-settlement')  // 순환 의존성 방지 - API 모듈에서 주입
+
+    // Spring Boot Starters
+    api 'org.springframework.boot:spring-boot-starter-data-jpa'
+    api 'org.springframework.boot:spring-boot-starter-validation'
+    api 'org.springframework.boot:spring-boot-starter-web'
+    api 'org.springframework.boot:spring-boot-starter-data-redis'
+
+    // QueryDSL
+    implementation "com.querydsl:querydsl-jpa:${querydslVersion}:jakarta"
+    annotationProcessor "com.querydsl:querydsl-apt:${querydslVersion}:jakarta"
+    annotationProcessor 'jakarta.annotation:jakarta.annotation-api'
+    annotationProcessor 'jakarta.persistence:jakarta.persistence-api'
+
+    // Database
+    runtimeOnly 'com.mysql:mysql-connector-j'
+    runtimeOnly 'com.h2database:h2'
+
+    // Lombok
+    compileOnly 'org.projectlombok:lombok'
+    annotationProcessor 'org.projectlombok:lombok'
+    testCompileOnly 'org.projectlombok:lombok'
+    testAnnotationProcessor 'org.projectlombok:lombok'
+
+    // Test
+    testImplementation 'org.springframework.boot:spring-boot-starter-test'
+    testImplementation 'com.h2database:h2'
+}
+
+// QueryDSL 설정
+def querydslDir = layout.buildDirectory.dir('generated/querydsl')
+
+tasks.withType(JavaCompile).configureEach {
+    options.generatedSourceOutputDirectory = querydslDir
+    options.compilerArgs += ["--enable-preview"]
+}
+
+sourceSets {
+    main {
+        java {
+            srcDirs += [querydslDir]
+        }
+    }
+}
+
+clean {
+    delete querydslDir
+}
+
+tasks.named('test') {
+    useJUnitPlatform()
+    jvmArgs += "--enable-preview"
+}
+
+// Boot JAR 생성하지 않음 (라이브러리 모듈)
+tasks.named('bootJar') {
+    enabled = false
+}
+
+tasks.named('jar') {
+    enabled = true
+}
