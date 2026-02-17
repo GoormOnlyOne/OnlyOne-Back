@@ -17,11 +17,10 @@ import com.example.onlyone.global.exception.ErrorCode;
 // import com.example.onlyone.sse.service.SseEmittersService;
 import com.example.onlyone.sse.service.SseEventSender;
 import jakarta.annotation.PreDestroy;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 // Redis 캐시 제거 (부하 테스트에서 역효과 확인 - 높은 유저 카디널리티 + 낮은 히트율)
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.ApplicationEventPublisher;
-import org.springframework.scheduling.annotation.Async;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -32,10 +31,7 @@ import org.springframework.transaction.event.TransactionPhase;
 import org.springframework.transaction.event.TransactionalEventListener;
 
 import java.util.*;
-import java.util.concurrent.BlockingQueue;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.*;
 import java.util.stream.Collectors;
 
 /**
@@ -47,22 +43,35 @@ import java.util.stream.Collectors;
  * - Spring Security를 통한 자동 사용자 인증
  */
 @Service
-@RequiredArgsConstructor
 @Slf4j
 public class NotificationService {
 
     private final NotificationRepository notificationRepository;
     private final ApplicationEventPublisher eventPublisher;
-    // TODO: SseEmittersService를 SseEventSender로 대체 필요
-    // private final SseEmittersService sseEventSender;
     private final SseEventSender sseEventSender;
 
-    // ========== 배치 처리 필드 ==========
+    // ========== 배치 처리 설정 (application.yml에서 조정 가능) ==========
+
+    @Value("${app.notification.batch-size:10}")
+    private int batchSize;
+
+    @Value("${app.notification.max-queue-size-per-user:100}")
+    private int maxQueueSizePerUser;
+
+    @Value("${app.notification.batch-timeout-seconds:5}")
+    private int batchTimeoutSeconds;
 
     private final Map<Long, BlockingQueue<Notification>> userNotificationQueues = new ConcurrentHashMap<>();
-    private static final int MAX_QUEUE_SIZE_PER_USER = 100;
-    private static final int BATCH_SIZE = 10;
     private volatile boolean shuttingDown = false;
+    private volatile CompletableFuture<Void> currentBatchFuture = CompletableFuture.completedFuture(null);
+
+    public NotificationService(NotificationRepository notificationRepository,
+                               ApplicationEventPublisher eventPublisher,
+                               SseEventSender sseEventSender) {
+        this.notificationRepository = notificationRepository;
+        this.eventPublisher = eventPublisher;
+        this.sseEventSender = sseEventSender;
+    }
 
     // ========== PUBLIC API - 컨트롤러용 (DTO 기반) ==========
 
@@ -138,7 +147,9 @@ public class NotificationService {
                 "activeUsers", userNotificationQueues.size(),
                 "totalQueuedNotifications", totalQueueSize,
                 "averageQueueSize", userNotificationQueues.isEmpty() ? 0 :
-                        totalQueueSize / (double) userNotificationQueues.size()
+                        totalQueueSize / (double) userNotificationQueues.size(),
+                "batchSize", batchSize,
+                "maxQueueSizePerUser", maxQueueSizePerUser
         );
     }
 
@@ -187,7 +198,7 @@ public class NotificationService {
         }
 
         BlockingQueue<Notification> userQueue = userNotificationQueues.computeIfAbsent(
-                userId, k -> new LinkedBlockingQueue<>(MAX_QUEUE_SIZE_PER_USER)
+                userId, k -> new LinkedBlockingQueue<>(maxQueueSizePerUser)
         );
 
         if (!userQueue.offer(notification)) {
@@ -200,16 +211,23 @@ public class NotificationService {
     }
 
     /**
-     * 50ms 주기로 배치 처리 실행
-     * 지연 최소화를 위한 고빈도 스케줄링
+     * 배치 처리 주기 실행
+     * 이전 배치가 완료된 후에만 다음 배치 실행 (백프레셔)
      */
-    @Scheduled(fixedDelayString = "${app.notification.batch-processing-interval:50}")
+    @Scheduled(fixedDelayString = "${app.notification.batch-processing-interval:100}")
     public void processBatchNotifications() {
         if (shuttingDown || userNotificationQueues.isEmpty()) {
             return;
         }
 
+        // 이전 배치가 아직 진행 중이면 스킵 (백프레셔)
+        if (!currentBatchFuture.isDone()) {
+            log.debug("이전 배치 진행 중, 스킵");
+            return;
+        }
+
         int totalProcessed = 0;
+        List<CompletableFuture<Void>> userFutures = new ArrayList<>();
         List<Map.Entry<Long, BlockingQueue<Notification>>> entries =
                 new ArrayList<>(userNotificationQueues.entrySet());
 
@@ -224,7 +242,7 @@ public class NotificationService {
             }
 
             List<Notification> batch = new ArrayList<>();
-            for (int i = 0; i < BATCH_SIZE && !queue.isEmpty(); i++) {
+            for (int i = 0; i < batchSize && !queue.isEmpty(); i++) {
                 Notification notification = queue.poll();
                 if (notification != null) {
                     batch.add(notification);
@@ -232,7 +250,7 @@ public class NotificationService {
             }
 
             if (!batch.isEmpty()) {
-                processBatchForUser(userId, batch);
+                userFutures.add(processBatchForUser(userId, batch));
                 totalProcessed += batch.size();
             }
 
@@ -241,17 +259,25 @@ public class NotificationService {
             }
         }
 
-        if (totalProcessed > 0) {
+        if (!userFutures.isEmpty()) {
+            // 모든 사용자 배치를 추적하여 백프레셔 적용
+            currentBatchFuture = CompletableFuture.allOf(userFutures.toArray(new CompletableFuture[0]))
+                    .orTimeout(batchTimeoutSeconds, TimeUnit.SECONDS)
+                    .exceptionally(ex -> {
+                        log.warn("배치 타임아웃 또는 오류: {}", ex.getMessage());
+                        return null;
+                    });
             log.debug("배치 처리: total={}, activeUsers={}", totalProcessed, userNotificationQueues.size());
         }
     }
 
     /**
-     * 사용자별 알림 배치 비동기 처리
-     * SSE 전송을 병렬로 실행하여 성능 최적화
+     * 사용자별 알림 배치 처리
+     * SSE 전송을 병렬로 실행하고 완료를 실제로 대기
+     *
+     * 주의: private 메서드이므로 @Async/@Transactional 사용 불가 (Spring AOP 프록시 미적용)
+     * CompletableFuture를 통해 비동기 처리
      */
-    @Async("notificationExecutor")
-    @Transactional(propagation = Propagation.REQUIRES_NEW)
     private CompletableFuture<Void> processBatchForUser(Long userId, List<Notification> notifications) {
         try {
             List<CompletableFuture<Boolean>> futures = notifications.stream()
@@ -270,7 +296,7 @@ public class NotificationService {
                     )
                     .collect(Collectors.toList());
 
-            CompletableFuture.allOf(futures.toArray(new CompletableFuture[0]))
+            return CompletableFuture.allOf(futures.toArray(new CompletableFuture[0]))
                     .whenComplete((result, ex) -> {
                         if (ex == null) {
                             log.debug("배치 완료: userId={}, count={}", userId, notifications.size());
@@ -279,16 +305,27 @@ public class NotificationService {
 
         } catch (Exception e) {
             log.warn("배치 처리 실패: userId={}, count={}", userId, notifications.size(), e);
+            return CompletableFuture.completedFuture(null);
         }
-
-        return CompletableFuture.completedFuture(null);
     }
 
     @PreDestroy
     public void shutdown() {
+        log.info("NotificationService 종료 시작");
         shuttingDown = true;
+
+        // 진행 중인 배치 완료 대기
+        try {
+            if (!currentBatchFuture.isDone()) {
+                log.info("진행 중인 배치 완료 대기...");
+                currentBatchFuture.get(batchTimeoutSeconds, TimeUnit.SECONDS);
+            }
+        } catch (Exception e) {
+            log.warn("배치 완료 대기 중 오류: {}", e.getMessage());
+        }
+
         int remaining = userNotificationQueues.values().stream().mapToInt(BlockingQueue::size).sum();
-        log.info("NotificationService 종료: 미처리 알림 {}개", remaining);
+        log.info("NotificationService 종료 완료: 미처리 알림 {}개", remaining);
         userNotificationQueues.clear();
     }
 
