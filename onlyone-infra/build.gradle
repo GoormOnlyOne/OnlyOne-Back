@@ -1,0 +1,95 @@
+plugins {
+    id 'java'
+    id 'java-library'
+    id 'org.springframework.boot' version '3.5.4'
+    id 'io.spring.dependency-management' version '1.1.7'
+}
+
+group = 'com.example'
+version = '0.0.1-SNAPSHOT'
+
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(21)
+    }
+}
+
+repositories {
+    mavenCentral()
+}
+
+ext {
+    set('springCloudVersion', "2025.0.0")
+    set('querydslVersion', '5.1.0')
+}
+
+dependencyManagement {
+    imports {
+        mavenBom "org.springframework.cloud:spring-cloud-dependencies:${springCloudVersion}"
+    }
+}
+
+dependencies {
+    // 공통 모듈 의존성
+    api project(':onlyone-common')
+    api project(':onlyone-security')
+
+    // Spring Boot Starters
+    api 'org.springframework.boot:spring-boot-starter-web'
+    api 'org.springframework.boot:spring-boot-starter-data-jpa'
+
+    // QueryDSL
+    implementation "com.querydsl:querydsl-jpa:${querydslVersion}:jakarta"
+    annotationProcessor "com.querydsl:querydsl-apt:${querydslVersion}:jakarta"
+    annotationProcessor 'jakarta.annotation:jakarta.annotation-api:3.0.0'
+    annotationProcessor 'jakarta.persistence:jakarta.persistence-api:3.2.0'
+
+    // Redis
+    api 'org.springframework.boot:spring-boot-starter-data-redis'
+    api 'org.apache.commons:commons-pool2:2.12.0'
+
+    // Elasticsearch
+    api 'org.springframework.boot:spring-boot-starter-data-elasticsearch'
+
+    // AWS S3
+    api 'software.amazon.awssdk:s3:2.32.11'
+
+    // Firebase FCM
+    api 'com.google.firebase:firebase-admin:9.5.0'
+
+    // Kafka
+    api 'org.springframework.kafka:spring-kafka'
+
+    // OpenFeign
+    api 'org.springframework.cloud:spring-cloud-starter-openfeign:4.2.1'
+    api 'io.github.openfeign:feign-jackson:13.5'
+
+    // WebSocket & SSE
+    api 'org.springframework.boot:spring-boot-starter-websocket'
+
+    // Retry
+    api 'org.springframework.retry:spring-retry'
+    api 'org.springframework:spring-aspects'
+
+    // Lombok
+    compileOnly 'org.projectlombok:lombok'
+    annotationProcessor 'org.projectlombok:lombok'
+    testCompileOnly 'org.projectlombok:lombok'
+    testAnnotationProcessor 'org.projectlombok:lombok'
+
+    // Test
+    testImplementation 'org.springframework.boot:spring-boot-starter-test'
+}
+
+tasks.named('test') {
+    useJUnitPlatform()
+}
+
+// Boot JAR 생성하지 않음 (라이브러리 모듈)
+tasks.named('bootJar') {
+    enabled = false
+}
+
+tasks.named('jar') {
+    enabled = true
+}

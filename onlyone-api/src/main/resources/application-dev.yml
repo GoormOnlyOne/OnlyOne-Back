@@ -1,0 +1,81 @@
+spring:
+  datasource:
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    url: ${DB_URL}
+    username: ${DB_USERNAME}
+    password: ${DB_PASSWORD}
+    hikari:
+      maximum-pool-size: 100
+      minimum-idle: 50
+      connection-timeout: 5000
+      idle-timeout: 300000
+      max-lifetime: 1800000
+      auto-commit: false
+
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate:
+        format_sql: false
+        use_sql_comments: false
+        show_sql: false
+        jdbc:
+          batch_size: 30
+        order_inserts: true
+        order_updates: true
+        connection:
+          provider_disables_autocommit: true
+
+  data:
+    redis:
+      host: ${REDIS_HOST}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:}
+      lettuce:
+        pool:
+          max-active: 50
+          max-idle: 30
+          min-idle: 10
+
+  elasticsearch:
+    uris: ${ELASTICSEARCH_URIS}
+    username: ${ELASTICSEARCH_USERNAME:elastic}
+    password: ${ELASTICSEARCH_PASSWORD}
+
+  cache:
+    type: redis
+    redis:
+      time-to-live: 600000
+
+logging:
+  level:
+    root: INFO
+    com.example.onlyone: INFO
+    org.hibernate.SQL: INFO
+    org.springframework.web: INFO
+    org.springframework.security: INFO
+
+server:
+  port: ${SERVER_PORT:8080}
+  tomcat:
+    threads:
+      max: 400
+      min-spare: 20
+
+aws:
+  s3:
+    region: ${AWS_S3_REGION:ap-northeast-2}
+    bucket: ${AWS_S3_BUCKET}
+  cloudfront:
+    domain: ${AWS_CLOUDFRONT_DOMAIN}
+
+Kakao:
+  redirect:
+    uri: ${KAKAO_REDIRECT_URI}
+
+app:
+  rate-limit:
+    enabled: true
+    requests-per-minute: 60
+    auth-requests-per-30s: 10

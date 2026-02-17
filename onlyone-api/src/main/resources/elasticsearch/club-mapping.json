@@ -1,0 +1,48 @@
+{
+  "properties": {
+    "clubId": {
+      "type": "long"
+    },
+    "name": {
+      "type": "text",
+      "analyzer": "nori",
+      "search_analyzer": "club_analyzer",
+      "fields": {
+        "keyword": {
+          "type": "keyword"
+        }
+      }
+    },
+    "description": {
+      "type": "text",
+      "analyzer": "nori",
+      "search_analyzer": "club_analyzer"
+    },
+    "city": {
+      "type": "keyword"
+    },
+    "district": {
+      "type": "keyword"
+    },
+    "clubImage": {
+      "type": "keyword",
+      "index": false
+    },
+    "memberCount": {
+      "type": "long"
+    },
+    "interestId": {
+      "type": "long"
+    },
+    "interestCategory": {
+      "type": "keyword"
+    },
+    "interestKoreanName": {
+      "type": "keyword"
+    },
+    "createdAt": {
+      "type": "date",
+      "format": "yyyy-MM-dd'T'HH:mm:ss.SSSSSS||yyyy-MM-dd'T'HH:mm:ss.SSS||yyyy-MM-dd'T'HH:mm:ss"
+    },
+  }
+}

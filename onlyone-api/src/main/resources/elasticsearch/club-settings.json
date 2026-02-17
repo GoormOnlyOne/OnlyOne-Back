@@ -1,0 +1,49 @@
+{
+  "number_of_shards": 1,
+  "number_of_replicas": 1,
+  "max_result_window": 50000,
+  "analysis": {
+    "tokenizer": {
+      "nori_tokenizer": {
+        "type": "nori_tokenizer",
+        "decompound_mode": "mixed"
+      }
+    },
+    "filter": {
+      "nori_part_of_speech": {
+        "type": "nori_part_of_speech",
+        "stoptags": ["E", "IC", "J", "MAG", "MAJ", "MM", "SP", "SSC", "SSO", "SC", "SE", "XPN", "XSA", "XSN", "XSV", "UNA", "NA", "VSV"]
+      },
+      "club_stopwords": {
+        "type": "stop",
+        "stopwords_path": "analysis/club-stopwords.txt"
+      },
+      "club_synonyms": {
+        "type": "synonym",
+        "synonyms_path": "analysis/club-synonyms.txt",
+        "updateable": true,
+        "lenient": true
+      }
+    },
+    "analyzer": {
+      "nori": {
+        "type": "custom",
+        "tokenizer": "nori_tokenizer",
+        "filter": [
+          "nori_part_of_speech",
+          "lowercase"
+        ]
+      },
+      "club_analyzer": {
+        "type": "custom",
+        "tokenizer": "nori_tokenizer",
+        "filter": [
+          "nori_part_of_speech",
+          "lowercase",
+          "club_synonyms",
+          "club_stopwords"
+        ]
+      }
+    }
+  }
+}
