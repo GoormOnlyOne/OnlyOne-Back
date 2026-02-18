@@ -1,0 +1,138 @@
+{
+  "annotations": { "list": [] },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "links": [],
+  "panels": [
+    {
+      "title": "Cluster Health Status",
+      "type": "stat",
+      "gridPos": { "h": 6, "w": 8, "x": 0, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "" },
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [
+            { "options": { "0": { "text": "RED" }, "1": { "text": "YELLOW" }, "2": { "text": "GREEN" } }, "type": "value" }
+          ],
+          "thresholds": {
+            "steps": [
+              { "color": "red", "value": null },
+              { "color": "yellow", "value": 1 },
+              { "color": "green", "value": 2 }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "targets": [
+        { "expr": "elasticsearch_cluster_health_status{color=\"green\"} * 2 + elasticsearch_cluster_health_status{color=\"yellow\"}", "legendFormat": "Status", "instant": true }
+      ]
+    },
+    {
+      "title": "Active Shards / Nodes",
+      "type": "stat",
+      "gridPos": { "h": 6, "w": 8, "x": 8, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "" },
+      "fieldConfig": { "defaults": { "unit": "short" }, "overrides": [] },
+      "targets": [
+        { "expr": "elasticsearch_cluster_health_active_shards", "legendFormat": "Active Shards" },
+        { "expr": "elasticsearch_cluster_health_number_of_nodes", "legendFormat": "Nodes" }
+      ]
+    },
+    {
+      "title": "Pending Tasks",
+      "type": "stat",
+      "gridPos": { "h": 6, "w": 8, "x": 16, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "" },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": {
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 5 },
+              { "color": "red", "value": 20 }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "targets": [
+        { "expr": "elasticsearch_cluster_health_number_of_pending_tasks", "legendFormat": "Pending Tasks", "instant": true }
+      ]
+    },
+    {
+      "title": "Indexing Rate",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 6 },
+      "datasource": { "type": "prometheus", "uid": "" },
+      "fieldConfig": { "defaults": { "unit": "ops" }, "overrides": [] },
+      "targets": [
+        { "expr": "rate(elasticsearch_indices_indexing_index_total[1m])", "legendFormat": "Index/s" },
+        { "expr": "rate(elasticsearch_indices_indexing_delete_total[1m])", "legendFormat": "Delete/s" }
+      ]
+    },
+    {
+      "title": "Search Rate",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 6 },
+      "datasource": { "type": "prometheus", "uid": "" },
+      "fieldConfig": { "defaults": { "unit": "ops" }, "overrides": [] },
+      "targets": [
+        { "expr": "rate(elasticsearch_indices_search_query_total[1m])", "legendFormat": "Query/s" },
+        { "expr": "rate(elasticsearch_indices_search_fetch_total[1m])", "legendFormat": "Fetch/s" }
+      ]
+    },
+    {
+      "title": "Search Latency",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 14 },
+      "datasource": { "type": "prometheus", "uid": "" },
+      "fieldConfig": { "defaults": { "unit": "ms" }, "overrides": [] },
+      "targets": [
+        { "expr": "rate(elasticsearch_indices_search_query_time_seconds_total[5m]) / rate(elasticsearch_indices_search_query_total[5m]) * 1000", "legendFormat": "Query Avg (ms)" },
+        { "expr": "rate(elasticsearch_indices_search_fetch_time_seconds_total[5m]) / rate(elasticsearch_indices_search_fetch_total[5m]) * 1000", "legendFormat": "Fetch Avg (ms)" }
+      ]
+    },
+    {
+      "title": "JVM Heap Memory",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 14 },
+      "datasource": { "type": "prometheus", "uid": "" },
+      "fieldConfig": { "defaults": { "unit": "bytes" }, "overrides": [] },
+      "targets": [
+        { "expr": "elasticsearch_jvm_memory_used_bytes{area=\"heap\"}", "legendFormat": "Heap Used" },
+        { "expr": "elasticsearch_jvm_memory_max_bytes{area=\"heap\"}", "legendFormat": "Heap Max" }
+      ]
+    },
+    {
+      "title": "Index Store Size",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 22 },
+      "datasource": { "type": "prometheus", "uid": "" },
+      "fieldConfig": { "defaults": { "unit": "bytes" }, "overrides": [] },
+      "targets": [
+        { "expr": "elasticsearch_indices_store_size_bytes_total", "legendFormat": "Total Store Size" }
+      ]
+    },
+    {
+      "title": "Document Count",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 22 },
+      "datasource": { "type": "prometheus", "uid": "" },
+      "fieldConfig": { "defaults": { "unit": "short" }, "overrides": [] },
+      "targets": [
+        { "expr": "elasticsearch_indices_docs_total", "legendFormat": "Total Docs" },
+        { "expr": "elasticsearch_indices_docs_deleted_total", "legendFormat": "Deleted Docs" }
+      ]
+    }
+  ],
+  "schemaVersion": 39,
+  "tags": ["elasticsearch", "search"],
+  "templating": { "list": [] },
+  "time": { "from": "now-1h", "to": "now" },
+  "title": "Elasticsearch - OnlyOne",
+  "uid": "elasticsearch-onlyone",
+  "version": 1
+}

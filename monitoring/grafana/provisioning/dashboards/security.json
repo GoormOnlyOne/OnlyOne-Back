@@ -1,0 +1,125 @@
+{
+  "annotations": { "list": [] },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "links": [],
+  "panels": [
+    {
+      "title": "JWT Auth Success Rate",
+      "type": "gauge",
+      "gridPos": { "h": 8, "w": 8, "x": 0, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "" },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "min": 0,
+          "max": 1,
+          "thresholds": {
+            "steps": [
+              { "color": "red", "value": null },
+              { "color": "yellow", "value": 0.95 },
+              { "color": "green", "value": 0.99 }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "expr": "rate(security_jwt_auth_total{result=\"success\"}[5m]) / (rate(security_jwt_auth_total{result=\"success\"}[5m]) + rate(security_jwt_auth_total{result=\"failure\"}[5m]) + 1e-10)",
+          "legendFormat": "Success Rate"
+        }
+      ]
+    },
+    {
+      "title": "JWT Auth Rate",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 16, "x": 8, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "" },
+      "fieldConfig": { "defaults": { "unit": "ops" }, "overrides": [] },
+      "targets": [
+        { "expr": "rate(security_jwt_auth_total{result=\"success\"}[1m])", "legendFormat": "JWT Success/s" },
+        { "expr": "rate(security_jwt_auth_total{result=\"failure\"}[1m])", "legendFormat": "JWT Failure/s" },
+        { "expr": "rate(security_jwt_inactive_rejected_total[1m])", "legendFormat": "Inactive Rejected/s" }
+      ]
+    },
+    {
+      "title": "STOMP Auth Success Rate",
+      "type": "gauge",
+      "gridPos": { "h": 8, "w": 8, "x": 0, "y": 8 },
+      "datasource": { "type": "prometheus", "uid": "" },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "min": 0,
+          "max": 1,
+          "thresholds": {
+            "steps": [
+              { "color": "red", "value": null },
+              { "color": "yellow", "value": 0.95 },
+              { "color": "green", "value": 0.99 }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "expr": "rate(security_stomp_auth_total{result=\"success\"}[5m]) / (rate(security_stomp_auth_total{result=\"success\"}[5m]) + rate(security_stomp_auth_total{result=\"failure\"}[5m]) + 1e-10)",
+          "legendFormat": "Success Rate"
+        }
+      ]
+    },
+    {
+      "title": "STOMP Auth Rate",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 16, "x": 8, "y": 8 },
+      "datasource": { "type": "prometheus", "uid": "" },
+      "fieldConfig": { "defaults": { "unit": "ops" }, "overrides": [] },
+      "targets": [
+        { "expr": "rate(security_stomp_auth_total{result=\"success\"}[1m])", "legendFormat": "STOMP Success/s" },
+        { "expr": "rate(security_stomp_auth_total{result=\"failure\"}[1m])", "legendFormat": "STOMP Failure/s" }
+      ]
+    },
+    {
+      "title": "Total Auth Events (JWT + STOMP)",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 16 },
+      "datasource": { "type": "prometheus", "uid": "" },
+      "fieldConfig": { "defaults": { "unit": "ops" }, "overrides": [] },
+      "targets": [
+        { "expr": "sum(rate(security_jwt_auth_total[1m])) + sum(rate(security_stomp_auth_total[1m]))", "legendFormat": "Total Auth/s" },
+        { "expr": "sum(rate(security_jwt_auth_total{result=\"failure\"}[1m])) + sum(rate(security_stomp_auth_total{result=\"failure\"}[1m]))", "legendFormat": "Total Failures/s" }
+      ]
+    },
+    {
+      "title": "Inactive User Rejections (Cumulative)",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 16 },
+      "datasource": { "type": "prometheus", "uid": "" },
+      "fieldConfig": { "defaults": { "unit": "short" }, "overrides": [] },
+      "targets": [
+        { "expr": "security_jwt_inactive_rejected_total", "legendFormat": "Total Rejected" }
+      ]
+    },
+    {
+      "title": "Spring Security - HTTP Auth Errors (401/403)",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 24 },
+      "datasource": { "type": "prometheus", "uid": "" },
+      "fieldConfig": { "defaults": { "unit": "ops" }, "overrides": [] },
+      "targets": [
+        { "expr": "sum(rate(http_server_requests_seconds_count{application=\"onlyone\", status=\"401\"}[1m]))", "legendFormat": "401 Unauthorized/s" },
+        { "expr": "sum(rate(http_server_requests_seconds_count{application=\"onlyone\", status=\"403\"}[1m]))", "legendFormat": "403 Forbidden/s" }
+      ]
+    }
+  ],
+  "schemaVersion": 39,
+  "tags": ["security", "jwt", "authentication"],
+  "templating": { "list": [] },
+  "time": { "from": "now-1h", "to": "now" },
+  "title": "Security & Auth - OnlyOne",
+  "uid": "security-onlyone",
+  "version": 1
+}

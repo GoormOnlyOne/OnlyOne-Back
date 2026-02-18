@@ -1,0 +1,120 @@
+{
+  "annotations": { "list": [] },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "links": [],
+  "panels": [
+    {
+      "title": "Kafka Consumer - Records Consumed Rate",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "" },
+      "fieldConfig": { "defaults": { "unit": "ops" }, "overrides": [] },
+      "targets": [
+        {
+          "expr": "sum(rate(kafka_consumer_fetch_manager_records_consumed_total{application=\"onlyone\"}[1m])) by (client_id)",
+          "legendFormat": "{{client_id}}"
+        }
+      ]
+    },
+    {
+      "title": "Kafka Consumer - Lag (Records Behind)",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "" },
+      "fieldConfig": { "defaults": { "unit": "short" }, "overrides": [] },
+      "targets": [
+        {
+          "expr": "sum(kafka_consumer_fetch_manager_records_lag{application=\"onlyone\"}) by (topic, partition)",
+          "legendFormat": "{{topic}}-{{partition}}"
+        }
+      ]
+    },
+    {
+      "title": "Kafka Consumer - Fetch Rate",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 },
+      "datasource": { "type": "prometheus", "uid": "" },
+      "fieldConfig": { "defaults": { "unit": "ops" }, "overrides": [] },
+      "targets": [
+        {
+          "expr": "sum(rate(kafka_consumer_fetch_manager_fetch_total{application=\"onlyone\"}[1m])) by (client_id)",
+          "legendFormat": "{{client_id}}"
+        }
+      ]
+    },
+    {
+      "title": "Kafka Consumer - Fetch Latency (Avg)",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 8 },
+      "datasource": { "type": "prometheus", "uid": "" },
+      "fieldConfig": { "defaults": { "unit": "ms" }, "overrides": [] },
+      "targets": [
+        {
+          "expr": "kafka_consumer_fetch_manager_fetch_latency_avg{application=\"onlyone\"}",
+          "legendFormat": "{{client_id}}"
+        }
+      ]
+    },
+    {
+      "title": "Kafka Consumer - Commit Rate",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 16 },
+      "datasource": { "type": "prometheus", "uid": "" },
+      "fieldConfig": { "defaults": { "unit": "ops" }, "overrides": [] },
+      "targets": [
+        {
+          "expr": "sum(rate(kafka_consumer_coordinator_commit_total{application=\"onlyone\"}[1m])) by (client_id)",
+          "legendFormat": "{{client_id}}"
+        }
+      ]
+    },
+    {
+      "title": "Kafka Consumer - Bytes Consumed Rate",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 16 },
+      "datasource": { "type": "prometheus", "uid": "" },
+      "fieldConfig": { "defaults": { "unit": "Bps" }, "overrides": [] },
+      "targets": [
+        {
+          "expr": "sum(rate(kafka_consumer_fetch_manager_bytes_consumed_total{application=\"onlyone\"}[1m])) by (client_id)",
+          "legendFormat": "{{client_id}}"
+        }
+      ]
+    },
+    {
+      "title": "Kafka Producer - Record Send Rate",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 24 },
+      "datasource": { "type": "prometheus", "uid": "" },
+      "fieldConfig": { "defaults": { "unit": "ops" }, "overrides": [] },
+      "targets": [
+        {
+          "expr": "sum(rate(kafka_producer_topic_record_send_total{application=\"onlyone\"}[1m])) by (topic)",
+          "legendFormat": "{{topic}}"
+        }
+      ]
+    },
+    {
+      "title": "Kafka Producer - Request Latency (Avg)",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 24 },
+      "datasource": { "type": "prometheus", "uid": "" },
+      "fieldConfig": { "defaults": { "unit": "ms" }, "overrides": [] },
+      "targets": [
+        {
+          "expr": "kafka_producer_request_latency_avg{application=\"onlyone\"}",
+          "legendFormat": "{{client_id}}"
+        }
+      ]
+    }
+  ],
+  "schemaVersion": 39,
+  "tags": ["kafka", "messaging"],
+  "templating": { "list": [] },
+  "time": { "from": "now-1h", "to": "now" },
+  "title": "Kafka - OnlyOne",
+  "uid": "kafka-onlyone",
+  "version": 1
+}
