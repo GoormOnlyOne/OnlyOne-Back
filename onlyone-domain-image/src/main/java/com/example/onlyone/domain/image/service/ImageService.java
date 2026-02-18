@@ -1,5 +1,6 @@
 package com.example.onlyone.domain.image.service;
 
+import com.example.onlyone.domain.image.dto.request.PresignedUrlRequestDto;
 import com.example.onlyone.domain.image.dto.response.PresignedUrlResponseDto;
 import com.example.onlyone.domain.image.entity.ImageFolderType;
 import com.example.onlyone.global.exception.CustomException;
@@ -14,6 +15,7 @@ import software.amazon.awssdk.services.s3.presigner.model.PresignedPutObjectRequ
 import software.amazon.awssdk.services.s3.presigner.model.PutObjectPresignRequest;
 
 import java.time.Duration;
+import java.util.Set;
 import java.util.UUID;
 
 @Slf4j
@@ -30,45 +32,41 @@ public class ImageService {
     private String cloudfrontDomain;
 
     private static final long MAX_IMAGE_SIZE = 5 * 1024 * 1024; // 5MB
+    private static final int PRESIGN_EXPIRY_MINUTES = 10;
+    private static final Set<String> ALLOWED_CONTENT_TYPES = Set.of("image/jpeg", "image/png");
 
-    public PresignedUrlResponseDto generatePresignedUrlWithImageUrl(String imageFolderTypeStr, String originalFileName, String contentType, Long imageSize) {
-        // 이미지 타입 검증
-        ImageFolderType imageFolderType = validateImageFolderType(imageFolderTypeStr);
+    public PresignedUrlResponseDto generatePresignedUrl(String folderType, PresignedUrlRequestDto request) {
+        ImageFolderType folder = ImageFolderType.from(folderType);
+        validateContentType(request.contentType());
+        validateImageSize(request.imageSize());
 
-        // 컨텐츠 타입 검증
-        validateImageContentType(contentType);
-
-        // 이미지 크기 검증
-        validateImageSize(imageSize);
-
-        String fileName = generateFileName(originalFileName);
-        String key = imageFolderType.getFolder() + "/" + fileName;
+        String fileName = generateFileName(request.fileName());
+        String key = folder.getFolder() + "/" + fileName;
 
         PutObjectRequest putObjectRequest = PutObjectRequest.builder()
                 .bucket(bucketName)
                 .key(key)
-                .contentType(contentType)
+                .contentType(request.contentType())
                 .build();
 
         PutObjectPresignRequest presignRequest = PutObjectPresignRequest.builder()
-                .signatureDuration(Duration.ofMinutes(10))
+                .signatureDuration(Duration.ofMinutes(PRESIGN_EXPIRY_MINUTES))
                 .putObjectRequest(putObjectRequest)
                 .build();
 
         PresignedPutObjectRequest presignedRequest = s3Presigner.presignPutObject(presignRequest);
         log.info("Generated presigned URL for file: {}", key);
-        
+
         String presignedUrl = presignedRequest.url().toString();
-        String imageUrl = getImageUrl(imageFolderType, fileName);
-        
+        String imageUrl = buildImageUrl(folder, fileName);
+
         return new PresignedUrlResponseDto(presignedUrl, imageUrl);
     }
 
-    public String getImageUrl(ImageFolderType imageFolderType, String fileName) {
+    private String buildImageUrl(ImageFolderType folder, String fileName) {
         return String.format("https://%s/%s/%s",
-                cloudfrontDomain, imageFolderType.getFolder(), fileName);
+                cloudfrontDomain, folder.getFolder(), fileName);
     }
-
 
     private String generateFileName(String originalFileName) {
         String extension = getFileExtension(originalFileName);
@@ -82,31 +80,16 @@ public class ImageService {
         return fileName.substring(fileName.lastIndexOf("."));
     }
 
-    public ImageFolderType validateImageFolderType(String imageFolderTypeStr) {
-        ImageFolderType imageFolderType = ImageFolderType.fromString(imageFolderTypeStr);
-        if (imageFolderType == null) {
-            throw new CustomException(ErrorCode.INVALID_IMAGE_FOLDER_TYPE);
-        }
-        return imageFolderType;
-    }
-
-    private void validateImageContentType(String contentType) {
-        if (!isValidImageContentType(contentType)) {
+    private void validateContentType(String contentType) {
+        if (contentType == null || !ALLOWED_CONTENT_TYPES.contains(contentType)) {
             throw new CustomException(ErrorCode.INVALID_IMAGE_CONTENT_TYPE);
         }
-    }
-
-    private boolean isValidImageContentType(String contentType) {
-        return contentType != null && (
-                contentType.equals("image/jpeg") || contentType.equals("image/png")
-        );
     }
 
     private void validateImageSize(Long imageSize) {
         if (imageSize == null || imageSize <= 0) {
             throw new CustomException(ErrorCode.INVALID_IMAGE_SIZE);
         }
-
         if (imageSize > MAX_IMAGE_SIZE) {
             throw new CustomException(ErrorCode.IMAGE_SIZE_EXCEEDED);
         }

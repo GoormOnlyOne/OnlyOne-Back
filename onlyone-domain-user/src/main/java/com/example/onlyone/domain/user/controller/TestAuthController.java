@@ -3,7 +3,7 @@ package com.example.onlyone.domain.user.controller;
 import com.example.onlyone.domain.user.entity.Role;
 import com.example.onlyone.domain.user.entity.Status;
 import com.example.onlyone.domain.user.entity.User;
-import com.example.onlyone.domain.user.service.UserService;
+import com.example.onlyone.domain.user.service.JwtTokenProvider;
 import com.example.onlyone.global.common.CommonResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Profile;
@@ -21,7 +21,7 @@ import java.util.Map;
 @RequiredArgsConstructor
 public class TestAuthController {
 
-    private final UserService userService;
+    private final JwtTokenProvider jwtTokenProvider;
 
     /**
      * k6 부하 테스트용 JWT 토큰 생성
@@ -29,7 +29,6 @@ public class TestAuthController {
      */
     @GetMapping("/token")
     public CommonResponse<Map<String, String>> generateTestToken(@RequestParam Long userId) {
-        // 테스트용 User 객체 생성 (DB 조회 없이)
         User testUser = User.builder()
                 .userId(userId)
                 .kakaoId(10000000L + userId)
@@ -38,7 +37,7 @@ public class TestAuthController {
                 .role(Role.ROLE_USER)
                 .build();
 
-        String accessToken = userService.generateAccessToken(testUser);
+        String accessToken = jwtTokenProvider.generateAccessToken(testUser);
 
         Map<String, String> response = new HashMap<>();
         response.put("accessToken", accessToken);

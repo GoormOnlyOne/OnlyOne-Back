@@ -1,3 +1,10 @@
+# =============================================================
+# 운영 환경 설정 (profile: prod)
+# 안정성 우선: 보수적인 풀 사이즈, DDL 비활성화, 최소 로깅
+# 모든 민감 값은 환경변수로 주입
+# =============================================================
+
+# --- 데이터소스 (보수적 커넥션 풀) ---
 spring:
   datasource:
     driver-class-name: com.mysql.cj.jdbc.Driver
@@ -11,9 +18,10 @@ spring:
       idle-timeout: 600000
       max-lifetime: 1800000
 
+  # JPA: DDL 완전 비활성화, 배치 처리
   jpa:
     hibernate:
-      ddl-auto: none
+      ddl-auto: none             # 운영 DB 스키마 변경 차단
     properties:
       hibernate:
         format_sql: false
@@ -24,6 +32,7 @@ spring:
         order_inserts: true
         order_updates: true
 
+  # Redis
   data:
     redis:
       host: ${REDIS_HOST}
@@ -35,16 +44,19 @@ spring:
           max-idle: 20
           min-idle: 5
 
+  # Elasticsearch
   elasticsearch:
     uris: ${ELASTICSEARCH_URIS}
     username: ${ELASTICSEARCH_USERNAME:elastic}
     password: ${ELASTICSEARCH_PASSWORD}
 
+  # 캐시: Redis 기반, TTL 10분
   cache:
     type: redis
     redis:
       time-to-live: 600000
 
+# --- 로깅: WARN 수준 (노이즈 최소화) ---
 logging:
   level:
     root: WARN
@@ -60,6 +72,7 @@ server:
       max: 200
       min-spare: 10
 
+# --- AWS ---
 aws:
   s3:
     region: ${AWS_S3_REGION:ap-northeast-2}
@@ -71,6 +84,7 @@ Kakao:
   redirect:
     uri: ${KAKAO_REDIRECT_URI}
 
+# --- Rate Limit 활성화 ---
 app:
   rate-limit:
     enabled: true

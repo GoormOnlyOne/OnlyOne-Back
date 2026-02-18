@@ -26,8 +26,8 @@ public class ScheduleSettlementEventListener {
     public void onSettlementCompleted(SettlementCompletedEvent event) {
         Schedule schedule = scheduleRepository.findById(event.scheduleId())
                 .orElseThrow(() -> new CustomException(ErrorCode.SCHEDULE_NOT_FOUND));
-        schedule.updateStatus(ScheduleStatus.CLOSED);
-        scheduleRepository.save(schedule);
+        schedule.transitionTo(ScheduleStatus.CLOSED);
+        // JPA dirty checking: @Transactional 내 managed 엔티티는 커밋 시 자동 flush
         log.info("Schedule {} closed after settlement {} completed",
                 event.scheduleId(), event.settlementId());
     }

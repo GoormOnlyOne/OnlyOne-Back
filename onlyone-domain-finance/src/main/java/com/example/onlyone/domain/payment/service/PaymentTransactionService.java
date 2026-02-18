@@ -17,7 +17,7 @@ import com.example.onlyone.domain.wallet.repository.WalletTransactionRepository;
 import com.example.onlyone.global.exception.CustomException;
 import com.example.onlyone.global.exception.ErrorCode;
 import lombok.RequiredArgsConstructor;
-import lombok.extern.log4j.Log4j2;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Isolation;
 import org.springframework.transaction.annotation.Propagation;
@@ -28,7 +28,7 @@ import org.springframework.transaction.annotation.Transactional;
  * Spring AOP 프록시는 self-invocation을 인터셉트하지 않으므로,
  * REQUIRES_NEW 메서드를 별도 빈으로 분리하여 프록시를 통해 호출되도록 한다.
  */
-@Log4j2
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class PaymentTransactionService {
@@ -103,7 +103,7 @@ public class PaymentTransactionService {
         }
         walletTransactionRepository.save(walletTransaction);
 
-        payment.updateOnConfirm(response.paymentKey(), Status.from(response.status()), Method.from(response.method()), walletTransaction);
+        payment.applyConfirmResult(response.paymentKey(), Status.from(response.status()), Method.from(response.method()), walletTransaction);
         walletTransaction.updatePayment(payment);
     }
 
@@ -114,7 +114,7 @@ public class PaymentTransactionService {
             Payment payment = paymentRepository.findByTossOrderIdWithoutLock(orderId)
                     .orElse(null);
             if (payment != null && payment.getStatus() != Status.DONE) {
-                payment.updateStatus(Status.CANCELED);
+                payment.markCanceled();
             }
         } catch (Exception e) {
             log.error("Failed to mark payment as CANCELED for orderId={}", orderId, e);
@@ -138,7 +138,7 @@ public class PaymentTransactionService {
         if (payment.getStatus() == Status.DONE) return;
 
         if (payment.getStatus() != Status.CANCELED) {
-            payment.updateStatus(Status.CANCELED);
+            payment.markCanceled();
         }
 
         WalletTransaction tx = payment.getWalletTransaction();
@@ -163,7 +163,7 @@ public class PaymentTransactionService {
                 .build();
 
         failTx.updatePayment(payment);
-        payment.updateWalletTransaction(failTx);
+        payment.linkWalletTransaction(failTx);
 
         walletTransactionRepository.saveAndFlush(failTx);
         paymentRepository.saveAndFlush(payment);

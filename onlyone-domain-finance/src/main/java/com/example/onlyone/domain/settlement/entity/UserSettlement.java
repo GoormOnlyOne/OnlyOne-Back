@@ -13,7 +13,7 @@ import java.time.*;
 @Getter
 @Builder
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
-@AllArgsConstructor
+@AllArgsConstructor(access = AccessLevel.PRIVATE)
 public class UserSettlement extends BaseTimeEntity {
 
     @Id
@@ -39,12 +39,8 @@ public class UserSettlement extends BaseTimeEntity {
     @NotNull
     private User user;
 
-    public void updateUserSettlement(SettlementStatus settlementStatus, LocalDateTime completedTime) {
-        this.settlementStatus = settlementStatus;
+    public void markCompleted(LocalDateTime completedTime) {
+        this.settlementStatus = SettlementStatus.COMPLETED;
         this.completedTime = completedTime;
-    }
-
-    public void updateStatus(SettlementStatus settlementStatus) {
-        this.settlementStatus = settlementStatus;
     }
 }

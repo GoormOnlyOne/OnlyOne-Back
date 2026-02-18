@@ -6,8 +6,6 @@ rootProject.name = 'onlyone'
 
 // 공통 모듈
 include 'onlyone-common'
-include 'onlyone-security'
-include 'onlyone-infra'
 
 // 도메인 모듈
 include 'onlyone-domain-user'

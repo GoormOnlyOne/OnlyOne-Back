@@ -51,6 +51,9 @@ public class ClubDocument {
     @Field(type = FieldType.Keyword)
     private String interestKoreanName;
 
+    @Field(type = FieldType.Text, searchAnalyzer = "club_analyzer")
+    private String searchText;
+
     @Field(type = FieldType.Date,
            pattern = "yyyy-MM-dd'T'HH:mm:ss.SSSSSS||yyyy-MM-dd'T'HH:mm:ss.SSS||yyyy-MM-dd'T'HH:mm:ss")
     private String createdAt;
@@ -69,6 +72,7 @@ public class ClubDocument {
                 .interestId(club.getInterest().getInterestId())
                 .interestCategory(category.name())
                 .interestKoreanName(category.getKoreanName())
+                .searchText(club.getName() + " " + club.getDescription())
                 .createdAt(club.getCreatedAt() != null ? club.getCreatedAt().toString() : null)
                 .build();
     }

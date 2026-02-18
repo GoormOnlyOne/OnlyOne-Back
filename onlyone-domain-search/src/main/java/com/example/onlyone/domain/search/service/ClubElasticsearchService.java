@@ -27,16 +27,16 @@ public class ClubElasticsearchService {
     private final ClubElasticsearchRepository clubElasticsearchRepository;
     private final ClubRepository clubRepository;
 
-    // ES에 클럽 인덱싱 (비동기)
+    // ES에 클럽 upsert (비동기) — save()는 동일 ID 존재 시 덮어쓰기
     @Async
     @Retryable
-    public void indexClub(Club club) {
+    public void upsertClub(Club club) {
         try {
             ClubDocument document = ClubDocument.from(club);
             clubElasticsearchRepository.save(document);
-            log.debug("Successfully indexed club: {}", club.getClubId());
+            log.info("ES 클럽 인덱싱 완료: clubId={}", club.getClubId());
         } catch (Exception e) {
-            log.error("Failed to index club: {}", club.getClubId(), e);
+            log.error("Failed to upsert club in ES: {}", club.getClubId(), e);
             throw new CustomException(ErrorCode.ELASTICSEARCH_INDEX_ERROR);
         }
     }
@@ -47,24 +47,10 @@ public class ClubElasticsearchService {
     public void deleteClub(Long clubId) {
         try {
             clubElasticsearchRepository.deleteById(clubId);
-            log.debug("Successfully deleted club from ES: {}", clubId);
+            log.info("ES 클럽 삭제 완료: clubId={}", clubId);
         } catch (Exception e) {
             log.error("Failed to delete club from ES: {}", clubId, e);
             throw new CustomException(ErrorCode.ELASTICSEARCH_DELETE_ERROR);
-        }
-    }
-
-    // ES에서 클럽 업데이트 (비동기)
-    @Async
-    @Retryable
-    public void updateClub(Club club) {
-        try {
-            ClubDocument document = ClubDocument.from(club);
-            clubElasticsearchRepository.save(document);
-            log.debug("Successfully updated club in ES: {}", club.getClubId());
-        } catch (Exception e) {
-            log.error("Failed to update club in ES: {}", club.getClubId(), e);
-            throw new CustomException(ErrorCode.ELASTICSEARCH_UPDATE_ERROR);
         }
     }
 

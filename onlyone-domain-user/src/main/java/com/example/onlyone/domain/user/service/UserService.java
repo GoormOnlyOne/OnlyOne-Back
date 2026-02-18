@@ -3,255 +3,80 @@ package com.example.onlyone.domain.user.service;
 import com.example.onlyone.domain.interest.entity.Category;
 import com.example.onlyone.domain.interest.entity.Interest;
 import com.example.onlyone.domain.interest.repository.InterestRepository;
-import com.example.onlyone.domain.user.dto.UserPrincipal;
-import com.example.onlyone.domain.user.dto.response.MySettlementDto;
-import com.example.onlyone.domain.user.dto.response.MySettlementResponseDto;
-// import com.example.onlyone.domain.settlement.repository.UserSettlementRepository;  // 순환 의존성 방지 - API 모듈로 이동
 import com.example.onlyone.domain.user.dto.request.ProfileUpdateRequestDto;
 import com.example.onlyone.domain.user.dto.request.SignupRequestDto;
 import com.example.onlyone.domain.user.dto.response.MyPageResponse;
 import com.example.onlyone.domain.user.dto.response.ProfileResponseDto;
-import com.example.onlyone.domain.user.entity.Gender;
-import com.example.onlyone.domain.user.entity.Status;
+import com.example.onlyone.domain.user.entity.ProfileUpdateCommand;
 import com.example.onlyone.domain.user.entity.User;
 import com.example.onlyone.domain.user.entity.UserInterest;
 import com.example.onlyone.domain.user.repository.UserInterestRepository;
 import com.example.onlyone.domain.user.repository.UserRepository;
-// import com.example.onlyone.domain.wallet.entity.Wallet;  // 순환 의존성 방지 - API 모듈로 이동
-// import com.example.onlyone.domain.wallet.repository.WalletRepository;  // 순환 의존성 방지 - API 모듈로 이동
 import com.example.onlyone.global.exception.CustomException;
 import com.example.onlyone.global.exception.ErrorCode;
-import io.jsonwebtoken.Jwts;
-import io.jsonwebtoken.security.Keys;
 import lombok.RequiredArgsConstructor;
-import lombok.extern.log4j.Log4j2;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.Pageable;
-import org.springframework.security.core.context.SecurityContextHolder;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.security.core.Authentication;
 
-import javax.crypto.SecretKey;
-import java.time.LocalDate;
-import java.time.LocalDateTime;
-import java.util.*;
+import java.util.List;
 import java.util.stream.Collectors;
 
-@Log4j2
+@Slf4j
 @Service
 @RequiredArgsConstructor
-@Transactional
 public class UserService {
     private final UserRepository userRepository;
     private final UserInterestRepository userInterestRepository;
     private final InterestRepository interestRepository;
-    // private final WalletRepository walletRepository;  // 순환 의존성 방지 - API 모듈로 이동
-    // private final UserSettlementRepository userSettlementRepository;  // 순환 의존성 방지 - API 모듈로 이동
-
-    @Value("${jwt.secret}")
-    private String jwtSecret;
-    
-    @Value("${jwt.access-expiration}")
-    private long accessTokenExpiration;
-    
-    @Value("${jwt.refresh-expiration}")
-    private long refreshTokenExpiration;
-
+    private final AuthService authService;
+    private final KakaoService kakaoService;
 
     @Transactional(readOnly = true)
     public User getCurrentUser() {
-        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-        if (authentication == null || !authentication.isAuthenticated()) {
-            throw new CustomException(ErrorCode.UNAUTHORIZED);
-        }
-
-        Object principal = authentication.getPrincipal();
-        if (!(principal instanceof UserPrincipal)) {
-            throw new CustomException(ErrorCode.UNAUTHORIZED);
-        }
-
-        UserPrincipal userPrincipal = (UserPrincipal) principal;
-
-        // UserPrincipal에서 userId로 User 엔티티 조회
-        return userRepository.findById(userPrincipal.getUserId())
-                .orElseThrow(() -> new CustomException(ErrorCode.USER_NOT_FOUND));
+        return authService.getCurrentUser();
     }
 
     @Transactional(readOnly = true)
     public Long getCurrentUserId() {
-        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-        if (authentication == null || !authentication.isAuthenticated()) {
-            throw new CustomException(ErrorCode.UNAUTHORIZED);
-        }
-
-        Object principal = authentication.getPrincipal();
-        if (!(principal instanceof UserPrincipal)) {
-            throw new CustomException(ErrorCode.UNAUTHORIZED);
-        }
-
-        UserPrincipal userPrincipal = (UserPrincipal) principal;
-
-        return userPrincipal.getUserId();
+        return authService.getCurrentUserId();
     }
 
     @Transactional(readOnly = true)
-    public User getMemberById(Long memberId){
+    public User getMemberById(Long memberId) {
         return userRepository.findById(memberId)
                 .orElseThrow(() -> new CustomException(ErrorCode.USER_NOT_FOUND));
     }
 
     /**
-     * 카카오 로그인 처리: 기존 사용자 조회 또는 신규 사용자 생성
-     * @param kakaoUserInfo 카카오 사용자 정보
-     * @param kakaoAccessToken 카카오 액세스 토큰
-     * @return Map containing user and isNewUser flag
-     */
-    public Map<String, Object> processKakaoLogin(Map<String, Object> kakaoUserInfo, String kakaoAccessToken) {
-        Long kakaoId = Long.valueOf(kakaoUserInfo.get("id").toString());
-
-        // 기존 사용자 조회
-        Optional<User> existingUser = userRepository.findByKakaoId(kakaoId);
-
-        Map<String, Object> result = new HashMap<>();
-
-        if (existingUser.isPresent()) {
-            User user = existingUser.get();
-
-            // 탈퇴한 사용자(INACTIVE)는 재로그인 금지
-            if (Status.INACTIVE.equals(user.getStatus())) {
-                throw new CustomException(ErrorCode.USER_WITHDRAWN);
-            }
-
-            // 카카오 액세스 토큰 업데이트
-            user.updateKakaoAccessToken(kakaoAccessToken);
-            userRepository.save(user);
-
-            // 기존 사용자 - GUEST 상태면 회원가입 필요, ACTIVE면 회원가입 완료
-            result.put("user", user);
-            result.put("isNewUser", Status.GUEST.equals(user.getStatus()));
-        } else {
-            // 신규 사용자 생성
-            User newUser = User.builder()
-                    .kakaoId(kakaoId)
-                    .nickname("guest")
-                    .birth(LocalDate.now())
-                    .status(Status.GUEST)
-                    .gender(Gender.MALE)
-                    .kakaoAccessToken(kakaoAccessToken)
-                    .build();
-
-            User savedUser = userRepository.save(newUser);
-            result.put("user", savedUser);
-            result.put("isNewUser", true);
-        }
-
-        return result;
-    }
-
-    /**
-     * JWT Access Token 생성
-     */
-    public String generateAccessToken(User user) {
-        Date now = new Date();
-        Date expiryDate = new Date(now.getTime() + accessTokenExpiration);
-        
-        SecretKey key = Keys.hmacShaKeyFor(jwtSecret.getBytes());
-        
-        return Jwts.builder()
-                .subject(user.getUserId().toString())
-                .claim("kakaoId", user.getKakaoId())
-                .claim("nickname", user.getNickname())
-                .claim("status", user.getStatus().name())
-                .claim("role", user.getRole().name())
-                .claim("type", "access")
-                .issuedAt(now)
-                .expiration(expiryDate)
-                .signWith(key, Jwts.SIG.HS512)
-                .compact();
-    }
-
-    /**
-     * JWT Refresh Token 생성
-     */
-    public String generateRefreshToken(User user) {
-        Date now = new Date();
-        Date expiryDate = new Date(now.getTime() + refreshTokenExpiration);
-        
-        SecretKey key = Keys.hmacShaKeyFor(jwtSecret.getBytes());
-        
-        return Jwts.builder()
-                .subject(user.getUserId().toString())
-                .claim("type", "refresh")
-                .issuedAt(now)
-                .expiration(expiryDate)
-                .signWith(key, Jwts.SIG.HS512)
-                .compact();
-    }
-
-    /**
-     * 토큰 쌍 생성 (Access + Refresh)
-     */
-    public Map<String, String> generateTokenPair(User user) {
-        Map<String, String> tokens = new HashMap<>();
-        tokens.put("accessToken", generateAccessToken(user));
-        tokens.put("refreshToken", generateRefreshToken(user));
-        return tokens;
-    }
-
-    /**
      * 회원가입 처리 - 기존 사용자의 추가 정보 업데이트
      */
+    @Transactional
     public void signup(SignupRequestDto signupRequest) {
-        // 현재 인증된 사용자 조회
-        User user = getCurrentUser();
+        User user = authService.getCurrentUser();
 
-        // 사용자 추가 정보(지역, 프로필, 닉네임, 성별, 생년월일) 업데이트
-        user.update(
+        user.updateProfile(new ProfileUpdateCommand(
                 signupRequest.city(),
                 signupRequest.district(),
                 signupRequest.profileImage(),
                 signupRequest.nickname(),
                 signupRequest.gender(),
                 signupRequest.birth()
-        );
+        ));
 
-        // 회원가입 완료 - GUEST → ACTIVE 상태로 변경
         user.completeSignup();
-
-        // 사용자 관심사 저장
-        List<String> categories = signupRequest.categories();
-        for (String categoryName : categories) {
-            Interest interest = interestRepository.findByCategory(Category.from(categoryName))
-                    .orElseThrow(() -> new CustomException(ErrorCode.INTEREST_NOT_FOUND));
-            
-            UserInterest userInterest = UserInterest.builder()
-                    .user(user)
-                    .interest(interest)
-                    .build();
-            
-            userInterestRepository.save(userInterest);
-        }
-
-        // 사용자 지갑 생성 및 웰컴 포인트 100000원 지급
-        // TODO: 순환 의존성 방지를 위해 API 모듈로 이동 필요
-        // Wallet wallet = Wallet.builder()
-        //         .user(user)
-        //         .postedBalance(100000L)
-        //         .build();
-        //
-        // walletRepository.save(wallet);
+        saveUserInterests(user, signupRequest.categories());
+        log.info("회원가입 완료: userId={}", user.getUserId());
     }
 
-
-
     /**
-     * 로그아웃 처리 - 카카오 액세스 토큰 제거
+     * 로그아웃 처리 - 카카오 연결 해제 + 토큰 제거
      */
+    @Transactional
     public void logoutUser() {
-        User user = getCurrentUser();
+        User user = authService.getCurrentUser();
+        tryUnlinkKakao(user);
+
         if (user.getKakaoAccessToken() != null) {
             user.clearKakaoAccessToken();
             userRepository.save(user);
@@ -259,12 +84,15 @@ public class UserService {
     }
 
     /**
-     * 회원 탈퇴 처리 - 사용자 상태를 INACTIVE로 변경하고 카카오 연결 해제
+     * 회원 탈퇴 처리 - 카카오 연결 해제 + 상태 INACTIVE
      */
+    @Transactional
     public void withdrawUser() {
-        User user = getCurrentUser();
+        User user = authService.getCurrentUser();
+        tryUnlinkKakao(user);
         user.withdraw();
         userRepository.save(user);
+        log.info("회원 탈퇴: userId={}", user.getUserId());
     }
 
     /**
@@ -272,19 +100,9 @@ public class UserService {
      */
     @Transactional(readOnly = true)
     public MyPageResponse getMyPage() {
-        User user = getCurrentUser();
+        User user = authService.getCurrentUser();
+        List<String> interestsList = resolveUserInterestNames(user.getUserId());
 
-        // 사용자 관심사 카테고리 조회
-        List<Category> categories = userInterestRepository.findCategoriesByUserId(user.getUserId());
-        List<String> interestsList = categories.stream()
-                .map(Category::name)
-                .map(String::toLowerCase)
-                .collect(Collectors.toList());
-
-        // 사용자 지갑 정보 조회
-        // TODO: 순환 의존성 방지를 위해 API 모듈로 이동 필요
-        // Optional<Wallet> walletOpt = walletRepository.findByUserWithoutLock(user);
-        // Long balance = walletOpt.map(Wallet::getPostedBalance).orElse(0L);
         Long balance = 0L;  // 임시: API 모듈에서 처리
 
         return new MyPageResponse(
@@ -304,14 +122,8 @@ public class UserService {
      */
     @Transactional(readOnly = true)
     public ProfileResponseDto getUserProfile() {
-        User user = getCurrentUser();
-
-        // 사용자 관심사 카테고리 조회
-        List<Category> categories = userInterestRepository.findCategoriesByUserId(user.getUserId());
-        List<String> interestsList = categories.stream()
-                .map(Category::name)
-                .map(String::toLowerCase)
-                .collect(Collectors.toList());
+        User user = authService.getCurrentUser();
+        List<String> interestsList = resolveUserInterestNames(user.getUserId());
 
         return new ProfileResponseDto(
                 user.getUserId(),
@@ -330,23 +142,42 @@ public class UserService {
      */
     @Transactional
     public void updateUserProfile(ProfileUpdateRequestDto request) {
-        User user = getCurrentUser();
+        User user = authService.getCurrentUser();
 
-        // 사용자 기본 정보 업데이트
-        user.update(
+        user.updateProfile(new ProfileUpdateCommand(
                 request.city(),
                 request.district(),
                 request.profileImage(),
                 request.nickname(),
                 request.gender(),
                 request.birth()
-        );
+        ));
 
-        // 기존 관심사 삭제
         userInterestRepository.deleteByUserId(user.getUserId());
+        saveUserInterests(user, request.interestsList());
+        log.info("프로필 수정: userId={}", user.getUserId());
+    }
 
-        // 새로운 관심사 저장
-        for (String categoryName : request.interestsList()) {
+    // ========== PRIVATE HELPERS ==========
+
+    private void tryUnlinkKakao(User user) {
+        if (user.getKakaoAccessToken() == null) return;
+        try {
+            kakaoService.unlink(user.getKakaoAccessToken());
+        } catch (Exception e) {
+            log.warn("카카오 연결 해제 실패: userId={}, error={}", user.getUserId(), e.getMessage());
+        }
+    }
+
+    private List<String> resolveUserInterestNames(Long userId) {
+        return userInterestRepository.findCategoriesByUserId(userId).stream()
+                .map(Category::name)
+                .map(String::toLowerCase)
+                .collect(Collectors.toList());
+    }
+
+    private void saveUserInterests(User user, List<String> categoryNames) {
+        for (String categoryName : categoryNames) {
             Interest interest = interestRepository.findByCategory(Category.from(categoryName))
                     .orElseThrow(() -> new CustomException(ErrorCode.INTEREST_NOT_FOUND));
 
@@ -358,13 +189,4 @@ public class UserService {
             userInterestRepository.save(userInterest);
         }
     }
-
-
-    // TODO: 순환 의존성 방지를 위해 API 모듈로 이동 필요
-    // @Transactional(readOnly = true)
-    // public MySettlementResponseDto getMySettlementList(Pageable pageable) {
-    //     User user = getCurrentUser();
-    //     Page<MySettlementDto> userSettlementList = userSettlementRepository.findMyRecentOrRequested(user, LocalDateTime.now().minusDays(10), pageable);
-    //     return MySettlementResponseDto.from(userSettlementList);
-    // }
 }

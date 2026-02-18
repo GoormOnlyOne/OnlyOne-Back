@@ -10,10 +10,9 @@ import org.hibernate.annotations.BatchSize;
 @Table(name = "interest")
 @BatchSize(size = 8)
 @Getter
-@Setter
 @Builder
-@NoArgsConstructor
-@AllArgsConstructor
+@NoArgsConstructor(access = AccessLevel.PROTECTED)
+@AllArgsConstructor(access = AccessLevel.PRIVATE)
 public class Interest extends BaseTimeEntity {
 
     @Id

@@ -1,10 +1,10 @@
 package com.example.onlyone.domain.chat.dto;
 
 import com.example.onlyone.domain.chat.entity.Message;
+import com.example.onlyone.global.common.util.MessageUtils;
 import com.fasterxml.jackson.annotation.JsonFormat;
 import io.swagger.v3.oas.annotations.media.Schema;
 import java.time.LocalDateTime;
-import com.example.onlyone.global.common.util.MessageUtils;
 
 @Schema(description = "채팅 메시지 응답 DTO")
 public record ChatMessageResponse(
@@ -19,20 +19,31 @@ public record ChatMessageResponse(
     @JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm:ss") LocalDateTime sentAt,
     @Schema(description = "삭제 여부", example = "false") boolean deleted
 ) {
+    /**
+     * WebSocket 실시간 전송용 (DB 저장 전, IMAGE:: 프리픽스 파싱)
+     */
+    public static ChatMessageResponse forWebSocket(Long chatRoomId, Long senderId,
+                                                    String senderNickname, String profileImage,
+                                                    String rawText) {
+        String imageUrl = MessageUtils.extractImageUrl(rawText);
+        String text = (imageUrl != null) ? null : rawText;
+
+        return new ChatMessageResponse(null, chatRoomId, senderId, senderNickname, profileImage,
+                text, imageUrl, LocalDateTime.now(), false);
+    }
+
+    /**
+     * DB 엔티티 → 응답 DTO (IMAGE:: 프리픽스로 이미지 판별)
+     */
     public static ChatMessageResponse from(Message message) {
         String rawText = message.getText();
-        String text = rawText;
-        String imageUrl = null;
-
-        if (rawText != null && rawText.startsWith("http")) {
-            imageUrl = rawText;
-            text = null;
-        }
+        String imageUrl = MessageUtils.extractImageUrl(rawText);
+        String text = (imageUrl != null) ? null : rawText;
 
         return new ChatMessageResponse(
                 message.getMessageId(),
                 message.getChatRoom().getChatRoomId(),
-                message.getUser().getKakaoId(),
+                message.getUser().getUserId(),
                 message.getUser().getNickname(),
                 message.getUser().getProfileImage(),
                 text,

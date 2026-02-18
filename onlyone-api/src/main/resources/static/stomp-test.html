@@ -106,7 +106,7 @@
 
             const payload = {
                 userId: userId,
-                text: `[IMAGE]${imageUrl}`
+                text: `IMAGE::${imageUrl}`
             };
 
             stompClient.send(`/pub/chat/${chatRoomId}/messages`, {}, JSON.stringify(payload));

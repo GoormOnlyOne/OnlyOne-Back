@@ -1,5 +1,6 @@
 package com.example.onlyone.test;
 
+import com.example.onlyone.domain.club.dto.request.ClubRequestDto;
 import com.example.onlyone.domain.club.entity.Club;
 import com.example.onlyone.domain.club.entity.ClubRole;
 import com.example.onlyone.domain.club.entity.UserClub;
@@ -42,5 +43,10 @@ public final class ClubFixtures {
                 .user(user)
                 .club(club)
                 .clubRole(role);
+    }
+
+    public static ClubRequestDto aClubRequestDto() {
+        return new ClubRequestDto(
+                "테스트 모임", 10, "테스트 모임 설명", "club.jpg", "서울", "강남구", "EXERCISE");
     }
 }

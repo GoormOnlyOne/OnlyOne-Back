@@ -1,6 +1,5 @@
 package com.example.onlyone.domain.payment.entity;
 
-import com.example.onlyone.domain.payment.dto.response.ConfirmTossPayResponse;
 import com.example.onlyone.domain.wallet.entity.WalletTransaction;
 import com.example.onlyone.common.BaseTimeEntity;
 import jakarta.persistence.*;
@@ -12,7 +11,7 @@ import lombok.*;
 @Getter
 @Builder
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
-@AllArgsConstructor
+@AllArgsConstructor(access = AccessLevel.PRIVATE)
 public class Payment extends BaseTimeEntity {
 
     @Id
@@ -40,22 +39,18 @@ public class Payment extends BaseTimeEntity {
     @OneToOne(mappedBy = "payment", fetch = FetchType.LAZY)
     private WalletTransaction walletTransaction;
 
-    public void updateStatus(Status status) {
-        this.status = status;
+    public void markCanceled() {
+        this.status = Status.CANCELED;
     }
 
-    public void updateOnConfirm(String paymentKey, Status status, Method method, WalletTransaction walletTransaction) {
+    public void applyConfirmResult(String paymentKey, Status status, Method method, WalletTransaction walletTransaction) {
         this.tossPaymentKey = paymentKey;
         this.status = status;
         this.method = method;
         this.walletTransaction = walletTransaction;
     }
 
-    public void updateWalletTransaction(WalletTransaction walletTransaction) {
+    public void linkWalletTransaction(WalletTransaction walletTransaction) {
         this.walletTransaction = walletTransaction;
-    }
-
-    public void updatePaymentKey(String paymentKey) {
-        this.tossPaymentKey = paymentKey;
     }
 }

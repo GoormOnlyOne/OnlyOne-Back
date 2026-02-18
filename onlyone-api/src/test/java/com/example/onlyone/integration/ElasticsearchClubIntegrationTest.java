@@ -55,8 +55,8 @@ class ElasticsearchClubIntegrationTest extends AbstractElasticsearchContainerTes
                         .interestId(1L)
                         .interestCategory("SPORTS")
                         .interestKoreanName("스포츠")
-                        .createdAt(null)
                         .searchText("서울 축구 동호회 매주 토요일 축구를 즐기는 모임입니다")
+                        .createdAt(null)
                         .build(),
                 ClubDocument.builder()
                         .clubId(2L)
@@ -68,8 +68,8 @@ class ElasticsearchClubIntegrationTest extends AbstractElasticsearchContainerTes
                         .interestId(2L)
                         .interestCategory("CULTURE")
                         .interestKoreanName("문화")
-                        .createdAt(null)
                         .searchText("강남 독서 클럽 함께 책을 읽고 토론하는 모임")
+                        .createdAt(null)
                         .build(),
                 ClubDocument.builder()
                         .clubId(3L)
@@ -81,8 +81,8 @@ class ElasticsearchClubIntegrationTest extends AbstractElasticsearchContainerTes
                         .interestId(1L)
                         .interestCategory("SPORTS")
                         .interestKoreanName("스포츠")
-                        .createdAt(null)
                         .searchText("부산 러닝 크루 해운대에서 달리기를 즐기는 크루")
+                        .createdAt(null)
                         .build()
         ));
 
@@ -108,7 +108,7 @@ class ElasticsearchClubIntegrationTest extends AbstractElasticsearchContainerTes
     @DisplayName("키워드로 검색하면 관련 클럽이 반환된다")
     void searchByKeyword_returnsMatchingClubs() {
         // when
-        List<ClubDocument> results = clubElasticsearchRepository.findByKeyword("축구", PAGE);
+        List<ClubDocument> results = clubElasticsearchRepository.search("축구", null, null, null, PAGE);
 
         // then
         assertThat(results).isNotEmpty();
@@ -121,7 +121,7 @@ class ElasticsearchClubIntegrationTest extends AbstractElasticsearchContainerTes
     void searchByKeywordAndLocation_returnsFilteredClubs() {
         // when
         List<ClubDocument> results = clubElasticsearchRepository
-                .findByKeywordAndLocation("축구", "서울", "강남구", PAGE);
+                .search("축구", "서울", "강남구", null, PAGE);
 
         // then
         assertThat(results).isNotEmpty();
@@ -135,7 +135,7 @@ class ElasticsearchClubIntegrationTest extends AbstractElasticsearchContainerTes
     void searchByKeywordAndInterest_returnsFilteredClubs() {
         // when: interestId=1 (SPORTS) 필터
         List<ClubDocument> results = clubElasticsearchRepository
-                .findByKeywordAndInterest("축구", 1L, PAGE);
+                .search("축구", null, null, 1L, PAGE);
 
         // then
         assertThat(results).isNotEmpty();
@@ -174,8 +174,8 @@ class ElasticsearchClubIntegrationTest extends AbstractElasticsearchContainerTes
                 .interestId(original.get().getInterestId())
                 .interestCategory(original.get().getInterestCategory())
                 .interestKoreanName(original.get().getInterestKoreanName())
-                .createdAt(original.get().getCreatedAt())
                 .searchText("강남 프리미엄 독서 클럽 " + original.get().getDescription())
+                .createdAt(original.get().getCreatedAt())
                 .build();
         clubElasticsearchRepository.save(updated);
         elasticsearchOperations.indexOps(ClubDocument.class).refresh();

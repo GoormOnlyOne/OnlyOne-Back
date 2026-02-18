@@ -2,10 +2,8 @@ package com.example.onlyone.domain.image.controller;
 
 import com.example.onlyone.domain.image.dto.request.PresignedUrlRequestDto;
 import com.example.onlyone.domain.image.dto.response.PresignedUrlResponseDto;
-import com.example.onlyone.domain.image.entity.ImageFolderType;
 import com.example.onlyone.domain.image.service.ImageService;
 import com.example.onlyone.global.common.CommonResponse;
-import org.springframework.web.bind.annotation.RestController;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
@@ -27,13 +25,7 @@ public class ImageController {
             @PathVariable String imageFolderType,
             @Valid @RequestBody PresignedUrlRequestDto request) {
 
-        PresignedUrlResponseDto response = imageService.generatePresignedUrlWithImageUrl(
-                imageFolderType,
-                request.fileName(),
-                request.contentType(),
-                request.imageSize()
-        );
-
+        PresignedUrlResponseDto response = imageService.generatePresignedUrl(imageFolderType, request);
         return ResponseEntity.ok(CommonResponse.success(response));
     }
 }

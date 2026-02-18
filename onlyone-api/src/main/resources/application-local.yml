@@ -1,3 +1,9 @@
+# =============================================================
+# 로컬 개발 환경 설정 (profile: local)
+# Docker로 띄운 MySQL, Redis, Elasticsearch에 직접 연결
+# =============================================================
+
+# --- 데이터소스 (로컬 MySQL) ---
 spring:
   datasource:
     driver-class-name: com.mysql.cj.jdbc.Driver
@@ -11,6 +17,7 @@ spring:
       idle-timeout: 600000
       max-lifetime: 1800000
 
+  # JPA: 스키마 자동 업데이트 + SQL 포맷 출력
   jpa:
     hibernate:
       ddl-auto: update
@@ -20,6 +27,7 @@ spring:
         use_sql_comments: true
         show_sql: false
 
+  # Redis (로컬, 비밀번호 없음)
   data:
     redis:
       host: localhost
@@ -31,16 +39,19 @@ spring:
           max-idle: 10
           min-idle: 2
 
+  # Elasticsearch (로컬)
   elasticsearch:
     uris: http://localhost:9200
     username: elastic
     password: changeme
 
+  # 캐시: Redis 기반, TTL 10분
   cache:
     type: redis
     redis:
       time-to-live: 600000
 
+# --- 로깅: 디버그 수준 (Hibernate SQL 포함) ---
 logging:
   level:
     root: INFO
@@ -57,6 +68,7 @@ server:
       max: 200
       min-spare: 10
 
+# --- AWS (개발용 공유 버킷) ---
 aws:
   s3:
     region: ap-northeast-2
@@ -64,10 +76,12 @@ aws:
   cloudfront:
     domain: d1c3fg3ti7m8cn.cloudfront.net
 
+# --- 카카오 OAuth 콜백 (프론트 로컬) ---
 Kakao:
   redirect:
     uri: http://localhost:5173/kakao-callback
 
+# --- Rate Limit 비활성화 (로컬에서는 불필요) ---
 app:
   rate-limit:
     enabled: false

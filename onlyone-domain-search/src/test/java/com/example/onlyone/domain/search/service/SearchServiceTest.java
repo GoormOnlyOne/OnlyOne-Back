@@ -4,6 +4,7 @@ import com.example.onlyone.domain.club.entity.Club;
 import com.example.onlyone.domain.club.entity.ClubRole;
 import com.example.onlyone.domain.club.entity.UserClub;
 import com.example.onlyone.domain.club.repository.ClubRepository;
+import com.example.onlyone.domain.club.repository.ClubWithMemberCount;
 import com.example.onlyone.domain.club.repository.UserClubRepository;
 import com.example.onlyone.domain.interest.entity.Category;
 import com.example.onlyone.domain.interest.entity.Interest;
@@ -405,7 +406,7 @@ class SearchServiceTest {
         List<Long> userInterestIds = List.of(exerciseInterest.getInterestId(), cultureInterest.getInterestId());
 
         // when
-        List<Object[]> results = clubRepository.searchByUserInterestAndLocation(
+        List<ClubWithMemberCount> results = clubRepository.searchByUserInterestAndLocation(
                 userInterestIds,
                 seoulUser.getCity(),
                 seoulUser.getDistrict(),
@@ -417,18 +418,17 @@ class SearchServiceTest {
         assertThat(results).hasSize(9);
 
         // 서울 강남구의 운동/문화 클럽들이 조회되어야 함
-        for (Object[] result : results) {
-            Club club = (Club) result[0];
-            assertThat(club.getCity()).isEqualTo("서울");
-            assertThat(club.getDistrict()).isEqualTo("강남구");
-            assertThat(club.getInterest().getCategory())
+        for (ClubWithMemberCount row : results) {
+            assertThat(row.club().getCity()).isEqualTo("서울");
+            assertThat(row.club().getDistrict()).isEqualTo("강남구");
+            assertThat(row.club().getInterest().getCategory())
                     .isIn(Category.EXERCISE, Category.CULTURE);
         }
 
         // 가입한 클럽은 제외되어야 함 (첫 번째 운동 클럽에 가입되어 있음)
         Club joinedClub = seoulGangnamClubs.getFirst();
         assertThat(results.stream()
-                .map(result -> ((Club) result[0]).getClubId())
+                .map(row -> row.club().getClubId())
                 .anyMatch(clubId -> clubId.equals(joinedClub.getClubId())))
                 .isFalse();
     }

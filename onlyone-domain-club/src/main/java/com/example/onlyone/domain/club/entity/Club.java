@@ -1,16 +1,10 @@
 package com.example.onlyone.domain.club.entity;
 
-// import com.example.onlyone.domain.chat.entity.ChatRoom;  // 순환 의존성 방지 - Repository 쿼리 사용
-// import com.example.onlyone.domain.feed.entity.Feed;  // 순환 의존성 방지 - Repository 쿼리 사용
 import com.example.onlyone.domain.interest.entity.Interest;
-// import com.example.onlyone.domain.schedule.entity.Schedule;  // 순환 의존성 방지 - Repository 쿼리 사용
 import com.example.onlyone.common.BaseTimeEntity;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.NotNull;
 import lombok.*;
-
-import java.util.ArrayList;
-import java.util.List;
 
 @Entity
 @Table(name = "club", indexes = {
@@ -25,7 +19,7 @@ import java.util.List;
 @Getter
 @Builder
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
-@AllArgsConstructor
+@AllArgsConstructor(access = AccessLevel.PRIVATE)
 public class Club extends BaseTimeEntity {
 
     @Id
@@ -66,47 +60,14 @@ public class Club extends BaseTimeEntity {
     @NotNull
     private Interest interest;
 
-    // 순환 의존성 방지를 위해 OneToMany 관계 제거
-    // 필요시 ChatRoomRepository.findByClub(club) 등 Repository 쿼리 사용
-    // @OneToMany(mappedBy = "club", cascade = CascadeType.ALL, orphanRemoval = true)
-    // @Builder.Default
-    // private List<ChatRoom> chatRooms = new ArrayList<>();
-    //
-    // @OneToMany(mappedBy = "club", cascade = CascadeType.ALL, orphanRemoval = true)
-    // @Builder.Default
-    // private List<Feed> feeds = new ArrayList<>();
-    //
-    // @OneToMany(mappedBy = "club", cascade = CascadeType.ALL, orphanRemoval = true)
-    // @Builder.Default
-    // private List<Schedule> schedules = new ArrayList<>();
-
-    public void update(String name,
-                       int userLimit,
-                       String description,
-                       String clubImage,
-                       String city,
-                       String district,
-                       Interest interest) {
-        this.name = name;
-        this.userLimit = userLimit;
-        this.description = description;
-        this.clubImage = clubImage;
-        this.city = city;
-        this.district = district;
-        this.interest = interest;
-    }
-
-    // TODO: 순환 의존성 방지 - Schedule은 이미 Club을 참조하므로 불필요
-    // public void addSchedule(Schedule schedule) {
-    //     schedules.add(schedule);
-    // }
-
-    public void incrementMemberCount() {
-        this.memberCount++;
-    }
-    
-    public void decrementMemberCount() {
-        this.memberCount = Math.max(0L, this.memberCount - 1);
+    public void update(ClubUpdateCommand cmd) {
+        this.name = cmd.name();
+        this.userLimit = cmd.userLimit();
+        this.description = cmd.description();
+        this.clubImage = cmd.clubImage();
+        this.city = cmd.city();
+        this.district = cmd.district();
+        this.interest = cmd.interest();
     }
 
 }

@@ -8,10 +8,9 @@ import com.example.onlyone.domain.payment.feign.TossPaymentClient;
 import com.example.onlyone.global.exception.CustomException;
 import com.example.onlyone.global.exception.ErrorCode;
 import feign.FeignException;
-import jakarta.servlet.http.HttpSession;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
-import lombok.extern.log4j.Log4j2;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
 
@@ -23,7 +22,7 @@ import java.util.concurrent.TimeUnit;
  * 각 Phase의 트랜잭션 경계는 {@link PaymentTransactionService}에서 관리하며,
  * 이 클래스는 Phase 간 조합과 보상 로직만 담당한다.
  */
-@Log4j2
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class PaymentService {
@@ -46,14 +45,14 @@ public class PaymentService {
     private final Semaphore claimSemaphore = new Semaphore(MAX_CONCURRENT_CLAIMS, true);
 
     /* Redis에 결제 정보 임시 저장 (DB 트랜잭션 불필요) */
-    public void savePaymentInfo(SavePaymentRequestDto dto, HttpSession session) {
+    public void savePaymentInfo(SavePaymentRequestDto dto) {
         String redisKey = REDIS_PAYMENT_KEY_PREFIX + dto.orderId();
         redisTemplate.opsForValue()
                 .set(redisKey, dto.amount(), PAYMENT_INFO_TTL_SECONDS, TimeUnit.SECONDS);
     }
 
     /* Redis에 저장한 결제 정보와 일치 여부 확인 (DB 트랜잭션 불필요) */
-    public void confirmPayment(@Valid SavePaymentRequestDto dto, HttpSession session) {
+    public void confirmPayment(@Valid SavePaymentRequestDto dto) {
         String redisKey = REDIS_PAYMENT_KEY_PREFIX + dto.orderId();
         Object saved = redisTemplate.opsForValue().get(redisKey);
         if (saved == null) {
@@ -76,6 +75,7 @@ public class PaymentService {
      * 보상   : Phase 3 실패 → Toss 취소 + markPaymentAborted()
      */
     public ConfirmTossPayResponse confirm(ConfirmTossPayRequest req) {
+        log.info("결제 승인 시작: orderId={}, amount={}", req.orderId(), req.amount());
         // Gate: Redis 멱등성 게이트 — DB 히트 전 중복 요청 즉시 차단
         String gateKey = REDIS_PAYMENT_GATE_PREFIX + req.orderId();
         Boolean acquired = redisTemplate.opsForValue()

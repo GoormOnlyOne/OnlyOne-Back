@@ -1,6 +1,7 @@
 package com.example.onlyone.domain.settlement.controller;
 
-import com.example.onlyone.domain.settlement.service.SettlementService;
+import com.example.onlyone.domain.settlement.service.SettlementCommandService;
+import com.example.onlyone.domain.settlement.service.SettlementQueryService;
 import com.example.onlyone.global.common.CommonResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -18,7 +19,8 @@ import org.springframework.web.bind.annotation.*;
 @RequestMapping("/api/v1/clubs/{clubId}/schedules/{scheduleId}/settlements")
 public class SettlementController {
 
-    private final SettlementService settlementService;
+    private final SettlementCommandService settlementCommandService;
+    private final SettlementQueryService settlementQueryService;
 
     @Operation(summary = "정산 요청 생성", description = "정기 모임의 정산 요청을 생성합니다.")
     @PostMapping
@@ -26,7 +28,7 @@ public class SettlementController {
             @PathVariable("clubId") final Long clubId,
             @PathVariable("scheduleId") final Long scheduleId,
             @RequestParam Long costPerUser) {
-        settlementService.automaticSettlement(clubId, scheduleId, costPerUser);
+        settlementCommandService.automaticSettlement(clubId, scheduleId, costPerUser);
         return ResponseEntity.status(HttpStatus.CREATED).body(CommonResponse.success(null));
     }
 
@@ -38,6 +40,6 @@ public class SettlementController {
             @PageableDefault(size = 20, sort = "createdAt", direction = Sort.Direction.DESC)
             Pageable pageable) {
         return ResponseEntity.ok(CommonResponse.success(
-                settlementService.getSettlementList(scheduleId, pageable)));
+                settlementQueryService.getSettlementList(scheduleId, pageable)));
     }
 }

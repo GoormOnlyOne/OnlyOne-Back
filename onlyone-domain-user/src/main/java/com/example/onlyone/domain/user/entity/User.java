@@ -16,8 +16,8 @@ import java.util.Objects;
 })
 @Getter
 @Builder
-@NoArgsConstructor
-@AllArgsConstructor
+@NoArgsConstructor(access = AccessLevel.PROTECTED)
+@AllArgsConstructor(access = AccessLevel.PRIVATE)
 public class User extends BaseTimeEntity {
 
   @Id
@@ -64,13 +64,13 @@ public class User extends BaseTimeEntity {
 
   // ========== 비즈니스 메서드 ==========
 
-  public void update(String city, String district, String profileImage, String nickname, Gender gender, LocalDate birth) {
-    this.city = city;
-    this.district = district;
-    this.profileImage = profileImage;
-    this.nickname = nickname;
-    this.gender = gender;
-    this.birth = birth;
+  public void updateProfile(ProfileUpdateCommand command) {
+    this.city = command.city();
+    this.district = command.district();
+    this.profileImage = command.profileImage();
+    this.nickname = command.nickname();
+    this.gender = command.gender();
+    this.birth = command.birth();
   }
 
   public void updateKakaoAccessToken(String kakaoAccessToken) {

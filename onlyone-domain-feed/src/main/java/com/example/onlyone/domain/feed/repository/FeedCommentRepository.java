@@ -9,8 +9,4 @@ import java.util.List;
 
 public interface FeedCommentRepository extends JpaRepository<FeedComment, Long> {
     List<FeedComment> findByFeedOrderByCreatedAt(Feed feed, Pageable pageable);
-
-    List<FeedComment> findByFeed_FeedId(Long feedId);
-
-    Long countByFeed_FeedId(Long feedId);
 }

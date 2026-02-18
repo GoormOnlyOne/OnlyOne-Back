@@ -13,7 +13,7 @@ import lombok.*;
         })
 @Getter
 @Builder
-@AllArgsConstructor
+@AllArgsConstructor(access = AccessLevel.PRIVATE)
 @NoArgsConstructor
 public class FeedLike extends BaseTimeEntity {
 

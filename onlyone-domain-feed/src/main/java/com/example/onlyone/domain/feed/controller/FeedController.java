@@ -4,9 +4,11 @@ import com.example.onlyone.domain.feed.dto.request.FeedCommentRequestDto;
 import com.example.onlyone.domain.feed.dto.request.FeedRequestDto;
 import com.example.onlyone.domain.feed.dto.response.FeedDetailResponseDto;
 import com.example.onlyone.domain.feed.dto.response.FeedSummaryResponseDto;
-import com.example.onlyone.domain.feed.service.FeedService;
+import com.example.onlyone.domain.feed.service.FeedCommandService;
+import com.example.onlyone.domain.feed.service.FeedCommentService;
+import com.example.onlyone.domain.feed.service.FeedLikeService;
+import com.example.onlyone.domain.feed.service.FeedQueryService;
 import com.example.onlyone.global.common.CommonResponse;
-import org.springframework.web.bind.annotation.RestController;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
@@ -14,24 +16,26 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
-import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.List;
+import java.util.Map;
 
 @RestController
 @Tag(name = "feed")
 @RequiredArgsConstructor
 @RequestMapping("/api/v1/clubs/{clubId}/feeds")
 public class FeedController {
-    private final FeedService feedService;
+    private final FeedCommandService feedCommandService;
+    private final FeedQueryService feedQueryService;
+    private final FeedLikeService feedLikeService;
+    private final FeedCommentService feedCommentService;
 
     @Operation(summary = "피드 생성", description = "피드를 생성합니다.")
     @PostMapping
     public ResponseEntity<?> createFeed(@PathVariable("clubId") Long clubId, @RequestBody @Valid FeedRequestDto requestDto) {
-        feedService.createFeed(clubId, requestDto);
+        feedCommandService.createFeed(clubId, requestDto);
         return ResponseEntity.status(HttpStatus.CREATED).body(CommonResponse.success(null));
     }
 
@@ -40,14 +44,14 @@ public class FeedController {
     public ResponseEntity<?> updateFeed(@PathVariable("clubId") Long clubId,
                                         @PathVariable("feedId") Long feedId,
                                         @RequestBody @Valid FeedRequestDto requestDto) {
-        feedService.updateFeed(clubId, feedId, requestDto);
+        feedCommandService.updateFeed(clubId, feedId, requestDto);
         return ResponseEntity.status(HttpStatus.OK).body(CommonResponse.success(null));
     }
 
     @Operation(summary = "피드 삭제", description = "피드를 삭제합니다.")
     @DeleteMapping("/{feedId}")
     public ResponseEntity<?> deleteFeed(@PathVariable("clubId") Long clubId, @PathVariable("feedId") Long feedId) {
-        feedService.softDeleteFeed(clubId, feedId);
+        feedCommandService.softDeleteFeed(clubId, feedId);
         return ResponseEntity.status(HttpStatus.OK).body(CommonResponse.success(null));
     }
 
@@ -57,27 +61,22 @@ public class FeedController {
                                          @RequestParam(name = "page", defaultValue = "0") int page,
                                          @RequestParam(name = "limit", defaultValue = "20") int limit) {
         Pageable pageable = PageRequest.of(page, limit);
-        Page<FeedSummaryResponseDto> feedList = feedService.getFeedList(clubId, pageable);
+        Page<FeedSummaryResponseDto> feedList = feedQueryService.getFeedList(clubId, pageable);
         return ResponseEntity.status(HttpStatus.OK).body(CommonResponse.success(feedList));
     }
 
     @Operation(summary = "피드 상세 조회", description = "피드를 상세 조회합니다.")
     @GetMapping("/{feedId}")
     public ResponseEntity<?> getFeedDetail(@PathVariable("clubId") Long clubId, @PathVariable("feedId") Long feedId) {
-        FeedDetailResponseDto feedDetailResponseDto = feedService.getFeedDetail(clubId, feedId);
+        FeedDetailResponseDto feedDetailResponseDto = feedQueryService.getFeedDetail(clubId, feedId);
         return ResponseEntity.status(HttpStatus.OK).body(CommonResponse.success(feedDetailResponseDto));
     }
 
     @Operation(summary = "좋아요 토글", description = "좋아요를 추가하거나 취소합니다.")
     @PutMapping("/{feedId}/likes")
     public ResponseEntity<?> toggleLike(@PathVariable("clubId") Long clubId, @PathVariable("feedId") Long feedId) {
-        boolean liked = feedService.toggleLike(clubId, feedId);
-
-        if (liked) {
-            return ResponseEntity.status(HttpStatus.OK).body(CommonResponse.success(null));
-        } else {
-            return ResponseEntity.status(HttpStatus.NO_CONTENT).body(null);
-        }
+        boolean liked = feedLikeService.toggleLike(clubId, feedId);
+        return ResponseEntity.ok(CommonResponse.success(Map.of("liked", liked)));
     }
 
     @Operation(summary = "댓글 생성", description = "댓글을 생성합니다.")
@@ -85,7 +84,7 @@ public class FeedController {
     public ResponseEntity<?> createComment(@PathVariable("clubId") Long clubId,
                                            @PathVariable("feedId") Long feedId,
                                            @RequestBody @Valid FeedCommentRequestDto requestDto) {
-        feedService.createComment(clubId, feedId, requestDto);
+        feedCommentService.createComment(clubId, feedId, requestDto);
         return ResponseEntity.status(HttpStatus.CREATED).body(CommonResponse.success(null));
     }
 
@@ -94,7 +93,7 @@ public class FeedController {
     public ResponseEntity<?> deleteComment(@PathVariable("clubId") Long clubId,
                                            @PathVariable("feedId") Long feedId,
                                            @PathVariable("commentId") Long commentId) {
-        feedService.deleteComment(clubId, feedId, commentId);
+        feedCommentService.deleteComment(clubId, feedId, commentId);
         return ResponseEntity.status(HttpStatus.OK).body(CommonResponse.success(null));
     }
 }

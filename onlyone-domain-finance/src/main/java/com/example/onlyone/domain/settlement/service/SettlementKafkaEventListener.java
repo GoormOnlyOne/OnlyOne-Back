@@ -4,15 +4,10 @@ import com.example.onlyone.common.event.SettlementCompletedEvent;
 import com.example.onlyone.domain.settlement.dto.event.SettlementProcessEvent;
 import com.example.onlyone.domain.settlement.repository.SettlementRepository;
 import com.example.onlyone.domain.settlement.repository.UserSettlementRepository;
-import com.example.onlyone.domain.user.repository.UserRepository;
-import com.example.onlyone.domain.wallet.repository.WalletRepository;
-import com.example.onlyone.domain.wallet.service.WalletService;
 import com.example.onlyone.global.exception.CustomException;
 import com.example.onlyone.global.exception.ErrorCode;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import jakarta.persistence.EntityManager;
-import jakarta.persistence.PersistenceContext;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.springframework.beans.factory.annotation.Value;
@@ -42,24 +37,16 @@ public class SettlementKafkaEventListener {
 
     private final UserSettlementRepository userSettlementRepository;
     private final UserSettlementService userSettlementService;
-    private final WalletRepository walletRepository;
-    private final WalletService walletService;
     private final SettlementRepository settlementRepository;
-    private final UserRepository userRepository;
     private final ApplicationEventPublisher eventPublisher;
     private final TransactionTemplate txTemplate;
-    @PersistenceContext
-    private EntityManager entityManager;
 
     // 생성자에서 세마포어 초기화
     public SettlementKafkaEventListener(
             ObjectMapper objectMapper,
             UserSettlementRepository userSettlementRepository,
             UserSettlementService userSettlementService,
-            WalletRepository walletRepository,
-            WalletService walletService,
             SettlementRepository settlementRepository,
-            UserRepository userRepository,
             ApplicationEventPublisher eventPublisher,
             PlatformTransactionManager transactionManager,
             @Value("${app.settlement.concurrency:32}") int concurrencyLimit
@@ -67,10 +54,7 @@ public class SettlementKafkaEventListener {
         this.objectMapper = objectMapper;
         this.userSettlementRepository = userSettlementRepository;
         this.userSettlementService = userSettlementService;
-        this.walletRepository = walletRepository;
-        this.walletService = walletService;
         this.settlementRepository = settlementRepository;
-        this.userRepository = userRepository;
         this.eventPublisher = eventPublisher;
         this.concurrencyLimit = new Semaphore(concurrencyLimit);
 
@@ -87,15 +71,11 @@ public class SettlementKafkaEventListener {
             concurrency = "3"
     )
     public void onSettlementProcess(List<ConsumerRecord<String, String>> records, Acknowledgment ack) {
-        try {
-            for (ConsumerRecord<String, String> rec : records) {
-                SettlementProcessEvent event = parse(rec.value());
-                processSettlementWithStructuredScope(event);
-            }
-            ack.acknowledge(); // 성공 시 배치 커밋
-        } catch (Exception e) {
-            throw e;
+        for (ConsumerRecord<String, String> rec : records) {
+            SettlementProcessEvent event = parse(rec.value());
+            processSettlementWithStructuredScope(event);
         }
+        ack.acknowledge(); // 성공 시 배치 커밋
     }
 
     private SettlementProcessEvent parse(String json) {

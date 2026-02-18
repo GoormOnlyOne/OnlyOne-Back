@@ -1,3 +1,8 @@
+# -----------------------------------------------
+# 동아리 검색용 한국어 불용어 목록
+# Elasticsearch club_analyzer의 stop 필터에서 사용
+# 설정 파일: club-settings.json → analysis.filter.club_stopwords
+# -----------------------------------------------
 가
 가까스로
 가령

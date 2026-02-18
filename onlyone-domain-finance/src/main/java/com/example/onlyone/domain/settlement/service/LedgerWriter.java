@@ -15,8 +15,7 @@ import com.example.onlyone.global.exception.ErrorCode;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
-import lombok.extern.java.Log;
-import lombok.extern.log4j.Log4j2;
+import lombok.extern.slf4j.Slf4j;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Component;
@@ -33,10 +32,12 @@ import java.util.stream.Collectors;
  * 실제 지갑 잔액(captureHold/creditByUserId로 변경된 값)과 다를 수 있다.
  * 이는 감사(audit) 기록 목적이며, 정확한 실시간 잔액은 native conditional UPDATE가 보장한다.
  */
-@Log4j2
+@Slf4j
 @Component
 @RequiredArgsConstructor
 public class LedgerWriter {
+
+    private static final int TRANSFER_BATCH_SIZE = 1000;
 
     private final ObjectMapper objectMapper;
     private final WalletTransactionRepository walletTransactionRepository;
@@ -44,45 +45,43 @@ public class LedgerWriter {
     private final WalletRepository walletRepository;
     private final UserSettlementRepository userSettlementRepository;
 
-    /*
-    public class ConsumerRecord<K, V> {
-        private final String topic;     // 토픽명
-        private final int partition;    // 파티션 번호
-        private final long offset;      // 해당 파티션 내 오프셋
-        private final K key;            // Kafka 메시지 Key
-        private final V value;          // Kafka 메시지 Value (JSON String)
-        private final long timestamp;   // 메시지 발생/전송 시간
-        ...
-    }
-     */
-
     @Transactional
     public void writeBatch(List<ConsumerRecord<String, String>> records) {
         if (records == null || records.isEmpty()) {
             return;
         }
 
-        List<WalletTransaction> walletTransactionList = new ArrayList<>();
-        List<Transfer> transferList = new ArrayList<>();
+        List<JsonNode> events = parseAll(records);
+        Set<String> existing = findExistingOperationIds(events);
 
-        // 1) 파싱 및 candidate operationId 수집
-        List<JsonNode> events = records.stream()
+        List<WalletTransaction> walletTransactions = new ArrayList<>();
+        List<Transfer> transfers = new ArrayList<>();
+        buildTransactionsAndTransfers(events, existing, walletTransactions, transfers);
+
+        saveWalletTransactions(walletTransactions);
+        saveTransfers(transfers);
+    }
+
+    private List<JsonNode> parseAll(List<ConsumerRecord<String, String>> records) {
+        return records.stream()
                 .map(r -> parse(r.value()))
                 .toList();
+    }
 
-        Set<String> candidateoperationIds = new HashSet<>();
+    private Set<String> findExistingOperationIds(List<JsonNode> events) {
+        Set<String> candidateOperationIds = new HashSet<>();
         for (JsonNode root : events) {
             String operationId = root.path("operationId").asText();
             if (operationId == null || operationId.isBlank()) continue;
-            candidateoperationIds.add(operationId + ":OUT");
-            candidateoperationIds.add(operationId + ":IN");
+            candidateOperationIds.add(operationId + ":OUT");
+            candidateOperationIds.add(operationId + ":IN");
         }
+        return new HashSet<>(walletTransactionRepository.findExistingOperationIds(candidateOperationIds));
+    }
 
-        // 2) 이미 처리된 operationId 조회
-        Set<String> existing = new HashSet<>(walletTransactionRepository.findExistingOperationIds(candidateoperationIds));
-
-        // 3) WalletTransaction / Transfer 생성
-        Map<String, WalletTransaction> walletTransactionHashMap = new HashMap<>();
+    private void buildTransactionsAndTransfers(List<JsonNode> events, Set<String> existing,
+                                               List<WalletTransaction> walletTransactions,
+                                               List<Transfer> transfers) {
         for (JsonNode root : events) {
             String type = root.path("type").asText("SUCCESS");
             String operationId = root.path("operationId").asText();
@@ -103,7 +102,7 @@ public class LedgerWriter {
             // OUTGOING
             String outId = operationId + ":OUT";
             if (!existing.contains(outId)) {
-                WalletTransaction outTransaction = WalletTransaction.builder()
+                WalletTransaction outTx = WalletTransaction.builder()
                         .operationId(outId)
                         .type(TransactionType.OUTGOING)
                         .wallet(memberWallet)
@@ -112,21 +111,20 @@ public class LedgerWriter {
                         .balance(memberWallet.getPostedBalance())
                         .walletTransactionStatus(status)
                         .build();
-                walletTransactionList.add(outTransaction);
-                walletTransactionHashMap.put(outId, outTransaction);
+                walletTransactions.add(outTx);
 
-                // TODO: Transfer 엔티티 수정으로 userSettlementId 사용
                 Transfer outTransfer = Transfer.builder()
                         .userSettlementId(us.getUserSettlementId())
-                        .walletTransaction(outTransaction)
+                        .walletTransaction(outTx)
                         .build();
-                transferList.add(outTransfer);
-                outTransaction.updateTransfer(outTransfer);
+                transfers.add(outTransfer);
+                outTx.updateTransfer(outTransfer);
             }
+
             // INCOMING
             String inId = operationId + ":IN";
             if (!existing.contains(inId)) {
-                WalletTransaction inTransaction = WalletTransaction.builder()
+                WalletTransaction inTx = WalletTransaction.builder()
                         .operationId(inId)
                         .type(TransactionType.INCOMING)
                         .wallet(leaderWallet)
@@ -135,65 +133,61 @@ public class LedgerWriter {
                         .balance(leaderWallet.getPostedBalance())
                         .walletTransactionStatus(status)
                         .build();
-                walletTransactionList.add(inTransaction);
-                walletTransactionHashMap.put(inId, inTransaction);
+                walletTransactions.add(inTx);
 
-                // TODO: Transfer 엔티티 수정으로 userSettlementId 사용
                 Transfer inTransfer = Transfer.builder()
                         .userSettlementId(us.getUserSettlementId())
-                        .walletTransaction(inTransaction)
+                        .walletTransaction(inTx)
                         .build();
-                transferList.add(inTransfer);
-                inTransaction.updateTransfer(inTransfer);
+                transfers.add(inTransfer);
+                inTx.updateTransfer(inTransfer);
             }
         }
+    }
 
-        // 4) WalletTransaction 저장 (배치 + 충돌 시 개별 재시도)
-        if (!walletTransactionList.isEmpty()) {
-            try {
-                walletTransactionRepository.saveAll(walletTransactionList);
-                walletTransactionRepository.flush();
-            } catch (DataIntegrityViolationException dup) {
-                insertIndividuallyIgnoringDuplicate(walletTransactionList);
-            }
+    private void saveWalletTransactions(List<WalletTransaction> walletTransactions) {
+        if (walletTransactions.isEmpty()) return;
+        try {
+            walletTransactionRepository.saveAll(walletTransactions);
+            walletTransactionRepository.flush();
+        } catch (DataIntegrityViolationException dup) {
+            insertIndividuallyIgnoringDuplicate(walletTransactions);
         }
+    }
 
-        // 5) Transfer 저장 (성능 개선: 배치 크기 제한)
-        if (!transferList.isEmpty()) {
-            try {
-                // 배치 크기를 1000으로 제한하여 메모리 사용량 최적화
-                int batchSize = 1000;
-                for (int i = 0; i < transferList.size(); i += batchSize) {
-                    int endIndex = Math.min(i + batchSize, transferList.size());
-                    List<Transfer> batch = transferList.subList(i, endIndex);
-                    transferRepository.saveAll(batch);
-                }
-                transferRepository.flush();
-            } catch (DataIntegrityViolationException dup) {
-                // 필요시 개별 재시도
+    private void saveTransfers(List<Transfer> transfers) {
+        if (transfers.isEmpty()) return;
+        try {
+            for (int i = 0; i < transfers.size(); i += TRANSFER_BATCH_SIZE) {
+                int endIndex = Math.min(i + TRANSFER_BATCH_SIZE, transfers.size());
+                transferRepository.saveAll(transfers.subList(i, endIndex));
             }
+            transferRepository.flush();
+        } catch (DataIntegrityViolationException dup) {
+            // 동시경합으로 중복키면 스킵
         }
     }
 
     private JsonNode parse(String s) {
-        try { return objectMapper.readTree(s); }
-        catch (Exception e) {
+        try {
+            return objectMapper.readTree(s);
+        } catch (Exception e) {
             throw new CustomException(ErrorCode.INVALID_EVENT_PAYLOAD);
         }
     }
 
-    private void insertIndividuallyIgnoringDuplicate(List<WalletTransaction> walletTransactionList) {
+    private void insertIndividuallyIgnoringDuplicate(List<WalletTransaction> walletTransactions) {
         Set<String> existing = new HashSet<>(
                 walletTransactionRepository.findExistingOperationIds(
-                        walletTransactionList.stream().map(WalletTransaction::getOperationId).collect(Collectors.toSet())
+                        walletTransactions.stream().map(WalletTransaction::getOperationId).collect(Collectors.toSet())
                 )
         );
-        for (WalletTransaction walletTransaction : walletTransactionList) {
-            if (existing.contains(walletTransaction.getOperationId())) continue;
+        for (WalletTransaction tx : walletTransactions) {
+            if (existing.contains(tx.getOperationId())) continue;
             try {
-                walletTransactionRepository.saveAndFlush(walletTransaction);
+                walletTransactionRepository.saveAndFlush(tx);
             } catch (DataIntegrityViolationException ignored) {
-                // 동시경합으로 중복키면 그냥 스킵
+                // 동시경합으로 중복키면 스킵
             }
         }
     }

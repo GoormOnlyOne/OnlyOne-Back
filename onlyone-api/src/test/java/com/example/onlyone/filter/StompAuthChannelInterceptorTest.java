@@ -1,5 +1,7 @@
 package com.example.onlyone.filter;
 
+import com.example.onlyone.global.filter.JwtTokenParser;
+import com.example.onlyone.global.filter.StompAuthChannelInterceptor;
 import com.example.onlyone.domain.user.dto.UserPrincipal;
 import io.jsonwebtoken.JwtException;
 import org.junit.jupiter.api.DisplayName;
@@ -68,6 +70,7 @@ class StompAuthChannelInterceptorTest {
             String token = "valid.jwt.token";
             Message<?> message = connectMessage("Bearer " + token);
             UserPrincipal expected = activePrincipal();
+            given(jwtTokenParser.extractBearerToken("Bearer " + token)).willReturn(token);
             given(jwtTokenParser.parseToken(token)).willReturn(expected);
 
             // when
@@ -102,12 +105,13 @@ class StompAuthChannelInterceptorTest {
         void failWithoutAuthHeader() {
             // given
             Message<?> message = connectMessage(null);
+            given(jwtTokenParser.extractBearerToken(null)).willReturn(null);
 
             // when & then
             assertThatThrownBy(() -> interceptor.preSend(message, null))
                     .isInstanceOf(MessageDeliveryException.class)
                     .hasMessageContaining("Authorization header is missing");
-            then(jwtTokenParser).shouldHaveNoInteractions();
+            then(jwtTokenParser).should(never()).parseToken(any());
         }
 
         @Test
@@ -115,12 +119,13 @@ class StompAuthChannelInterceptorTest {
         void failWithoutBearerPrefix() {
             // given
             Message<?> message = connectMessage("Basic some-token");
+            given(jwtTokenParser.extractBearerToken("Basic some-token")).willReturn(null);
 
             // when & then
             assertThatThrownBy(() -> interceptor.preSend(message, null))
                     .isInstanceOf(MessageDeliveryException.class)
                     .hasMessageContaining("Authorization header is missing");
-            then(jwtTokenParser).shouldHaveNoInteractions();
+            then(jwtTokenParser).should(never()).parseToken(any());
         }
 
         @Test
@@ -129,6 +134,7 @@ class StompAuthChannelInterceptorTest {
             // given
             String token = "invalid.jwt.token";
             Message<?> message = connectMessage("Bearer " + token);
+            given(jwtTokenParser.extractBearerToken("Bearer " + token)).willReturn(token);
             given(jwtTokenParser.parseToken(token)).willThrow(new JwtException("Invalid token"));
 
             // when & then
@@ -143,6 +149,7 @@ class StompAuthChannelInterceptorTest {
             // given
             String token = "missing-claims.jwt.token";
             Message<?> message = connectMessage("Bearer " + token);
+            given(jwtTokenParser.extractBearerToken("Bearer " + token)).willReturn(token);
             given(jwtTokenParser.parseToken(token))
                     .willThrow(new IllegalArgumentException("JWT claim 'kakaoId' is missing"));
 
@@ -158,6 +165,7 @@ class StompAuthChannelInterceptorTest {
             // given
             String token = "valid.jwt.token";
             Message<?> message = connectMessage("Bearer " + token);
+            given(jwtTokenParser.extractBearerToken("Bearer " + token)).willReturn(token);
             given(jwtTokenParser.parseToken(token)).willReturn(inactivePrincipal());
 
             // when & then

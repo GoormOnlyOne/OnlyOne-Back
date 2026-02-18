@@ -1,18 +1,17 @@
 package com.example.onlyone.domain.settlement.service;
 
-import com.example.onlyone.global.config.kafka.KafkaProperties;
+import com.example.onlyone.domain.settlement.config.kafka.KafkaProperties;
 import lombok.RequiredArgsConstructor;
-import lombok.extern.log4j.Log4j2;
+import lombok.extern.slf4j.Slf4j;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.kafka.support.Acknowledgment;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 
-@Log4j2
+@Slf4j
 @Service
 @RequiredArgsConstructor
 @ConditionalOnProperty(name = "spring.kafka.enabled", havingValue = "true", matchIfMissing = false)
@@ -31,12 +30,12 @@ public class KafkaService {
             concurrency = "8"
     )
     public void onUserSettlementResultBatch(List<ConsumerRecord<String, String>> records, Acknowledgment ack) {
+        log.info("Kafka 메시지 수신: topic=user-settlement-result, count={}", records.size());
         try {
             ledgerWriter.writeBatch(records);
-            // 오프셋 커밋
             ack.acknowledge();
         } catch (Exception e) {
-            // throw해서 컨테이너 재시도
+            log.error("Kafka 메시지 처리 실패: count={}", records.size(), e);
             throw e;
         }
     }

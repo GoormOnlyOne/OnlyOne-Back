@@ -1,5 +1,6 @@
 package com.example.onlyone.domain.settlement.service;
 
+import com.example.onlyone.domain.settlement.dto.event.FailedSettlementContext;
 import com.example.onlyone.domain.settlement.dto.event.OutboxEvent;
 import com.example.onlyone.domain.settlement.dto.event.UserSettlementStatusEvent;
 import com.example.onlyone.domain.settlement.entity.OutboxStatus;
@@ -23,42 +24,31 @@ public class FailedEventAppender {
     private final ObjectMapper objectMapper;
     private final UserSettlementRepository userSettlementRepository;
 
-    // Fix 5: 상태 업데이트를 이 REQUIRES_NEW 트랜잭션으로 흡수하여 롤백 방지
     @Transactional(propagation = Propagation.REQUIRES_NEW)
-    public void appendFailedUserSettlementEvent(Long settlementId,
-                                                Long userSettlementId,
-                                                Long participantId,
-                                                Long memberWalletId,
-                                                Long leaderId,
-                                                Long leaderWalletId,
-                                                Long amount) {
+    public void appendFailedUserSettlementEvent(FailedSettlementContext ctx) {
         try {
-            // Fix 5: 상태 업데이트를 별도 REQUIRES_NEW tx에서 수행하여 원본 tx 롤백에 영향받지 않음
-            userSettlementRepository.updateStatusIfRequested(userSettlementId, SettlementStatus.FAILED);
+            userSettlementRepository.updateStatusIfRequested(ctx.userSettlementId(), SettlementStatus.FAILED);
 
-            // 1. DTO로 변환
             UserSettlementStatusEvent eventDto = new UserSettlementStatusEvent(
                     UserSettlementStatusEvent.ResultType.FAILED,
-                    "stl:%d:usr:%d:v1".formatted(settlementId, participantId),
+                    "stl:%d:usr:%d:v1".formatted(ctx.settlementId(), ctx.participantId()),
                     Instant.now(),
-                    settlementId,
-                    userSettlementId,
-                    participantId,
-                    memberWalletId,
-                    leaderId,
-                    leaderWalletId,
-                    amount
+                    ctx.settlementId(),
+                    ctx.userSettlementId(),
+                    ctx.participantId(),
+                    ctx.memberWalletId(),
+                    ctx.leaderId(),
+                    ctx.leaderWalletId(),
+                    ctx.amount()
             );
 
-            // 2. JSON 직렬화
             String json = objectMapper.writeValueAsString(eventDto);
 
-            // 3. OutboxEvent 저장
             OutboxEvent event = OutboxEvent.builder()
                     .aggregateType("UserSettlement")
-                    .aggregateId(userSettlementId)
+                    .aggregateId(ctx.userSettlementId())
                     .eventType("ParticipantSettlementResult")
-                    .keyString(String.valueOf(memberWalletId)) // partition key
+                    .keyString(String.valueOf(ctx.memberWalletId()))
                     .payload(json)
                     .status(OutboxStatus.NEW)
                     .createdAt(LocalDateTime.now())

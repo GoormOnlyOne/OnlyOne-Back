@@ -1,8 +1,6 @@
 package com.example.onlyone.domain.schedule.entity;
 
 import com.example.onlyone.domain.club.entity.Club;
-// TODO: 순환 의존성 방지 - Settlement 도메인 의존성 제거
-// import com.example.onlyone.domain.settlement.entity.Settlement;
 import com.example.onlyone.common.BaseTimeEntity;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.NotNull;
@@ -11,6 +9,8 @@ import lombok.*;
 import java.time.*;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 @Entity
 @Table(name = "schedule", indexes = {
@@ -20,7 +20,7 @@ import java.util.List;
 @Getter
 @Builder
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
-@AllArgsConstructor
+@AllArgsConstructor(access = AccessLevel.PRIVATE)
 public class Schedule extends BaseTimeEntity {
 
     @Id
@@ -40,8 +40,8 @@ public class Schedule extends BaseTimeEntity {
     @NotNull
     private String location;
 
-            @Column(name = "cost")
-            @NotNull
+    @Column(name = "cost")
+    @NotNull
     private Long cost;
 
     @Column(name = "user_limit")
@@ -62,10 +62,11 @@ public class Schedule extends BaseTimeEntity {
     @OneToMany(mappedBy = "schedule", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<UserSchedule> userSchedules = new ArrayList<>();
 
-    // TODO: 순환 의존성 방지 - Settlement 관계 제거
-    // Settlement은 scheduleId로 Schedule을 참조하도록 변경됨
-    // @OneToOne(mappedBy = "schedule", cascade = CascadeType.ALL, orphanRemoval = true)
-    // private Settlement settlement;
+    /** READY 상태 + 미만료 시에만 수정/참여/삭제 가능 */
+    public boolean isNotModifiable() {
+        return this.scheduleStatus != ScheduleStatus.READY
+                || this.scheduleTime.isBefore(LocalDateTime.now());
+    }
 
     public void update(String name, String location, Long cost, int userLimit, LocalDateTime scheduleTime) {
         this.name = name;
@@ -75,12 +76,20 @@ public class Schedule extends BaseTimeEntity {
         this.scheduleTime = scheduleTime;
     }
 
-    public void updateStatus(ScheduleStatus scheduleStatus) {
-        this.scheduleStatus = scheduleStatus;
+    private static final Map<ScheduleStatus, Set<ScheduleStatus>> VALID_TRANSITIONS = Map.of(
+            ScheduleStatus.READY, Set.of(ScheduleStatus.ENDED),
+            ScheduleStatus.ENDED, Set.of(ScheduleStatus.SETTLING, ScheduleStatus.CLOSED),
+            ScheduleStatus.SETTLING, Set.of(ScheduleStatus.CLOSED)
+    );
+
+    /** 상태 전이 (유효한 전이만 허용) */
+    public void transitionTo(ScheduleStatus newStatus) {
+        Set<ScheduleStatus> allowed = VALID_TRANSITIONS.getOrDefault(this.scheduleStatus, Set.of());
+        if (!allowed.contains(newStatus)) {
+            throw new IllegalStateException(
+                    String.format("잘못된 상태 전이: %s → %s", this.scheduleStatus, newStatus));
+        }
+        this.scheduleStatus = newStatus;
     }
 
-    // TODO: 순환 의존성 방지 - Settlement 메서드 제거
-    // Settlement 관련 로직은 Settlement 도메인에서 scheduleId로 처리
-    // public void updateSettlement(Settlement settlement) { ... }
-    // public void removeSettlement(Settlement settlement) { ... }
 }

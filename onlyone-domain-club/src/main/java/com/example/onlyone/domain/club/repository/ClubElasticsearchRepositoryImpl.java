@@ -72,25 +72,4 @@ public class ClubElasticsearchRepositoryImpl implements ClubElasticsearchReposit
         return searchHits.stream().map(SearchHit::getContent).toList();
     }
 
-    // ── Legacy methods (delegate to unified search) ──
-
-    @Override
-    public List<ClubDocument> findByKeyword(String keyword, Pageable pageable) {
-        return search(keyword, null, null, null, pageable);
-    }
-
-    @Override
-    public List<ClubDocument> findByKeywordAndLocation(String keyword, String city, String district, Pageable pageable) {
-        return search(keyword, city, district, null, pageable);
-    }
-
-    @Override
-    public List<ClubDocument> findByKeywordAndInterest(String keyword, Long interestId, Pageable pageable) {
-        return search(keyword, null, null, interestId, pageable);
-    }
-
-    @Override
-    public List<ClubDocument> findByKeywordAndLocationAndInterest(String keyword, String city, String district, Long interestId, Pageable pageable) {
-        return search(keyword, city, district, interestId, pageable);
-    }
 }

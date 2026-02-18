@@ -3,18 +3,15 @@ package com.example.onlyone.domain.feed.repository;
 import com.example.onlyone.domain.club.entity.Club;
 import com.example.onlyone.domain.feed.dto.response.FeedSummaryResponseDto;
 import com.example.onlyone.domain.feed.entity.Feed;
-import jakarta.persistence.LockModeType;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
-import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
 
 @Repository
@@ -39,8 +36,6 @@ public interface FeedRepository extends JpaRepository<Feed,Long> {
     }
 
     Optional<Feed> findByFeedIdAndClub(Long feedId, Club club);
-
-    Page<Feed> findByClubAndParentFeedIdIsNull(Club club, Pageable pageable);
 
     /** getFeedList 최적화: 비정규화 컬럼 사용 — correlated subquery 제거 */
     @Query(value = """
@@ -117,31 +112,6 @@ public interface FeedRepository extends JpaRepository<Feed,Long> {
            "LEFT JOIN FETCH f.feedImages " +
            "WHERE f.feedId IN :ids")
     List<Feed> findByIdsWithRelations(@Param("ids") List<Long> ids);
-
-    /** N+1 방지: 피드 ID 목록의 좋아요 수를 한번에 조회 */
-    @Query(value = "SELECT fl.feed_id as feedId, COUNT(*) as cnt FROM feed_like fl WHERE fl.feed_id IN (:feedIds) GROUP BY fl.feed_id", nativeQuery = true)
-    List<FeedCountProjection> countLikesByFeedIdsRaw(@Param("feedIds") List<Long> feedIds);
-
-    /** N+1 방지: 피드 ID 목록의 댓글 수를 한번에 조회 */
-    @Query(value = "SELECT fc.feed_id as feedId, COUNT(*) as cnt FROM feed_comment fc WHERE fc.feed_id IN (:feedIds) GROUP BY fc.feed_id", nativeQuery = true)
-    List<FeedCountProjection> countCommentsByFeedIdsRaw(@Param("feedIds") List<Long> feedIds);
-
-    interface FeedCountProjection {
-        Long getFeedId();
-        Long getCnt();
-    }
-
-    default Map<Long, Long> countLikesByFeedIds(List<Long> feedIds) {
-        if (feedIds.isEmpty()) return java.util.Collections.emptyMap();
-        return countLikesByFeedIdsRaw(feedIds).stream()
-                .collect(java.util.stream.Collectors.toMap(FeedCountProjection::getFeedId, FeedCountProjection::getCnt));
-    }
-
-    default Map<Long, Long> countCommentsByFeedIds(List<Long> feedIds) {
-        if (feedIds.isEmpty()) return java.util.Collections.emptyMap();
-        return countCommentsByFeedIdsRaw(feedIds).stream()
-                .collect(java.util.stream.Collectors.toMap(FeedCountProjection::getFeedId, FeedCountProjection::getCnt));
-    }
 
     /** comment_count 원자적 증가 */
     @Modifying

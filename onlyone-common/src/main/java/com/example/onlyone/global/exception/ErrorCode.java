@@ -65,7 +65,7 @@ public enum ErrorCode {
     BEFORE_SCHEDULE_END(409, "SCHEDULE_409_5", "아직 진행되지 않은 정기 모임입니다."),
     ALREADY_EXCEEDED_SCHEDULE(409, "SCHEDULE_409_6", "이미 정원이 마감된 정기 모임입니다."),
     ALREADY_SETTLING_SCHEDULE(409, "SCHEDULE_409_7", "이미 정산 진행 중인 정기 모임입니다."),
-    SCHEDULE_NOT_JOIN(403,"SCHEDULE_403_3", "정기 모임(스케줄)에 참여하지 않은 사용자입니다."),
+    SCHEDULE_NOT_JOIN(403,"SCHEDULE_403_4", "정기 모임(스케줄)에 참여하지 않은 사용자입니다."),
 
     // Settlement
     MEMBER_CANNOT_CREATE_SETTLEMENT(403, "SETTLEMENT_403_1", "리더만 정산 요청을 할 수 있습니다."),
@@ -141,7 +141,6 @@ public enum ErrorCode {
     // Elasticsearch
     ELASTICSEARCH_INDEX_ERROR(500, "ES_500_1", "Elasticsearch 인덱싱 중 오류가 발생했습니다."),
     ELASTICSEARCH_DELETE_ERROR(500, "ES_500_2", "Elasticsearch 삭제 중 오류가 발생했습니다."),
-    ELASTICSEARCH_UPDATE_ERROR(500, "ES_500_3", "Elasticsearch 업데이트 중 오류가 발생했습니다."),
     ELASTICSEARCH_SEARCH_ERROR(500, "ES_500_4", "Elasticsearch 검색 중 오류가 발생했습니다."),
     ELASTICSEARCH_SYNC_ERROR(500, "ES_500_5", "Elasticsearch 동기화 중 오류가 발생했습니다."),
     

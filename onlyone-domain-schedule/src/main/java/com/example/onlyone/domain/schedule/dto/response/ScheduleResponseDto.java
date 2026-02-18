@@ -3,7 +3,9 @@ package com.example.onlyone.domain.schedule.dto.response;
 import com.example.onlyone.domain.schedule.entity.Schedule;
 import com.example.onlyone.domain.schedule.entity.ScheduleStatus;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.temporal.ChronoUnit;
 
 public record ScheduleResponseDto(
     Long scheduleId,
@@ -17,7 +19,11 @@ public record ScheduleResponseDto(
     boolean isLeader,
     String dDay
 ) {
-    public static ScheduleResponseDto from(Schedule schedule, int userCount, boolean isJoined, boolean isLeader, long dDay) {
+    /** ScheduleListRow → DTO 변환 (D-Day 자동 계산) */
+    public static ScheduleResponseDto from(ScheduleListRow row) {
+        Schedule schedule = row.schedule();
+        long dDayValue = ChronoUnit.DAYS.between(
+                LocalDate.now(), schedule.getScheduleTime().toLocalDate());
         return new ScheduleResponseDto(
                 schedule.getScheduleId(),
                 schedule.getName(),
@@ -25,10 +31,10 @@ public record ScheduleResponseDto(
                 schedule.getScheduleTime(),
                 schedule.getCost(),
                 schedule.getUserLimit(),
-                userCount,
-                isJoined,
-                isLeader,
-                formatDDay(dDay)
+                (int) row.userCount(),
+                row.isJoined(),
+                row.isLeader(),
+                formatDDay(dDayValue)
         );
     }
 

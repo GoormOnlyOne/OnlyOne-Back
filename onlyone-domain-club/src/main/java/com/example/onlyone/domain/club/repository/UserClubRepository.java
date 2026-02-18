@@ -27,13 +27,13 @@ public interface UserClubRepository extends JpaRepository<UserClub,Long> {
     List<UserClub> findByUserUserIdIn(Collection<Long> userIds);
 
     @Query("""
-    select c, c.memberCount
+    select new com.example.onlyone.domain.club.repository.ClubWithMemberCount(c, c.memberCount)
     from UserClub uc
       join uc.club c
     where uc.user.userId = :userId
     order by c.modifiedAt desc
     """)
-    List<Object[]> findMyClubsWithMemberCount(@Param("userId") Long userId);
+    List<ClubWithMemberCount> findMyClubsWithMemberCount(@Param("userId") Long userId);
 
     boolean existsByUser_UserIdAndClub_ClubId(Long userId, Long clubId);
 

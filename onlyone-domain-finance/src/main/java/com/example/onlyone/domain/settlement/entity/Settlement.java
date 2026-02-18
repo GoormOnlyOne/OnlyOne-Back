@@ -18,7 +18,7 @@ import java.util.List;
 @Getter
 @Builder
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
-@AllArgsConstructor
+@AllArgsConstructor(access = AccessLevel.PRIVATE)
 public class Settlement extends BaseTimeEntity {
 
     @Id
@@ -57,16 +57,7 @@ public class Settlement extends BaseTimeEntity {
     @Builder.Default
     private List<UserSettlement> userSettlements = new ArrayList<>();
 
-    public void update(TotalStatus totalStatus, LocalDateTime completedTime) {
-        this.totalStatus = totalStatus;
-        this.completedTime = completedTime;
-    }
-
     public void updateSum(Long sum) {
         this.sum = sum;
-    }
-
-    public void updateTotalStatus(TotalStatus totalStatus) {
-        this.totalStatus = totalStatus;
     }
 }

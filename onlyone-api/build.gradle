@@ -30,11 +30,13 @@ dependencyManagement {
     }
 }
 
+ext {
+    set('querydslVersion', '5.1.0')
+}
+
 dependencies {
     // 공통 모듈
     implementation project(':onlyone-common')
-    implementation project(':onlyone-security')
-    implementation project(':onlyone-infra')
 
     // 도메인 모듈
     implementation project(':onlyone-domain-user')
@@ -42,7 +44,7 @@ dependencies {
     implementation project(':onlyone-domain-club')
     implementation project(':onlyone-domain-chat')
     implementation project(':onlyone-domain-feed')
-    implementation project(':onlyone-domain-finance')  // payment + wallet + settlement 통합
+    implementation project(':onlyone-domain-finance')
     implementation project(':onlyone-domain-schedule')
     implementation project(':onlyone-domain-interest')
     implementation project(':onlyone-domain-search')
@@ -50,9 +52,36 @@ dependencies {
 
     // Spring Boot Starters
     implementation 'org.springframework.boot:spring-boot-starter-web'
+    implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
+    implementation 'org.springframework.boot:spring-boot-starter-data-redis'
+    implementation 'org.springframework.boot:spring-boot-starter-data-elasticsearch'
+    implementation 'org.springframework.boot:spring-boot-starter-websocket'
     implementation 'org.springframework.boot:spring-boot-starter-logging'
     implementation 'org.springframework.boot:spring-boot-starter-actuator'
     implementation 'org.springframework.boot:spring-boot-starter-aop'
+
+    // Security (기존 infra에서 이관)
+    implementation 'org.springframework.boot:spring-boot-starter-security'
+    implementation 'org.springframework.boot:spring-boot-starter-oauth2-client'
+    implementation 'io.jsonwebtoken:jjwt-api:0.12.4'
+    runtimeOnly 'io.jsonwebtoken:jjwt-impl:0.12.4'
+    runtimeOnly 'io.jsonwebtoken:jjwt-jackson:0.12.4'
+    implementation 'com.auth0:java-jwt:3.14.0'
+
+    // QueryDSL
+    implementation "com.querydsl:querydsl-jpa:${querydslVersion}:jakarta"
+    annotationProcessor "com.querydsl:querydsl-apt:${querydslVersion}:jakarta"
+    annotationProcessor 'jakarta.annotation:jakarta.annotation-api:3.0.0'
+    annotationProcessor 'jakarta.persistence:jakarta.persistence-api:3.2.0'
+
+    // Redis pool
+    implementation 'org.apache.commons:commons-pool2:2.12.0'
+
+    // AWS S3
+    implementation 'software.amazon.awssdk:s3:2.32.11'
+
+    // Firebase FCM
+    implementation 'com.google.firebase:firebase-admin:9.5.0'
 
     // OpenAPI
     implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:2.7.0'

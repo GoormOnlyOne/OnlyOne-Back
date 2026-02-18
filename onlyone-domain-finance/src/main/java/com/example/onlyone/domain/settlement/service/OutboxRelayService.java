@@ -2,7 +2,7 @@ package com.example.onlyone.domain.settlement.service;
 
 import com.example.onlyone.domain.settlement.entity.OutboxStatus;
 import com.example.onlyone.domain.settlement.repository.OutboxRepository;
-import com.example.onlyone.global.config.kafka.KafkaProperties;
+import com.example.onlyone.domain.settlement.config.kafka.KafkaProperties;
 import com.example.onlyone.global.exception.CustomException;
 import com.example.onlyone.global.exception.ErrorCode;
 import lombok.RequiredArgsConstructor;

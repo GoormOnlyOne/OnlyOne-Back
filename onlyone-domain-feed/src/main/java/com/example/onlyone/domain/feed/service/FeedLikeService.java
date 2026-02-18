@@ -1,0 +1,59 @@
+package com.example.onlyone.domain.feed.service;
+
+import com.example.onlyone.domain.club.repository.ClubRepository;
+import com.example.onlyone.domain.user.service.UserService;
+import com.example.onlyone.global.exception.CustomException;
+import com.example.onlyone.global.exception.ErrorCode;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.data.redis.core.script.DefaultRedisScript;
+import org.springframework.stereotype.Service;
+
+import java.time.Clock;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.UUID;
+
+@Slf4j
+@Service
+@RequiredArgsConstructor
+public class FeedLikeService {
+
+    private final ClubRepository clubRepository;
+    private final UserService userService;
+    private final DefaultRedisScript<List> likeToggleScript;
+    private final StringRedisTemplate redis;
+    private final Clock clock;
+
+    public boolean toggleLike(long clubId, long feedId) {
+        if (!clubRepository.existsById(clubId)) {
+            throw new CustomException(ErrorCode.CLUB_NOT_FOUND);
+        }
+        long userId = userService.getCurrentUser().getUserId();
+        String reqId = UUID.randomUUID().toString();
+
+        List<String> keys = List.of(
+                "feed:" + feedId + ":likers",
+                "feed:" + feedId + ":like_count",
+                "like:events",
+                "idemp:" + reqId
+        );
+        Object[] args = {
+                String.valueOf(userId),
+                String.valueOf(feedId),
+                reqId,
+                String.valueOf(clock.millis())
+        };
+
+        List<?> raw = redis.execute(likeToggleScript, keys, args);
+        if (raw == null || raw.size() < 3) throw new IllegalStateException("toggle script failed");
+
+        List<Long> toggleResult = new ArrayList<>(3);
+        for (Object o : raw) toggleResult.add(((Number) o).longValue());
+
+        boolean liked = toggleResult.get(0) == 1L;
+        log.debug("좋아요 토글: feedId={}, userId={}, liked={}", feedId, userId, liked);
+        return liked;
+    }
+}

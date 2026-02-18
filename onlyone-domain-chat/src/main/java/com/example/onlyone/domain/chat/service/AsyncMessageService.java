@@ -1,37 +1,58 @@
 package com.example.onlyone.domain.chat.service;
 
-import com.example.onlyone.domain.chat.dto.ChatMessageRequest;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.retry.annotation.Backoff;
 import org.springframework.retry.annotation.Recover;
 import org.springframework.retry.annotation.Retryable;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 
+import java.time.Duration;
+import java.time.LocalDateTime;
+
 @Service
 @RequiredArgsConstructor
 @Slf4j
 public class AsyncMessageService {
 
-    private final MessageService messageService;
+    private final MessageCommandService messageCommandService;
+    private final StringRedisTemplate redisTemplate;
 
-    @Async("customAsyncExecutor")   // Bean 이름 맞춰줌!
+    private static final String FAILED_MESSAGES_KEY = "chat:failed-messages";
+    private static final Duration FAILED_MESSAGES_TTL = Duration.ofDays(7);
+
+    @Async("customAsyncExecutor")
     @Retryable(
             retryFor = { Exception.class },
             maxAttempts = 3,
             backoff = @Backoff(delay = 1000)
     )
-    public void saveMessageAsync(Long chatRoomId, ChatMessageRequest request) {
-        log.debug("[Async.SaveMessage] started: chatRoomId={}, userId={}", chatRoomId, request.userId());
-        messageService.saveMessage(chatRoomId, request.userId(), request.text());
-        log.info("[Async.SaveMessage] completed: chatRoomId={}, userId={}", chatRoomId, request.userId());
+    public void saveMessageAsync(Long chatRoomId, Long userId, String text) {
+        log.debug("[Async.SaveMessage] started: chatRoomId={}, userId={}", chatRoomId, userId);
+        messageCommandService.saveMessage(chatRoomId, userId, text);
+        log.info("[Async.SaveMessage] completed: chatRoomId={}, userId={}", chatRoomId, userId);
     }
 
     @Recover
-    public void recover(Exception e, Long chatRoomId, ChatMessageRequest request) {
+    public void recover(Exception e, Long chatRoomId, Long userId, String text) {
         log.error("[Async.SaveMessage] final failure after retries: chatRoomId={}, userId={}, error={}",
-                chatRoomId, request.userId(), e.getMessage(), e);
-        // TODO: 실패 메시지 Redis 등에 임시 저장 → 배치로 재처리
+                chatRoomId, userId, e.getMessage(), e);
+
+        try {
+            String failedEntry = String.join("|",
+                    String.valueOf(chatRoomId),
+                    String.valueOf(userId),
+                    text.replace("|", "\\|"),
+                    LocalDateTime.now().toString());
+            redisTemplate.opsForList().rightPush(FAILED_MESSAGES_KEY, failedEntry);
+            redisTemplate.expire(FAILED_MESSAGES_KEY, FAILED_MESSAGES_TTL);
+            log.info("[Async.SaveMessage] failed message stored to Redis for retry: chatRoomId={}, userId={}",
+                    chatRoomId, userId);
+        } catch (Exception redisEx) {
+            log.error("[Async.SaveMessage] Redis fallback also failed: chatRoomId={}, userId={}",
+                    chatRoomId, userId, redisEx);
+        }
     }
 }

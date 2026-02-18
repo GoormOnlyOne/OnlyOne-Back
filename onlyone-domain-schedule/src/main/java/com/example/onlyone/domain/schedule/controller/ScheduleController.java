@@ -4,7 +4,8 @@ import com.example.onlyone.domain.schedule.dto.request.ScheduleRequestDto;
 import com.example.onlyone.domain.schedule.dto.response.ScheduleCreateResponseDto;
 import com.example.onlyone.domain.schedule.dto.response.ScheduleResponseDto;
 import com.example.onlyone.domain.schedule.dto.response.ScheduleUserResponseDto;
-import com.example.onlyone.domain.schedule.service.ScheduleService;
+import com.example.onlyone.domain.schedule.service.ScheduleCommandService;
+import com.example.onlyone.domain.schedule.service.ScheduleQueryService;
 import com.example.onlyone.global.common.CommonResponse;
 import org.springframework.web.bind.annotation.RestController;
 import io.swagger.v3.oas.annotations.Operation;
@@ -22,13 +23,14 @@ import java.util.List;
 @RequiredArgsConstructor
 @RequestMapping("/api/v1/clubs/{clubId}/schedules")
 public class ScheduleController {
-    private final ScheduleService scheduleService;
+    private final ScheduleCommandService scheduleCommandService;
+    private final ScheduleQueryService scheduleQueryService;
 
     @Operation(summary = "정기 모임 생성", description = "정기 모임을 생성합니다.")
     @PostMapping
     public ResponseEntity<?> createSchedule(@PathVariable("clubId") final Long clubId,
                                             @RequestBody @Valid ScheduleRequestDto requestDto) {
-        ScheduleCreateResponseDto responseDto = scheduleService.createSchedule(clubId, requestDto);
+        ScheduleCreateResponseDto responseDto = scheduleCommandService.createSchedule(clubId, requestDto);
         return ResponseEntity.status(HttpStatus.CREATED).body(CommonResponse.success(responseDto));
     }
 
@@ -37,7 +39,7 @@ public class ScheduleController {
     public ResponseEntity<?> updateSchedule(@PathVariable("clubId") final Long clubId,
                                             @PathVariable("scheduleId") final Long scheduleId,
                                             @RequestBody @Valid ScheduleRequestDto requestDto) {
-        scheduleService.updateSchedule(clubId, scheduleId, requestDto);
+        scheduleCommandService.updateSchedule(clubId, scheduleId, requestDto);
         return ResponseEntity.ok(CommonResponse.success(null));
     }
 
@@ -45,7 +47,7 @@ public class ScheduleController {
     @PatchMapping("/{scheduleId}/users")
     public ResponseEntity<?> joinSchedule(@PathVariable("clubId") final Long clubId,
                                             @PathVariable("scheduleId") final Long scheduleId) {
-        scheduleService.joinSchedule(clubId, scheduleId);
+        scheduleCommandService.joinSchedule(clubId, scheduleId);
         return ResponseEntity.ok(CommonResponse.success(null));
     }
 
@@ -53,34 +55,34 @@ public class ScheduleController {
     @DeleteMapping("/{scheduleId}/users")
     public ResponseEntity<?> leaveSchedule(@PathVariable("clubId") final Long clubId,
                                           @PathVariable("scheduleId") final Long scheduleId) {
-        scheduleService.leaveSchedule(clubId, scheduleId);
+        scheduleCommandService.leaveSchedule(clubId, scheduleId);
         return ResponseEntity.ok(CommonResponse.success(null));
     }
 
     @Operation(summary = "모임 스케줄 목록 조회", description = "모임의 스케줄 목록을 전체 조회합니다.")
     @GetMapping
     public ResponseEntity<?> getScheduleList(@PathVariable("clubId") final Long clubId) {
-        List<ScheduleResponseDto> scheduleList = scheduleService.getScheduleList(clubId);
+        List<ScheduleResponseDto> scheduleList = scheduleQueryService.getScheduleList(clubId);
         return ResponseEntity.ok(CommonResponse.success(scheduleList));
     }
 
     @Operation(summary = "스케줄 상세 조회", description = "스케줄을 상세 조회합니다.")
     @GetMapping("/{scheduleId}")
     public ResponseEntity<?> getScheduleDetails(@PathVariable("clubId") final Long clubId, @PathVariable("scheduleId") final Long scheduleId) {
-        return ResponseEntity.ok(CommonResponse.success(scheduleService.getScheduleDetails(clubId, scheduleId)));
+        return ResponseEntity.ok(CommonResponse.success(scheduleQueryService.getScheduleDetails(clubId, scheduleId)));
     }
 
     @Operation(summary = "스케줄 참여자 목록 조회", description = "스케줄 참여자의 목록을 조회합니다.")
     @GetMapping("/{scheduleId}/users")
     public ResponseEntity<?> getScheduleUserList(@PathVariable("clubId") final Long clubId, @PathVariable("scheduleId") final Long scheduleId) {
-        List<ScheduleUserResponseDto> scheduleUserList = scheduleService.getScheduleUserList(clubId, scheduleId);
+        List<ScheduleUserResponseDto> scheduleUserList = scheduleQueryService.getScheduleUserList(clubId, scheduleId);
         return ResponseEntity.ok(CommonResponse.success(scheduleUserList));
     }
 
     @Operation(summary = "스케줄 삭제", description = "스케줄(정기 모임)과 연관된 데이터를 모두 삭제합니다.")
     @DeleteMapping("/{scheduleId}")
     public ResponseEntity<?> deleteSchedule(@PathVariable("clubId") final Long clubId, @PathVariable("scheduleId") final Long scheduleId) {
-        scheduleService.deleteSchedule(clubId, scheduleId);
+        scheduleCommandService.deleteSchedule(clubId, scheduleId);
         return ResponseEntity.ok(CommonResponse.success(null));
     }
 }

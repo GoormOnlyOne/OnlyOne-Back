@@ -2,30 +2,25 @@ package com.example.onlyone.domain.chat.controller;
 
 import com.example.onlyone.domain.chat.dto.ChatMessageRequest;
 import com.example.onlyone.domain.chat.service.AsyncMessageService;
-import com.example.onlyone.domain.chat.service.ChatPublisher;
+import com.example.onlyone.domain.chat.service.MessageCommandService;
 import com.example.onlyone.domain.user.dto.UserPrincipal;
-import com.example.onlyone.domain.user.entity.Status;
 import com.example.onlyone.domain.user.entity.User;
-import com.example.onlyone.domain.user.repository.UserRepository;
+import com.example.onlyone.domain.user.service.UserService;
 import com.example.onlyone.global.exception.CustomException;
 import com.example.onlyone.global.exception.ErrorCode;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.messaging.simp.SimpMessageHeaderAccessor;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 
-import java.util.Optional;
-
+import static com.example.onlyone.domain.chat.fixture.ChatFixtures.*;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.catchThrowable;
-import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.*;
 
@@ -33,28 +28,17 @@ import static org.mockito.BDDMockito.*;
 @DisplayName("ChatWebSocketController 단위 테스트")
 class ChatWebSocketControllerTest {
 
-    @InjectMocks
-    private ChatWebSocketController controller;
-
-    @Mock private UserRepository userRepository;
+    @InjectMocks private ChatWebSocketController controller;
+    @Mock private UserService userService;
     @Mock private AsyncMessageService asyncMessageService;
-    @Mock private ChatPublisher chatPublisher;
-    @Mock private ObjectMapper objectMapper;
+    @Mock private MessageCommandService messageCommandService;
 
-    // ==================== fixtures ====================
+    private static final Long USER_ID = 1L;
+    private static final Long KAKAO_ID = 10001L;
 
-    private User user(Long userId, Long kakaoId, String nickname) {
-        return User.builder()
-                .userId(userId)
-                .kakaoId(kakaoId)
-                .nickname(nickname)
-                .profileImage("profile.jpg")
-                .status(Status.ACTIVE)
-                .build();
-    }
-
-    private SimpMessageHeaderAccessor headerWithPrincipal(Long kakaoId) {
-        UserPrincipal principal = UserPrincipal.fromClaims("1", kakaoId.toString(), "ACTIVE", "ROLE_USER");
+    private SimpMessageHeaderAccessor headerWithPrincipal(Long userId, Long kakaoId) {
+        UserPrincipal principal = UserPrincipal.fromClaims(
+                userId.toString(), kakaoId.toString(), "ACTIVE", "ROLE_USER");
         UsernamePasswordAuthenticationToken auth =
                 new UsernamePasswordAuthenticationToken(principal, null, principal.getAuthorities());
 
@@ -70,101 +54,79 @@ class ChatWebSocketControllerTest {
     class SendMessage {
 
         @Test
-        @DisplayName("성공: Principal의 kakaoId로 유저를 조회하고 메시지를 전송한다")
-        void successWithPrincipalKakaoId() throws Exception {
-            // given
+        @DisplayName("성공: Principal의 userId로 유저를 조회하고 메시지를 전송한다")
+        void successWithPrincipalUserId() {
             Long chatRoomId = 1L;
-            Long authenticatedKakaoId = 10001L;
-            User authenticatedUser = user(1L, authenticatedKakaoId, "인증유저");
+            User authenticatedUser = user(USER_ID, KAKAO_ID, "인증유저");
 
-            ChatMessageRequest request = new ChatMessageRequest(99999L, "안녕하세요!", null);
-            SimpMessageHeaderAccessor accessor = headerWithPrincipal(authenticatedKakaoId);
+            ChatMessageRequest request = new ChatMessageRequest("안녕하세요!", null);
+            SimpMessageHeaderAccessor accessor = headerWithPrincipal(USER_ID, KAKAO_ID);
 
-            given(userRepository.findByKakaoId(authenticatedKakaoId))
-                    .willReturn(Optional.of(authenticatedUser));
-            given(objectMapper.writeValueAsString(any())).willReturn("{}");
+            given(userService.getMemberById(USER_ID)).willReturn(authenticatedUser);
 
-            // when
             controller.sendMessage(chatRoomId, request, accessor);
 
-            // then - Principal의 kakaoId(10001)로 조회, 클라이언트의 userId(99999)는 무시
-            then(userRepository).should().findByKakaoId(authenticatedKakaoId);
-            then(userRepository).should(never()).findByKakaoId(99999L);
-            then(chatPublisher).should().publish(eq(chatRoomId), any());
+            then(userService).should().getMemberById(USER_ID);
+            then(messageCommandService).should().publishImmediately(
+                    eq(chatRoomId), eq(USER_ID), eq("인증유저"),
+                    eq(authenticatedUser.getProfileImage()), eq("안녕하세요!"));
         }
 
         @Test
-        @DisplayName("성공: 비동기 저장 시 인증된 kakaoId가 사용된다")
-        void asyncSaveUsesAuthenticatedKakaoId() throws Exception {
-            // given
+        @DisplayName("성공: 비동기 저장 시 인증된 userId가 사용된다")
+        void asyncSaveUsesAuthenticatedUserId() {
             Long chatRoomId = 1L;
-            Long authenticatedKakaoId = 10001L;
-            Long clientFakeUserId = 99999L;
-            User authenticatedUser = user(1L, authenticatedKakaoId, "인증유저");
+            User authenticatedUser = user(USER_ID, KAKAO_ID, "인증유저");
 
-            ChatMessageRequest request = new ChatMessageRequest(clientFakeUserId, "테스트 메시지", null);
-            SimpMessageHeaderAccessor accessor = headerWithPrincipal(authenticatedKakaoId);
+            ChatMessageRequest request = new ChatMessageRequest("테스트 메시지", null);
+            SimpMessageHeaderAccessor accessor = headerWithPrincipal(USER_ID, KAKAO_ID);
 
-            given(userRepository.findByKakaoId(authenticatedKakaoId))
-                    .willReturn(Optional.of(authenticatedUser));
-            given(objectMapper.writeValueAsString(any())).willReturn("{}");
+            given(userService.getMemberById(USER_ID)).willReturn(authenticatedUser);
 
-            // when
             controller.sendMessage(chatRoomId, request, accessor);
 
-            // then - 비동기 저장에 전달된 request의 userId가 인증된 kakaoId인지 검증
-            ArgumentCaptor<ChatMessageRequest> captor = ArgumentCaptor.forClass(ChatMessageRequest.class);
-            then(asyncMessageService).should().saveMessageAsync(eq(chatRoomId), captor.capture());
-
-            ChatMessageRequest savedRequest = captor.getValue();
-            assertThat(savedRequest.userId()).isEqualTo(authenticatedKakaoId);
-            assertThat(savedRequest.userId()).isNotEqualTo(clientFakeUserId);
-            assertThat(savedRequest.text()).isEqualTo("테스트 메시지");
+            then(asyncMessageService).should()
+                    .saveMessageAsync(eq(chatRoomId), eq(USER_ID), eq("테스트 메시지"));
         }
 
         @Test
         @DisplayName("성공: 이미지 메시지를 올바르게 처리한다")
-        void successWithImageMessage() throws Exception {
-            // given
+        void successWithImageMessage() {
             Long chatRoomId = 1L;
-            Long kakaoId = 10001L;
-            User authenticatedUser = user(1L, kakaoId, "인증유저");
+            User authenticatedUser = user(USER_ID, KAKAO_ID, "인증유저");
 
-            ChatMessageRequest request = new ChatMessageRequest(kakaoId, "IMAGE::https://cdn.example.com/img.jpg", null);
-            SimpMessageHeaderAccessor accessor = headerWithPrincipal(kakaoId);
+            ChatMessageRequest request = new ChatMessageRequest("IMAGE::https://cdn.example.com/img.jpg", null);
+            SimpMessageHeaderAccessor accessor = headerWithPrincipal(USER_ID, KAKAO_ID);
 
-            given(userRepository.findByKakaoId(kakaoId))
-                    .willReturn(Optional.of(authenticatedUser));
-            given(objectMapper.writeValueAsString(any())).willReturn("{}");
+            given(userService.getMemberById(USER_ID)).willReturn(authenticatedUser);
 
-            // when
             controller.sendMessage(chatRoomId, request, accessor);
 
-            // then
-            then(chatPublisher).should().publish(eq(chatRoomId), any());
-            then(asyncMessageService).should().saveMessageAsync(eq(chatRoomId), any());
+            then(messageCommandService).should().publishImmediately(
+                    eq(chatRoomId), eq(USER_ID), eq("인증유저"),
+                    eq(authenticatedUser.getProfileImage()),
+                    eq("IMAGE::https://cdn.example.com/img.jpg"));
+            then(asyncMessageService).should()
+                    .saveMessageAsync(eq(chatRoomId), eq(USER_ID), eq("IMAGE::https://cdn.example.com/img.jpg"));
         }
 
         @Test
-        @DisplayName("실패: 인증된 kakaoId에 해당하는 유저가 없으면 USER_NOT_FOUND")
-        void failUserNotFound() throws Exception {
-            // given
+        @DisplayName("실패: 인증된 userId에 해당하는 유저가 없으면 USER_NOT_FOUND")
+        void failUserNotFound() {
             Long chatRoomId = 1L;
-            Long kakaoId = 10001L;
 
-            ChatMessageRequest request = new ChatMessageRequest(kakaoId, "안녕!", null);
-            SimpMessageHeaderAccessor accessor = headerWithPrincipal(kakaoId);
+            ChatMessageRequest request = new ChatMessageRequest("안녕!", null);
+            SimpMessageHeaderAccessor accessor = headerWithPrincipal(USER_ID, KAKAO_ID);
 
-            given(userRepository.findByKakaoId(kakaoId)).willReturn(Optional.empty());
+            given(userService.getMemberById(USER_ID))
+                    .willThrow(new CustomException(ErrorCode.USER_NOT_FOUND));
 
-            // when
             Throwable thrown = catchThrowable(() ->
                     controller.sendMessage(chatRoomId, request, accessor));
 
-            // then
             assertThat(thrown).isInstanceOf(CustomException.class);
             assertThat(((CustomException) thrown).getErrorCode()).isEqualTo(ErrorCode.USER_NOT_FOUND);
-            then(chatPublisher).shouldHaveNoInteractions();
+            then(messageCommandService).shouldHaveNoInteractions();
             then(asyncMessageService).shouldHaveNoInteractions();
         }
     }

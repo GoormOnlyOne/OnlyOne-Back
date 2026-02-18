@@ -1,5 +1,7 @@
 package com.example.onlyone.domain.image.entity;
 
+import com.example.onlyone.global.exception.CustomException;
+import com.example.onlyone.global.exception.ErrorCode;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 
@@ -14,12 +16,12 @@ public enum ImageFolderType {
     private final String folder;
     private final String description;
 
-    public static ImageFolderType fromString(String type) {
-        for (ImageFolderType imageFolderType : ImageFolderType.values()) {
-            if (imageFolderType.name().equalsIgnoreCase(type)) {
-                return imageFolderType;
+    public static ImageFolderType from(String type) {
+        for (ImageFolderType value : values()) {
+            if (value.name().equalsIgnoreCase(type)) {
+                return value;
             }
         }
-        return null;
+        throw new CustomException(ErrorCode.INVALID_IMAGE_FOLDER_TYPE);
     }
 }

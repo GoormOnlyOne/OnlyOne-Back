@@ -25,7 +25,6 @@ ext {
 dependencies {
     // 공통 모듈 의존성
     api project(':onlyone-common')
-    api project(':onlyone-infra')
 
     // 다른 도메인 의존성
     api project(':onlyone-domain-user')

@@ -1,19 +1,16 @@
 package com.example.onlyone.domain.feed.controller;
 
-import com.example.onlyone.domain.feed.dto.request.FeedRequestDto;
 import com.example.onlyone.domain.feed.dto.request.RefeedRequestDto;
 import com.example.onlyone.domain.feed.dto.response.FeedCommentResponseDto;
 import com.example.onlyone.domain.feed.dto.response.FeedOverviewDto;
-import com.example.onlyone.domain.feed.dto.response.FeedSummaryResponseDto;
-import com.example.onlyone.domain.feed.service.FeedMainService;
-import com.example.onlyone.domain.feed.service.FeedService;
+import com.example.onlyone.domain.feed.service.FeedCommandService;
+import com.example.onlyone.domain.feed.service.FeedCommentService;
+import com.example.onlyone.domain.feed.service.FeedQueryService;
 import com.example.onlyone.global.common.CommonResponse;
-import org.springframework.web.bind.annotation.RestController;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
-import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
@@ -28,7 +25,9 @@ import java.util.List;
 @RequiredArgsConstructor
 @RequestMapping("/api/v1/feeds")
 public class FeedMainController {
-    private final FeedMainService feedMainService;
+    private final FeedQueryService feedQueryService;
+    private final FeedCommandService feedCommandService;
+    private final FeedCommentService feedCommentService;
 
     @Operation(summary = "최신순 피드 목록 조회", description = "유저와 관련된 모든 피드들을 조회합니다.")
     @GetMapping
@@ -37,7 +36,7 @@ public class FeedMainController {
             @RequestParam(name = "limit", defaultValue = "20") int limit
     ) {
         Pageable pageable = PageRequest.of(page, limit);
-        List<FeedOverviewDto> feeds = feedMainService.getPersonalFeed(pageable);
+        List<FeedOverviewDto> feeds = feedQueryService.getPersonalFeed(pageable);
         return ResponseEntity.status(HttpStatus.OK).body(CommonResponse.success(feeds));
     }
 
@@ -48,7 +47,7 @@ public class FeedMainController {
             @RequestParam(name = "limit", defaultValue = "20") int limit
     ) {
         Pageable pageable = PageRequest.of(page, limit, Sort.unsorted());
-        List<FeedOverviewDto> popularFeeds = feedMainService.getPopularFeed(pageable);
+        List<FeedOverviewDto> popularFeeds = feedQueryService.getPopularFeed(pageable);
         return ResponseEntity.ok(CommonResponse.success(popularFeeds));
     }
 
@@ -58,16 +57,14 @@ public class FeedMainController {
                                             @RequestParam(name = "page", defaultValue = "0")  int page,
                                             @RequestParam(name = "limit", defaultValue = "20") int limit) {
         Pageable pageable = PageRequest.of(page, limit, Sort.by(Sort.Direction.ASC, "createdAt"));
-        List<FeedCommentResponseDto> feedCommentResponseDto = feedMainService.getCommentList(feedId, pageable);
+        List<FeedCommentResponseDto> feedCommentResponseDto = feedCommentService.getCommentList(feedId, pageable);
         return ResponseEntity.ok(CommonResponse.success(feedCommentResponseDto));
     }
 
     @Operation(summary = "리피드", description = "피드를 리피드 합니다.")
     @PostMapping("/{feedId}/{clubId}")
-    public ResponseEntity<?> createRefeed(@PathVariable Long feedId, @PathVariable Long clubId,@RequestBody @Valid RefeedRequestDto requestDto) {
-        feedMainService.createRefeed(feedId, clubId, requestDto);
+    public ResponseEntity<?> createRefeed(@PathVariable Long feedId, @PathVariable Long clubId, @RequestBody @Valid RefeedRequestDto requestDto) {
+        feedCommandService.createRefeed(feedId, clubId, requestDto);
         return ResponseEntity.status(HttpStatus.CREATED).body(CommonResponse.success(null));
     }
-
 }
-

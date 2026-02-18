@@ -1,3 +1,12 @@
+-- =============================================================
+-- OnlyOne 스키마 보조 SQL
+-- 앱 시작 시 실행: 테이블 보정, 카운트 동기화, 인덱스 생성
+-- =============================================================
+
+-- -----------------------------------------------
+-- 1) like_applied: Redis→DB 좋아요 동기화 멱등성 테이블
+--    FeedLikeStreamConsumer가 중복 적용 방지에 사용
+-- -----------------------------------------------
 CREATE TABLE IF NOT EXISTS like_applied (
     req_id   VARCHAR(64) PRIMARY KEY,
     feed_id  BIGINT NOT NULL,
@@ -6,7 +15,10 @@ CREATE TABLE IF NOT EXISTS like_applied (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- Feed 비정규화 카운트 컬럼: comment_count 추가 + 초기값 동기화
+-- -----------------------------------------------
+-- 2) Feed 비정규화 카운트 동기화 프로시저
+--    comment_count 컬럼 추가 + like_count/comment_count 초기값 계산
+-- -----------------------------------------------
 DROP PROCEDURE IF EXISTS sync_feed_counts;
 DELIMITER //
 CREATE PROCEDURE sync_feed_counts()
@@ -31,7 +43,12 @@ DELIMITER ;
 CALL sync_feed_counts();
 DROP PROCEDURE IF EXISTS sync_feed_counts;
 
--- Payment 성능 최적화 인덱스 (MySQL 8.0: 프로시저로 중복 방지)
+-- -----------------------------------------------
+-- 3) 성능 최적화 인덱스 일괄 생성
+--    이미 존재하면 건너뜀 (프로시저로 중복 방지)
+--    대상: payment, schedule, feed, feed_like, feed_comment,
+--          feed_image, user_club
+-- -----------------------------------------------
 DROP PROCEDURE IF EXISTS add_index_if_not_exists;
 DELIMITER //
 CREATE PROCEDURE add_index_if_not_exists()

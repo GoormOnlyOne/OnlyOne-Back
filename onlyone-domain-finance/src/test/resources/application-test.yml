@@ -1,3 +1,9 @@
+# =============================================================
+# Finance 모듈 테스트 설정 (profile: test)
+# H2 인메모리 + data.sql 자동 로드 (테스트 시드 데이터)
+# Kafka 비활성화 (단위 테스트 전용)
+# =============================================================
+
 spring:
   datasource:
     url: jdbc:h2:mem:testdb;DB_CLOSE_DELAY=-1;MODE=MySQL
@@ -10,13 +16,13 @@ spring:
     properties:
       hibernate:
         dialect: org.hibernate.dialect.H2Dialect
-    defer-datasource-initialization: true
+    defer-datasource-initialization: true  # data.sql이 DDL 이후 실행되도록 보장
   sql:
     init:
-      mode: always
+      mode: always               # data.sql 자동 실행
   data:
     redis:
       host: localhost
       port: 6379
   kafka:
-    enabled: false
+    enabled: false               # Kafka 비활성화 (단위 테스트)

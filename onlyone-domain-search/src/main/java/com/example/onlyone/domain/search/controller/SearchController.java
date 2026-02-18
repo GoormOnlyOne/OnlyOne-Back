@@ -1,15 +1,12 @@
 package com.example.onlyone.domain.search.controller;
 
-import com.example.onlyone.domain.club.repository.ClubElasticsearchRepository;
 import com.example.onlyone.domain.search.dto.request.SearchFilterDto;
 import com.example.onlyone.domain.search.service.SearchService;
 import com.example.onlyone.global.common.CommonResponse;
-import org.springframework.web.bind.annotation.RestController;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
-import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -73,6 +70,6 @@ public class SearchController {
     @Operation(summary = "가입하고 있는 모임 조회", description = "가입하고 있는 모임을 조회한다.")
     @GetMapping("/user")
     public ResponseEntity<?> getClubNames() {
-        return ResponseEntity.status(HttpStatus.OK).body(CommonResponse.success(searchService.getMyClubs()));
+        return ResponseEntity.ok(CommonResponse.success(searchService.getMyClubs()));
     }
 }

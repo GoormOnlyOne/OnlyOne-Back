@@ -25,21 +25,12 @@ public record ChatRoomResponse(
             messageText = MessageUtils.getDisplayText(lastMessage.getText());
         }
 
-        String chatRoomName;
-        Long scheduleId = null;
-
-        // SCHEDULE 채팅방일 경우에만 schedule 참조
-        if (chatRoom.getType() == ChatRoomType.SCHEDULE && chatRoom.getSchedule() != null) {
-            chatRoomName = chatRoom.getSchedule().getName();
-            scheduleId = chatRoom.getSchedule().getScheduleId();
-        } else {
-            // CLUB 채팅방의 경우 club 이름 사용 (또는 기본값 설정)
-            chatRoomName = chatRoom.getClub().getName(); // 또는 "모임 채팅방" 등
-        }
+        Long scheduleId = (chatRoom.getType() == ChatRoomType.SCHEDULE && chatRoom.getSchedule() != null)
+                ? chatRoom.getSchedule().getScheduleId() : null;
 
         return new ChatRoomResponse(
                 chatRoom.getChatRoomId(),
-                chatRoomName,
+                chatRoom.resolveName(),
                 chatRoom.getClub().getClubId(),
                 scheduleId,
                 chatRoom.getType(),

@@ -14,7 +14,7 @@ import java.util.function.Supplier;
 
 @Component
 @RequiredArgsConstructor
-public class RedisLuaService {
+public class RedisLuaService implements WalletGateService {
     private final StringRedisTemplate redis;
     private final DefaultRedisScript<Long> walletGateAcquireScript;
     private final DefaultRedisScript<Long> walletGateReleaseScript;
@@ -41,6 +41,7 @@ public class RedisLuaService {
     }
 
     /** 게이트 잡고 함수 실행 (+재시도) */
+    @Override
     public <T> T withWalletGate(long userId, String op, int ttlSec, Supplier<T> body) {
         final int maxAttempts = 5;
         for (int attempt = 1; attempt <= maxAttempts; attempt++) {
@@ -68,6 +69,7 @@ public class RedisLuaService {
 
 
     /** void용 */
+    @Override
     public void withWalletGate(long userId, String op, int ttlSec, Runnable body) {
         withWalletGate(userId, op, ttlSec, () -> { body.run(); return null; });
     }

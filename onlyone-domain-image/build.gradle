@@ -25,12 +25,14 @@ ext {
 dependencies {
     // 공통 모듈 의존성
     api project(':onlyone-common')
-    api project(':onlyone-infra')
 
     // Spring Boot Starters
     api 'org.springframework.boot:spring-boot-starter-data-jpa'
     api 'org.springframework.boot:spring-boot-starter-validation'
     api 'org.springframework.boot:spring-boot-starter-web'
+
+    // AWS S3
+    implementation 'software.amazon.awssdk:s3:2.32.11'
 
     // QueryDSL
     implementation "com.querydsl:querydsl-jpa:${querydslVersion}:jakarta"

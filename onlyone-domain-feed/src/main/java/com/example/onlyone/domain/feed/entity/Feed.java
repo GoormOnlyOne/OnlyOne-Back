@@ -9,7 +9,6 @@ import lombok.*;
 import org.hibernate.annotations.BatchSize;
 import org.hibernate.annotations.SQLDelete;
 import org.hibernate.annotations.SQLRestriction;
-import org.hibernate.annotations.SoftDelete;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -24,7 +23,7 @@ import java.util.List;
 )
 @Getter
 @Builder
-@AllArgsConstructor
+@AllArgsConstructor(access = AccessLevel.PRIVATE)
 @NoArgsConstructor
 @SQLDelete(sql = "UPDATE feed SET deleted = true, deleted_at = now() WHERE feed_id = ?")
 @SQLRestriction("deleted = false")
@@ -85,6 +84,13 @@ public class Feed extends BaseTimeEntity {
 
     public void update(String content) {
         this.content = content;
+    }
+
+    public void replaceImages(List<String> urls) {
+        this.feedImages.clear();
+        urls.stream()
+                .map(url -> FeedImage.builder().feedImage(url).feed(this).build())
+                .forEach(this.feedImages::add);
     }
 
     @Column(name = "deleted", nullable = false)

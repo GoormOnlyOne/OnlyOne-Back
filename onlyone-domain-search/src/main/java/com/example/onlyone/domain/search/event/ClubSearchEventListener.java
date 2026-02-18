@@ -2,13 +2,11 @@ package com.example.onlyone.domain.search.event;
 
 import com.example.onlyone.common.event.ClubCreatedEvent;
 import com.example.onlyone.domain.club.entity.Club;
-import com.example.onlyone.domain.club.repository.ClubElasticsearchRepository;
 import com.example.onlyone.domain.club.repository.ClubRepository;
 import com.example.onlyone.domain.search.service.ClubElasticsearchService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
-import org.springframework.context.event.EventListener;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.event.TransactionPhase;
@@ -40,7 +38,7 @@ public class ClubSearchEventListener {
             Club club = clubRepository.findById(event.clubId())
                     .orElseThrow(() -> new IllegalArgumentException("Club not found: " + event.clubId()));
 
-            clubElasticsearchService.indexClub(club);
+            clubElasticsearchService.upsertClub(club);
 
             log.info("[Event.Completed] type=ClubCreatedEvent, target=Elasticsearch, clubId={}", event.clubId());
         } catch (Exception e) {

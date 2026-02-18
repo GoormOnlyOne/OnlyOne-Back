@@ -26,7 +26,15 @@ ext {
 dependencies {
     // 공통 모듈 의존성
     api project(':onlyone-common')
-    api project(':onlyone-security')
+
+    // Spring Security (직접 선언 - 순환 의존 방지)
+    api 'org.springframework.boot:spring-boot-starter-security'
+
+    // JWT
+    api 'io.jsonwebtoken:jjwt-api:0.12.4'
+    runtimeOnly 'io.jsonwebtoken:jjwt-impl:0.12.4'
+    runtimeOnly 'io.jsonwebtoken:jjwt-jackson:0.12.4'
+    api 'com.auth0:java-jwt:3.14.0'
 
     // 도메인 간 의존성
     api project(':onlyone-domain-interest')

@@ -1,3 +1,10 @@
+# =============================================================
+# API 모듈 테스트 설정 (profile: test)
+# H2 인메모리 DB + 캐시 비활성화 + 축소된 리소스 한도
+# 통합 테스트(Testcontainers)는 ES, Kafka, Redis 별도 구동
+# =============================================================
+
+# --- H2 인메모리 DB (MySQL 호환 모드) ---
 spring:
   datasource:
     url: jdbc:h2:mem:testdb;DB_CLOSE_DELAY=-1;MODE=MySQL
@@ -6,10 +13,12 @@ spring:
     password:
   jpa:
     hibernate:
-      ddl-auto: create-drop
+      ddl-auto: create-drop     # 테스트마다 스키마 재생성
     properties:
       hibernate:
         dialect: org.hibernate.dialect.H2Dialect
+
+  # Kafka (테스트용 최소 설정)
   kafka:
     enabled: true
     default-bootstrap-servers: localhost:9092
@@ -37,6 +46,8 @@ spring:
         topic: user-settlement.result.v1
     security:
       enabled: false
+
+  # Redis / Elasticsearch (Testcontainers 또는 로컬)
   data:
     redis:
       host: localhost
@@ -44,9 +55,11 @@ spring:
       password:
   elasticsearch:
     uris: http://localhost:9200
-  cache:
-    type: none
 
+  cache:
+    type: none                  # 캐시 비활성화 (테스트 격리)
+
+# --- 외부 연동 테스트 더미 값 ---
 payment:
   toss:
     client_key: test_key
@@ -77,6 +90,7 @@ aws:
   cloudfront:
     domain: test.cloudfront.net
 
+# --- 축소된 리소스 한도 (테스트 속도 우선) ---
 app:
   base-url: http://localhost:8080
   feed-like-stream:
