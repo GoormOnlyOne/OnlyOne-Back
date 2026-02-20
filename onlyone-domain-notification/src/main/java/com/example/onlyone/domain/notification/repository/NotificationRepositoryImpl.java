@@ -88,6 +88,24 @@ public class NotificationRepositoryImpl implements NotificationRepositoryCustom 
     }
 
     @Override
+    public List<NotificationItemDto> findUnsentNotificationsByUserId(Long userId, int limit) {
+        return queryFactory
+                .select(Projections.constructor(NotificationItemDto.class,
+                        notification.id,
+                        notification.content,
+                        notification.type,
+                        notification.isRead,
+                        notification.createdAt))
+                .from(notification)
+                .where(
+                        notification.user.userId.eq(userId),
+                        notification.sseSent.eq(false))
+                .orderBy(notification.id.asc())
+                .limit(limit)
+                .fetch();
+    }
+
+    @Override
     @Transactional
     public void markSseSentByIds(List<Long> notificationIds) {
         if (notificationIds.isEmpty()) {

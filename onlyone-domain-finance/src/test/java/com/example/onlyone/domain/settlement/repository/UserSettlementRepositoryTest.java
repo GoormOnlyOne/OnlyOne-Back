@@ -154,7 +154,7 @@ public class UserSettlementRepositoryTest {
     @Test
     void 정산ID와_상태로_참가자_userId_목록을_조회한다() {
         List<Long> userIds = userSettlementRepository
-                .findAllUserSettlementIdsBySettlementIdAndStatus(settlement.getSettlementId(), SettlementStatus.REQUESTED);
+                .findUserIdsBySettlementIdAndStatus(settlement.getSettlementId(), SettlementStatus.REQUESTED);
 
         assertThat(userIds).hasSize(1);
         assertThat(userIds).contains(alice.getUserId());

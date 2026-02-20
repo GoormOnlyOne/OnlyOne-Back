@@ -14,7 +14,7 @@ const unreadCountDuration = new Trend('unread_count_duration');
 const markAsReadDuration = new Trend('mark_as_read_duration');
 const markAllAsReadDuration = new Trend('mark_all_as_read_duration');
 const deleteNotificationDuration = new Trend('delete_notification_duration');
-const batchStatusDuration = new Trend('batch_status_duration');
+
 
 const cacheHits = new Counter('cache_hits');
 const cacheMisses = new Counter('cache_misses');
@@ -262,11 +262,14 @@ export function normalWorkload() {
             markAsReadDuration.add(res4.timings.duration);
             sleep(0.5);
 
-            // 5. 배치 상태 조회 (모니터링)
-            if (Math.random() < 0.1) {  // 10% 확률
-                const res5 = http.get(`${BASE_URL}/api/v1/notifications/batch-status`, { headers });
-                validateResponse(res5, 200, 'batch_status');
-                batchStatusDuration.add(res5.timings.duration);
+            // 5. 알림 삭제
+            if (Math.random() < 0.05) {  // 5% 확률
+                const deleteId = Math.floor(Math.random() * 10000000) + 1;
+                const res6 = http.del(`${BASE_URL}/api/v1/notifications/${deleteId}`, null, { headers });
+                check(res6, {
+                    'delete_notification: status is 200 or 404': (r) => r.status === 200 || r.status === 404,
+                });
+                deleteNotificationDuration.add(res6.timings.duration);
             }
         }
     });

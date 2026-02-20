@@ -145,12 +145,12 @@ public class MonitoringAspect {
     // JWT Authentication (REST)
     // ═══════════════════════════════════════════════════════════
 
-    @Around("execution(* com.example.onlyone.global.filter.JwtAuthenticationFilter.doFilterInternal(..))")
-    public Object aroundJwtFilter(ProceedingJoinPoint pjp) throws Throwable {
+    @Around("execution(* com.example.onlyone.global.filter.JwtTokenParser.parseToken(..))")
+    public Object aroundJwtParse(ProceedingJoinPoint pjp) throws Throwable {
         try {
-            pjp.proceed();
+            Object result = pjp.proceed();
             jwtAuthSuccess.increment();
-            return null;
+            return result;
         } catch (Throwable e) {
             jwtAuthFailure.increment();
             if (e.getMessage() != null && e.getMessage().contains("WITHDRAWN")) {

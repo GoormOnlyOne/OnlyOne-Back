@@ -9,7 +9,7 @@ public enum ErrorCode {
 
     // Global
     INVALID_INPUT_VALUE(400, "GLOBAL_400_1", "입력값이 유효하지 않습니다."),
-    METHOD_NOT_ALLOWED(405, "GLOBAL_400_2", "지원하지 않는 HTTP 메서드입니다."),
+    METHOD_NOT_ALLOWED(405, "GLOBAL_405_1", "지원하지 않는 HTTP 메서드입니다."),
     BAD_REQUEST(400, "GLOBAL_400_3", "필수 파라미터가 누락되었습니다."),
     INTERNAL_SERVER_ERROR(500, "GLOBAL_500_1", "서버 내부 오류가 발생했습니다."),
     EXTERNAL_API_ERROR(503, "GLOBAL_503_1", "외부 API 서버 호출 중 오류가 발생했습니다."),
@@ -21,6 +21,8 @@ public enum ErrorCode {
     // User
     USER_NOT_FOUND(404, "USER_404_1", "유저를 찾을 수 없습니다."),
     USER_WITHDRAWN(403, "USER_403_1", "탈퇴한 사용자입니다."),
+    ALREADY_SIGNED_UP(409, "USER_409_1", "이미 가입이 완료된 사용자입니다."),
+    INVALID_REFRESH_TOKEN(401, "USER_401_2", "유효하지 않거나 만료된 Refresh Token입니다."),
     KAKAO_AUTH_FAILED(401, "USER_401_1", "카카오 인가 코드가 유효하지 않습니다."),
     KAKAO_LOGIN_FAILED(502, "USER_502_1", "카카오 로그인 처리 중 오류가 발생했습니다."),
     KAKAO_API_ERROR(502, "USER_502_2", "카카오 API 응답에 실패했습니다."),
@@ -37,6 +39,7 @@ public enum ErrorCode {
     CLUB_NOT_LEAVE(400,"CLUB_409_2","참여하지 않은 모임은 나갈 수 없습니다."),
     CLUB_LEADER_NOT_LEAVE(400, "CLUB_409_3", "모임장은 모임을 나갈 수 없습니다."),
     CLUB_NOT_ENTER(400, "CLUB_409_4", "정원이 초과하여 모임에 가입할 수 없습니다."),
+    LEADER_ONLY_CLUB_MODIFY(403, "CLUB_403_1", "리더만 모임을 수정할 수 있습니다."),
 
     // Notification
     NOTIFICATION_TYPE_NOT_FOUND(404, "NOTIFY_404_1", "알림 타입을 찾을 수 없습니다."),

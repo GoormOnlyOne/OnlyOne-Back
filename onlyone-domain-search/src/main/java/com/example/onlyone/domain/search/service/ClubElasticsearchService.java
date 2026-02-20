@@ -4,15 +4,15 @@ import com.example.onlyone.domain.club.document.ClubDocument;
 import com.example.onlyone.domain.club.entity.Club;
 import com.example.onlyone.domain.club.repository.ClubElasticsearchRepository;
 import com.example.onlyone.domain.club.repository.ClubRepository;
-import com.example.onlyone.global.exception.CustomException;
-import com.example.onlyone.global.exception.ErrorCode;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
-import org.springframework.scheduling.annotation.Async;
+import org.springframework.retry.annotation.Backoff;
+import org.springframework.retry.annotation.Recover;
 import org.springframework.retry.annotation.Retryable;
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -27,31 +27,31 @@ public class ClubElasticsearchService {
     private final ClubElasticsearchRepository clubElasticsearchRepository;
     private final ClubRepository clubRepository;
 
-    // ES에 클럽 upsert (비동기) — save()는 동일 ID 존재 시 덮어쓰기
+    // ES에 클럽 upsert (비동기 + 재시도) — save()는 동일 ID 존재 시 덮어쓰기
     @Async
-    @Retryable
+    @Retryable(maxAttempts = 3, backoff = @Backoff(delay = 1000, multiplier = 2))
     public void upsertClub(Club club) {
-        try {
-            ClubDocument document = ClubDocument.from(club);
-            clubElasticsearchRepository.save(document);
-            log.info("ES 클럽 인덱싱 완료: clubId={}", club.getClubId());
-        } catch (Exception e) {
-            log.error("Failed to upsert club in ES: {}", club.getClubId(), e);
-            throw new CustomException(ErrorCode.ELASTICSEARCH_INDEX_ERROR);
-        }
+        ClubDocument document = ClubDocument.from(club);
+        clubElasticsearchRepository.save(document);
+        log.info("ES 클럽 인덱싱 완료: clubId={}", club.getClubId());
     }
 
-    // ES에서 클럽 삭제 (비동기)
+    @Recover
+    public void recoverUpsertClub(Exception e, Club club) {
+        log.error("ES 클럽 인덱싱 최종 실패 (재시도 소진): clubId={}", club.getClubId(), e);
+    }
+
+    // ES에서 클럽 삭제 (비동기 + 재시도)
     @Async
-    @Retryable
+    @Retryable(maxAttempts = 3, backoff = @Backoff(delay = 1000, multiplier = 2))
     public void deleteClub(Long clubId) {
-        try {
-            clubElasticsearchRepository.deleteById(clubId);
-            log.info("ES 클럽 삭제 완료: clubId={}", clubId);
-        } catch (Exception e) {
-            log.error("Failed to delete club from ES: {}", clubId, e);
-            throw new CustomException(ErrorCode.ELASTICSEARCH_DELETE_ERROR);
-        }
+        clubElasticsearchRepository.deleteById(clubId);
+        log.info("ES 클럽 삭제 완료: clubId={}", clubId);
+    }
+
+    @Recover
+    public void recoverDeleteClub(Exception e, Long clubId) {
+        log.error("ES 클럽 삭제 최종 실패 (재시도 소진): clubId={}", clubId, e);
     }
 
     // DB에서 전체 클럽을 페이지 단위로 읽어 ES에 벌크 인덱싱

@@ -1,6 +1,7 @@
 package com.example.onlyone.domain.notification.service;
 
 import com.example.onlyone.domain.notification.dto.event.NotificationCreatedEvent;
+import com.example.onlyone.domain.notification.dto.response.NotificationSseDto;
 import com.example.onlyone.domain.notification.entity.Notification;
 import com.example.onlyone.domain.notification.repository.NotificationRepository;
 import com.example.onlyone.sse.service.SseEventSender;
@@ -195,7 +196,8 @@ public class NotificationBatchProcessor {
 
     /** 단건 SSE 전송. 성공 시 알림 ID, 실패 시 null 반환 */
     private CompletableFuture<Long> sendSingleNotification(Long userId, Notification notification) {
-        return sseEventSender.sendEvent(userId, "notification", notification)
+        NotificationSseDto dto = NotificationSseDto.from(notification);
+        return sseEventSender.sendEvent(userId, "notification", dto)
                 .thenApply(success -> success ? notification.getId() : null)
                 .exceptionally(ex -> {
                     log.debug("SSE 전송 실패: notificationId={}", notification.getId());

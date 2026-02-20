@@ -15,6 +15,7 @@ import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.script.DefaultRedisScript;
 import org.springframework.data.redis.serializer.Jackson2JsonRedisSerializer;
 import org.springframework.data.redis.serializer.StringRedisSerializer;
+import org.springframework.core.annotation.Order;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.web.SecurityFilterChain;
@@ -28,7 +29,7 @@ import static org.mockito.Mockito.mock;
 /**
  * 통합 테스트용 Bean 설정.
  * - RedisConfig(@Profile("!test"))가 비활성화되므로 필요한 Redis Bean을 제공
- * - SecurityConfig(@Profile("!test"))가 비활성화되므로 테스트용 SecurityFilterChain 제공
+ * - SecurityFilterChain을 @Order(0)으로 등록하여 모든 요청 permitAll
  * - AWS S3 Bean을 Mock 처리
  */
 @TestConfiguration
@@ -76,9 +77,10 @@ public class IntegrationTestConfig {
         return new StringRedisTemplate(redisConnectionFactory);
     }
 
-    // ─── Security (SecurityConfig가 test 프로필에서 비활성화되므로 여기서 제공) ───
+    // ─── Security (테스트에서는 모든 요청 permitAll — @Order(0)으로 메인보다 우선) ───
 
     @Bean
+    @Order(0)
     public SecurityFilterChain testFilterChain(HttpSecurity http) throws Exception {
         http
                 .csrf(AbstractHttpConfigurer::disable)

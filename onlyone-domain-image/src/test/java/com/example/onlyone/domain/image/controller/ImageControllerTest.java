@@ -54,7 +54,7 @@ class ImageControllerTest {
             given(imageService.generatePresignedUrl(eq("CHAT"), any(PresignedUrlRequestDto.class)))
                     .willReturn(resp);
 
-            mockMvc.perform(post("/api/v1/{imageFolderType}/presigned-url", "CHAT")
+            mockMvc.perform(post("/api/v1/images/{imageFolderType}/presigned-url", "CHAT")
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(body)
                             .accept(MediaType.APPLICATION_JSON))
@@ -74,7 +74,7 @@ class ImageControllerTest {
             given(imageService.generatePresignedUrl(anyString(), any(PresignedUrlRequestDto.class)))
                     .willThrow(new CustomException(ErrorCode.IMAGE_UPLOAD_FAILED));
 
-            mockMvc.perform(post("/api/v1/{imageFolderType}/presigned-url", "CHAT")
+            mockMvc.perform(post("/api/v1/images/{imageFolderType}/presigned-url", "CHAT")
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(body)
                             .accept(MediaType.APPLICATION_JSON))
@@ -96,7 +96,7 @@ class ImageControllerTest {
               {"fileName": "", "contentType": "image/png", "imageSize": 1024}
             """;
 
-            mockMvc.perform(post("/api/v1/{imageFolderType}/presigned-url", "CHAT")
+            mockMvc.perform(post("/api/v1/images/{imageFolderType}/presigned-url", "CHAT")
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(body)
                             .accept(MediaType.APPLICATION_JSON))
@@ -110,7 +110,7 @@ class ImageControllerTest {
               {"fileName": "photo.png", "imageSize": 1024}
             """;
 
-            mockMvc.perform(post("/api/v1/{imageFolderType}/presigned-url", "CHAT")
+            mockMvc.perform(post("/api/v1/images/{imageFolderType}/presigned-url", "CHAT")
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(body)
                             .accept(MediaType.APPLICATION_JSON))
@@ -124,7 +124,7 @@ class ImageControllerTest {
               {"fileName": "photo.png", "contentType": "image/png", "imageSize": 5242881}
             """;
 
-            mockMvc.perform(post("/api/v1/{imageFolderType}/presigned-url", "CHAT")
+            mockMvc.perform(post("/api/v1/images/{imageFolderType}/presigned-url", "CHAT")
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(body)
                             .accept(MediaType.APPLICATION_JSON))
@@ -138,7 +138,7 @@ class ImageControllerTest {
               {"fileName": "photo.png", "contentType": "image/png", "imageSize": 0}
             """;
 
-            mockMvc.perform(post("/api/v1/{imageFolderType}/presigned-url", "CHAT")
+            mockMvc.perform(post("/api/v1/images/{imageFolderType}/presigned-url", "CHAT")
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(body)
                             .accept(MediaType.APPLICATION_JSON))

@@ -84,6 +84,11 @@ public class FeedCommandService {
         Feed parent = feedRepository.findById(parentFeedId)
                 .orElseThrow(() -> new CustomException(ErrorCode.FEED_NOT_FOUND));
 
+        // 원본 피드가 속한 모임에 대한 접근 권한 확인
+        if (!userClubRepository.existsByUser_UserIdAndClub_ClubId(user.getUserId(), parent.getClub().getClubId())) {
+            throw new CustomException(ErrorCode.UNAUTHORIZED_FEED_ACCESS);
+        }
+
         Club club = clubRepository.findById(targetClubId)
                 .orElseThrow(() -> new CustomException(ErrorCode.CLUB_NOT_FOUND));
         userClubRepository.findByUserAndClub(user, club)

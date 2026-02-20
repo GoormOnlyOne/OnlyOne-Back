@@ -1,5 +1,6 @@
 package com.example.onlyone.domain.user.controller;
 
+import com.example.onlyone.domain.user.dto.request.RefreshTokenRequest;
 import com.example.onlyone.domain.user.dto.request.SignupRequestDto;
 import com.example.onlyone.domain.user.dto.response.UserInfoResponse;
 import com.example.onlyone.domain.user.entity.User;
@@ -18,6 +19,7 @@ public class AuthController {
     private final UserService userService;
     private final AuthService authService;
 
+    // TODO: OAuth state 파라미터를 추가하여 CSRF 방지 필요 (프론트엔드 연동 시 구현)
     @PostMapping("/kakao/callback")
     public ResponseEntity<?> kakaoLogin(@RequestParam String code) {
         return ResponseEntity.ok(CommonResponse.success(authService.kakaoLogin(code)));
@@ -45,5 +47,10 @@ public class AuthController {
     public ResponseEntity<?> withdrawUser() {
         userService.withdrawUser();
         return ResponseEntity.ok(CommonResponse.success(null));
+    }
+
+    @PostMapping("/refresh")
+    public ResponseEntity<?> refreshToken(@Valid @RequestBody RefreshTokenRequest request) {
+        return ResponseEntity.ok(CommonResponse.success(authService.refreshAccessToken(request.refreshToken())));
     }
 }

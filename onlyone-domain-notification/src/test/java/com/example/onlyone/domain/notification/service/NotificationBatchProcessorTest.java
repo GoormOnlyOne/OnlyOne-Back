@@ -1,6 +1,7 @@
 package com.example.onlyone.domain.notification.service;
 
 import com.example.onlyone.domain.notification.dto.event.NotificationCreatedEvent;
+import com.example.onlyone.domain.notification.dto.response.NotificationSseDto;
 import com.example.onlyone.domain.notification.entity.Notification;
 import com.example.onlyone.domain.notification.repository.NotificationRepository;
 import com.example.onlyone.domain.user.entity.User;
@@ -113,7 +114,7 @@ class NotificationBatchProcessorTest {
             enqueue(notification);
 
             given(sseEventSender.isUserConnected(DEFAULT_USER_ID)).willReturn(true);
-            given(sseEventSender.sendEvent(eq(DEFAULT_USER_ID), eq("notification"), any(Notification.class)))
+            given(sseEventSender.sendEvent(eq(DEFAULT_USER_ID), eq("notification"), any(NotificationSseDto.class)))
                     .willReturn(CompletableFuture.completedFuture(true));
             willAnswer(invocation -> {
                 Consumer<TransactionStatus> action = invocation.getArgument(0);
@@ -123,7 +124,7 @@ class NotificationBatchProcessorTest {
 
             batchProcessor.processBatch();
 
-            then(sseEventSender).should().sendEvent(eq(DEFAULT_USER_ID), eq("notification"), eq(notification));
+            then(sseEventSender).should().sendEvent(eq(DEFAULT_USER_ID), eq("notification"), any(NotificationSseDto.class));
             then(notificationRepository).should().markSseSentByIds(List.of(1L));
         }
 
@@ -134,12 +135,12 @@ class NotificationBatchProcessorTest {
             enqueue(notification);
 
             given(sseEventSender.isUserConnected(DEFAULT_USER_ID)).willReturn(true);
-            given(sseEventSender.sendEvent(eq(DEFAULT_USER_ID), eq("notification"), any(Notification.class)))
+            given(sseEventSender.sendEvent(eq(DEFAULT_USER_ID), eq("notification"), any(NotificationSseDto.class)))
                     .willReturn(CompletableFuture.completedFuture(false));
 
             batchProcessor.processBatch();
 
-            then(sseEventSender).should().sendEvent(eq(DEFAULT_USER_ID), eq("notification"), eq(notification));
+            then(sseEventSender).should().sendEvent(eq(DEFAULT_USER_ID), eq("notification"), any(NotificationSseDto.class));
             then(transactionTemplate).shouldHaveNoInteractions();
         }
 

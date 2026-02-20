@@ -6,231 +6,279 @@
   "links": [],
   "panels": [
     {
-      "title": "HTTP Request Rate (RPS)",
-      "type": "timeseries",
-      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
+      "title": "📊 현재 요청 처리량 (RPS)",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 6, "x": 0, "y": 0 },
       "datasource": { "type": "prometheus", "uid": "" },
       "fieldConfig": {
-        "defaults": { "unit": "reqps" },
+        "defaults": {
+          "unit": "reqps",
+          "thresholds": {
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 500 },
+              { "color": "red", "value": 1000 }
+            ]
+          }
+        },
         "overrides": []
       },
       "targets": [
-        {
-          "expr": "sum(rate(http_server_requests_seconds_count{application=\"onlyone\"}[1m]))",
-          "legendFormat": "Total RPS"
+        { "expr": "sum(rate(http_server_requests_seconds_count{application=\"onlyone\"}[1m]))", "legendFormat": "RPS" }
+      ],
+      "options": { "colorMode": "background", "graphMode": "area", "textMode": "value_and_name" }
+    },
+    {
+      "title": "⏱️ 평균 응답시간",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 6, "x": 6, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "" },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "thresholds": {
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 0.3 },
+              { "color": "red", "value": 1.0 }
+            ]
+          }
         },
-        {
-          "expr": "sum(rate(http_server_requests_seconds_count{application=\"onlyone\"}[1m])) by (uri)",
-          "legendFormat": "{{uri}}"
-        }
+        "overrides": []
+      },
+      "targets": [
+        { "expr": "rate(http_server_requests_seconds_sum{application=\"onlyone\"}[1m]) / rate(http_server_requests_seconds_count{application=\"onlyone\"}[1m])", "legendFormat": "평균" }
+      ],
+      "options": { "colorMode": "background", "graphMode": "area" }
+    },
+    {
+      "title": "❌ 에러율",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 6, "x": 12, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "" },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "thresholds": {
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 0.01 },
+              { "color": "red", "value": 0.05 }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "targets": [
+        { "expr": "sum(rate(http_server_requests_seconds_count{application=\"onlyone\", status=~\"5..\"}[1m])) / sum(rate(http_server_requests_seconds_count{application=\"onlyone\"}[1m]))", "legendFormat": "5xx 비율" }
+      ],
+      "options": { "colorMode": "background", "graphMode": "area" }
+    },
+    {
+      "title": "🧵 활성 스레드",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 6, "x": 18, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "" },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": {
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 150 },
+              { "color": "red", "value": 190 }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "targets": [
+        { "expr": "jvm_threads_live_threads{application=\"onlyone\"}", "legendFormat": "활성" }
+      ],
+      "options": { "colorMode": "background", "graphMode": "area" }
+    },
+    {
+      "title": "🔀 HTTP 요청 처리량 (RPS)",
+      "description": "초당 HTTP 요청 수 - 전체 및 URI별",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 4 },
+      "datasource": { "type": "prometheus", "uid": "" },
+      "fieldConfig": {
+        "defaults": { "unit": "reqps", "custom": { "fillOpacity": 10 } },
+        "overrides": []
+      },
+      "targets": [
+        { "expr": "sum(rate(http_server_requests_seconds_count{application=\"onlyone\"}[1m]))", "legendFormat": "전체 RPS" },
+        { "expr": "sum(rate(http_server_requests_seconds_count{application=\"onlyone\"}[1m])) by (uri)", "legendFormat": "{{uri}}" }
       ]
     },
     {
-      "title": "HTTP Response Time (P50 / P95 / P99)",
+      "title": "⏱️ HTTP 응답 시간 (P50 / P95 / P99)",
+      "description": "백분위별 응답 시간 분포",
       "type": "timeseries",
-      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 4 },
       "datasource": { "type": "prometheus", "uid": "" },
       "fieldConfig": {
-        "defaults": { "unit": "s" },
-        "overrides": []
+        "defaults": { "unit": "s", "custom": { "fillOpacity": 5 } },
+        "overrides": [
+          { "matcher": { "id": "byName", "options": "P50" }, "properties": [{ "id": "color", "value": { "fixedColor": "green", "mode": "fixed" } }] },
+          { "matcher": { "id": "byName", "options": "P95" }, "properties": [{ "id": "color", "value": { "fixedColor": "yellow", "mode": "fixed" } }] },
+          { "matcher": { "id": "byName", "options": "P99" }, "properties": [{ "id": "color", "value": { "fixedColor": "red", "mode": "fixed" } }] }
+        ]
       },
       "targets": [
-        {
-          "expr": "histogram_quantile(0.50, sum(rate(http_server_requests_seconds_bucket{application=\"onlyone\"}[5m])) by (le))",
-          "legendFormat": "P50"
-        },
-        {
-          "expr": "histogram_quantile(0.95, sum(rate(http_server_requests_seconds_bucket{application=\"onlyone\"}[5m])) by (le))",
-          "legendFormat": "P95"
-        },
-        {
-          "expr": "histogram_quantile(0.99, sum(rate(http_server_requests_seconds_bucket{application=\"onlyone\"}[5m])) by (le))",
-          "legendFormat": "P99"
-        }
+        { "expr": "histogram_quantile(0.50, sum(rate(http_server_requests_seconds_bucket{application=\"onlyone\"}[5m])) by (le))", "legendFormat": "P50" },
+        { "expr": "histogram_quantile(0.95, sum(rate(http_server_requests_seconds_bucket{application=\"onlyone\"}[5m])) by (le))", "legendFormat": "P95" },
+        { "expr": "histogram_quantile(0.99, sum(rate(http_server_requests_seconds_bucket{application=\"onlyone\"}[5m])) by (le))", "legendFormat": "P99" }
       ]
     },
     {
-      "title": "HTTP Error Rate (4xx / 5xx)",
+      "title": "🚨 HTTP 에러 비율 (4xx / 5xx)",
+      "description": "클라이언트 오류(4xx)와 서버 오류(5xx) 비율",
       "type": "timeseries",
-      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 12 },
       "datasource": { "type": "prometheus", "uid": "" },
       "fieldConfig": {
-        "defaults": { "unit": "reqps" },
-        "overrides": []
+        "defaults": { "unit": "reqps", "custom": { "fillOpacity": 15 } },
+        "overrides": [
+          { "matcher": { "id": "byName", "options": "4xx 오류" }, "properties": [{ "id": "color", "value": { "fixedColor": "orange", "mode": "fixed" } }] },
+          { "matcher": { "id": "byName", "options": "5xx 오류" }, "properties": [{ "id": "color", "value": { "fixedColor": "red", "mode": "fixed" } }] }
+        ]
       },
       "targets": [
-        {
-          "expr": "sum(rate(http_server_requests_seconds_count{application=\"onlyone\", status=~\"4..\"}[1m]))",
-          "legendFormat": "4xx"
-        },
-        {
-          "expr": "sum(rate(http_server_requests_seconds_count{application=\"onlyone\", status=~\"5..\"}[1m]))",
-          "legendFormat": "5xx"
-        }
+        { "expr": "sum(rate(http_server_requests_seconds_count{application=\"onlyone\", status=~\"4..\"}[1m]))", "legendFormat": "4xx 오류" },
+        { "expr": "sum(rate(http_server_requests_seconds_count{application=\"onlyone\", status=~\"5..\"}[1m]))", "legendFormat": "5xx 오류" }
       ]
     },
     {
-      "title": "JVM Heap Memory",
+      "title": "💾 JVM 힙 메모리 사용량",
+      "description": "힙 메모리 영역별 사용량 및 최대치",
       "type": "timeseries",
-      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 8 },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 12 },
       "datasource": { "type": "prometheus", "uid": "" },
       "fieldConfig": {
-        "defaults": { "unit": "bytes" },
+        "defaults": { "unit": "bytes", "custom": { "fillOpacity": 10 } },
         "overrides": []
       },
       "targets": [
-        {
-          "expr": "jvm_memory_used_bytes{application=\"onlyone\", area=\"heap\"}",
-          "legendFormat": "Used - {{id}}"
-        },
-        {
-          "expr": "jvm_memory_max_bytes{application=\"onlyone\", area=\"heap\"}",
-          "legendFormat": "Max - {{id}}"
-        }
+        { "expr": "jvm_memory_used_bytes{application=\"onlyone\", area=\"heap\"}", "legendFormat": "사용 - {{id}}" },
+        { "expr": "jvm_memory_max_bytes{application=\"onlyone\", area=\"heap\"}", "legendFormat": "최대 - {{id}}" }
       ]
     },
     {
-      "title": "JVM Non-Heap Memory",
+      "title": "💾 JVM Non-Heap 메모리",
+      "description": "Metaspace, 코드 캐시 등 Non-Heap 영역",
       "type": "timeseries",
-      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 16 },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 20 },
       "datasource": { "type": "prometheus", "uid": "" },
       "fieldConfig": {
-        "defaults": { "unit": "bytes" },
+        "defaults": { "unit": "bytes", "custom": { "fillOpacity": 10 } },
         "overrides": []
       },
       "targets": [
-        {
-          "expr": "jvm_memory_used_bytes{application=\"onlyone\", area=\"nonheap\"}",
-          "legendFormat": "Used - {{id}}"
-        },
-        {
-          "expr": "jvm_memory_committed_bytes{application=\"onlyone\", area=\"nonheap\"}",
-          "legendFormat": "Committed - {{id}}"
-        }
+        { "expr": "jvm_memory_used_bytes{application=\"onlyone\", area=\"nonheap\"}", "legendFormat": "사용 - {{id}}" },
+        { "expr": "jvm_memory_committed_bytes{application=\"onlyone\", area=\"nonheap\"}", "legendFormat": "할당 - {{id}}" }
       ]
     },
     {
-      "title": "GC Pause Time",
+      "title": "♻️ GC 일시정지 시간",
+      "description": "가비지 컬렉션으로 인한 일시정지 시간",
       "type": "timeseries",
-      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 16 },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 20 },
       "datasource": { "type": "prometheus", "uid": "" },
       "fieldConfig": {
-        "defaults": { "unit": "s" },
+        "defaults": { "unit": "s", "custom": { "fillOpacity": 15 } },
         "overrides": []
       },
       "targets": [
-        {
-          "expr": "rate(jvm_gc_pause_seconds_sum{application=\"onlyone\"}[1m])",
-          "legendFormat": "{{action}} - {{cause}}"
-        }
+        { "expr": "rate(jvm_gc_pause_seconds_sum{application=\"onlyone\"}[1m])", "legendFormat": "{{action}} - {{cause}}" }
       ]
     },
     {
-      "title": "JVM Threads",
+      "title": "🧵 JVM 스레드 현황",
+      "description": "라이브, 데몬, 최대 스레드 수",
       "type": "timeseries",
-      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 24 },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 28 },
       "datasource": { "type": "prometheus", "uid": "" },
       "fieldConfig": {
-        "defaults": { "unit": "short" },
-        "overrides": []
+        "defaults": { "unit": "short", "custom": { "fillOpacity": 5 } },
+        "overrides": [
+          { "matcher": { "id": "byName", "options": "활성" }, "properties": [{ "id": "color", "value": { "fixedColor": "blue", "mode": "fixed" } }] },
+          { "matcher": { "id": "byName", "options": "데몬" }, "properties": [{ "id": "color", "value": { "fixedColor": "purple", "mode": "fixed" } }] },
+          { "matcher": { "id": "byName", "options": "최대" }, "properties": [{ "id": "color", "value": { "fixedColor": "orange", "mode": "fixed" } }] }
+        ]
       },
       "targets": [
-        {
-          "expr": "jvm_threads_live_threads{application=\"onlyone\"}",
-          "legendFormat": "Live"
-        },
-        {
-          "expr": "jvm_threads_daemon_threads{application=\"onlyone\"}",
-          "legendFormat": "Daemon"
-        },
-        {
-          "expr": "jvm_threads_peak_threads{application=\"onlyone\"}",
-          "legendFormat": "Peak"
-        }
+        { "expr": "jvm_threads_live_threads{application=\"onlyone\"}", "legendFormat": "활성" },
+        { "expr": "jvm_threads_daemon_threads{application=\"onlyone\"}", "legendFormat": "데몬" },
+        { "expr": "jvm_threads_peak_threads{application=\"onlyone\"}", "legendFormat": "최대" }
       ]
     },
     {
-      "title": "Tomcat Threads",
+      "title": "🔧 Tomcat 스레드 현황",
+      "description": "현재 / 사용 중 / 최대 Tomcat 워커 스레드",
       "type": "timeseries",
-      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 24 },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 28 },
       "datasource": { "type": "prometheus", "uid": "" },
       "fieldConfig": {
-        "defaults": { "unit": "short" },
-        "overrides": []
+        "defaults": { "unit": "short", "custom": { "fillOpacity": 5 } },
+        "overrides": [
+          { "matcher": { "id": "byName", "options": "사용 중" }, "properties": [{ "id": "color", "value": { "fixedColor": "red", "mode": "fixed" } }] }
+        ]
       },
       "targets": [
-        {
-          "expr": "tomcat_threads_current_threads{application=\"onlyone\"}",
-          "legendFormat": "Current"
-        },
-        {
-          "expr": "tomcat_threads_busy_threads{application=\"onlyone\"}",
-          "legendFormat": "Busy"
-        },
-        {
-          "expr": "tomcat_threads_config_max_threads{application=\"onlyone\"}",
-          "legendFormat": "Max"
-        }
+        { "expr": "tomcat_threads_current_threads{application=\"onlyone\"}", "legendFormat": "현재" },
+        { "expr": "tomcat_threads_busy_threads{application=\"onlyone\"}", "legendFormat": "사용 중" },
+        { "expr": "tomcat_threads_config_max_threads{application=\"onlyone\"}", "legendFormat": "최대" }
       ]
     },
     {
-      "title": "HikariCP Connection Pool",
+      "title": "🗄️ HikariCP 커넥션 풀",
+      "description": "DB 커넥션 풀 상태 - 활성, 유휴, 대기, 타임아웃",
       "type": "timeseries",
-      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 32 },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 36 },
       "datasource": { "type": "prometheus", "uid": "" },
       "fieldConfig": {
-        "defaults": { "unit": "short" },
-        "overrides": []
+        "defaults": { "unit": "short", "custom": { "fillOpacity": 10 } },
+        "overrides": [
+          { "matcher": { "id": "byName", "options": "활성" }, "properties": [{ "id": "color", "value": { "fixedColor": "green", "mode": "fixed" } }] },
+          { "matcher": { "id": "byName", "options": "유휴" }, "properties": [{ "id": "color", "value": { "fixedColor": "blue", "mode": "fixed" } }] },
+          { "matcher": { "id": "byName", "options": "대기" }, "properties": [{ "id": "color", "value": { "fixedColor": "orange", "mode": "fixed" } }] },
+          { "matcher": { "id": "byName", "options": "타임아웃/초" }, "properties": [{ "id": "color", "value": { "fixedColor": "red", "mode": "fixed" } }] }
+        ]
       },
       "targets": [
-        {
-          "expr": "hikaricp_connections_active{application=\"onlyone\"}",
-          "legendFormat": "Active"
-        },
-        {
-          "expr": "hikaricp_connections_idle{application=\"onlyone\"}",
-          "legendFormat": "Idle"
-        },
-        {
-          "expr": "hikaricp_connections_pending{application=\"onlyone\"}",
-          "legendFormat": "Pending"
-        },
-        {
-          "expr": "hikaricp_connections_max{application=\"onlyone\"}",
-          "legendFormat": "Max"
-        },
-        {
-          "expr": "rate(hikaricp_connections_timeout_total{application=\"onlyone\"}[1m])",
-          "legendFormat": "Timeout/s"
-        }
+        { "expr": "hikaricp_connections_active{application=\"onlyone\"}", "legendFormat": "활성" },
+        { "expr": "hikaricp_connections_idle{application=\"onlyone\"}", "legendFormat": "유휴" },
+        { "expr": "hikaricp_connections_pending{application=\"onlyone\"}", "legendFormat": "대기" },
+        { "expr": "hikaricp_connections_max{application=\"onlyone\"}", "legendFormat": "최대" },
+        { "expr": "rate(hikaricp_connections_timeout_total{application=\"onlyone\"}[1m])", "legendFormat": "타임아웃/초" }
       ]
     },
     {
-      "title": "Log Events (ERROR / WARN)",
+      "title": "📝 로그 이벤트 (ERROR / WARN)",
+      "description": "분당 ERROR, WARN 로그 발생 횟수",
       "type": "timeseries",
-      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 32 },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 36 },
       "datasource": { "type": "prometheus", "uid": "" },
       "fieldConfig": {
-        "defaults": { "unit": "short" },
-        "overrides": []
+        "defaults": { "unit": "short", "custom": { "fillOpacity": 15 } },
+        "overrides": [
+          { "matcher": { "id": "byName", "options": "ERROR" }, "properties": [{ "id": "color", "value": { "fixedColor": "red", "mode": "fixed" } }] },
+          { "matcher": { "id": "byName", "options": "WARN" }, "properties": [{ "id": "color", "value": { "fixedColor": "yellow", "mode": "fixed" } }] }
+        ]
       },
       "targets": [
-        {
-          "expr": "increase(logback_events_total{application=\"onlyone\", level=\"error\"}[1m])",
-          "legendFormat": "ERROR"
-        },
-        {
-          "expr": "increase(logback_events_total{application=\"onlyone\", level=\"warn\"}[1m])",
-          "legendFormat": "WARN"
-        }
+        { "expr": "increase(logback_events_total{application=\"onlyone\", level=\"error\"}[1m])", "legendFormat": "ERROR" },
+        { "expr": "increase(logback_events_total{application=\"onlyone\", level=\"warn\"}[1m])", "legendFormat": "WARN" }
       ]
     }
   ],
   "schemaVersion": 39,
-  "tags": ["spring-boot", "onlyone"],
+  "tags": ["spring-boot", "onlyone", "애플리케이션"],
   "templating": { "list": [] },
   "time": { "from": "now-1h", "to": "now" },
-  "title": "Spring Boot - OnlyOne",
+  "title": "🚀 애플리케이션 - OnlyOne",
   "uid": "spring-boot-onlyone",
-  "version": 1
+  "version": 2
 }

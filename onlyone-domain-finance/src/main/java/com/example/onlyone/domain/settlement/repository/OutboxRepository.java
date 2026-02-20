@@ -5,6 +5,7 @@ import org.springframework.data.jpa.repository.*;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 @Repository
@@ -29,4 +30,11 @@ public interface OutboxRepository extends JpaRepository<OutboxEvent, Long> {
       """, nativeQuery = true)
     List<OutboxEvent> findFailedForRetry(@Param("maxRetries") int maxRetries, @Param("limit") int limit);
 
+    @Modifying
+    @Query("DELETE FROM OutboxEvent e WHERE e.status = com.example.onlyone.domain.settlement.entity.OutboxStatus.PUBLISHED AND e.publishedAt < :cutoff")
+    int deletePublishedBefore(@Param("cutoff") LocalDateTime cutoff);
+
+    @Modifying
+    @Query("DELETE FROM OutboxEvent e WHERE e.status = com.example.onlyone.domain.settlement.entity.OutboxStatus.DEAD AND e.createdAt < :cutoff")
+    int deleteDeadBefore(@Param("cutoff") LocalDateTime cutoff);
 }

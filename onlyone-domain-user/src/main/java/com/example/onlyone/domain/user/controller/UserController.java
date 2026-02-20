@@ -6,6 +6,7 @@ import com.example.onlyone.domain.user.dto.response.ProfileResponseDto;
 import com.example.onlyone.domain.user.service.UserService;
 import com.example.onlyone.global.common.CommonResponse;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -31,7 +32,7 @@ public class UserController {
     }
 
     @PutMapping("/profile")
-    public ResponseEntity<?> updateUserProfile(@RequestBody ProfileUpdateRequestDto request) {
+    public ResponseEntity<?> updateUserProfile(@Valid @RequestBody ProfileUpdateRequestDto request) {
         userService.updateUserProfile(request);
         return ResponseEntity.ok(CommonResponse.success("프로필이 성공적으로 업데이트되었습니다."));
     }

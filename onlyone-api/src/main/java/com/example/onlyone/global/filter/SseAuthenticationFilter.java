@@ -1,6 +1,7 @@
 package com.example.onlyone.global.filter;
 
 import com.example.onlyone.domain.user.dto.UserPrincipal;
+import com.example.onlyone.global.exception.ErrorCode;
 import io.jsonwebtoken.JwtException;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
@@ -29,7 +30,6 @@ public class SseAuthenticationFilter extends OncePerRequestFilter {
     private final JwtTokenParser jwtTokenParser;
 
     private static final String COOKIE_NAME = "access_token";
-    private static final String CONTENT_TYPE_JSON = "application/json";
 
     @Override
     protected boolean shouldNotFilter(HttpServletRequest request) throws ServletException {
@@ -43,7 +43,7 @@ public class SseAuthenticationFilter extends OncePerRequestFilter {
 
         if (token == null) {
             log.debug("No JWT token found in header or cookie for SSE request: {}", request.getRequestURI());
-            sendErrorResponse(response, HttpServletResponse.SC_UNAUTHORIZED, "JWT token required for SSE connection");
+            JwtTokenParser.writeErrorResponse(response, ErrorCode.UNAUTHORIZED);
             return;
         }
 
@@ -52,7 +52,7 @@ public class SseAuthenticationFilter extends OncePerRequestFilter {
 
             if (!principal.isEnabled()) {
                 log.warn("SSE connection attempt by withdrawn user: {}", principal);
-                sendErrorResponse(response, HttpServletResponse.SC_FORBIDDEN, "User account is withdrawn");
+                JwtTokenParser.writeErrorResponse(response, ErrorCode.USER_WITHDRAWN);
                 return;
             }
 
@@ -61,7 +61,7 @@ public class SseAuthenticationFilter extends OncePerRequestFilter {
 
         } catch (JwtException | IllegalArgumentException e) {
             log.warn("SSE JWT validation failed: {}", e.getClass().getSimpleName());
-            sendErrorResponse(response, HttpServletResponse.SC_UNAUTHORIZED, "Invalid JWT token");
+            JwtTokenParser.writeErrorResponse(response, ErrorCode.UNAUTHORIZED);
             return;
         }
 
@@ -86,12 +86,5 @@ public class SseAuthenticationFilter extends OncePerRequestFilter {
         }
 
         return null;
-    }
-
-    private void sendErrorResponse(HttpServletResponse response, int status, String message) throws IOException {
-        response.setStatus(status);
-        response.setContentType(CONTENT_TYPE_JSON);
-        response.setCharacterEncoding("UTF-8");
-        response.getWriter().write("{\"error\":\"" + message + "\"}");
     }
 }

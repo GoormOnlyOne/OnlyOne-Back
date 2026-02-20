@@ -7,21 +7,15 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.lang.Nullable;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.security.servlet.PathRequest;
+import org.springframework.boot.web.servlet.FilterRegistrationBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.context.annotation.Profile;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
-import org.springframework.security.authentication.AuthenticationManager;
-import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
-import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
-import org.springframework.security.config.annotation.web.configuration.WebSecurityCustomizer;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.config.http.SessionCreationPolicy;
-import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
-import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.security.web.authentication.logout.HttpStatusReturningLogoutSuccessHandler;
@@ -29,16 +23,12 @@ import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
-import java.util.Arrays;
 import java.util.List;
-import java.util.stream.Stream;
 
 
 @Configuration
 @EnableWebSecurity
-@EnableMethodSecurity(securedEnabled = true)
 @RequiredArgsConstructor
-@Profile("!test")
 public class SecurityConfig {
 
     private static final String[] AUTH_WHITELIST = {
@@ -50,7 +40,8 @@ public class SecurityConfig {
             "/ws/**",
             "/ws-native",
             "/api/v1/kakao/**",
-            "/api/v1/auth/**",
+            "/api/v1/auth/kakao/callback",
+            "/api/v1/auth/refresh",
     };
 
     private static final String[] SWAGGER_PATHS = {
@@ -62,46 +53,21 @@ public class SecurityConfig {
     private final SseAuthenticationFilter sseAuthenticationFilter;
     @Nullable
     private final RateLimitFilter rateLimitFilter;
-    @Value("${app.base-url}")
-    private String baseUrl;
     @Value("${app.cors.allowed-origins:http://localhost:8080,http://localhost:5173}")
     private String[] corsAllowedOrigins;
 
     @Bean
-    public WebSecurityCustomizer webSecurityCustomizer() {
-        return web -> web.ignoring()
-                .requestMatchers("/error", "/favicon.ico")
-                .requestMatchers(SWAGGER_PATHS)
-                .requestMatchers(PathRequest.toStaticResources().atCommonLocations());
-    }
-
-    @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
-        configuration.setAllowedOriginPatterns(
-                Stream.concat(Arrays.stream(corsAllowedOrigins), Stream.of(baseUrl))
-                        .distinct()
-                        .toList());
-
+        configuration.setAllowedOriginPatterns(List.of(corsAllowedOrigins));
         configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"));
-        configuration.addAllowedHeader("*");
+        configuration.setAllowedHeaders(List.of("Authorization", "Content-Type", "Accept", "X-Requested-With", "Cache-Control"));
         configuration.setExposedHeaders(List.of("Set-Cookie", "Location"));
         configuration.setAllowCredentials(true);
 
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", configuration);
         return source;
-    }
-
-    @Bean
-    public PasswordEncoder passwordEncoder() {
-        return new BCryptPasswordEncoder();
-    }
-
-    @Bean
-    public AuthenticationManager authenticationManager(
-            AuthenticationConfiguration authenticationConfiguration) throws Exception {
-        return authenticationConfiguration.getAuthenticationManager();
     }
 
     @Bean
@@ -139,5 +105,19 @@ public class SecurityConfig {
                 );
 
         return http.build();
+    }
+
+    @Bean
+    FilterRegistrationBean<JwtAuthenticationFilter> jwtFilterRegistration(JwtAuthenticationFilter f) {
+        var reg = new FilterRegistrationBean<>(f);
+        reg.setEnabled(false);
+        return reg;
+    }
+
+    @Bean
+    FilterRegistrationBean<SseAuthenticationFilter> sseFilterRegistration(SseAuthenticationFilter f) {
+        var reg = new FilterRegistrationBean<>(f);
+        reg.setEnabled(false);
+        return reg;
     }
 }

@@ -39,4 +39,7 @@ public interface SettlementRepository extends JpaRepository<Settlement,Long> {
     @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Query("delete from Settlement s where s.scheduleId = :scheduleId")
     void deleteByScheduleId(@Param("scheduleId") Long scheduleId);
+
+    @Query(value = "SELECT CASE WHEN COUNT(*) > 0 THEN true ELSE false END FROM schedule WHERE schedule_id = :scheduleId AND club_id = :clubId", nativeQuery = true)
+    boolean existsScheduleInClub(@Param("scheduleId") Long scheduleId, @Param("clubId") Long clubId);
 }

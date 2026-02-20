@@ -16,6 +16,7 @@ import com.example.onlyone.domain.user.service.UserService;
 import com.example.onlyone.global.exception.CustomException;
 import com.example.onlyone.global.exception.ErrorCode;
 import com.example.onlyone.common.event.ClubCreatedEvent;
+import com.example.onlyone.common.event.ClubLeftEvent;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.transaction.annotation.Transactional;
@@ -67,7 +68,7 @@ public class ClubCommandService {
         UserClub userClub = userClubRepository.findByUserAndClub(user, club)
                 .orElseThrow(() -> new CustomException(ErrorCode.USER_CLUB_NOT_FOUND));
         if (userClub.getClubRole() != ClubRole.LEADER) {
-            throw new CustomException(ErrorCode.MEMBER_CANNOT_MODIFY_SCHEDULE);
+            throw new CustomException(ErrorCode.LEADER_ONLY_CLUB_MODIFY);
         }
         club.update(new ClubUpdateCommand(
                 requestDto.name(),
@@ -120,6 +121,7 @@ public class ClubCommandService {
         }
         userClubRepository.delete(userClub);
         clubRepository.decrementMemberCount(club.getClubId());
+        eventPublisher.publishEvent(new ClubLeftEvent(clubId, user.getUserId()));
         log.info("모임 탈퇴: clubId={}, userId={}", clubId, user.getUserId());
     }
 

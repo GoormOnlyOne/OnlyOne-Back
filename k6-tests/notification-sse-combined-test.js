@@ -26,8 +26,6 @@ const sseConnectionErrors = new Rate('sse_connection_errors');
 const sseConnectionTime = new Trend('sse_connection_time');
 const sseEventsReceived = new Counter('sse_events_received');
 const sseConnectedEventOk = new Rate('sse_connected_event_ok');
-const sseStatusCheckOk = new Rate('sse_status_check_ok');
-
 const notificationListDuration = new Trend('notification_list_duration');
 const unreadCountDuration = new Trend('unread_count_duration');
 const markAsReadDuration = new Trend('mark_as_read_duration');
@@ -273,14 +271,6 @@ export function sseConnectionTest() {
             'SSE: connected event received': (r) => r.connectedEvent === true,
         });
 
-        // SSE 상태 확인 API
-        const token = generateJWT(user);
-        const statusRes = http.get(`${BASE_URL}/sse/status`, {
-            headers: getHeaders(token),
-            tags: { name: 'sse_status' },
-        });
-        const statusOk = statusRes.status === 200;
-        sseStatusCheckOk.add(statusOk ? 1 : 0);
     });
 
     sleep(1);
@@ -300,15 +290,6 @@ export function sseCapacityTest() {
             'SSE capacity: got event': (r) => r.connectedEvent === true,
         });
 
-        // 배치 상태 확인
-        const token = generateJWT(user);
-        const batchRes = http.get(`${BASE_URL}/api/v1/notifications/batch-status`, {
-            headers: getHeaders(token),
-            tags: { name: 'batch_status' },
-        });
-        check(batchRes, {
-            'Batch status OK': (r) => r.status === 200,
-        });
     });
 
     sleep(0.5);
@@ -441,15 +422,6 @@ export function sseReconnectionTest() {
             'reconnect 2nd: connected event': (r) => r.connectedEvent === true,
         });
 
-        // 상태 확인
-        const token = generateJWT(user);
-        const statusRes = http.get(`${BASE_URL}/sse/status`, {
-            headers: getHeaders(token),
-            tags: { name: 'sse_status' },
-        });
-        check(statusRes, {
-            'reconnect status: 200': (r) => r.status === 200,
-        });
     });
 
     sleep(1);

@@ -6,133 +6,155 @@
   "links": [],
   "panels": [
     {
-      "title": "Cluster Health Status",
+      "title": "🟢 클러스터 상태",
       "type": "stat",
-      "gridPos": { "h": 6, "w": 8, "x": 0, "y": 0 },
+      "gridPos": { "h": 5, "w": 8, "x": 0, "y": 0 },
       "datasource": { "type": "prometheus", "uid": "" },
       "fieldConfig": {
         "defaults": {
           "mappings": [
-            { "options": { "0": { "text": "RED" }, "1": { "text": "YELLOW" }, "2": { "text": "GREEN" } }, "type": "value" }
+            { "options": { "0": { "text": "RED 🔴" }, "1": { "text": "YELLOW 🟡" }, "2": { "text": "GREEN 🟢" } }, "type": "value" }
           ],
-          "thresholds": {
-            "steps": [
-              { "color": "red", "value": null },
-              { "color": "yellow", "value": 1 },
-              { "color": "green", "value": 2 }
-            ]
-          }
+          "thresholds": { "steps": [{ "color": "red", "value": null }, { "color": "yellow", "value": 1 }, { "color": "green", "value": 2 }] }
         },
         "overrides": []
       },
       "targets": [
-        { "expr": "elasticsearch_cluster_health_status{color=\"green\"} * 2 + elasticsearch_cluster_health_status{color=\"yellow\"}", "legendFormat": "Status", "instant": true }
-      ]
+        { "expr": "elasticsearch_cluster_health_status{color=\"green\"} * 2 + elasticsearch_cluster_health_status{color=\"yellow\"}", "legendFormat": "상태", "instant": true }
+      ],
+      "options": { "colorMode": "background" }
     },
     {
-      "title": "Active Shards / Nodes",
+      "title": "📊 샤드 / 노드",
       "type": "stat",
-      "gridPos": { "h": 6, "w": 8, "x": 8, "y": 0 },
+      "gridPos": { "h": 5, "w": 8, "x": 8, "y": 0 },
       "datasource": { "type": "prometheus", "uid": "" },
       "fieldConfig": { "defaults": { "unit": "short" }, "overrides": [] },
       "targets": [
-        { "expr": "elasticsearch_cluster_health_active_shards", "legendFormat": "Active Shards" },
-        { "expr": "elasticsearch_cluster_health_number_of_nodes", "legendFormat": "Nodes" }
-      ]
+        { "expr": "elasticsearch_cluster_health_active_shards", "legendFormat": "활성 샤드" },
+        { "expr": "elasticsearch_cluster_health_number_of_nodes", "legendFormat": "노드 수" }
+      ],
+      "options": { "colorMode": "value" }
     },
     {
-      "title": "Pending Tasks",
+      "title": "⏳ 대기 작업",
       "type": "stat",
-      "gridPos": { "h": 6, "w": 8, "x": 16, "y": 0 },
+      "gridPos": { "h": 5, "w": 8, "x": 16, "y": 0 },
       "datasource": { "type": "prometheus", "uid": "" },
       "fieldConfig": {
-        "defaults": {
-          "unit": "short",
-          "thresholds": {
-            "steps": [
-              { "color": "green", "value": null },
-              { "color": "yellow", "value": 5 },
-              { "color": "red", "value": 20 }
-            ]
-          }
-        },
+        "defaults": { "unit": "short", "thresholds": { "steps": [{ "color": "green", "value": null }, { "color": "yellow", "value": 5 }, { "color": "red", "value": 20 }] } },
         "overrides": []
       },
       "targets": [
-        { "expr": "elasticsearch_cluster_health_number_of_pending_tasks", "legendFormat": "Pending Tasks", "instant": true }
+        { "expr": "elasticsearch_cluster_health_number_of_pending_tasks", "legendFormat": "대기 작업", "instant": true }
+      ],
+      "options": { "colorMode": "background", "graphMode": "area" }
+    },
+    {
+      "title": "📝 색인 처리량",
+      "description": "초당 색인/삭제 작업 수",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 5 },
+      "datasource": { "type": "prometheus", "uid": "" },
+      "fieldConfig": {
+        "defaults": { "unit": "ops", "custom": { "fillOpacity": 10 } },
+        "overrides": [
+          { "matcher": { "id": "byName", "options": "색인/초" }, "properties": [{ "id": "color", "value": { "fixedColor": "green", "mode": "fixed" } }] },
+          { "matcher": { "id": "byName", "options": "삭제/초" }, "properties": [{ "id": "color", "value": { "fixedColor": "red", "mode": "fixed" } }] }
+        ]
+      },
+      "targets": [
+        { "expr": "rate(elasticsearch_indices_indexing_index_total[1m])", "legendFormat": "색인/초" },
+        { "expr": "rate(elasticsearch_indices_indexing_delete_total[1m])", "legendFormat": "삭제/초" }
       ]
     },
     {
-      "title": "Indexing Rate",
+      "title": "🔍 검색 처리량",
+      "description": "초당 검색 쿼리/Fetch 수",
       "type": "timeseries",
-      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 6 },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 5 },
       "datasource": { "type": "prometheus", "uid": "" },
-      "fieldConfig": { "defaults": { "unit": "ops" }, "overrides": [] },
+      "fieldConfig": {
+        "defaults": { "unit": "ops", "custom": { "fillOpacity": 10 } },
+        "overrides": [
+          { "matcher": { "id": "byName", "options": "쿼리/초" }, "properties": [{ "id": "color", "value": { "fixedColor": "blue", "mode": "fixed" } }] },
+          { "matcher": { "id": "byName", "options": "Fetch/초" }, "properties": [{ "id": "color", "value": { "fixedColor": "purple", "mode": "fixed" } }] }
+        ]
+      },
       "targets": [
-        { "expr": "rate(elasticsearch_indices_indexing_index_total[1m])", "legendFormat": "Index/s" },
-        { "expr": "rate(elasticsearch_indices_indexing_delete_total[1m])", "legendFormat": "Delete/s" }
+        { "expr": "rate(elasticsearch_indices_search_query_total[1m])", "legendFormat": "쿼리/초" },
+        { "expr": "rate(elasticsearch_indices_search_fetch_total[1m])", "legendFormat": "Fetch/초" }
       ]
     },
     {
-      "title": "Search Rate",
+      "title": "⏱️ 검색 지연시간",
+      "description": "검색 쿼리/Fetch 평균 소요시간 (ms)",
       "type": "timeseries",
-      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 6 },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 13 },
       "datasource": { "type": "prometheus", "uid": "" },
-      "fieldConfig": { "defaults": { "unit": "ops" }, "overrides": [] },
+      "fieldConfig": {
+        "defaults": { "unit": "ms", "custom": { "fillOpacity": 5 } },
+        "overrides": []
+      },
       "targets": [
-        { "expr": "rate(elasticsearch_indices_search_query_total[1m])", "legendFormat": "Query/s" },
-        { "expr": "rate(elasticsearch_indices_search_fetch_total[1m])", "legendFormat": "Fetch/s" }
+        { "expr": "rate(elasticsearch_indices_search_query_time_seconds_total[5m]) / rate(elasticsearch_indices_search_query_total[5m]) * 1000", "legendFormat": "쿼리 평균 (ms)" },
+        { "expr": "rate(elasticsearch_indices_search_fetch_time_seconds_total[5m]) / rate(elasticsearch_indices_search_fetch_total[5m]) * 1000", "legendFormat": "Fetch 평균 (ms)" }
       ]
     },
     {
-      "title": "Search Latency",
+      "title": "💾 JVM 힙 메모리",
+      "description": "ES JVM 힙 사용량 / 최대치",
       "type": "timeseries",
-      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 14 },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 13 },
       "datasource": { "type": "prometheus", "uid": "" },
-      "fieldConfig": { "defaults": { "unit": "ms" }, "overrides": [] },
+      "fieldConfig": {
+        "defaults": { "unit": "bytes", "custom": { "fillOpacity": 10 } },
+        "overrides": [
+          { "matcher": { "id": "byName", "options": "최대" }, "properties": [{ "id": "custom.lineStyle", "value": { "fill": "dash" } }, { "id": "color", "value": { "fixedColor": "red", "mode": "fixed" } }] }
+        ]
+      },
       "targets": [
-        { "expr": "rate(elasticsearch_indices_search_query_time_seconds_total[5m]) / rate(elasticsearch_indices_search_query_total[5m]) * 1000", "legendFormat": "Query Avg (ms)" },
-        { "expr": "rate(elasticsearch_indices_search_fetch_time_seconds_total[5m]) / rate(elasticsearch_indices_search_fetch_total[5m]) * 1000", "legendFormat": "Fetch Avg (ms)" }
+        { "expr": "elasticsearch_jvm_memory_used_bytes{area=\"heap\"}", "legendFormat": "사용 중" },
+        { "expr": "elasticsearch_jvm_memory_max_bytes{area=\"heap\"}", "legendFormat": "최대" }
       ]
     },
     {
-      "title": "JVM Heap Memory",
+      "title": "💿 인덱스 저장 크기",
+      "description": "전체 인덱스 데이터 크기",
       "type": "timeseries",
-      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 14 },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 21 },
       "datasource": { "type": "prometheus", "uid": "" },
-      "fieldConfig": { "defaults": { "unit": "bytes" }, "overrides": [] },
+      "fieldConfig": {
+        "defaults": { "unit": "bytes", "custom": { "fillOpacity": 10 } },
+        "overrides": []
+      },
       "targets": [
-        { "expr": "elasticsearch_jvm_memory_used_bytes{area=\"heap\"}", "legendFormat": "Heap Used" },
-        { "expr": "elasticsearch_jvm_memory_max_bytes{area=\"heap\"}", "legendFormat": "Heap Max" }
+        { "expr": "elasticsearch_indices_store_size_bytes_total", "legendFormat": "전체 크기" }
       ]
     },
     {
-      "title": "Index Store Size",
+      "title": "📄 문서 수",
+      "description": "전체 / 삭제된 문서 수",
       "type": "timeseries",
-      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 22 },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 21 },
       "datasource": { "type": "prometheus", "uid": "" },
-      "fieldConfig": { "defaults": { "unit": "bytes" }, "overrides": [] },
+      "fieldConfig": {
+        "defaults": { "unit": "short", "custom": { "fillOpacity": 10 } },
+        "overrides": [
+          { "matcher": { "id": "byName", "options": "삭제됨" }, "properties": [{ "id": "color", "value": { "fixedColor": "red", "mode": "fixed" } }] }
+        ]
+      },
       "targets": [
-        { "expr": "elasticsearch_indices_store_size_bytes_total", "legendFormat": "Total Store Size" }
-      ]
-    },
-    {
-      "title": "Document Count",
-      "type": "timeseries",
-      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 22 },
-      "datasource": { "type": "prometheus", "uid": "" },
-      "fieldConfig": { "defaults": { "unit": "short" }, "overrides": [] },
-      "targets": [
-        { "expr": "elasticsearch_indices_docs_total", "legendFormat": "Total Docs" },
-        { "expr": "elasticsearch_indices_docs_deleted_total", "legendFormat": "Deleted Docs" }
+        { "expr": "elasticsearch_indices_docs_total", "legendFormat": "전체 문서" },
+        { "expr": "elasticsearch_indices_docs_deleted_total", "legendFormat": "삭제됨" }
       ]
     }
   ],
   "schemaVersion": 39,
-  "tags": ["elasticsearch", "search"],
+  "tags": ["elasticsearch", "검색"],
   "templating": { "list": [] },
   "time": { "from": "now-1h", "to": "now" },
-  "title": "Elasticsearch - OnlyOne",
+  "title": "🔍 Elasticsearch - OnlyOne",
   "uid": "elasticsearch-onlyone",
-  "version": 1
+  "version": 2
 }

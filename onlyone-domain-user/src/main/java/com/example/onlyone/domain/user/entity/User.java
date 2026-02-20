@@ -1,6 +1,7 @@
 package com.example.onlyone.domain.user.entity;
 
 import com.example.onlyone.common.BaseTimeEntity;
+import com.example.onlyone.domain.user.converter.StringEncryptConverter;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.NotNull;
 import lombok.*;
@@ -54,7 +55,8 @@ public class User extends BaseTimeEntity {
     private String district;
 
 
-  @Column(name = "kakao_access_token")
+  @Convert(converter = StringEncryptConverter.class)
+  @Column(name = "kakao_access_token", length = 512)
   private String kakaoAccessToken;
 
   @Enumerated(EnumType.STRING)

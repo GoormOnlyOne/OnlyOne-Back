@@ -169,11 +169,16 @@ export function normalWorkload() {
             const res = http.get(`${BASE_URL}/api/v1/notifications/unread-count`, { headers });
             validateResponse(res, 'unread count');
             unreadCountDuration.add(res.timings.duration);
-        } else {
+        } else if (action < 0.95) {
             const notifId = Math.floor(Math.random() * 10000000) + 1;
             const res = http.put(`${BASE_URL}/api/v1/notifications/${notifId}/read`, null, { headers });
             check(res, { 'mark read: accepted': (r) => r.status === 200 || r.status === 404 });
             markAsReadDuration.add(res.timings.duration);
+        } else {
+            // 알림 삭제 (5%)
+            const notifId = Math.floor(Math.random() * 10000000) + 1;
+            const res = http.del(`${BASE_URL}/api/v1/notifications/${notifId}`, null, { headers });
+            check(res, { 'delete: accepted': (r) => r.status === 200 || r.status === 404 });
         }
     });
     sleep(1);

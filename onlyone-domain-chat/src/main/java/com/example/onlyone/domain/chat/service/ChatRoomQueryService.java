@@ -17,8 +17,10 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.function.BinaryOperator;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -49,12 +51,19 @@ public class ChatRoomQueryService {
                 .map(ChatRoom::getChatRoomId)
                 .toList();
 
-        List<Message> lastMessages = messageRepository.findLastMessagesByChatRoomIds(chatRoomIds);
-        Map<Long, Message> lastMessageMap = lastMessages.stream()
-                .collect(Collectors.toMap(
-                        m -> m.getChatRoom().getChatRoomId(),
-                        Function.identity()
-                ));
+        Map<Long, Message> lastMessageMap;
+        if (chatRoomIds.isEmpty()) {
+            lastMessageMap = Collections.emptyMap();
+        } else {
+            List<Message> lastMessages = messageRepository.findLastMessagesByChatRoomIds(chatRoomIds);
+            lastMessageMap = lastMessages.stream()
+                    .collect(Collectors.toMap(
+                            m -> m.getChatRoom().getChatRoomId(),
+                            Function.identity(),
+                            BinaryOperator.maxBy(
+                                    (a, b) -> Long.compare(a.getMessageId(), b.getMessageId()))
+                    ));
+        }
 
         return chatRooms.stream()
                 .map(chatRoom -> ChatRoomResponse.from(

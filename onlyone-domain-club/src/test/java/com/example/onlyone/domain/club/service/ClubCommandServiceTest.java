@@ -1,6 +1,7 @@
 package com.example.onlyone.domain.club.service;
 
 import com.example.onlyone.common.event.ClubCreatedEvent;
+import com.example.onlyone.common.event.ClubLeftEvent;
 import com.example.onlyone.domain.club.dto.request.ClubRequestDto;
 import com.example.onlyone.domain.club.dto.response.ClubCreateResponseDto;
 import com.example.onlyone.domain.club.entity.Club;
@@ -165,7 +166,7 @@ class ClubCommandServiceTest {
         }
 
         @Test
-        @DisplayName("실패: 리더가 아니면 MEMBER_CANNOT_MODIFY_SCHEDULE")
+        @DisplayName("실패: 리더가 아니면 LEADER_ONLY_CLUB_MODIFY")
         void updateClub_fail_notLeader() {
             // given
             Interest interest = anInterest().build();
@@ -185,7 +186,7 @@ class ClubCommandServiceTest {
             // when & then
             assertThatThrownBy(() -> clubCommandService.updateClub(1L, requestDto))
                     .isInstanceOf(CustomException.class)
-                    .extracting("errorCode").isEqualTo(ErrorCode.MEMBER_CANNOT_MODIFY_SCHEDULE);
+                    .extracting("errorCode").isEqualTo(ErrorCode.LEADER_ONLY_CLUB_MODIFY);
         }
     }
 
@@ -287,6 +288,11 @@ class ClubCommandServiceTest {
             // then
             then(userClubRepository).should().delete(userClub);
             then(clubRepository).should().decrementMemberCount(1L);
+
+            ArgumentCaptor<ClubLeftEvent> eventCaptor = ArgumentCaptor.forClass(ClubLeftEvent.class);
+            then(eventPublisher).should().publishEvent(eventCaptor.capture());
+            assertThat(eventCaptor.getValue().clubId()).isEqualTo(1L);
+            assertThat(eventCaptor.getValue().userId()).isEqualTo(2L);
         }
 
         @Test

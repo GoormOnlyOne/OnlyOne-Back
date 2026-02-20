@@ -1,9 +1,11 @@
 package com.example.onlyone.domain.chat.event;
 
 import com.example.onlyone.common.event.ClubCreatedEvent;
+import com.example.onlyone.common.event.ClubLeftEvent;
 import com.example.onlyone.domain.chat.entity.ChatRole;
 import com.example.onlyone.domain.chat.entity.ChatRoom;
 import com.example.onlyone.domain.chat.entity.ChatRoomType;
+import com.example.onlyone.domain.chat.repository.UserChatRoomRepository;
 import com.example.onlyone.domain.chat.service.ChatRoomCommandService;
 import com.example.onlyone.domain.club.entity.Club;
 import com.example.onlyone.domain.club.repository.ClubRepository;
@@ -23,6 +25,7 @@ import org.springframework.transaction.event.TransactionalEventListener;
 public class ClubEventListener {
 
     private final ChatRoomCommandService chatRoomCommandService;
+    private final UserChatRoomRepository userChatRoomRepository;
     private final ClubRepository clubRepository;
     private final UserRepository userRepository;
 
@@ -47,6 +50,24 @@ public class ClubEventListener {
         } catch (Exception e) {
             log.error("[Event.Failed] type=ClubCreatedEvent, clubId={}", event.clubId(), e);
             throw e;
+        }
+    }
+
+    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void handleClubLeftEvent(ClubLeftEvent event) {
+        log.info("[Event.Received] type=ClubLeftEvent, clubId={}, userId={}",
+                event.clubId(), event.userId());
+
+        try {
+            int deleted = userChatRoomRepository.deleteByUserIdAndClubId(
+                    event.userId(), event.clubId());
+
+            log.info("[Event.Completed] type=ClubLeftEvent, clubId={}, userId={}, deletedChatRooms={}",
+                    event.clubId(), event.userId(), deleted);
+        } catch (Exception e) {
+            log.error("[Event.Failed] type=ClubLeftEvent, clubId={}, userId={}",
+                    event.clubId(), event.userId(), e);
         }
     }
 }

@@ -8,6 +8,7 @@ import com.example.onlyone.domain.user.dto.request.SignupRequestDto;
 import com.example.onlyone.domain.user.dto.response.MyPageResponse;
 import com.example.onlyone.domain.user.dto.response.ProfileResponseDto;
 import com.example.onlyone.domain.user.entity.ProfileUpdateCommand;
+import com.example.onlyone.domain.user.entity.Status;
 import com.example.onlyone.domain.user.entity.User;
 import com.example.onlyone.domain.user.entity.UserInterest;
 import com.example.onlyone.domain.user.repository.UserInterestRepository;
@@ -55,6 +56,10 @@ public class UserService {
     public void signup(SignupRequestDto signupRequest) {
         User user = authService.getCurrentUser();
 
+        if (Status.ACTIVE.equals(user.getStatus())) {
+            throw new CustomException(ErrorCode.ALREADY_SIGNED_UP);
+        }
+
         user.updateProfile(new ProfileUpdateCommand(
                 signupRequest.city(),
                 signupRequest.district(),
@@ -70,12 +75,12 @@ public class UserService {
     }
 
     /**
-     * 로그아웃 처리 - 카카오 연결 해제 + 토큰 제거
+     * 로그아웃 처리 - 카카오 로그아웃 + 토큰 제거
      */
     @Transactional
     public void logoutUser() {
         User user = authService.getCurrentUser();
-        tryUnlinkKakao(user);
+        tryLogoutKakao(user);
 
         if (user.getKakaoAccessToken() != null) {
             user.clearKakaoAccessToken();
@@ -90,6 +95,7 @@ public class UserService {
     public void withdrawUser() {
         User user = authService.getCurrentUser();
         tryUnlinkKakao(user);
+        userInterestRepository.deleteByUserId(user.getUserId());
         user.withdraw();
         userRepository.save(user);
         log.info("회원 탈퇴: userId={}", user.getUserId());
@@ -159,6 +165,15 @@ public class UserService {
     }
 
     // ========== PRIVATE HELPERS ==========
+
+    private void tryLogoutKakao(User user) {
+        if (user.getKakaoAccessToken() == null) return;
+        try {
+            kakaoService.logout(user.getKakaoAccessToken());
+        } catch (Exception e) {
+            log.warn("카카오 로그아웃 실패: userId={}, error={}", user.getUserId(), e.getMessage());
+        }
+    }
 
     private void tryUnlinkKakao(User user) {
         if (user.getKakaoAccessToken() == null) return;

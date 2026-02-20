@@ -86,6 +86,7 @@ public class ScheduleCommandService {
         findClubOrThrow(clubId);
 
         Schedule schedule = findScheduleOrThrow(scheduleId);
+        validateScheduleBelongsToClub(schedule, clubId);
 
         User user = userService.getCurrentUser();
         UserSchedule userSchedule = userScheduleRepository.findByUserAndSchedule(user, schedule)
@@ -116,6 +117,7 @@ public class ScheduleCommandService {
     public void joinSchedule(Long clubId, Long scheduleId) {
         Schedule schedule = scheduleRepository.findByIdWithLock(scheduleId)
                 .orElseThrow(() -> new CustomException(ErrorCode.SCHEDULE_NOT_FOUND));
+        validateScheduleBelongsToClub(schedule, clubId);
 
         User user = userService.getCurrentUser();
 
@@ -194,6 +196,7 @@ public class ScheduleCommandService {
         Club club = findClubOrThrow(clubId);
 
         Schedule schedule = findScheduleOrThrow(scheduleId);
+        validateScheduleBelongsToClub(schedule, clubId);
 
         if (schedule.isNotModifiable()) {
             throw new CustomException(ErrorCode.INVALID_SCHEDULE_DELETE);
@@ -228,5 +231,11 @@ public class ScheduleCommandService {
     private Schedule findScheduleOrThrow(Long scheduleId) {
         return scheduleRepository.findById(scheduleId)
                 .orElseThrow(() -> new CustomException(ErrorCode.SCHEDULE_NOT_FOUND));
+    }
+
+    private void validateScheduleBelongsToClub(Schedule schedule, Long clubId) {
+        if (!schedule.getClub().getClubId().equals(clubId)) {
+            throw new CustomException(ErrorCode.SCHEDULE_NOT_FOUND);
+        }
     }
 }

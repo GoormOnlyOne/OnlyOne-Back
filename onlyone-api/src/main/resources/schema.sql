@@ -12,7 +12,8 @@ CREATE TABLE IF NOT EXISTS like_applied (
     feed_id  BIGINT NOT NULL,
     user_id  BIGINT NOT NULL,
     delta    INT NOT NULL,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_like_applied_feed_user (feed_id, user_id)
 );
 
 -- -----------------------------------------------

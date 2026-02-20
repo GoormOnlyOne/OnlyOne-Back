@@ -33,7 +33,7 @@ const sseConnectedEvent = new Rate('sse_connected_event_received');
 const notifListLatency = new Trend('notif_list_latency_ms');
 const unreadCountLatency = new Trend('unread_count_latency_ms');
 const markReadLatency = new Trend('mark_read_latency_ms');
-const batchStatusLatency = new Trend('batch_status_latency_ms');
+
 
 // 에러율
 const restErrorRate = new Rate('rest_error_rate');
@@ -121,8 +121,6 @@ export const options = {
         notif_list_latency_ms: ['p(95)<300', 'p(99)<1000'],
         unread_count_latency_ms: ['p(95)<100', 'p(99)<500'],
         mark_read_latency_ms: ['p(95)<200', 'p(99)<500'],
-        batch_status_latency_ms: ['p(95)<200'],
-
         // SSE 연결
         sse_connection_success: ['rate>0.80'],
         sse_connected_event_received: ['rate>0.70'],
@@ -262,7 +260,7 @@ export function restWorkload() {
         if (res.status === 200) markReadLatency.add(res.timings.duration);
         totalNotifOps.add(1);
 
-    } else if (action < 0.85) {
+    } else if (action < 0.90) {
         // 목록 + 개수 연속 (실제 UI 패턴)
         const res1 = http.get(`${BASE_URL}/api/v1/notifications?size=20`, {
             headers: h, tags: { name: 'GET /notifications' },
@@ -281,14 +279,14 @@ export function restWorkload() {
         totalNotifOps.add(2);
 
     } else if (action < 0.95) {
-        // 배치 상태 (모니터링)
-        const res = http.get(`${BASE_URL}/api/v1/notifications/batch-status`, {
-            headers: h, tags: { name: 'GET /batch-status' },
+        // 알림 삭제 (5%)
+        const notifId = Math.floor(Math.random() * 10000000) + 1;
+        const res = http.del(`${BASE_URL}/api/v1/notifications/${notifId}`, null, {
+            headers: h, tags: { name: 'DELETE /notifications' },
         });
-        const ok = res.status === 200;
+        const ok = res.status === 200 || res.status === 404;
         restSuccessRate.add(ok ? 1 : 0);
         restErrorRate.add(ok ? 0 : 1);
-        if (ok) batchStatusLatency.add(res.timings.duration);
         totalNotifOps.add(1);
 
     } else {
@@ -320,15 +318,6 @@ export function sseFlood() {
             'SSE flood: got event': (r) => r.hasConnectedEvent,
         });
 
-        // 연결 직후 상태 확인
-        const token = generateJWT(user);
-        const statusRes = http.get(`${BASE_URL}/sse/status`, {
-            headers: headers(token),
-            tags: { name: 'GET /sse/status' },
-        });
-        check(statusRes, {
-            'SSE status OK': (r) => r.status === 200,
-        });
     });
 
     sleep(0.5 + Math.random() * 1); // 500~1500ms

@@ -1,10 +1,12 @@
 package com.example.onlyone.global.filter;
 
 import com.example.onlyone.domain.user.dto.UserPrincipal;
+import com.example.onlyone.global.exception.ErrorCode;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.Keys;
 import jakarta.annotation.PostConstruct;
+import jakarta.servlet.http.HttpServletResponse;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
@@ -12,6 +14,7 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Component;
 
 import javax.crypto.SecretKey;
+import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 
 /**
@@ -100,5 +103,19 @@ public class JwtTokenParser {
                 new UsernamePasswordAuthenticationToken(
                         principal, null, principal.getAuthorities());
         SecurityContextHolder.getContext().setAuthentication(auth);
+    }
+
+    /**
+     * 필터에서 사용하는 공통 에러 응답 메서드.
+     * GlobalExceptionHandler를 거치지 않으므로 동일한 JSON 형식으로 직접 응답합니다.
+     */
+    public static void writeErrorResponse(HttpServletResponse response, ErrorCode errorCode) throws IOException {
+        response.setStatus(errorCode.getStatus());
+        response.setContentType("application/json");
+        response.setCharacterEncoding("UTF-8");
+        response.getWriter().write(
+                "{\"success\":false,\"data\":{\"code\":\"%s\",\"message\":\"%s\"}}"
+                        .formatted(errorCode.getCode(), errorCode.getMessage())
+        );
     }
 }

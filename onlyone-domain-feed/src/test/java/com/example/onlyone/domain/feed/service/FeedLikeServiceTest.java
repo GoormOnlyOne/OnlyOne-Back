@@ -1,6 +1,8 @@
 package com.example.onlyone.domain.feed.service;
 
 import com.example.onlyone.domain.club.repository.ClubRepository;
+import com.example.onlyone.domain.feed.repository.FeedLikeRepository;
+import com.example.onlyone.domain.feed.repository.FeedRepository;
 import com.example.onlyone.domain.user.entity.Gender;
 import com.example.onlyone.domain.user.entity.Status;
 import com.example.onlyone.domain.user.entity.User;
@@ -36,6 +38,8 @@ class FeedLikeServiceTest {
 
     @InjectMocks private FeedLikeService feedLikeService;
     @Mock private ClubRepository clubRepository;
+    @Mock private FeedRepository feedRepository;
+    @Mock private FeedLikeRepository feedLikeRepository;
     @Mock private UserService userService;
     @Mock private DefaultRedisScript<List> likeToggleScript;
     @Mock private StringRedisTemplate redis;
@@ -61,6 +65,8 @@ class FeedLikeServiceTest {
         void successLiked() {
             // given
             when(clubRepository.existsById(100L)).thenReturn(true);
+            when(feedRepository.existsById(10L)).thenReturn(true);
+            when(redis.hasKey("feed:10:likers")).thenReturn(true);
             when(userService.getCurrentUser()).thenReturn(user);
             when(clock.millis()).thenReturn(Instant.now().toEpochMilli());
             doReturn(List.of(1L, 1L, 1L)).when(redis)
@@ -78,6 +84,8 @@ class FeedLikeServiceTest {
         void successUnliked() {
             // given
             when(clubRepository.existsById(100L)).thenReturn(true);
+            when(feedRepository.existsById(10L)).thenReturn(true);
+            when(redis.hasKey("feed:10:likers")).thenReturn(true);
             when(userService.getCurrentUser()).thenReturn(user);
             when(clock.millis()).thenReturn(Instant.now().toEpochMilli());
             doReturn(List.of(0L, 0L, 1L)).when(redis)
@@ -104,10 +112,26 @@ class FeedLikeServiceTest {
         }
 
         @Test
+        @DisplayName("실패: 피드가 없으면 FEED_NOT_FOUND")
+        void failFeedNotFound() {
+            // given
+            when(clubRepository.existsById(100L)).thenReturn(true);
+            when(feedRepository.existsById(999L)).thenReturn(false);
+
+            // when & then
+            assertThatThrownBy(() -> feedLikeService.toggleLike(100L, 999L))
+                    .isInstanceOf(CustomException.class)
+                    .extracting("errorCode")
+                    .isEqualTo(ErrorCode.FEED_NOT_FOUND);
+        }
+
+        @Test
         @DisplayName("실패: Lua 스크립트 반환값이 null이면 IllegalStateException")
         void failScriptReturnsNull() {
             // given
             when(clubRepository.existsById(100L)).thenReturn(true);
+            when(feedRepository.existsById(10L)).thenReturn(true);
+            when(redis.hasKey("feed:10:likers")).thenReturn(true);
             when(userService.getCurrentUser()).thenReturn(user);
             when(clock.millis()).thenReturn(Instant.now().toEpochMilli());
             doReturn(null).when(redis)

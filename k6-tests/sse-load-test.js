@@ -173,7 +173,7 @@ function getRandomUser() {
 
 function connectSSE(user, lastEventId = null) {
     const token = generateJWT(user);
-    let url = `${BASE_URL}/sse/connect`;
+    let url = `${BASE_URL}/sse/subscribe`;
 
     // Last-Event-ID가 있으면 쿼리 파라미터로 전달
     if (lastEventId) {
@@ -190,7 +190,7 @@ function connectSSE(user, lastEventId = null) {
         headers: headers,
         timeout: SSE_TIMEOUT + 'ms',
         responseType: 'text',
-        tags: { name: 'sse_connect' },
+        tags: { name: 'sse_subscribe' },
     });
 
     const connectionDuration = Date.now() - startTime;
@@ -402,22 +402,11 @@ export function batchBottleneckTest() {
         // 2. 대량의 알림 생성 트리거 (다른 사용자 액션 시뮬레이션)
         // 실제로는 서버 내부에서 알림이 생성되어 배치 큐에 쌓임
 
-        // 3. 배치 처리 상태 모니터링
-        const res = http.get(`${BASE_URL}/api/v1/notifications/batch-status`, { headers });
+        // 3. 읽지 않은 알림 개수 조회
+        const res = http.get(`${BASE_URL}/api/v1/notifications/unread-count`, { headers });
         check(res, {
-            'Batch status check': (r) => r.status === 200,
+            'Unread count check': (r) => r.status === 200,
         });
-
-        if (res.status === 200) {
-            const body = JSON.parse(res.body);
-            console.log(`Batch Status - Active Users: ${body.data.activeUsers}, ` +
-                       `Queued Notifications: ${body.data.totalQueuedNotifications}`);
-
-            // 큐 크기가 임계값 초과 시 경고
-            if (body.data.totalQueuedNotifications > 5000) {
-                console.warn(`WARNING: Batch queue size exceeded threshold!`);
-            }
-        }
     });
 
     sleep(2);

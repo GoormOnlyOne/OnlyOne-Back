@@ -1,6 +1,7 @@
 package com.example.onlyone.domain.user.service;
 
 import com.example.onlyone.domain.user.entity.User;
+import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.Keys;
 import org.springframework.beans.factory.annotation.Value;
@@ -65,5 +66,27 @@ public class JwtTokenProvider {
                 .expiration(expiryDate)
                 .signWith(key, Jwts.SIG.HS512)
                 .compact();
+    }
+
+    /**
+     * Refresh 토큰을 검증하고 userId를 추출한다.
+     *
+     * @throws io.jsonwebtoken.JwtException 토큰이 만료되었거나 유효하지 않은 경우
+     * @throws IllegalArgumentException type 클레임이 "refresh"가 아닌 경우
+     */
+    public Long parseRefreshToken(String token) {
+        SecretKey key = Keys.hmacShaKeyFor(jwtSecret.getBytes());
+        Claims claims = Jwts.parser()
+                .verifyWith(key)
+                .build()
+                .parseSignedClaims(token)
+                .getPayload();
+
+        String type = claims.get("type", String.class);
+        if (!"refresh".equals(type)) {
+            throw new IllegalArgumentException("Not a refresh token");
+        }
+
+        return Long.valueOf(claims.getSubject());
     }
 }

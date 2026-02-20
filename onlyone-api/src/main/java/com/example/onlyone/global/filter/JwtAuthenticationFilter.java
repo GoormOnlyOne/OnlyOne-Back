@@ -1,7 +1,6 @@
 package com.example.onlyone.global.filter;
 
 import com.example.onlyone.domain.user.dto.UserPrincipal;
-import com.example.onlyone.global.exception.CustomException;
 import com.example.onlyone.global.exception.ErrorCode;
 import io.jsonwebtoken.JwtException;
 import jakarta.servlet.FilterChain;
@@ -30,6 +29,11 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     private final JwtTokenParser jwtTokenParser;
 
     @Override
+    protected boolean shouldNotFilter(HttpServletRequest request) {
+        return request.getRequestURI().startsWith("/sse/");
+    }
+
+    @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain) throws ServletException, IOException {
         String token = jwtTokenParser.extractBearerToken(request.getHeader("Authorization"));
 
@@ -44,7 +48,20 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             // 상태 체크: INACTIVE인 경우 인증 거부 (로그아웃은 허용)
             if (!principal.isEnabled() && !"/api/v1/auth/logout".equals(request.getRequestURI())) {
                 log.warn("Inactive user attempting to access: userId={}", principal.getUserId());
-                throw new CustomException(ErrorCode.USER_WITHDRAWN);
+                JwtTokenParser.writeErrorResponse(response, ErrorCode.USER_WITHDRAWN);
+                return;
+            }
+
+            // GUEST 상태: 회원가입/로그아웃 외 접근 차단
+            if (principal.isGuest()) {
+                String uri = request.getRequestURI();
+                if (!"/api/v1/auth/signup".equals(uri) && !"/api/v1/auth/logout".equals(uri)
+                        && !"/api/v1/auth/withdraw".equals(uri)) {
+                    log.warn("GUEST user attempting to access protected resource: userId={}, uri={}",
+                            principal.getUserId(), uri);
+                    JwtTokenParser.writeErrorResponse(response, ErrorCode.NO_PERMISSION);
+                    return;
+                }
             }
 
             jwtTokenParser.setAuthentication(principal);
@@ -52,7 +69,8 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
         } catch (JwtException | IllegalArgumentException e) {
             log.warn("JWT validation failed: {}", e.getClass().getSimpleName());
-            throw new CustomException(ErrorCode.UNAUTHORIZED);
+            JwtTokenParser.writeErrorResponse(response, ErrorCode.UNAUTHORIZED);
+            return;
         }
         filterChain.doFilter(request, response);
     }

@@ -6,121 +6,173 @@
   "links": [],
   "panels": [
     {
-      "title": "SSE Active Connections",
+      "title": "📡 SSE 활성 연결",
       "type": "stat",
-      "gridPos": { "h": 6, "w": 6, "x": 0, "y": 0 },
+      "gridPos": { "h": 5, "w": 6, "x": 0, "y": 0 },
       "datasource": { "type": "prometheus", "uid": "" },
       "fieldConfig": {
         "defaults": {
           "unit": "short",
-          "thresholds": {
-            "steps": [
-              { "color": "green", "value": null },
-              { "color": "yellow", "value": 5000 },
-              { "color": "red", "value": 6500 }
-            ]
-          }
+          "thresholds": { "steps": [{ "color": "green", "value": null }, { "color": "yellow", "value": 5000 }, { "color": "red", "value": 6500 }] }
         },
         "overrides": []
       },
       "targets": [
-        { "expr": "sse_connections_active", "legendFormat": "Active" }
-      ]
+        { "expr": "sse_connections_active", "legendFormat": "활성 연결" }
+      ],
+      "options": { "colorMode": "background", "graphMode": "area" }
     },
     {
-      "title": "SSE Max Connections",
+      "title": "📡 SSE 최대 연결",
       "type": "stat",
-      "gridPos": { "h": 6, "w": 6, "x": 6, "y": 0 },
+      "gridPos": { "h": 5, "w": 6, "x": 6, "y": 0 },
       "datasource": { "type": "prometheus", "uid": "" },
       "fieldConfig": { "defaults": { "unit": "short" }, "overrides": [] },
       "targets": [
-        { "expr": "sse_connections_max", "legendFormat": "Max" }
+        { "expr": "sse_connections_max", "legendFormat": "최대" }
+      ],
+      "options": { "colorMode": "value", "graphMode": "none" }
+    },
+    {
+      "title": "💬 WebSocket 메시지/초",
+      "type": "stat",
+      "gridPos": { "h": 5, "w": 6, "x": 12, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "" },
+      "fieldConfig": {
+        "defaults": { "unit": "ops", "thresholds": { "steps": [{ "color": "green", "value": null }, { "color": "yellow", "value": 500 }, { "color": "red", "value": 1000 }] } },
+        "overrides": []
+      },
+      "targets": [
+        { "expr": "rate(websocket_messages_total{type=\"received\"}[1m])", "legendFormat": "수신/초" }
+      ],
+      "options": { "colorMode": "background", "graphMode": "area" }
+    },
+    {
+      "title": "🔐 STOMP 인증 성공률",
+      "type": "gauge",
+      "gridPos": { "h": 5, "w": 6, "x": 18, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "" },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit", "min": 0, "max": 1,
+          "thresholds": { "steps": [{ "color": "red", "value": null }, { "color": "yellow", "value": 0.95 }, { "color": "green", "value": 0.99 }] }
+        },
+        "overrides": []
+      },
+      "targets": [
+        { "expr": "rate(security_stomp_auth_total{result=\"success\"}[5m]) / (rate(security_stomp_auth_total{result=\"success\"}[5m]) + rate(security_stomp_auth_total{result=\"failure\"}[5m]) + 1e-10)", "legendFormat": "성공률" }
       ]
     },
     {
-      "title": "SSE Connection Rate",
+      "title": "📡 SSE 연결 생성/해제/실패 추이",
+      "description": "초당 SSE 연결 이벤트",
       "type": "timeseries",
-      "gridPos": { "h": 6, "w": 12, "x": 12, "y": 0 },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 5 },
       "datasource": { "type": "prometheus", "uid": "" },
-      "fieldConfig": { "defaults": { "unit": "ops" }, "overrides": [] },
+      "fieldConfig": {
+        "defaults": { "unit": "ops", "custom": { "fillOpacity": 10 } },
+        "overrides": [
+          { "matcher": { "id": "byName", "options": "생성/초" }, "properties": [{ "id": "color", "value": { "fixedColor": "green", "mode": "fixed" } }] },
+          { "matcher": { "id": "byName", "options": "해제/초" }, "properties": [{ "id": "color", "value": { "fixedColor": "blue", "mode": "fixed" } }] },
+          { "matcher": { "id": "byName", "options": "실패/초" }, "properties": [{ "id": "color", "value": { "fixedColor": "red", "mode": "fixed" } }] }
+        ]
+      },
       "targets": [
-        { "expr": "rate(sse_connections_created_total[1m])", "legendFormat": "Created/s" },
-        { "expr": "rate(sse_connections_closed_total[1m])", "legendFormat": "Closed/s" },
-        { "expr": "rate(sse_connections_failed_total[1m])", "legendFormat": "Failed/s" }
+        { "expr": "rate(sse_connections_created_total[1m])", "legendFormat": "생성/초" },
+        { "expr": "rate(sse_connections_closed_total[1m])", "legendFormat": "해제/초" },
+        { "expr": "rate(sse_connections_failed_total[1m])", "legendFormat": "실패/초" }
       ]
     },
     {
-      "title": "SSE Events Sent Rate",
+      "title": "📨 SSE 이벤트 전송 추이",
+      "description": "초당 SSE 이벤트 전송 성공/실패",
       "type": "timeseries",
-      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 6 },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 5 },
       "datasource": { "type": "prometheus", "uid": "" },
-      "fieldConfig": { "defaults": { "unit": "ops" }, "overrides": [] },
+      "fieldConfig": {
+        "defaults": { "unit": "ops", "custom": { "fillOpacity": 10 } },
+        "overrides": [
+          { "matcher": { "id": "byName", "options": "성공/초" }, "properties": [{ "id": "color", "value": { "fixedColor": "green", "mode": "fixed" } }] },
+          { "matcher": { "id": "byName", "options": "실패/초" }, "properties": [{ "id": "color", "value": { "fixedColor": "red", "mode": "fixed" } }] }
+        ]
+      },
       "targets": [
-        { "expr": "rate(sse_events_sent_total{result=\"success\"}[1m])", "legendFormat": "Success/s" },
-        { "expr": "rate(sse_events_sent_total{result=\"failure\"}[1m])", "legendFormat": "Failure/s" }
+        { "expr": "rate(sse_events_sent_total{result=\"success\"}[1m])", "legendFormat": "성공/초" },
+        { "expr": "rate(sse_events_sent_total{result=\"failure\"}[1m])", "legendFormat": "실패/초" }
       ]
     },
     {
-      "title": "SSE Connection Creation Time",
+      "title": "⏱️ SSE 연결 생성 시간",
+      "description": "연결 생성 평균 및 P95 소요 시간",
       "type": "timeseries",
-      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 6 },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 13 },
       "datasource": { "type": "prometheus", "uid": "" },
-      "fieldConfig": { "defaults": { "unit": "s" }, "overrides": [] },
+      "fieldConfig": {
+        "defaults": { "unit": "s", "custom": { "fillOpacity": 5 } },
+        "overrides": [
+          { "matcher": { "id": "byName", "options": "P95" }, "properties": [{ "id": "color", "value": { "fixedColor": "orange", "mode": "fixed" } }] }
+        ]
+      },
       "targets": [
-        { "expr": "rate(sse_connection_duration_seconds_sum[5m]) / rate(sse_connection_duration_seconds_count[5m])", "legendFormat": "Avg" },
+        { "expr": "rate(sse_connection_duration_seconds_sum[5m]) / rate(sse_connection_duration_seconds_count[5m])", "legendFormat": "평균" },
         { "expr": "histogram_quantile(0.95, rate(sse_connection_duration_seconds_bucket[5m]))", "legendFormat": "P95" }
       ]
     },
     {
-      "title": "SSE Stale Connections Cleaned",
+      "title": "🧹 SSE 만료 연결 정리",
+      "description": "Stale 연결 정리 빈도",
       "type": "timeseries",
-      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 14 },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 13 },
       "datasource": { "type": "prometheus", "uid": "" },
-      "fieldConfig": { "defaults": { "unit": "short" }, "overrides": [] },
+      "fieldConfig": {
+        "defaults": { "unit": "short", "custom": { "fillOpacity": 15 } },
+        "overrides": [{ "matcher": { "id": "byName", "options": "정리/초" }, "properties": [{ "id": "color", "value": { "fixedColor": "purple", "mode": "fixed" } }] }]
+      },
       "targets": [
-        { "expr": "rate(sse_connections_stale_cleaned_total[5m])", "legendFormat": "Stale cleaned/s" }
+        { "expr": "rate(sse_connections_stale_cleaned_total[5m])", "legendFormat": "정리/초" }
       ]
     },
     {
-      "title": "WebSocket Messages Rate",
+      "title": "💬 WebSocket 메시지 처리량",
+      "description": "수신 / 발행 / 오류 메시지 초당 처리량",
       "type": "timeseries",
-      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 14 },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 21 },
       "datasource": { "type": "prometheus", "uid": "" },
-      "fieldConfig": { "defaults": { "unit": "ops" }, "overrides": [] },
+      "fieldConfig": {
+        "defaults": { "unit": "ops", "custom": { "fillOpacity": 10 } },
+        "overrides": [
+          { "matcher": { "id": "byName", "options": "수신/초" }, "properties": [{ "id": "color", "value": { "fixedColor": "blue", "mode": "fixed" } }] },
+          { "matcher": { "id": "byName", "options": "발행/초" }, "properties": [{ "id": "color", "value": { "fixedColor": "green", "mode": "fixed" } }] },
+          { "matcher": { "id": "byName", "options": "오류/초" }, "properties": [{ "id": "color", "value": { "fixedColor": "red", "mode": "fixed" } }] }
+        ]
+      },
       "targets": [
-        { "expr": "rate(websocket_messages_total{type=\"received\"}[1m])", "legendFormat": "Received/s" },
-        { "expr": "rate(websocket_messages_total{type=\"published\"}[1m])", "legendFormat": "Published/s" },
-        { "expr": "rate(websocket_messages_total{type=\"error\"}[1m])", "legendFormat": "Error/s" }
+        { "expr": "rate(websocket_messages_total{type=\"received\"}[1m])", "legendFormat": "수신/초" },
+        { "expr": "rate(websocket_messages_total{type=\"published\"}[1m])", "legendFormat": "발행/초" },
+        { "expr": "rate(websocket_messages_total{type=\"error\"}[1m])", "legendFormat": "오류/초" }
       ]
     },
     {
-      "title": "WebSocket Message Processing Time",
+      "title": "⏱️ WebSocket 메시지 처리 시간",
+      "description": "메시지 처리 평균 및 P95 소요 시간",
       "type": "timeseries",
-      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 22 },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 21 },
       "datasource": { "type": "prometheus", "uid": "" },
-      "fieldConfig": { "defaults": { "unit": "s" }, "overrides": [] },
+      "fieldConfig": {
+        "defaults": { "unit": "s", "custom": { "fillOpacity": 5 } },
+        "overrides": []
+      },
       "targets": [
-        { "expr": "rate(websocket_message_duration_seconds_sum[5m]) / rate(websocket_message_duration_seconds_count[5m])", "legendFormat": "Avg" },
+        { "expr": "rate(websocket_message_duration_seconds_sum[5m]) / rate(websocket_message_duration_seconds_count[5m])", "legendFormat": "평균" },
         { "expr": "histogram_quantile(0.95, rate(websocket_message_duration_seconds_bucket[5m]))", "legendFormat": "P95" }
-      ]
-    },
-    {
-      "title": "STOMP Auth Rate",
-      "type": "timeseries",
-      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 22 },
-      "datasource": { "type": "prometheus", "uid": "" },
-      "fieldConfig": { "defaults": { "unit": "ops" }, "overrides": [] },
-      "targets": [
-        { "expr": "rate(security_stomp_auth_total{result=\"success\"}[1m])", "legendFormat": "Success/s" },
-        { "expr": "rate(security_stomp_auth_total{result=\"failure\"}[1m])", "legendFormat": "Failure/s" }
       ]
     }
   ],
   "schemaVersion": 39,
-  "tags": ["sse", "websocket", "realtime"],
+  "tags": ["sse", "websocket", "실시간"],
   "templating": { "list": [] },
   "time": { "from": "now-1h", "to": "now" },
-  "title": "SSE & WebSocket - OnlyOne",
+  "title": "📡 SSE & WebSocket - OnlyOne",
   "uid": "sse-websocket-onlyone",
-  "version": 1
+  "version": 2
 }

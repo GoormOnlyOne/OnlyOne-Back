@@ -49,8 +49,16 @@ public class SettlementCommandService {
             throw new CustomException(ErrorCode.CLUB_NOT_FOUND);
         }
 
+        if (!settlementRepository.existsScheduleInClub(scheduleId, clubId)) {
+            throw new CustomException(ErrorCode.SCHEDULE_NOT_FOUND);
+        }
+
         Settlement settlement = settlementRepository.findByScheduleId(scheduleId)
                 .orElseThrow(() -> new CustomException(ErrorCode.SETTLEMENT_NOT_FOUND));
+
+        if (!settlement.getReceiver().getUserId().equals(user.getUserId())) {
+            throw new CustomException(ErrorCode.MEMBER_CANNOT_CREATE_SETTLEMENT);
+        }
 
         if (settlement.getTotalStatus() == TotalStatus.COMPLETED) {
             throw new CustomException(ErrorCode.ALREADY_COMPLETED_SETTLEMENT);
@@ -62,7 +70,7 @@ public class SettlementCommandService {
         }
 
         List<Long> targetUserIds =
-                userSettlementRepository.findAllUserSettlementIdsBySettlementIdAndStatus(
+                userSettlementRepository.findUserIdsBySettlementIdAndStatus(
                         settlement.getSettlementId(), SettlementStatus.HOLD_ACTIVE);
 
         long userCount = targetUserIds.size();

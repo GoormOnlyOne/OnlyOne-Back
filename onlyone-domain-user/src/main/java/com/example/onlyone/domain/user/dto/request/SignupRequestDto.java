@@ -29,7 +29,8 @@ public record SignupRequestDto(
         @Size(max = 20, message = "구/군명을 선택해주세요.")
         String district,
 
-        @NotNull(message = "관심사는 최소 1개 이상 최대 5개 이하로 선택해야 합니다.")
+        @NotNull(message = "관심사는 필수입니다.")
+        @Size(min = 1, max = 5, message = "관심사는 최소 1개 이상 최대 5개 이하로 선택해야 합니다.")
         List<String> categories
 ) {
 }

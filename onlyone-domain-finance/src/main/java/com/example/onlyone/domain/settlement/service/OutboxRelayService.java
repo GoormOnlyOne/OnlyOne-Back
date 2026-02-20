@@ -37,12 +37,14 @@ public class OutboxRelayService {
                 String topic = routeTopic(e.getEventType());
                 kafkaOperation.send(topic, e.getKeyString(), e.getPayload());
             });
+            // Kafka 전송 성공 후 같은 콜백 내에서 status 갱신
+            // → Kafka tx 실패 시 status 변경도 함께 무효화
+            LocalDateTime now = LocalDateTime.now();
+            batch.forEach(e -> {
+                e.setStatus(OutboxStatus.PUBLISHED);
+                e.setPublishedAt(now);
+            });
             return null;
-        });
-
-        batch.forEach(e -> {
-            e.setStatus(OutboxStatus.PUBLISHED);
-            e.setPublishedAt(LocalDateTime.now());
         });
     }
 
@@ -70,6 +72,21 @@ public class OutboxRelayService {
                     log.warn("Retry failed for outbox event id={}, retryCount={}", event.getId(), event.getRetryCount());
                 }
             }
+        }
+    }
+
+    @Scheduled(cron = "0 0 3 * * *")
+    @Transactional
+    public void cleanupOldEvents() {
+        LocalDateTime publishedCutoff = LocalDateTime.now().minusDays(7);
+        LocalDateTime deadCutoff = LocalDateTime.now().minusDays(30);
+
+        int deletedPublished = outboxRepository.deletePublishedBefore(publishedCutoff);
+        int deletedDead = outboxRepository.deleteDeadBefore(deadCutoff);
+
+        if (deletedPublished > 0 || deletedDead > 0) {
+            log.info("Outbox cleanup: deleted {} PUBLISHED (>7d), {} DEAD (>30d)",
+                    deletedPublished, deletedDead);
         }
     }
 

@@ -90,7 +90,7 @@ public class PaymentTransactionService {
         WalletTransaction walletTransaction = payment.getWalletTransaction();
 
         if (walletTransaction != null) {
-            walletTransaction.update(TransactionType.CHARGE, amount, wallet.getPostedBalance(), WalletTransactionStatus.COMPLETED, wallet);
+            walletTransaction.update(TransactionType.CHARGE, amount, wallet.getPostedBalance(), WalletTransactionStatus.COMPLETED, wallet, wallet);
         } else {
             walletTransaction = WalletTransaction.builder()
                     .type(TransactionType.CHARGE)

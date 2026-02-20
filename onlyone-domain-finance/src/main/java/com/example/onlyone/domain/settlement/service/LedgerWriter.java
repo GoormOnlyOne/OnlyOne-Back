@@ -164,7 +164,18 @@ public class LedgerWriter {
             }
             transferRepository.flush();
         } catch (DataIntegrityViolationException dup) {
-            // 동시경합으로 중복키면 스킵
+            log.warn("Transfer 배치 저장 중 중복 감지, 개별 저장으로 전환: {}", dup.getMessage());
+            insertTransfersIndividually(transfers);
+        }
+    }
+
+    private void insertTransfersIndividually(List<Transfer> transfers) {
+        for (Transfer transfer : transfers) {
+            try {
+                transferRepository.saveAndFlush(transfer);
+            } catch (DataIntegrityViolationException ignored) {
+                log.debug("Transfer 중복 스킵: userSettlementId={}", transfer.getUserSettlementId());
+            }
         }
     }
 

@@ -78,12 +78,12 @@ public class WalletTransaction extends BaseTimeEntity {
         this.walletTransactionStatus = walletTransactionStatus;
     }
 
-    public void update(TransactionType type, Long amount, Long postedBalance, WalletTransactionStatus walletTransactionStatus, Wallet wallet) {
+    public void update(TransactionType type, Long amount, Long postedBalance, WalletTransactionStatus walletTransactionStatus, Wallet wallet, Wallet targetWallet) {
         this.type = type;
         this.amount = amount;
         this.balance = postedBalance;
         this.walletTransactionStatus = walletTransactionStatus;
         this.wallet = wallet;
-        this.targetWallet = wallet;
+        this.targetWallet = targetWallet;
     }
 }

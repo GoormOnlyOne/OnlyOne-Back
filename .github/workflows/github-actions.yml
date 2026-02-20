@@ -29,10 +29,14 @@ jobs:
           json: ${{ secrets.FIREBASE_ACCOUNT }}
           dir: './src/main/resources/firebase'
 
-      - name: Build with Gradle
+      - name: Test with Gradle
         run: |
           cd ./
           chmod +x ./gradlew
+          ./gradlew test
+
+      - name: Build with Gradle
+        run: |
           ./gradlew build -x test
 
       - name: Login to DockerHub

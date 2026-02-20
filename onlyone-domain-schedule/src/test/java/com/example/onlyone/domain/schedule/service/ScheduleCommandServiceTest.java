@@ -181,6 +181,17 @@ class ScheduleCommandServiceTest {
         }
 
         @Test
+        @DisplayName("실패: 다른 모임의 스케줄이면 SCHEDULE_NOT_FOUND")
+        void 다른_모임의_스케줄이면_SCHEDULE_NOT_FOUND() {
+            given(clubRepository.findById(999L)).willReturn(Optional.of(club));
+            given(scheduleRepository.findById(1L)).willReturn(Optional.of(schedule));
+
+            assertThatThrownBy(() -> scheduleCommandService.updateSchedule(999L, 1L, updateRequestDto()))
+                    .isInstanceOf(CustomException.class)
+                    .extracting("errorCode").isEqualTo(ErrorCode.SCHEDULE_NOT_FOUND);
+        }
+
+        @Test
         @DisplayName("실패: 참여자가 있는 상태에서 비용 변경 불가")
         void 참여자가_있는_상태에서_비용_변경_불가() {
             given(clubRepository.findById(1L)).willReturn(Optional.of(club));
@@ -250,6 +261,16 @@ class ScheduleCommandServiceTest {
             assertThatThrownBy(() -> scheduleCommandService.joinSchedule(1L, 1L))
                     .isInstanceOf(CustomException.class)
                     .extracting("errorCode").isEqualTo(ErrorCode.ALREADY_ENDED_SCHEDULE);
+        }
+
+        @Test
+        @DisplayName("실패: 다른 모임의 스케줄이면 SCHEDULE_NOT_FOUND")
+        void 다른_모임의_스케줄이면_SCHEDULE_NOT_FOUND() {
+            given(scheduleRepository.findByIdWithLock(1L)).willReturn(Optional.of(schedule));
+
+            assertThatThrownBy(() -> scheduleCommandService.joinSchedule(999L, 1L))
+                    .isInstanceOf(CustomException.class)
+                    .extracting("errorCode").isEqualTo(ErrorCode.SCHEDULE_NOT_FOUND);
         }
 
         @Test
@@ -380,6 +401,17 @@ class ScheduleCommandServiceTest {
             ScheduleDeletedEvent event = captor.getValue();
             assertThat(event.scheduleId()).isEqualTo(1L);
             assertThat(event.clubId()).isEqualTo(1L);
+        }
+
+        @Test
+        @DisplayName("실패: 다른 모임의 스케줄이면 SCHEDULE_NOT_FOUND")
+        void 다른_모임의_스케줄이면_SCHEDULE_NOT_FOUND() {
+            given(clubRepository.findById(999L)).willReturn(Optional.of(club));
+            given(scheduleRepository.findById(1L)).willReturn(Optional.of(schedule));
+
+            assertThatThrownBy(() -> scheduleCommandService.deleteSchedule(999L, 1L))
+                    .isInstanceOf(CustomException.class)
+                    .extracting("errorCode").isEqualTo(ErrorCode.SCHEDULE_NOT_FOUND);
         }
 
         @Test

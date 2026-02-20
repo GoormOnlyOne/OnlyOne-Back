@@ -125,19 +125,9 @@ public interface UserSettlementRepository extends JpaRepository<UserSettlement, 
     WHERE us.settlement.settlementId = :settlementId
       AND us.settlementStatus = :settlementStatus
 """)
-    List<Long> findAllUserSettlementIdsBySettlementIdAndStatus(
+    List<Long> findUserIdsBySettlementIdAndStatus(
             @Param("settlementId") Long settlementId,
             @Param("settlementStatus") SettlementStatus settlementStatus);
-
-    // 성능 개선: 참가자 수와 ID 목록을 한 번에 조회하는 메서드 (사용하지 않음 - 위의 메서드로 대체)
-    @Query("""
-    SELECT us.user.userId
-    FROM UserSettlement us
-    WHERE us.settlement.settlementId = :settlementId
-      AND us.settlementStatus = :settlementStatus
-""")
-    List<Long> findActiveParticipantIds(@Param("settlementId") Long settlementId, 
-                                       @Param("settlementStatus") SettlementStatus settlementStatus);
 
 
     @Modifying(clearAutomatically = true, flushAutomatically = true)

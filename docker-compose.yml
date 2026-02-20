@@ -74,7 +74,7 @@ services:
       - --character-set-server=utf8mb4
       - --collation-server=utf8mb4_unicode_ci
       - --max_connections=500
-      - --innodb_buffer_pool_size=1G
+      - --innodb_buffer_pool_size=768M
       - --innodb_flush_log_at_trx_commit=2
       - --innodb_lock_wait_timeout=5
       - --innodb_thread_concurrency=0
@@ -89,10 +89,10 @@ services:
       resources:
         limits:
           cpus: '2'
-          memory: 2G
+          memory: 1536M
         reservations:
-          cpus: '1'
-          memory: 1G
+          cpus: '0.5'
+          memory: 512M
 
   # Redis Cache & Session
   redis:
@@ -104,7 +104,7 @@ services:
     volumes:
       - redis_data:/data
       - ./onlyone-api/src/main/resources/redis:/usr/local/etc/redis
-    command: redis-server --appendonly yes --maxmemory 512mb --maxmemory-policy allkeys-lru
+    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
     networks:
       - onlyone-network
     healthcheck:
@@ -116,19 +116,19 @@ services:
       resources:
         limits:
           cpus: '0.5'
-          memory: 512M
+          memory: 384M
         reservations:
           cpus: '0.25'
-          memory: 256M
+          memory: 128M
 
   # Elasticsearch
   elasticsearch:
-    image: docker.elastic.co/elasticsearch/elasticsearch:8.11.0
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.18.1
     container_name: onlyone-elasticsearch
     restart: unless-stopped
     environment:
       - discovery.type=single-node
-      - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
+      - "ES_JAVA_OPTS=-Xms384m -Xmx384m"
       - xpack.security.enabled=true
       - xpack.security.http.ssl.enabled=false
       - ELASTIC_PASSWORD=${ELASTICSEARCH_PASSWORD:-changeme}
@@ -150,10 +150,10 @@ services:
       resources:
         limits:
           cpus: '1'
-          memory: 2G
+          memory: 1200M
         reservations:
           cpus: '0.5'
-          memory: 1G
+          memory: 512M
 
   # Application (Docker Mode - Optional)
   # 로컬에서 직접 실행하는 경우 이 서비스는 사용하지 않습니다
@@ -211,11 +211,11 @@ services:
     deploy:
       resources:
         limits:
-          cpus: '4'
-          memory: 4G
-        reservations:
           cpus: '2'
-          memory: 2G
+          memory: 2560M
+        reservations:
+          cpus: '1'
+          memory: 1G
 
   # Nginx Load Balancer (Scale Mode)
   nginx:
@@ -279,10 +279,10 @@ services:
       resources:
         limits:
           cpus: '0.5'
-          memory: 512M
-        reservations:
-          cpus: '0.25'
           memory: 256M
+        reservations:
+          cpus: '0.1'
+          memory: 128M
 
   # Grafana - Metrics Visualization
   grafana:
@@ -307,10 +307,10 @@ services:
       resources:
         limits:
           cpus: '0.5'
-          memory: 512M
-        reservations:
-          cpus: '0.25'
           memory: 256M
+        reservations:
+          cpus: '0.1'
+          memory: 128M
 
   # MySQL Exporter - MySQL Metrics
   mysql-exporter:
@@ -320,7 +320,10 @@ services:
     ports:
       - "9104:9104"
     environment:
-      DATA_SOURCE_NAME: "root:${DB_PASSWORD:-root}@(mysql:3306)/"
+      MYSQLD_EXPORTER_PASSWORD: ${DB_PASSWORD:-root}
+    command:
+      - '--mysqld.address=mysql:3306'
+      - '--mysqld.username=root'
     depends_on:
       mysql:
         condition: service_healthy

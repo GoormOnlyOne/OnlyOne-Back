@@ -67,6 +67,29 @@ public class AuthService {
         return getAuthenticatedPrincipal().getUserId();
     }
 
+    /**
+     * Refresh Token으로 새 Access Token 발급
+     */
+    @Transactional(readOnly = true)
+    public LoginResponse refreshAccessToken(String refreshToken) {
+        Long userId;
+        try {
+            userId = jwtTokenProvider.parseRefreshToken(refreshToken);
+        } catch (Exception e) {
+            throw new CustomException(ErrorCode.INVALID_REFRESH_TOKEN);
+        }
+
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new CustomException(ErrorCode.USER_NOT_FOUND));
+
+        if (Status.INACTIVE.equals(user.getStatus())) {
+            throw new CustomException(ErrorCode.USER_WITHDRAWN);
+        }
+
+        String newAccessToken = jwtTokenProvider.generateAccessToken(user);
+        return new LoginResponse(newAccessToken, refreshToken, false);
+    }
+
     // ========== PRIVATE HELPERS ==========
 
     private User findOrCreateUser(Long kakaoId, String kakaoAccessToken) {

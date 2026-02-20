@@ -256,7 +256,7 @@ class UserServiceTest {
     class LogoutUserTest {
 
         @Test
-        @DisplayName("성공 - 카카오 unlink 후 토큰 제거")
+        @DisplayName("성공 - 카카오 logout 후 토큰 제거")
         void logoutUser_토큰_있을_때_제거() {
             // given
             when(authService.getCurrentUser()).thenReturn(testUser);
@@ -266,13 +266,13 @@ class UserServiceTest {
             userService.logoutUser();
 
             // then
-            verify(kakaoService).unlink("kakao-access-token-123");
+            verify(kakaoService).logout("kakao-access-token-123");
             assertThat(testUser.getKakaoAccessToken()).isNull();
             verify(userRepository).save(testUser);
         }
 
         @Test
-        @DisplayName("성공 - 카카오 토큰이 없으면 unlink/save 호출 안 함")
+        @DisplayName("성공 - 카카오 토큰이 없으면 logout/save 호출 안 함")
         void logoutUser_토큰_없을_때_저장_안_함() {
             // given
             User userWithoutToken = User.builder()
@@ -291,16 +291,16 @@ class UserServiceTest {
             userService.logoutUser();
 
             // then
-            verify(kakaoService, never()).unlink(any());
+            verify(kakaoService, never()).logout(any());
             verify(userRepository, never()).save(any(User.class));
         }
 
         @Test
-        @DisplayName("성공 - 카카오 unlink 실패해도 로그아웃 진행")
-        void logoutUser_unlink_실패해도_정상_진행() {
+        @DisplayName("성공 - 카카오 logout 실패해도 로그아웃 진행")
+        void logoutUser_logout_실패해도_정상_진행() {
             // given
             when(authService.getCurrentUser()).thenReturn(testUser);
-            doThrow(new RuntimeException("kakao error")).when(kakaoService).unlink(any());
+            doThrow(new RuntimeException("kakao error")).when(kakaoService).logout(any());
             when(userRepository.save(any(User.class))).thenReturn(testUser);
 
             // when

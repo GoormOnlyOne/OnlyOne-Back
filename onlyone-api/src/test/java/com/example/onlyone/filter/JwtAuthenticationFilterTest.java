@@ -1,7 +1,6 @@
 package com.example.onlyone.filter;
 
 import com.example.onlyone.domain.user.dto.UserPrincipal;
-import com.example.onlyone.global.exception.CustomException;
 import com.example.onlyone.global.filter.JwtAuthenticationFilter;
 import com.example.onlyone.global.filter.JwtTokenParser;
 import io.jsonwebtoken.JwtException;
@@ -17,7 +16,6 @@ import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.mock.web.MockHttpServletResponse;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.BDDMockito.*;
 
 @ExtendWith(MockitoExtension.class)
@@ -117,8 +115,8 @@ class JwtAuthenticationFilterTest {
     class AuthFailure {
 
         @Test
-        @DisplayName("유효하지 않은 JWT이면 CustomException(UNAUTHORIZED)이 발생한다")
-        void throwsForInvalidJwt() {
+        @DisplayName("유효하지 않은 JWT이면 401 에러 응답을 반환한다")
+        void returnsUnauthorizedForInvalidJwt() throws Exception {
             var request = new MockHttpServletRequest("GET", "/api/v1/clubs");
             request.addHeader("Authorization", "Bearer bad.token");
             var response = new MockHttpServletResponse();
@@ -126,15 +124,16 @@ class JwtAuthenticationFilterTest {
             given(jwtTokenParser.extractBearerToken("Bearer bad.token")).willReturn("bad.token");
             given(jwtTokenParser.parseToken("bad.token")).willThrow(new JwtException("Invalid"));
 
-            assertThatThrownBy(() -> filter.doFilter(request, response, filterChain))
-                    .isInstanceOf(CustomException.class)
-                    .satisfies(ex -> assertThat(((CustomException) ex).getErrorCode().name())
-                            .isEqualTo("UNAUTHORIZED"));
+            filter.doFilter(request, response, filterChain);
+
+            assertThat(response.getStatus()).isEqualTo(401);
+            assertThat(response.getContentAsString()).contains("GLOBAL_401_1");
+            then(filterChain).should(never()).doFilter(request, response);
         }
 
         @Test
-        @DisplayName("클레임 누락이면 CustomException(UNAUTHORIZED)이 발생한다")
-        void throwsForMissingClaims() {
+        @DisplayName("클레임 누락이면 401 에러 응답을 반환한다")
+        void returnsUnauthorizedForMissingClaims() throws Exception {
             var request = new MockHttpServletRequest("GET", "/api/v1/clubs");
             request.addHeader("Authorization", "Bearer bad.token");
             var response = new MockHttpServletResponse();
@@ -143,15 +142,16 @@ class JwtAuthenticationFilterTest {
             given(jwtTokenParser.parseToken("bad.token"))
                     .willThrow(new IllegalArgumentException("missing claim"));
 
-            assertThatThrownBy(() -> filter.doFilter(request, response, filterChain))
-                    .isInstanceOf(CustomException.class)
-                    .satisfies(ex -> assertThat(((CustomException) ex).getErrorCode().name())
-                            .isEqualTo("UNAUTHORIZED"));
+            filter.doFilter(request, response, filterChain);
+
+            assertThat(response.getStatus()).isEqualTo(401);
+            assertThat(response.getContentAsString()).contains("GLOBAL_401_1");
+            then(filterChain).should(never()).doFilter(request, response);
         }
 
         @Test
-        @DisplayName("INACTIVE 사용자가 일반 경로 접근 시 CustomException(USER_WITHDRAWN)이 발생한다")
-        void throwsForInactiveUserOnNonLogout() {
+        @DisplayName("INACTIVE 사용자가 일반 경로 접근 시 403 에러 응답을 반환한다")
+        void returnsForbiddenForInactiveUserOnNonLogout() throws Exception {
             var request = new MockHttpServletRequest("GET", "/api/v1/clubs");
             request.addHeader("Authorization", "Bearer valid.token");
             var response = new MockHttpServletResponse();
@@ -160,10 +160,11 @@ class JwtAuthenticationFilterTest {
             given(jwtTokenParser.extractBearerToken("Bearer valid.token")).willReturn("valid.token");
             given(jwtTokenParser.parseToken("valid.token")).willReturn(principal);
 
-            assertThatThrownBy(() -> filter.doFilter(request, response, filterChain))
-                    .isInstanceOf(CustomException.class)
-                    .satisfies(ex -> assertThat(((CustomException) ex).getErrorCode().name())
-                            .isEqualTo("USER_WITHDRAWN"));
+            filter.doFilter(request, response, filterChain);
+
+            assertThat(response.getStatus()).isEqualTo(403);
+            assertThat(response.getContentAsString()).contains("USER_403_1");
+            then(filterChain).should(never()).doFilter(request, response);
         }
     }
 }

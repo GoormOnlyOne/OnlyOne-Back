@@ -98,6 +98,10 @@ public class UserPrincipal implements UserDetails {
         return status != Status.INACTIVE;
     }
 
+    public boolean isGuest() {
+        return status == Status.GUEST;
+    }
+
     @Override
     public String toString() {
         return String.format("UserPrincipal{userId=%d, kakaoId=%d, status=%s, role=%s}",
