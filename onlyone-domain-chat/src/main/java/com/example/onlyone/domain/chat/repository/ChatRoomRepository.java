@@ -15,13 +15,14 @@ public interface ChatRoomRepository extends JpaRepository<ChatRoom,Long> {
     // 방ID + 모임ID 로 단건 조회
     Optional<ChatRoom> findByChatRoomIdAndClubClubId(Long chatRoomId, Long clubId);
 
-    // 특정 유저 & 특정 모임(club)에서 속해 있는 채팅방 목록 조회
+    // 특정 유저 & 특정 모임(club)에서 속해 있는 채팅방 목록 조회 — JOIN FETCH로 N+1 제거
     @Query("""
-
-            SELECT ucr.chatRoom
-    FROM UserChatRoom ucr
-    WHERE ucr.user.userId = :userId AND ucr.chatRoom.club.clubId = :clubId
-    ORDER BY ucr.chatRoom.chatRoomId DESC
+    SELECT DISTINCT cr FROM ChatRoom cr
+    JOIN FETCH cr.club
+    LEFT JOIN FETCH cr.schedule
+    JOIN cr.userChatRooms ucr
+    WHERE ucr.user.userId = :userId AND cr.club.clubId = :clubId
+    ORDER BY cr.chatRoomId DESC
     """)
     List<ChatRoom> findChatRoomsByUserIdAndClubId(@Param("userId") Long userId, @Param("clubId") Long clubId);
 

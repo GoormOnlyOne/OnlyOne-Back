@@ -57,19 +57,22 @@ public class MessageCommandService {
 
     /**
      * 메시지 DB 저장 (AsyncMessageService에서도 호출)
+     * 최적화: 멤버십 검증을 먼저 수행 (fail-fast), ChatRoom은 getReferenceById로 프록시만 생성 (SELECT 제거)
      */
     @Transactional
     public ChatMessageResponse saveMessage(Long chatRoomId, Long userId, String text) {
         if (text == null || text.isBlank()) throw new CustomException(ErrorCode.MESSAGE_BAD_REQUEST);
 
-        ChatRoom chatRoom = chatRoomRepository.findById(chatRoomId)
-                .orElseThrow(() -> new CustomException(ErrorCode.CHAT_ROOM_NOT_FOUND));
+        // 1) 멤버십 검증 먼저 (fail-fast) — 1 SELECT
+        boolean joined = userChatRoomRepository.existsByUserUserIdAndChatRoomChatRoomId(userId, chatRoomId);
+        if (!joined) throw new CustomException(ErrorCode.FORBIDDEN_CHAT_ROOM);
+
+        // 2) User는 닉네임/프로필 필요하므로 조회 — 1 SELECT
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new CustomException(ErrorCode.USER_NOT_FOUND));
 
-        boolean joined = userChatRoomRepository.existsByUserUserIdAndChatRoomChatRoomId(
-                user.getUserId(), chatRoomId);
-        if (!joined) throw new CustomException(ErrorCode.FORBIDDEN_CHAT_ROOM);
+        // 3) ChatRoom은 FK 참조만 필요 → 프록시로 SELECT 제거
+        ChatRoom chatRoom = chatRoomRepository.getReferenceById(chatRoomId);
 
         boolean isImage = MessageUtils.isImageMessage(text);
         String imageUrl = null;

@@ -56,7 +56,7 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
         ThreadPoolTaskExecutor exec = new ThreadPoolTaskExecutor();
         exec.setCorePoolSize(64);
         exec.setMaxPoolSize(128);
-        exec.setQueueCapacity(10000);
+        exec.setQueueCapacity(2000);
         exec.setThreadNamePrefix("stomp-out-");
         exec.initialize();
         return exec;

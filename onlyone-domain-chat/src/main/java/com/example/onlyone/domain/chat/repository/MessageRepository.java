@@ -13,31 +13,35 @@ import java.util.List;
 
 @Repository
 public interface MessageRepository extends JpaRepository<Message,Long> {
-    //채팅방들의 마지막 메세지들 조회
-    @Query("""
-    SELECT m FROM Message m
-    WHERE m.chatRoom.chatRoomId IN :chatRoomIds
-      AND m.deleted = false
-      AND m.sentAt = (
-        SELECT MAX(m2.sentAt) FROM Message m2
-        WHERE m2.chatRoom.chatRoomId = m.chatRoom.chatRoomId
-          AND m2.deleted = false
-      )
-    """)
+    //채팅방들의 마지막 메세지들 조회 (GROUP BY + JOIN으로 상관 서브쿼리 제거)
+    @Query(value = """
+        SELECT m.* FROM message m
+        INNER JOIN (
+            SELECT chat_room_id, MAX(sent_at) AS max_sent_at
+            FROM message
+            WHERE chat_room_id IN :chatRoomIds AND deleted = 0
+            GROUP BY chat_room_id
+        ) latest ON m.chat_room_id = latest.chat_room_id AND m.sent_at = latest.max_sent_at
+        WHERE m.deleted = 0
+    """, nativeQuery = true)
     List<Message> findLastMessagesByChatRoomIds(@Param("chatRoomIds") List<Long> chatRoomIds);
 
-    // 최신 N건 (초기 로드) — desc로 뽑아서 서비스에서 reverse해서 ASC로 반환
+    // 최신 N건 (초기 로드) — JOIN FETCH로 N+1 제거
     @Query("""
        select m from Message m
+       join fetch m.chatRoom
+       join fetch m.user
        where m.chatRoom.chatRoomId = :roomId
          and m.deleted = false
        order by m.sentAt desc, m.messageId desc
     """)
     List<Message> findLatest(@Param("roomId") Long roomId, Pageable pageable);
 
-        // 커서 기준 더 '이전'(과거) N건 — desc로 뽑아서 reverse해서 ASC로 반환
+    // 커서 기준 더 '이전'(과거) N건 — JOIN FETCH로 N+1 제거
     @Query("""
        select m from Message m
+       join fetch m.chatRoom
+       join fetch m.user
        where m.chatRoom.chatRoomId = :roomId
          and m.deleted = false
          and (m.sentAt < :cursorAt or (m.sentAt = :cursorAt and m.messageId < :cursorId))

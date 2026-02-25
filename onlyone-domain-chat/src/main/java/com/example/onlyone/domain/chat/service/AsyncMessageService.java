@@ -27,12 +27,12 @@ public class AsyncMessageService {
     @Retryable(
             retryFor = { Exception.class },
             maxAttempts = 3,
-            backoff = @Backoff(delay = 1000)
+            backoff = @Backoff(delay = 100, multiplier = 3, maxDelay = 2000)
     )
     public void saveMessageAsync(Long chatRoomId, Long userId, String text) {
         log.debug("[Async.SaveMessage] started: chatRoomId={}, userId={}", chatRoomId, userId);
         messageCommandService.saveMessage(chatRoomId, userId, text);
-        log.info("[Async.SaveMessage] completed: chatRoomId={}, userId={}", chatRoomId, userId);
+        log.debug("[Async.SaveMessage] completed: chatRoomId={}, userId={}", chatRoomId, userId);
     }
 
     @Recover

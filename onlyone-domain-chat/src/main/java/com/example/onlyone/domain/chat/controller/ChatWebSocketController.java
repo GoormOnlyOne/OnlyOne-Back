@@ -36,7 +36,7 @@ public class ChatWebSocketController {
 
         UserPrincipal principal = extractPrincipal(headerAccessor);
 
-        log.info("[WebSocket.Receive] chatRoomId={}, userId={}", chatRoomId, principal.getUserId());
+        log.debug("[WebSocket.Receive] chatRoomId={}, userId={}", chatRoomId, principal.getUserId());
 
         try {
             User user = userService.getMemberById(principal.getUserId());
@@ -47,7 +47,7 @@ public class ChatWebSocketController {
 
             asyncMessageService.saveMessageAsync(chatRoomId, principal.getUserId(), request.text());
 
-            log.info("[WebSocket.Publish] chatRoomId={}, userId={}", chatRoomId, principal.getUserId());
+            log.debug("[WebSocket.Publish] chatRoomId={}, userId={}", chatRoomId, principal.getUserId());
 
         } catch (CustomException e) {
             log.error("[WebSocket.Error] {}", e.getMessage());

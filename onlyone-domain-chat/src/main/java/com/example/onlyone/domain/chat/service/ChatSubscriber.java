@@ -31,8 +31,7 @@ public class ChatSubscriber implements MessageListener {
                     dto
             );
 
-            log.info("[Chat.Subscriber] message broadcast: roomId={}, text={}",
-                    dto.chatRoomId(), dto.text());
+            log.debug("[Chat.Subscriber] message broadcast: roomId={}", dto.chatRoomId());
         } catch (Exception e) {
             log.error("[Chat.Subscriber] Redis message processing failed", e);
         }
