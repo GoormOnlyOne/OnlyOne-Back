@@ -91,9 +91,6 @@ dependencies {
     // Utilities (개발 전용 — bootJar에 포함되지 않음)
     developmentOnly 'com.github.gavlyukovskiy:p6spy-spring-boot-starter:1.9.0'
 
-    // DevTools
-    developmentOnly 'org.springframework.boot:spring-boot-devtools'
-
     // Lombok
     compileOnly 'org.projectlombok:lombok'
     annotationProcessor 'org.projectlombok:lombok'

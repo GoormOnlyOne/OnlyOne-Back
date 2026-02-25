@@ -20,7 +20,7 @@ import java.nio.charset.StandardCharsets;
 /**
  * JWT 토큰 파싱 및 UserPrincipal 생성 공통 유틸리티
  *
- * JwtAuthenticationFilter, SseAuthenticationFilter 양쪽에서 사용합니다.
+ * JwtAuthenticationFilter에서 사용합니다.
  * JWT Secret 길이 검증을 시작 시점에 수행합니다.
  */
 @Slf4j

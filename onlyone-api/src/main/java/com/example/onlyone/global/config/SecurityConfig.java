@@ -2,7 +2,6 @@ package com.example.onlyone.global.config;
 
 import com.example.onlyone.global.filter.JwtAuthenticationFilter;
 import com.example.onlyone.global.filter.RateLimitFilter;
-import com.example.onlyone.global.filter.SseAuthenticationFilter;
 import lombok.RequiredArgsConstructor;
 import org.springframework.lang.Nullable;
 import org.springframework.beans.factory.annotation.Value;
@@ -50,7 +49,6 @@ public class SecurityConfig {
     };
 
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
-    private final SseAuthenticationFilter sseAuthenticationFilter;
     @Nullable
     private final RateLimitFilter rateLimitFilter;
     @Value("${app.cors.allowed-origins:http://localhost:8080,http://localhost:5173}")
@@ -82,12 +80,10 @@ public class SecurityConfig {
                         .logoutSuccessHandler(new HttpStatusReturningLogoutSuccessHandler(HttpStatus.OK)))
                 .httpBasic(AbstractHttpConfigurer::disable)
                 .addFilterBefore(jwtAuthenticationFilter,
-                        UsernamePasswordAuthenticationFilter.class)
-                .addFilterBefore(sseAuthenticationFilter,
-                        JwtAuthenticationFilter.class);
+                        UsernamePasswordAuthenticationFilter.class);
 
         if (rateLimitFilter != null) {
-            http.addFilterBefore(rateLimitFilter, SseAuthenticationFilter.class);
+            http.addFilterBefore(rateLimitFilter, JwtAuthenticationFilter.class);
         }
 
         http.sessionManagement(session -> session
@@ -109,13 +105,6 @@ public class SecurityConfig {
 
     @Bean
     FilterRegistrationBean<JwtAuthenticationFilter> jwtFilterRegistration(JwtAuthenticationFilter f) {
-        var reg = new FilterRegistrationBean<>(f);
-        reg.setEnabled(false);
-        return reg;
-    }
-
-    @Bean
-    FilterRegistrationBean<SseAuthenticationFilter> sseFilterRegistration(SseAuthenticationFilter f) {
         var reg = new FilterRegistrationBean<>(f);
         reg.setEnabled(false);
         return reg;

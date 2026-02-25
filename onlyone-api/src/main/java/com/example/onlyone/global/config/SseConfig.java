@@ -48,7 +48,7 @@ public class SseConfig {
      */
     @Bean("sseEventExecutor")
     public Executor sseEventExecutor(
-            @Value("${app.notification.sse-executor-permits:200}") int permits) {
+            @Value("${app.notification.sse-executor-permits:500}") int permits) {
         ThreadFactory tf = Thread.ofVirtual().name("sse-event-", 0).factory();
         ExecutorService delegate = Executors.newThreadPerTaskExecutor(tf);
         log.info("SSE Bounded Virtual Thread Executor 설정: permits={}", permits);

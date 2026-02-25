@@ -56,15 +56,21 @@ public class AsyncConfig implements AsyncConfigurer {
 
     /**
      * 커스텀 비동기 처리 전용 스레드풀 (DB 저장, 메일 발송 등)
+     * AbortPolicy: 큐 포화 시 호출자 쓰레드 블로킹 방지 (CallerRuns 캐스케이딩 제거)
+     * → 거부된 태스크는 @Recover에서 Redis 폴백으로 처리됨
      */
     @Bean(name = "customAsyncExecutor")
     public Executor customAsyncExecutor() {
         ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
-        executor.setCorePoolSize(32);      // I/O 바운드 작업: CPU 코어 * 8
-        executor.setMaxPoolSize(200);      // DB 쓰기 대기 시간 동안 다른 태스크 처리
-        executor.setQueueCapacity(5000);   // 버스트 트래픽 흡수
+        executor.setCorePoolSize(32);
+        executor.setMaxPoolSize(100);
+        executor.setQueueCapacity(10000);
         executor.setThreadNamePrefix("Async-");
-        executor.setRejectedExecutionHandler(new ThreadPoolExecutor.CallerRunsPolicy());
+        executor.setRejectedExecutionHandler((r, e) -> {
+            log.warn("[AsyncExecutor] task rejected, queue full. poolSize={}, queueSize={}",
+                    e.getPoolSize(), e.getQueue().size());
+            throw new java.util.concurrent.RejectedExecutionException("Async queue full");
+        });
         executor.setWaitForTasksToCompleteOnShutdown(true);
         executor.setAwaitTerminationSeconds(30);
         executor.setKeepAliveSeconds(60);
