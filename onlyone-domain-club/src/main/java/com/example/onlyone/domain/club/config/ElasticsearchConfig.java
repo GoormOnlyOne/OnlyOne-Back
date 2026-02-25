@@ -17,7 +17,7 @@ import org.springframework.data.elasticsearch.core.ElasticsearchOperations;
 import org.springframework.data.elasticsearch.repository.config.EnableElasticsearchRepositories;
 
 @Configuration
-@Profile("dev")
+@Profile({"local", "prod"})
 @EnableElasticsearchRepositories(basePackages = "com.example.onlyone.domain.club.repository")
 public class ElasticsearchConfig {
 

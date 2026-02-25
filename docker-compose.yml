@@ -73,11 +73,26 @@ services:
     command:
       - --character-set-server=utf8mb4
       - --collation-server=utf8mb4_unicode_ci
-      - --max_connections=500
-      - --innodb_buffer_pool_size=768M
+      - --max_connections=800
+      - --innodb_buffer_pool_size=6G
+      - --innodb_buffer_pool_instances=8
       - --innodb_flush_log_at_trx_commit=2
       - --innodb_lock_wait_timeout=5
       - --innodb_thread_concurrency=0
+      - --innodb_io_capacity=4000
+      - --innodb_io_capacity_max=20000
+      - --innodb_read_io_threads=16
+      - --innodb_write_io_threads=16
+      - --innodb_redo_log_capacity=1G
+      - --innodb_log_buffer_size=128M
+      - --sync_binlog=0
+      - --thread_cache_size=400
+      - --sort_buffer_size=4M
+      - --join_buffer_size=4M
+      - --tmp_table_size=128M
+      - --max_heap_table_size=128M
+      - --table_open_cache=4000
+      - --innodb_adaptive_hash_index=ON
     networks:
       - onlyone-network
     healthcheck:
@@ -88,11 +103,11 @@ services:
     deploy:
       resources:
         limits:
-          cpus: '2'
-          memory: 1536M
+          cpus: '6'
+          memory: 8G
         reservations:
-          cpus: '0.5'
-          memory: 512M
+          cpus: '2'
+          memory: 4G
 
   # Redis Cache & Session
   redis:
@@ -100,11 +115,11 @@ services:
     container_name: onlyone-redis
     restart: unless-stopped
     ports:
-      - "127.0.0.1:6479:6379"
+      - "127.0.0.1:6379:6379"
     volumes:
       - redis_data:/data
       - ./onlyone-api/src/main/resources/redis:/usr/local/etc/redis
-    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
+    command: redis-server --appendonly yes --maxmemory 1gb --maxmemory-policy allkeys-lru --io-threads 4 --save ""
     networks:
       - onlyone-network
     healthcheck:
@@ -115,11 +130,11 @@ services:
     deploy:
       resources:
         limits:
-          cpus: '0.5'
-          memory: 384M
+          cpus: '2'
+          memory: 1536M
         reservations:
-          cpus: '0.25'
-          memory: 128M
+          cpus: '0.5'
+          memory: 512M
 
   # Elasticsearch
   elasticsearch:
@@ -271,6 +286,7 @@ services:
     command:
       - '--config.file=/etc/prometheus/prometheus.yml'
       - '--storage.tsdb.retention.time=15d'
+      - '--web.enable-remote-write-receiver'
     networks:
       - onlyone-network
     profiles:

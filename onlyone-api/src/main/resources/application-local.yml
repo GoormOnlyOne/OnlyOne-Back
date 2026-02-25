@@ -1,33 +1,43 @@
 # =============================================================
-# 로컬 개발 환경 설정 (profile: local)
-# Docker로 띄운 MySQL, Redis, Elasticsearch에 직접 연결
+# 로컬 개발 & 성능 테스트 환경 설정 (profile: local)
+# Docker 인프라(MySQL, Redis, ES) + 로컬 앱 실행
+# 환경변수 의존 없이 하드코딩 — 이 파일 하나로 즉시 실행
 # =============================================================
 
-# --- 데이터소스 (로컬 MySQL) ---
 spring:
+  # --- 데이터소스 (HikariCP 확장 풀) ---
   datasource:
     driver-class-name: com.mysql.cj.jdbc.Driver
-    url: jdbc:mysql://localhost:3306/onlyone?useSSL=false&serverTimezone=Asia/Seoul&characterEncoding=UTF-8&allowPublicKeyRetrieval=true
+    url: jdbc:mysql://localhost:3306/onlyone?useSSL=false&serverTimezone=Asia/Seoul&characterEncoding=UTF-8&allowPublicKeyRetrieval=true&cachePrepStmts=true&prepStmtCacheSize=250&prepStmtCacheSqlLimit=2048&useServerPrepStmts=true&rewriteBatchedStatements=true
     username: root
     password: root
     hikari:
-      maximum-pool-size: 30
-      minimum-idle: 5
-      connection-timeout: 30000
-      idle-timeout: 600000
-      max-lifetime: 1800000
+      maximum-pool-size: 400
+      minimum-idle: 150
+      connection-timeout: 8000
+      idle-timeout: 300000
+      max-lifetime: 600000
+      validation-timeout: 3000
+      auto-commit: false
 
-  # JPA: 스키마 자동 업데이트 + SQL 포맷 출력
+  # JPA: 스키마 자동 업데이트, 배치 INSERT/UPDATE
   jpa:
     hibernate:
       ddl-auto: update
     properties:
       hibernate:
-        format_sql: true
-        use_sql_comments: true
+        format_sql: false
+        use_sql_comments: false
         show_sql: false
+        jdbc:
+          batch_size: 30
+        order_inserts: true
+        order_updates: true
+        connection:
+          provider_disables_autocommit: true
+      jakarta.persistence.query.timeout: 5000
 
-  # Redis (로컬, 비밀번호 없음)
+  # Redis (Docker: 6379 → 6379)
   data:
     redis:
       host: localhost
@@ -35,11 +45,11 @@ spring:
       password:
       lettuce:
         pool:
-          max-active: 10
-          max-idle: 10
-          min-idle: 2
+          max-active: 256
+          max-idle: 128
+          min-idle: 32
 
-  # Elasticsearch (로컬)
+  # Elasticsearch
   elasticsearch:
     uris: http://localhost:9200
     username: elastic
@@ -51,24 +61,26 @@ spring:
     redis:
       time-to-live: 600000
 
-# --- 로깅: 디버그 수준 (Hibernate SQL 포함) ---
+# --- 로깅: WARN/ERROR만 (부하테스트용) ---
 logging:
   level:
-    root: INFO
-    com.example.onlyone: DEBUG
-    org.hibernate.SQL: DEBUG
-    org.hibernate.type.descriptor.sql.BasicBinder: TRACE
-    org.springframework.web: INFO
-    org.springframework.security: INFO
+    root: WARN
+    com.example.onlyone: WARN
+    org.hibernate.SQL: ERROR
+    org.springframework.web: WARN
+    org.springframework.security: WARN
 
+# --- Tomcat (확장 스레드) ---
 server:
-  port: 8080
+  port: 8888
   tomcat:
     threads:
-      max: 200
-      min-spare: 10
+      max: 800
+      min-spare: 50
+    max-connections: 20000
+    accept-count: 1000
 
-# --- AWS (개발용 공유 버킷) ---
+# --- AWS ---
 aws:
   s3:
     region: ap-northeast-2
@@ -76,14 +88,33 @@ aws:
   cloudfront:
     domain: d1c3fg3ti7m8cn.cloudfront.net
 
-# --- 카카오 OAuth 콜백 (프론트 로컬) ---
+# --- 카카오 OAuth ---
 Kakao:
+  client:
+    id: cb62270f81c3942b697f94401978d95b
   redirect:
     uri: http://localhost:5173/kakao-callback
 
-# --- Rate Limit 비활성화 (로컬에서는 불필요) ---
+# --- JWT ---
+jwt:
+  secret: 7e9eeb12d176a2d72f554c6b096522b4e1a34d799727e45a96f192bbff2a2a851ede29ed24b10b6e6b1835ac94380e2469df99ff9713477bf4d43eeaa9cd16a3
+  access-expiration: 3600000
+  refresh-expiration: 604800000
+
+# --- 토스 결제 ---
+payment:
+  toss:
+    client_key: test_ck_yL0qZ4G1VOlG77j1njbProWb2MQY
+    test_secret_api_key: test_sk_kYG57Eba3GbjeWJXBvjk8pWDOxmA
+    security_key: 705394c7b81f84e2777acd2935f376d566fdf68ec38392bbab607771a5147bb0
+
+# --- Rate Limit 비활성화 (로컬) ---
 app:
   rate-limit:
     enabled: false
     requests-per-minute: 60
     auth-requests-per-30s: 10
+  notification:
+    sse-timeout-millis: 30000
+    sse-executor-permits: 500
+    max-connections: 10000
