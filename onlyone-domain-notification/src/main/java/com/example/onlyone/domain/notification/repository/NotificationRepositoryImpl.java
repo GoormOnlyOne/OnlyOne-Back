@@ -2,19 +2,17 @@ package com.example.onlyone.domain.notification.repository;
 
 import com.example.onlyone.domain.notification.dto.response.NotificationItemDto;
 import com.example.onlyone.domain.notification.entity.Notification;
-import com.querydsl.core.BooleanBuilder;
-import com.querydsl.core.types.Projections;
-import com.querydsl.jpa.impl.JPAQueryFactory;
+import com.example.onlyone.domain.notification.entity.NotificationType;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
 
 import jakarta.persistence.EntityManager;
+import jakarta.persistence.Query;
+import java.sql.Timestamp;
+import java.util.ArrayList;
 import java.util.List;
-
-import static com.example.onlyone.domain.notification.entity.QNotification.notification;
-import static com.example.onlyone.domain.user.entity.QUser.user;
 
 @Slf4j
 @Repository
@@ -22,87 +20,104 @@ import static com.example.onlyone.domain.user.entity.QUser.user;
 @Transactional(readOnly = true)
 public class NotificationRepositoryImpl implements NotificationRepositoryCustom {
 
-    private final JPAQueryFactory queryFactory;
     private final EntityManager entityManager;
 
     @Override
     public List<NotificationItemDto> findNotificationsByUserId(Long userId, Long cursor, int size) {
-        BooleanBuilder where = new BooleanBuilder()
-                .and(notification.user.userId.eq(userId));
+        // 네이티브 쿼리 — User JOIN 제거, idx_notification_user_id_desc 인덱스 직접 활용
+        String sql = cursor != null
+                ? "SELECT notification_id, content, type, is_read, created_at FROM notification WHERE user_id = :userId AND notification_id < :cursor ORDER BY notification_id DESC LIMIT :limit"
+                : "SELECT notification_id, content, type, is_read, created_at FROM notification WHERE user_id = :userId ORDER BY notification_id DESC LIMIT :limit";
+
+        Query query = entityManager.createNativeQuery(sql)
+                .setParameter("userId", userId)
+                .setParameter("limit", size);
 
         if (cursor != null) {
-            where.and(notification.id.lt(cursor));
+            query.setParameter("cursor", cursor);
         }
 
-        return queryFactory
-                .select(Projections.constructor(NotificationItemDto.class,
-                        notification.id,
-                        notification.content,
-                        notification.type,
-                        notification.isRead,
-                        notification.createdAt))
-                .from(notification)
-                .where(where)
-                .orderBy(notification.id.desc())
-                .limit(size)
-                .fetch();
+        @SuppressWarnings("unchecked")
+        List<Object[]> rows = query.getResultList();
+        return mapToNotificationItems(rows);
     }
 
     @Override
     public Long countUnreadByUserId(Long userId) {
-        Long count = queryFactory
-                .select(notification.count())
-                .from(notification)
-                .where(
-                        notification.user.userId.eq(userId),
-                        notification.isRead.eq(false))
-                .fetchOne();
+        // idx_notification_user_read 커버링 인덱스 활용
+        Object result = entityManager
+                .createNativeQuery("SELECT COUNT(*) FROM notification WHERE user_id = :userId AND is_read = false")
+                .setParameter("userId", userId)
+                .getSingleResult();
 
-        return count != null ? count : 0L;
+        return result instanceof Number n ? n.longValue() : 0L;
     }
 
     @Override
     public Notification findByIdWithFetchJoin(Long notificationId) {
-        return queryFactory
-                .selectFrom(notification)
-                .join(notification.user, user).fetchJoin()
-                .where(notification.id.eq(notificationId))
-                .fetchOne();
+        return entityManager.find(Notification.class, notificationId);
+    }
+
+    @Override
+    @Transactional
+    public int markAsReadByIdAndUserId(Long notificationId, Long userId) {
+        // 소유권 검증 + 읽음 처리를 단일 쿼리로 — SELECT + UPDATE 대신 UPDATE 1회
+        return entityManager
+                .createNativeQuery("UPDATE notification SET is_read = true WHERE notification_id = :id AND user_id = :userId AND is_read = false")
+                .setParameter("id", notificationId)
+                .setParameter("userId", userId)
+                .executeUpdate();
+    }
+
+    @Override
+    @Transactional
+    public boolean deleteByIdAndUserId(Long notificationId, Long userId) {
+        // 읽음 여부 조회 후 삭제 — 엔티티 로딩 없이 네이티브 쿼리 2회
+        @SuppressWarnings("unchecked")
+        List<Object> results = entityManager
+                .createNativeQuery("SELECT is_read FROM notification WHERE notification_id = :id AND user_id = :userId")
+                .setParameter("id", notificationId)
+                .setParameter("userId", userId)
+                .getResultList();
+
+        if (results.isEmpty()) return false;
+
+        boolean wasUnread = !toBoolean(results.get(0));
+
+        entityManager
+                .createNativeQuery("DELETE FROM notification WHERE notification_id = :id AND user_id = :userId")
+                .setParameter("id", notificationId)
+                .setParameter("userId", userId)
+                .executeUpdate();
+
+        return wasUnread;
     }
 
     @Override
     @Transactional
     public long markAllAsReadByUserId(Long userId) {
-        long updated = queryFactory
-                .update(notification)
-                .set(notification.isRead, true)
-                .where(
-                        notification.user.userId.eq(userId),
-                        notification.isRead.eq(false))
-                .execute();
+        int updated = entityManager
+                .createNativeQuery("UPDATE notification SET is_read = true WHERE user_id = :userId AND is_read = false")
+                .setParameter("userId", userId)
+                .executeUpdate();
 
-        // 벌크 업데이트는 영속성 컨텍스트를 거치지 않으므로 동기화 필요
-        entityManager.flush();
-        entityManager.clear();
+        if (updated > 0) {
+            entityManager.clear();
+        }
         return updated;
     }
 
     @Override
     public List<NotificationItemDto> findUnsentNotificationsByUserId(Long userId, int limit) {
-        return queryFactory
-                .select(Projections.constructor(NotificationItemDto.class,
-                        notification.id,
-                        notification.content,
-                        notification.type,
-                        notification.isRead,
-                        notification.createdAt))
-                .from(notification)
-                .where(
-                        notification.user.userId.eq(userId),
-                        notification.sseSent.eq(false))
-                .orderBy(notification.id.asc())
-                .limit(limit)
-                .fetch();
+        // 네이티브 쿼리 — User JOIN 제거, idx_notification_user_sse_sent 인덱스 직접 활용
+        @SuppressWarnings("unchecked")
+        List<Object[]> rows = entityManager
+                .createNativeQuery("SELECT notification_id, content, type, is_read, created_at FROM notification WHERE user_id = :userId AND sse_sent = false ORDER BY notification_id ASC LIMIT :limit")
+                .setParameter("userId", userId)
+                .setParameter("limit", limit)
+                .getResultList();
+
+        return mapToNotificationItems(rows);
     }
 
     @Override
@@ -111,10 +126,29 @@ public class NotificationRepositoryImpl implements NotificationRepositoryCustom 
         if (notificationIds.isEmpty()) {
             return;
         }
-        queryFactory
-                .update(notification)
-                .set(notification.sseSent, true)
-                .where(notification.id.in(notificationIds))
-                .execute();
+        entityManager
+                .createNativeQuery("UPDATE notification SET sse_sent = true WHERE notification_id IN (:ids)")
+                .setParameter("ids", notificationIds)
+                .executeUpdate();
+    }
+
+    private List<NotificationItemDto> mapToNotificationItems(List<Object[]> rows) {
+        List<NotificationItemDto> result = new ArrayList<>(rows.size());
+        for (Object[] row : rows) {
+            result.add(new NotificationItemDto(
+                    ((Number) row[0]).longValue(),
+                    (String) row[1],
+                    NotificationType.valueOf((String) row[2]),
+                    toBoolean(row[3]),
+                    ((Timestamp) row[4]).toLocalDateTime()
+            ));
+        }
+        return result;
+    }
+
+    private boolean toBoolean(Object value) {
+        if (value instanceof Boolean b) return b;
+        if (value instanceof Number n) return n.intValue() != 0;
+        return false;
     }
 }

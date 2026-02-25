@@ -12,8 +12,8 @@ import java.util.Objects;
 @Entity
 @Table(name = "notification", indexes = {
     @Index(name = "idx_notification_user_id_desc", columnList = "user_id, notification_id DESC"),
-    @Index(name = "idx_notification_user_read", columnList = "user_id, is_read"),
-    @Index(name = "idx_notification_user_sse_sent", columnList = "user_id, sse_sent")
+    @Index(name = "idx_notification_user_read", columnList = "user_id, is_read, notification_id"),
+    @Index(name = "idx_notification_user_sse_sent", columnList = "user_id, sse_sent, notification_id")
 })
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
@@ -37,6 +37,9 @@ public class Notification extends BaseTimeEntity {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "user_id", updatable = false, nullable = false)
     private User user;
+
+    @Column(name = "user_id", insertable = false, updatable = false)
+    private Long userId;
 
     @Column(name = "sse_sent", nullable = false)
     private boolean sseSent = false;

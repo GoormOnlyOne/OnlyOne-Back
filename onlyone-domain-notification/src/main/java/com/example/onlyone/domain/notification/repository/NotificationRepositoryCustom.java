@@ -13,6 +13,11 @@ public interface NotificationRepositoryCustom {
 
     Notification findByIdWithFetchJoin(Long notificationId);
 
+    int markAsReadByIdAndUserId(Long notificationId, Long userId);
+
+    /** @return true if the deleted notification was unread */
+    boolean deleteByIdAndUserId(Long notificationId, Long userId);
+
     long markAllAsReadByUserId(Long userId);
 
     void markSseSentByIds(List<Long> notificationIds);

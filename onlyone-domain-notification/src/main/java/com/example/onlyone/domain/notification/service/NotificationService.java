@@ -8,14 +8,14 @@ import com.example.onlyone.domain.notification.dto.response.NotificationListResp
 import com.example.onlyone.domain.notification.entity.Notification;
 import com.example.onlyone.domain.notification.repository.NotificationRepository;
 import com.example.onlyone.domain.user.service.AuthService;
-import com.example.onlyone.global.exception.CustomException;
-import com.example.onlyone.global.exception.ErrorCode;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Duration;
 import java.util.List;
 
 @Service
@@ -25,10 +25,12 @@ import java.util.List;
 public class NotificationService {
 
     private static final int MAX_PAGE_SIZE = 30;
+    private static final String UNREAD_COUNT_KEY_PREFIX = "notification:unread:";
 
     private final NotificationRepository notificationRepository;
     private final ApplicationEventPublisher eventPublisher;
     private final AuthService authService;
+    private final StringRedisTemplate stringRedisTemplate;
 
     // ========== 조회 ==========
 
@@ -45,22 +47,42 @@ public class NotificationService {
         return buildPagedResponse(notifications, size);
     }
 
-    /** 읽지 않은 알림 개수 조회 */
+    /** 읽지 않은 알림 개수 조회 — Redis 카운터 우선, fallback DB */
     public Long getUnreadCount() {
         Long userId = getCurrentUserId();
-        return notificationRepository.countUnreadByUserId(userId);
+        String key = UNREAD_COUNT_KEY_PREFIX + userId;
+
+        try {
+            String cached = stringRedisTemplate.opsForValue().get(key);
+            if (cached != null) {
+                return Math.max(0L, Long.parseLong(cached));
+            }
+        } catch (Exception e) {
+            log.warn("Redis 읽기 실패, DB fallback: userId={}", userId, e);
+        }
+
+        // Redis 미스 → DB 조회 후 TTL 10분으로 캐시
+        Long count = notificationRepository.countUnreadByUserId(userId);
+        try {
+            stringRedisTemplate.opsForValue().set(key, String.valueOf(count), Duration.ofMinutes(10));
+        } catch (Exception e) {
+            log.warn("Redis 캐시 저장 실패: userId={}", userId, e);
+        }
+        return count;
     }
 
     // ========== 상태 변경 ==========
 
-    /** 단건 읽음 처리 */
+    /** 단건 읽음 처리 — 네이티브 쿼리로 단일 UPDATE, 엔티티 로딩 없이 처리 */
     @Transactional
     public void markAsRead(Long notificationId) {
         Long userId = getCurrentUserId();
-        Notification notification = findNotificationOrThrow(notificationId);
-        validateOwnership(notification, userId);
-        notification.markAsRead();
-        log.debug("알림 읽음: userId={}, notificationId={}", userId, notificationId);
+        // 소유권 검증 + 읽음 처리를 단일 쿼리로 수행
+        int updated = notificationRepository.markAsReadByIdAndUserId(notificationId, userId);
+        if (updated > 0) {
+            decrementUnreadCount(userId);
+        }
+        log.debug("알림 읽음: userId={}, notificationId={}, updated={}", userId, notificationId, updated);
     }
 
     /** 전체 읽음 처리 (벌크 업데이트) */
@@ -69,17 +91,27 @@ public class NotificationService {
         Long userId = getCurrentUserId();
         long markedCount = notificationRepository.markAllAsReadByUserId(userId);
         if (markedCount > 0) {
-            log.info("모든 알림 읽음: userId={}, count={}", userId, markedCount);
+            // 전체 읽음 → 카운터를 0으로 리셋
+            try {
+                stringRedisTemplate.opsForValue().set(
+                        UNREAD_COUNT_KEY_PREFIX + userId, "0", Duration.ofMinutes(10));
+            } catch (Exception e) {
+                log.warn("Redis 카운터 리셋 실패: userId={}", userId, e);
+            }
+            log.debug("모든 알림 읽음: userId={}, count={}", userId, markedCount);
         }
     }
 
-    /** 단건 삭제 */
+    /** 단건 삭제 — 소유권 검증 + 삭제 + 읽음 상태 확인을 최소 쿼리로 처리 */
     @Transactional
     public void deleteNotification(Long notificationId) {
         Long userId = getCurrentUserId();
-        Notification notification = findNotificationOrThrow(notificationId);
-        validateOwnership(notification, userId);
-        notificationRepository.delete(notification);
+        // 삭제 전 읽음 여부 확인 (소유권 검증 포함, 단일 네이티브 쿼리)
+        boolean wasUnread = notificationRepository.deleteByIdAndUserId(notificationId, userId);
+
+        if (wasUnread) {
+            decrementUnreadCount(userId);
+        }
         log.debug("알림 삭제: userId={}, notificationId={}", userId, notificationId);
     }
 
@@ -90,6 +122,10 @@ public class NotificationService {
     public void createNotification(NotificationCreateDto dto) {
         Notification notification = Notification.create(dto.user(), dto.type(), dto.args());
         notificationRepository.save(notification);
+
+        // 미읽음 카운터 증가
+        incrementUnreadCount(dto.user().getUserId());
+
         eventPublisher.publishEvent(new NotificationCreatedEvent(notification));
         log.debug("알림 생성: userId={}, type={}, id={}",
                 dto.user().getUserId(), dto.type(), notification.getId());
@@ -101,17 +137,24 @@ public class NotificationService {
         return authService.getCurrentUserId();
     }
 
-    private Notification findNotificationOrThrow(Long notificationId) {
-        Notification notification = notificationRepository.findByIdWithFetchJoin(notificationId);
-        if (notification == null) {
-            throw new CustomException(ErrorCode.NOTIFICATION_NOT_FOUND);
+    private void incrementUnreadCount(Long userId) {
+        try {
+            stringRedisTemplate.opsForValue().increment(UNREAD_COUNT_KEY_PREFIX + userId);
+        } catch (Exception e) {
+            log.warn("Redis 카운터 증가 실패: userId={}", userId, e);
         }
-        return notification;
     }
 
-    private void validateOwnership(Notification notification, Long userId) {
-        if (!notification.getUser().getUserId().equals(userId)) {
-            throw new CustomException(ErrorCode.NOTIFICATION_NOT_FOUND);
+    private void decrementUnreadCount(Long userId) {
+        try {
+            String key = UNREAD_COUNT_KEY_PREFIX + userId;
+            Long result = stringRedisTemplate.opsForValue().decrement(key);
+            // 음수 방지
+            if (result != null && result < 0) {
+                stringRedisTemplate.delete(key);
+            }
+        } catch (Exception e) {
+            log.warn("Redis 카운터 감소 실패: userId={}", userId, e);
         }
     }
 
