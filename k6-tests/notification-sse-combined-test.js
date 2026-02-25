@@ -185,7 +185,7 @@ function connectSSE(user, timeout) {
     const headers = getSseHeaders(token);
     const startTime = Date.now();
 
-    const res = http.get(`${BASE_URL}/sse/subscribe`, {
+    const res = http.get(`${BASE_URL}/api/v1/sse/subscribe`, {
         headers: headers,
         timeout: timeout || SSE_CONNECT_TIMEOUT,
         responseType: 'text',
@@ -444,7 +444,7 @@ export function setup() {
     }
 
     // SSE endpoint check
-    const sseCheck = http.get(`${BASE_URL}/sse/subscribe`, { timeout: '2s' });
+    const sseCheck = http.get(`${BASE_URL}/api/v1/sse/subscribe`, { timeout: '2s' });
     console.log(`SSE (no auth): status=${sseCheck.status} (expect 401)`);
 
     // Notification endpoint check
@@ -454,7 +454,7 @@ export function setup() {
     // 인증된 SSE 연결 테스트
     const testUser = testUsers[0];
     const token = generateJWT(testUser);
-    const authSseCheck = http.get(`${BASE_URL}/sse/subscribe`, {
+    const authSseCheck = http.get(`${BASE_URL}/api/v1/sse/subscribe`, {
         headers: getSseHeaders(token),
         timeout: '2s',
         responseType: 'text',

@@ -1,0 +1,1101 @@
+{
+  "uid": "k6-load-test",
+  "title": "k6 Notification & SSE Load Test",
+  "tags": ["k6", "load-test", "notification", "sse"],
+  "timezone": "browser",
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "links": [],
+  "annotations": { "list": [] },
+  "refresh": "5s",
+  "time": { "from": "now-30m", "to": "now" },
+  "timepicker": {},
+  "templating": {
+    "list": [
+      {
+        "name": "scenario",
+        "label": "Scenario",
+        "type": "query",
+        "query": "label_values(k6_http_reqs_total, scenario)",
+        "datasource": { "type": "prometheus", "uid": "Prometheus" },
+        "includeAll": true,
+        "allValue": ".*",
+        "multi": true,
+        "current": { "text": "All", "value": "$__all" },
+        "refresh": 2,
+        "sort": 1
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1,
+      "title": "Active VUs",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 4, "x": 0, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "Prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "unit": "short",
+          "thresholds": { "mode": "absolute", "steps": [
+            { "color": "green", "value": null },
+            { "color": "yellow", "value": 500 },
+            { "color": "orange", "value": 1000 },
+            { "color": "red", "value": 5000 }
+          ]}
+        }, "overrides": []
+      },
+      "targets": [{ "expr": "k6_vus", "legendFormat": "VUs", "refId": "A" }],
+      "options": { "colorMode": "background", "graphMode": "area", "textMode": "value_and_name", "reduceOptions": { "calcs": ["lastNotNull"] } }
+    },
+    {
+      "id": 2,
+      "title": "Max VUs",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 4, "x": 4, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "Prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "unit": "short",
+          "thresholds": { "mode": "absolute", "steps": [
+            { "color": "blue", "value": null }
+          ]}
+        }, "overrides": []
+      },
+      "targets": [{ "expr": "k6_vus_max", "legendFormat": "Max VUs", "refId": "A" }],
+      "options": { "colorMode": "background", "graphMode": "none", "textMode": "value_and_name", "reduceOptions": { "calcs": ["lastNotNull"] } }
+    },
+    {
+      "id": 3,
+      "title": "Request Rate",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 4, "x": 8, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "Prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "unit": "reqps",
+          "thresholds": { "mode": "absolute", "steps": [
+            { "color": "green", "value": null },
+            { "color": "yellow", "value": 200 },
+            { "color": "orange", "value": 500 }
+          ]}
+        }, "overrides": []
+      },
+      "targets": [{ "expr": "sum(rate(k6_http_reqs_total[1m]))", "legendFormat": "RPS", "refId": "A" }],
+      "options": { "colorMode": "background", "graphMode": "area", "textMode": "value_and_name", "reduceOptions": { "calcs": ["lastNotNull"] } }
+    },
+    {
+      "id": 4,
+      "title": "Error Rate",
+      "type": "gauge",
+      "gridPos": { "h": 4, "w": 4, "x": 12, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "Prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "unit": "percentunit", "min": 0, "max": 1,
+          "thresholds": { "mode": "absolute", "steps": [
+            { "color": "green", "value": null },
+            { "color": "yellow", "value": 0.05 },
+            { "color": "orange", "value": 0.10 },
+            { "color": "red", "value": 0.25 }
+          ]}
+        }, "overrides": []
+      },
+      "targets": [{ "expr": "k6_errors or vector(0)", "legendFormat": "Custom Error Rate", "refId": "A" }],
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] } }
+    },
+    {
+      "id": 5,
+      "title": "HTTP Failure Rate",
+      "type": "gauge",
+      "gridPos": { "h": 4, "w": 4, "x": 16, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "Prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "unit": "percentunit", "min": 0, "max": 1,
+          "thresholds": { "mode": "absolute", "steps": [
+            { "color": "green", "value": null },
+            { "color": "yellow", "value": 0.01 },
+            { "color": "red", "value": 0.05 }
+          ]}
+        }, "overrides": []
+      },
+      "targets": [{ "expr": "sum(rate(k6_http_req_failed_total[1m])) / sum(rate(k6_http_reqs_total[1m]))", "legendFormat": "HTTP Failure %", "refId": "A" }],
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] } }
+    },
+    {
+      "id": 6,
+      "title": "Total Iterations",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 4, "x": 20, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "Prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "unit": "short",
+          "thresholds": { "mode": "absolute", "steps": [
+            { "color": "green", "value": null }
+          ]}
+        }, "overrides": []
+      },
+      "targets": [{ "expr": "sum(k6_iterations_total)", "legendFormat": "Iterations", "refId": "A" }],
+      "options": { "colorMode": "value", "graphMode": "area", "textMode": "value_and_name", "reduceOptions": { "calcs": ["lastNotNull"] } }
+    },
+
+    {
+      "id": 10,
+      "title": "VU & Request Overview",
+      "type": "row",
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 4 },
+      "collapsed": false,
+      "panels": []
+    },
+    {
+      "id": 11,
+      "title": "Virtual Users Timeline",
+      "description": "VU count over time",
+      "type": "timeseries",
+      "gridPos": { "h": 7, "w": 12, "x": 0, "y": 5 },
+      "datasource": { "type": "prometheus", "uid": "Prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": { "drawStyle": "line", "fillOpacity": 20, "gradientMode": "scheme", "lineInterpolation": "smooth", "lineWidth": 2, "showPoints": "never", "spanNulls": false, "stacking": { "mode": "none" }, "thresholdsStyle": { "mode": "off" } },
+          "unit": "short",
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "red", "value": 7000 }] }
+        }, "overrides": []
+      },
+      "targets": [
+        { "expr": "k6_vus", "legendFormat": "Active VUs", "refId": "A" },
+        { "expr": "k6_vus_max", "legendFormat": "Max VUs", "refId": "B" }
+      ],
+      "options": { "legend": { "displayMode": "list", "placement": "bottom", "calcs": ["lastNotNull", "max"] }, "tooltip": { "mode": "multi", "sort": "desc" } }
+    },
+    {
+      "id": 12,
+      "title": "Request Rate (by endpoint)",
+      "description": "RPS broken down by tagged endpoints",
+      "type": "timeseries",
+      "gridPos": { "h": 7, "w": 12, "x": 12, "y": 5 },
+      "datasource": { "type": "prometheus", "uid": "Prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": { "drawStyle": "line", "fillOpacity": 10, "lineInterpolation": "smooth", "lineWidth": 1, "showPoints": "never", "spanNulls": false, "stacking": { "mode": "normal" }, "thresholdsStyle": { "mode": "off" } },
+          "unit": "reqps"
+        }, "overrides": []
+      },
+      "targets": [
+        { "expr": "sum by (name) (rate(k6_http_reqs_total{scenario=~\"$scenario\"}[1m]))", "legendFormat": "{{name}}", "refId": "A" }
+      ],
+      "options": { "legend": { "displayMode": "table", "placement": "right", "calcs": ["mean", "max"] }, "tooltip": { "mode": "multi", "sort": "desc" } }
+    },
+
+    {
+      "id": 20,
+      "title": "SSE Connection Health",
+      "type": "row",
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 12 },
+      "collapsed": false,
+      "panels": []
+    },
+    {
+      "id": 21,
+      "title": "SSE Connection Success",
+      "description": "SSE connection success rate (batch/limit tests)",
+      "type": "gauge",
+      "gridPos": { "h": 5, "w": 6, "x": 0, "y": 13 },
+      "datasource": { "type": "prometheus", "uid": "Prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "unit": "percentunit", "min": 0, "max": 1,
+          "thresholds": { "mode": "absolute", "steps": [
+            { "color": "red", "value": null },
+            { "color": "orange", "value": 0.70 },
+            { "color": "yellow", "value": 0.85 },
+            { "color": "green", "value": 0.95 }
+          ]}
+        }, "overrides": []
+      },
+      "targets": [{ "expr": "k6_sse_connection_success or k6_connected_user_sse_success or vector(0)", "legendFormat": "SSE Success", "refId": "A" }],
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] } }
+    },
+    {
+      "id": 22,
+      "title": "SSE Lifecycle Success",
+      "description": "SSE lifecycle test success rate",
+      "type": "gauge",
+      "gridPos": { "h": 5, "w": 6, "x": 6, "y": 13 },
+      "datasource": { "type": "prometheus", "uid": "Prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "unit": "percentunit", "min": 0, "max": 1,
+          "thresholds": { "mode": "absolute", "steps": [
+            { "color": "red", "value": null },
+            { "color": "yellow", "value": 0.85 },
+            { "color": "green", "value": 0.95 }
+          ]}
+        }, "overrides": []
+      },
+      "targets": [{ "expr": "k6_sse_lifecycle_success or vector(0)", "legendFormat": "Lifecycle", "refId": "A" }],
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] } }
+    },
+    {
+      "id": 23,
+      "title": "SSE Reconnect Success",
+      "description": "Reconnect after timeout success rate",
+      "type": "gauge",
+      "gridPos": { "h": 5, "w": 6, "x": 12, "y": 13 },
+      "datasource": { "type": "prometheus", "uid": "Prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "unit": "percentunit", "min": 0, "max": 1,
+          "thresholds": { "mode": "absolute", "steps": [
+            { "color": "red", "value": null },
+            { "color": "yellow", "value": 0.85 },
+            { "color": "green", "value": 0.95 }
+          ]}
+        }, "overrides": []
+      },
+      "targets": [{ "expr": "k6_sse_reconnect_after_timeout or k6_sse_connected_ok or vector(0)", "legendFormat": "Reconnect", "refId": "A" }],
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] } }
+    },
+    {
+      "id": 24,
+      "title": "429 Rejected",
+      "description": "SSE connections rejected with 429 (limit exceeded)",
+      "type": "stat",
+      "gridPos": { "h": 5, "w": 6, "x": 18, "y": 13 },
+      "datasource": { "type": "prometheus", "uid": "Prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "unit": "short",
+          "thresholds": { "mode": "absolute", "steps": [
+            { "color": "green", "value": null },
+            { "color": "yellow", "value": 1 },
+            { "color": "red", "value": 100 }
+          ]}
+        }, "overrides": []
+      },
+      "targets": [{ "expr": "k6_sse_connection_rejected_429_total or vector(0)", "legendFormat": "429 Count", "refId": "A" }],
+      "options": { "colorMode": "background", "graphMode": "area", "textMode": "value_and_name", "reduceOptions": { "calcs": ["lastNotNull"] } }
+    },
+    {
+      "id": 25,
+      "title": "SSE Connection Success Rate Timeline",
+      "description": "SSE connection success rates over time across all tests",
+      "type": "timeseries",
+      "gridPos": { "h": 7, "w": 12, "x": 0, "y": 18 },
+      "datasource": { "type": "prometheus", "uid": "Prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": { "drawStyle": "line", "fillOpacity": 10, "lineInterpolation": "smooth", "lineWidth": 2, "showPoints": "never", "spanNulls": false, "stacking": { "mode": "none" }, "thresholdsStyle": { "mode": "line+area" } },
+          "unit": "percentunit", "min": 0, "max": 1,
+          "thresholds": { "mode": "absolute", "steps": [
+            { "color": "transparent", "value": null },
+            { "color": "red", "value": 0.80 }
+          ]}
+        },
+        "overrides": [
+          { "matcher": { "id": "byName", "options": "SSE Connection" }, "properties": [{ "id": "color", "value": { "fixedColor": "green", "mode": "fixed" } }] },
+          { "matcher": { "id": "byName", "options": "SSE Lifecycle" }, "properties": [{ "id": "color", "value": { "fixedColor": "blue", "mode": "fixed" } }] },
+          { "matcher": { "id": "byName", "options": "SSE Reconnect" }, "properties": [{ "id": "color", "value": { "fixedColor": "orange", "mode": "fixed" } }] },
+          { "matcher": { "id": "byName", "options": "Connected User SSE" }, "properties": [{ "id": "color", "value": { "fixedColor": "purple", "mode": "fixed" } }] }
+        ]
+      },
+      "targets": [
+        { "expr": "k6_sse_connection_success", "legendFormat": "SSE Connection", "refId": "A" },
+        { "expr": "k6_sse_lifecycle_success", "legendFormat": "SSE Lifecycle", "refId": "B" },
+        { "expr": "k6_sse_reconnect_after_timeout", "legendFormat": "SSE Reconnect", "refId": "C" },
+        { "expr": "k6_connected_user_sse_success", "legendFormat": "Connected User SSE", "refId": "D" }
+      ],
+      "options": { "legend": { "displayMode": "table", "placement": "right", "calcs": ["lastNotNull", "min", "mean"] }, "tooltip": { "mode": "multi", "sort": "desc" } }
+    },
+    {
+      "id": 26,
+      "title": "SSE Timeout & Error Counters",
+      "description": "SSE timeout counts and connection errors over time",
+      "type": "timeseries",
+      "gridPos": { "h": 7, "w": 12, "x": 12, "y": 18 },
+      "datasource": { "type": "prometheus", "uid": "Prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": { "drawStyle": "bars", "fillOpacity": 50, "lineWidth": 1, "showPoints": "never", "spanNulls": false, "stacking": { "mode": "normal" }, "thresholdsStyle": { "mode": "off" } },
+          "unit": "short"
+        },
+        "overrides": [
+          { "matcher": { "id": "byName", "options": "Timeout" }, "properties": [{ "id": "color", "value": { "fixedColor": "yellow", "mode": "fixed" } }] },
+          { "matcher": { "id": "byName", "options": "429 Rejected" }, "properties": [{ "id": "color", "value": { "fixedColor": "red", "mode": "fixed" } }] },
+          { "matcher": { "id": "byName", "options": "Reconnect Cycles" }, "properties": [{ "id": "color", "value": { "fixedColor": "blue", "mode": "fixed" } }] }
+        ]
+      },
+      "targets": [
+        { "expr": "rate(k6_sse_timeout_count_total[1m])", "legendFormat": "Timeout", "refId": "A" },
+        { "expr": "rate(k6_sse_connection_rejected_429_total[1m])", "legendFormat": "429 Rejected", "refId": "B" },
+        { "expr": "rate(k6_reconnect_cycle_count_total[1m])", "legendFormat": "Reconnect Cycles", "refId": "C" }
+      ],
+      "options": { "legend": { "displayMode": "list", "placement": "bottom", "calcs": ["sum"] }, "tooltip": { "mode": "multi", "sort": "desc" } }
+    },
+
+    {
+      "id": 30,
+      "title": "SSE Delivery & Recovery",
+      "type": "row",
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 25 },
+      "collapsed": true,
+      "panels": [
+        {
+          "id": 31,
+          "title": "Delivery Success",
+          "description": "SSE notification delivery success rate",
+          "type": "gauge",
+          "gridPos": { "h": 5, "w": 6, "x": 0, "y": 26 },
+          "datasource": { "type": "prometheus", "uid": "Prometheus" },
+          "fieldConfig": {
+            "defaults": {
+              "color": { "mode": "thresholds" },
+              "unit": "percentunit", "min": 0, "max": 1,
+              "thresholds": { "mode": "absolute", "steps": [
+                { "color": "red", "value": null },
+                { "color": "yellow", "value": 0.80 },
+                { "color": "green", "value": 0.95 }
+              ]}
+            }, "overrides": []
+          },
+          "targets": [{ "expr": "k6_sse_delivery_success or vector(0)", "legendFormat": "Delivery", "refId": "A" }],
+          "options": { "reduceOptions": { "calcs": ["lastNotNull"] } }
+        },
+        {
+          "id": 32,
+          "title": "Recovery Success",
+          "description": "Notification recovery after reconnection success rate",
+          "type": "gauge",
+          "gridPos": { "h": 5, "w": 6, "x": 6, "y": 26 },
+          "datasource": { "type": "prometheus", "uid": "Prometheus" },
+          "fieldConfig": {
+            "defaults": {
+              "color": { "mode": "thresholds" },
+              "unit": "percentunit", "min": 0, "max": 1,
+              "thresholds": { "mode": "absolute", "steps": [
+                { "color": "red", "value": null },
+                { "color": "yellow", "value": 0.60 },
+                { "color": "green", "value": 0.85 }
+              ]}
+            }, "overrides": []
+          },
+          "targets": [{ "expr": "k6_recovery_success_rate or vector(0)", "legendFormat": "Recovery", "refId": "A" }],
+          "options": { "reduceOptions": { "calcs": ["lastNotNull"] } }
+        },
+        {
+          "id": 33,
+          "title": "Recovery Events Total",
+          "description": "Total SSE recovery events received",
+          "type": "stat",
+          "gridPos": { "h": 5, "w": 6, "x": 12, "y": 26 },
+          "datasource": { "type": "prometheus", "uid": "Prometheus" },
+          "fieldConfig": {
+            "defaults": {
+              "color": { "mode": "thresholds" },
+              "unit": "short",
+              "thresholds": { "mode": "absolute", "steps": [{ "color": "blue", "value": null }] }
+            }, "overrides": []
+          },
+          "targets": [
+            { "expr": "k6_sse_recovery_event_count_total or k6_sse_notification_total_count_total or vector(0)", "legendFormat": "Events", "refId": "A" }
+          ],
+          "options": { "colorMode": "value", "graphMode": "area", "textMode": "value_and_name", "reduceOptions": { "calcs": ["lastNotNull"] } }
+        },
+        {
+          "id": 34,
+          "title": "Notification Received Rate",
+          "description": "SSE notification received rate",
+          "type": "gauge",
+          "gridPos": { "h": 5, "w": 6, "x": 18, "y": 26 },
+          "datasource": { "type": "prometheus", "uid": "Prometheus" },
+          "fieldConfig": {
+            "defaults": {
+              "color": { "mode": "thresholds" },
+              "unit": "percentunit", "min": 0, "max": 1,
+              "thresholds": { "mode": "absolute", "steps": [
+                { "color": "red", "value": null },
+                { "color": "yellow", "value": 0.70 },
+                { "color": "green", "value": 0.90 }
+              ]}
+            }, "overrides": []
+          },
+          "targets": [{ "expr": "k6_sse_notification_received or vector(0)", "legendFormat": "Notification Received", "refId": "A" }],
+          "options": { "reduceOptions": { "calcs": ["lastNotNull"] } }
+        },
+        {
+          "id": 35,
+          "title": "Delivery Latency (ms)",
+          "description": "SSE notification delivery latency & reconnect latency",
+          "type": "timeseries",
+          "gridPos": { "h": 7, "w": 12, "x": 0, "y": 31 },
+          "datasource": { "type": "prometheus", "uid": "Prometheus" },
+          "fieldConfig": {
+            "defaults": {
+              "color": { "mode": "palette-classic" },
+              "custom": { "drawStyle": "line", "fillOpacity": 10, "lineInterpolation": "smooth", "lineWidth": 2, "showPoints": "never", "spanNulls": false, "stacking": { "mode": "none" }, "thresholdsStyle": { "mode": "line" } },
+              "unit": "ms",
+              "thresholds": { "mode": "absolute", "steps": [
+                { "color": "transparent", "value": null },
+                { "color": "red", "value": 5000 }
+              ]}
+            },
+            "overrides": [
+              { "matcher": { "id": "byName", "options": "Delivery p95" }, "properties": [{ "id": "color", "value": { "fixedColor": "orange", "mode": "fixed" } }] },
+              { "matcher": { "id": "byName", "options": "Delivery p50" }, "properties": [{ "id": "color", "value": { "fixedColor": "green", "mode": "fixed" } }] },
+              { "matcher": { "id": "byName", "options": "Reconnect p95" }, "properties": [{ "id": "color", "value": { "fixedColor": "red", "mode": "fixed" } }] },
+              { "matcher": { "id": "byName", "options": "Reconnect p50" }, "properties": [{ "id": "color", "value": { "fixedColor": "blue", "mode": "fixed" } }] }
+            ]
+          },
+          "targets": [
+            { "expr": "histogram_quantile(0.50, sum(rate(k6_sse_delivery_latency_bucket[1m])) by (le))", "legendFormat": "Delivery p50", "refId": "A" },
+            { "expr": "histogram_quantile(0.95, sum(rate(k6_sse_delivery_latency_bucket[1m])) by (le))", "legendFormat": "Delivery p95", "refId": "B" },
+            { "expr": "histogram_quantile(0.50, sum(rate(k6_reconnect_latency_bucket[1m])) by (le))", "legendFormat": "Reconnect p50", "refId": "C" },
+            { "expr": "histogram_quantile(0.95, sum(rate(k6_reconnect_latency_bucket[1m])) by (le))", "legendFormat": "Reconnect p95", "refId": "D" }
+          ],
+          "options": { "legend": { "displayMode": "table", "placement": "right", "calcs": ["lastNotNull", "max", "mean"] }, "tooltip": { "mode": "multi", "sort": "desc" } }
+        },
+        {
+          "id": 36,
+          "title": "Delivery Events & Recovery per User",
+          "description": "Average notification events per connection and batch recovery per user",
+          "type": "timeseries",
+          "gridPos": { "h": 7, "w": 12, "x": 12, "y": 31 },
+          "datasource": { "type": "prometheus", "uid": "Prometheus" },
+          "fieldConfig": {
+            "defaults": {
+              "color": { "mode": "palette-classic" },
+              "custom": { "drawStyle": "line", "fillOpacity": 15, "lineInterpolation": "smooth", "lineWidth": 2, "showPoints": "never", "spanNulls": false, "stacking": { "mode": "none" }, "thresholdsStyle": { "mode": "off" } },
+              "unit": "short"
+            },
+            "overrides": [
+              { "matcher": { "id": "byName", "options": "Delivery Events/conn" }, "properties": [{ "id": "color", "value": { "fixedColor": "green", "mode": "fixed" } }] },
+              { "matcher": { "id": "byName", "options": "Batch Recovery/user" }, "properties": [{ "id": "color", "value": { "fixedColor": "orange", "mode": "fixed" } }] },
+              { "matcher": { "id": "byName", "options": "Recovery Notif/reconn" }, "properties": [{ "id": "color", "value": { "fixedColor": "blue", "mode": "fixed" } }] }
+            ]
+          },
+          "targets": [
+            { "expr": "sum(rate(k6_sse_delivery_event_count_sum[1m])) / sum(rate(k6_sse_delivery_event_count_count[1m]))", "legendFormat": "Delivery Events/conn", "refId": "A" },
+            { "expr": "sum(rate(k6_batch_recovery_per_user_sum[1m])) / sum(rate(k6_batch_recovery_per_user_count[1m]))", "legendFormat": "Batch Recovery/user", "refId": "B" },
+            { "expr": "sum(rate(k6_recovery_notification_count_sum[1m])) / sum(rate(k6_recovery_notification_count_count[1m]))", "legendFormat": "Recovery Notif/reconn", "refId": "C" }
+          ],
+          "options": { "legend": { "displayMode": "table", "placement": "right", "calcs": ["lastNotNull", "mean", "max"] }, "tooltip": { "mode": "multi", "sort": "desc" } }
+        }
+      ]
+    },
+
+    {
+      "id": 40,
+      "title": "REST API Performance",
+      "type": "row",
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 38 },
+      "collapsed": true,
+      "panels": [
+        {
+          "id": 41,
+          "title": "REST API Success",
+          "description": "REST API success rate (mixed user test)",
+          "type": "gauge",
+          "gridPos": { "h": 5, "w": 8, "x": 0, "y": 39 },
+          "datasource": { "type": "prometheus", "uid": "Prometheus" },
+          "fieldConfig": {
+            "defaults": {
+              "color": { "mode": "thresholds" },
+              "unit": "percentunit", "min": 0, "max": 1,
+              "thresholds": { "mode": "absolute", "steps": [
+                { "color": "red", "value": null },
+                { "color": "orange", "value": 0.50 },
+                { "color": "yellow", "value": 0.80 },
+                { "color": "green", "value": 0.95 }
+              ]}
+            }, "overrides": []
+          },
+          "targets": [{ "expr": "k6_rest_api_success or vector(0)", "legendFormat": "REST Success", "refId": "A" }],
+          "options": { "reduceOptions": { "calcs": ["lastNotNull"] } }
+        },
+        {
+          "id": 42,
+          "title": "REST During Saturation",
+          "description": "REST success rate during SSE batch saturation",
+          "type": "gauge",
+          "gridPos": { "h": 5, "w": 8, "x": 8, "y": 39 },
+          "datasource": { "type": "prometheus", "uid": "Prometheus" },
+          "fieldConfig": {
+            "defaults": {
+              "color": { "mode": "thresholds" },
+              "unit": "percentunit", "min": 0, "max": 1,
+              "thresholds": { "mode": "absolute", "steps": [
+                { "color": "red", "value": null },
+                { "color": "orange", "value": 0.10 },
+                { "color": "yellow", "value": 0.50 },
+                { "color": "green", "value": 0.85 }
+              ]}
+            }, "overrides": []
+          },
+          "targets": [{ "expr": "k6_rest_success_during_saturation or vector(0)", "legendFormat": "Saturation REST", "refId": "A" }],
+          "options": { "reduceOptions": { "calcs": ["lastNotNull"] } }
+        },
+        {
+          "id": 43,
+          "title": "Server Error Rate (5xx)",
+          "description": "Percentage of 500+ errors",
+          "type": "gauge",
+          "gridPos": { "h": 5, "w": 8, "x": 16, "y": 39 },
+          "datasource": { "type": "prometheus", "uid": "Prometheus" },
+          "fieldConfig": {
+            "defaults": {
+              "color": { "mode": "thresholds" },
+              "unit": "percentunit", "min": 0, "max": 1,
+              "thresholds": { "mode": "absolute", "steps": [
+                { "color": "green", "value": null },
+                { "color": "yellow", "value": 0.005 },
+                { "color": "red", "value": 0.01 }
+              ]}
+            }, "overrides": []
+          },
+          "targets": [{ "expr": "k6_server_error_rate or vector(0)", "legendFormat": "5xx Rate", "refId": "A" }],
+          "options": { "reduceOptions": { "calcs": ["lastNotNull"] } }
+        },
+        {
+          "id": 44,
+          "title": "REST Success Rates Timeline",
+          "description": "REST API success rates over time",
+          "type": "timeseries",
+          "gridPos": { "h": 7, "w": 24, "x": 0, "y": 44 },
+          "datasource": { "type": "prometheus", "uid": "Prometheus" },
+          "fieldConfig": {
+            "defaults": {
+              "color": { "mode": "palette-classic" },
+              "custom": { "drawStyle": "line", "fillOpacity": 10, "lineInterpolation": "smooth", "lineWidth": 2, "showPoints": "never", "spanNulls": false, "stacking": { "mode": "none" }, "thresholdsStyle": { "mode": "off" } },
+              "unit": "percentunit", "min": 0, "max": 1
+            },
+            "overrides": [
+              { "matcher": { "id": "byName", "options": "REST API Success" }, "properties": [{ "id": "color", "value": { "fixedColor": "green", "mode": "fixed" } }] },
+              { "matcher": { "id": "byName", "options": "REST During Saturation" }, "properties": [{ "id": "color", "value": { "fixedColor": "orange", "mode": "fixed" } }] },
+              { "matcher": { "id": "byName", "options": "Server Error Rate" }, "properties": [{ "id": "color", "value": { "fixedColor": "red", "mode": "fixed" } }] }
+            ]
+          },
+          "targets": [
+            { "expr": "k6_rest_api_success", "legendFormat": "REST API Success", "refId": "A" },
+            { "expr": "k6_rest_success_during_saturation", "legendFormat": "REST During Saturation", "refId": "B" },
+            { "expr": "k6_server_error_rate", "legendFormat": "Server Error Rate", "refId": "C" }
+          ],
+          "options": { "legend": { "displayMode": "table", "placement": "right", "calcs": ["lastNotNull", "min", "mean"] }, "tooltip": { "mode": "multi", "sort": "desc" } }
+        },
+        {
+          "id": 45,
+          "title": "Unread Count Latency (ms)",
+          "description": "GET /api/v1/notifications/unread-count latency percentiles",
+          "type": "timeseries",
+          "gridPos": { "h": 7, "w": 8, "x": 0, "y": 51 },
+          "datasource": { "type": "prometheus", "uid": "Prometheus" },
+          "fieldConfig": {
+            "defaults": {
+              "color": { "mode": "palette-classic" },
+              "custom": { "drawStyle": "line", "fillOpacity": 10, "lineInterpolation": "smooth", "lineWidth": 2, "showPoints": "never", "spanNulls": false, "stacking": { "mode": "none" }, "thresholdsStyle": { "mode": "line" } },
+              "unit": "ms",
+              "thresholds": { "mode": "absolute", "steps": [{ "color": "transparent", "value": null }, { "color": "red", "value": 15000 }] }
+            },
+            "overrides": [
+              { "matcher": { "id": "byName", "options": "p50" }, "properties": [{ "id": "color", "value": { "fixedColor": "green", "mode": "fixed" } }] },
+              { "matcher": { "id": "byName", "options": "p95" }, "properties": [{ "id": "color", "value": { "fixedColor": "orange", "mode": "fixed" } }] }
+            ]
+          },
+          "targets": [
+            { "expr": "histogram_quantile(0.50, sum(rate(k6_unread_count_latency_bucket[1m])) by (le))", "legendFormat": "p50", "refId": "A" },
+            { "expr": "histogram_quantile(0.95, sum(rate(k6_unread_count_latency_bucket[1m])) by (le))", "legendFormat": "p95", "refId": "B" }
+          ],
+          "options": { "legend": { "displayMode": "list", "placement": "bottom", "calcs": ["lastNotNull", "max"] }, "tooltip": { "mode": "multi", "sort": "desc" } }
+        },
+        {
+          "id": 46,
+          "title": "Notification List Latency (ms)",
+          "description": "GET /api/v1/notifications latency percentiles",
+          "type": "timeseries",
+          "gridPos": { "h": 7, "w": 8, "x": 8, "y": 51 },
+          "datasource": { "type": "prometheus", "uid": "Prometheus" },
+          "fieldConfig": {
+            "defaults": {
+              "color": { "mode": "palette-classic" },
+              "custom": { "drawStyle": "line", "fillOpacity": 10, "lineInterpolation": "smooth", "lineWidth": 2, "showPoints": "never", "spanNulls": false, "stacking": { "mode": "none" }, "thresholdsStyle": { "mode": "line" } },
+              "unit": "ms",
+              "thresholds": { "mode": "absolute", "steps": [{ "color": "transparent", "value": null }, { "color": "red", "value": 45000 }] }
+            },
+            "overrides": [
+              { "matcher": { "id": "byName", "options": "p50" }, "properties": [{ "id": "color", "value": { "fixedColor": "green", "mode": "fixed" } }] },
+              { "matcher": { "id": "byName", "options": "p95" }, "properties": [{ "id": "color", "value": { "fixedColor": "orange", "mode": "fixed" } }] }
+            ]
+          },
+          "targets": [
+            { "expr": "histogram_quantile(0.50, sum(rate(k6_notification_list_latency_bucket[1m])) by (le))", "legendFormat": "p50", "refId": "A" },
+            { "expr": "histogram_quantile(0.95, sum(rate(k6_notification_list_latency_bucket[1m])) by (le))", "legendFormat": "p95", "refId": "B" }
+          ],
+          "options": { "legend": { "displayMode": "list", "placement": "bottom", "calcs": ["lastNotNull", "max"] }, "tooltip": { "mode": "multi", "sort": "desc" } }
+        },
+        {
+          "id": 47,
+          "title": "Mark Read / Batch REST Latency (ms)",
+          "description": "PUT read & batch REST latency during SSE",
+          "type": "timeseries",
+          "gridPos": { "h": 7, "w": 8, "x": 16, "y": 51 },
+          "datasource": { "type": "prometheus", "uid": "Prometheus" },
+          "fieldConfig": {
+            "defaults": {
+              "color": { "mode": "palette-classic" },
+              "custom": { "drawStyle": "line", "fillOpacity": 10, "lineInterpolation": "smooth", "lineWidth": 2, "showPoints": "never", "spanNulls": false, "stacking": { "mode": "none" }, "thresholdsStyle": { "mode": "off" } },
+              "unit": "ms"
+            },
+            "overrides": [
+              { "matcher": { "id": "byName", "options": "Mark Read p95" }, "properties": [{ "id": "color", "value": { "fixedColor": "orange", "mode": "fixed" } }] },
+              { "matcher": { "id": "byName", "options": "Batch REST p95" }, "properties": [{ "id": "color", "value": { "fixedColor": "red", "mode": "fixed" } }] }
+            ]
+          },
+          "targets": [
+            { "expr": "histogram_quantile(0.50, sum(rate(k6_mark_read_latency_bucket[1m])) by (le))", "legendFormat": "Mark Read p50", "refId": "A" },
+            { "expr": "histogram_quantile(0.95, sum(rate(k6_mark_read_latency_bucket[1m])) by (le))", "legendFormat": "Mark Read p95", "refId": "B" },
+            { "expr": "histogram_quantile(0.50, sum(rate(k6_batch_rest_latency_during_sse_bucket[1m])) by (le))", "legendFormat": "Batch REST p50", "refId": "C" },
+            { "expr": "histogram_quantile(0.95, sum(rate(k6_batch_rest_latency_during_sse_bucket[1m])) by (le))", "legendFormat": "Batch REST p95", "refId": "D" }
+          ],
+          "options": { "legend": { "displayMode": "table", "placement": "right", "calcs": ["lastNotNull", "max"] }, "tooltip": { "mode": "multi", "sort": "desc" } }
+        }
+      ]
+    },
+
+    {
+      "id": 50,
+      "title": "Concurrency & Conflicts",
+      "type": "row",
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 58 },
+      "collapsed": true,
+      "panels": [
+        {
+          "id": 51,
+          "title": "Conflict Count",
+          "description": "Number of 500 errors from concurrent operations",
+          "type": "stat",
+          "gridPos": { "h": 5, "w": 8, "x": 0, "y": 59 },
+          "datasource": { "type": "prometheus", "uid": "Prometheus" },
+          "fieldConfig": {
+            "defaults": {
+              "color": { "mode": "thresholds" },
+              "unit": "short",
+              "thresholds": { "mode": "absolute", "steps": [
+                { "color": "green", "value": null },
+                { "color": "yellow", "value": 1 },
+                { "color": "red", "value": 10 }
+              ]}
+            }, "overrides": []
+          },
+          "targets": [{ "expr": "k6_conflict_count_total or vector(0)", "legendFormat": "Conflicts", "refId": "A" }],
+          "options": { "colorMode": "background", "graphMode": "area", "textMode": "value_and_name", "reduceOptions": { "calcs": ["lastNotNull"] } }
+        },
+        {
+          "id": 52,
+          "title": "Server Error Rate (5xx)",
+          "description": "Percentage of 500+ errors in conflict tests",
+          "type": "gauge",
+          "gridPos": { "h": 5, "w": 8, "x": 8, "y": 59 },
+          "datasource": { "type": "prometheus", "uid": "Prometheus" },
+          "fieldConfig": {
+            "defaults": {
+              "color": { "mode": "thresholds" },
+              "unit": "percentunit", "min": 0, "max": 1,
+              "thresholds": { "mode": "absolute", "steps": [
+                { "color": "green", "value": null },
+                { "color": "yellow", "value": 0.005 },
+                { "color": "red", "value": 0.01 }
+              ]}
+            }, "overrides": []
+          },
+          "targets": [{ "expr": "k6_server_error_rate or vector(0)", "legendFormat": "5xx Rate", "refId": "A" }],
+          "options": { "reduceOptions": { "calcs": ["lastNotNull"] } }
+        },
+        {
+          "id": 53,
+          "title": "Custom Error Rate",
+          "description": "k6 custom errors rate across all tests",
+          "type": "gauge",
+          "gridPos": { "h": 5, "w": 8, "x": 16, "y": 59 },
+          "datasource": { "type": "prometheus", "uid": "Prometheus" },
+          "fieldConfig": {
+            "defaults": {
+              "color": { "mode": "thresholds" },
+              "unit": "percentunit", "min": 0, "max": 1,
+              "thresholds": { "mode": "absolute", "steps": [
+                { "color": "green", "value": null },
+                { "color": "yellow", "value": 0.10 },
+                { "color": "red", "value": 0.25 }
+              ]}
+            }, "overrides": []
+          },
+          "targets": [{ "expr": "k6_errors or vector(0)", "legendFormat": "Errors", "refId": "A" }],
+          "options": { "reduceOptions": { "calcs": ["lastNotNull"] } }
+        },
+        {
+          "id": 54,
+          "title": "Concurrent Read Latency (ms)",
+          "description": "Latency for concurrent read operations on same notification",
+          "type": "timeseries",
+          "gridPos": { "h": 7, "w": 8, "x": 0, "y": 64 },
+          "datasource": { "type": "prometheus", "uid": "Prometheus" },
+          "fieldConfig": {
+            "defaults": {
+              "color": { "mode": "palette-classic" },
+              "custom": { "drawStyle": "line", "fillOpacity": 10, "lineInterpolation": "smooth", "lineWidth": 2, "showPoints": "never", "spanNulls": false, "stacking": { "mode": "none" }, "thresholdsStyle": { "mode": "line" } },
+              "unit": "ms",
+              "thresholds": { "mode": "absolute", "steps": [{ "color": "transparent", "value": null }, { "color": "red", "value": 500 }] }
+            },
+            "overrides": [
+              { "matcher": { "id": "byName", "options": "p50" }, "properties": [{ "id": "color", "value": { "fixedColor": "green", "mode": "fixed" } }] },
+              { "matcher": { "id": "byName", "options": "p95" }, "properties": [{ "id": "color", "value": { "fixedColor": "orange", "mode": "fixed" } }] }
+            ]
+          },
+          "targets": [
+            { "expr": "histogram_quantile(0.50, sum(rate(k6_concurrent_read_latency_bucket[1m])) by (le))", "legendFormat": "p50", "refId": "A" },
+            { "expr": "histogram_quantile(0.95, sum(rate(k6_concurrent_read_latency_bucket[1m])) by (le))", "legendFormat": "p95", "refId": "B" }
+          ],
+          "options": { "legend": { "displayMode": "list", "placement": "bottom", "calcs": ["lastNotNull", "max"] }, "tooltip": { "mode": "multi", "sort": "desc" } }
+        },
+        {
+          "id": 55,
+          "title": "Concurrent Delete Latency (ms)",
+          "description": "Latency for concurrent delete operations on same notification",
+          "type": "timeseries",
+          "gridPos": { "h": 7, "w": 8, "x": 8, "y": 64 },
+          "datasource": { "type": "prometheus", "uid": "Prometheus" },
+          "fieldConfig": {
+            "defaults": {
+              "color": { "mode": "palette-classic" },
+              "custom": { "drawStyle": "line", "fillOpacity": 10, "lineInterpolation": "smooth", "lineWidth": 2, "showPoints": "never", "spanNulls": false, "stacking": { "mode": "none" }, "thresholdsStyle": { "mode": "line" } },
+              "unit": "ms",
+              "thresholds": { "mode": "absolute", "steps": [{ "color": "transparent", "value": null }, { "color": "red", "value": 500 }] }
+            },
+            "overrides": [
+              { "matcher": { "id": "byName", "options": "p50" }, "properties": [{ "id": "color", "value": { "fixedColor": "green", "mode": "fixed" } }] },
+              { "matcher": { "id": "byName", "options": "p95" }, "properties": [{ "id": "color", "value": { "fixedColor": "orange", "mode": "fixed" } }] }
+            ]
+          },
+          "targets": [
+            { "expr": "histogram_quantile(0.50, sum(rate(k6_concurrent_delete_latency_bucket[1m])) by (le))", "legendFormat": "p50", "refId": "A" },
+            { "expr": "histogram_quantile(0.95, sum(rate(k6_concurrent_delete_latency_bucket[1m])) by (le))", "legendFormat": "p95", "refId": "B" }
+          ],
+          "options": { "legend": { "displayMode": "list", "placement": "bottom", "calcs": ["lastNotNull", "max"] }, "tooltip": { "mode": "multi", "sort": "desc" } }
+        },
+        {
+          "id": 56,
+          "title": "Read-All Latency (ms)",
+          "description": "Latency for read-all operations during concurrent conflicts",
+          "type": "timeseries",
+          "gridPos": { "h": 7, "w": 8, "x": 16, "y": 64 },
+          "datasource": { "type": "prometheus", "uid": "Prometheus" },
+          "fieldConfig": {
+            "defaults": {
+              "color": { "mode": "palette-classic" },
+              "custom": { "drawStyle": "line", "fillOpacity": 10, "lineInterpolation": "smooth", "lineWidth": 2, "showPoints": "never", "spanNulls": false, "stacking": { "mode": "none" }, "thresholdsStyle": { "mode": "line" } },
+              "unit": "ms",
+              "thresholds": { "mode": "absolute", "steps": [{ "color": "transparent", "value": null }, { "color": "red", "value": 500 }] }
+            },
+            "overrides": [
+              { "matcher": { "id": "byName", "options": "p50" }, "properties": [{ "id": "color", "value": { "fixedColor": "green", "mode": "fixed" } }] },
+              { "matcher": { "id": "byName", "options": "p95" }, "properties": [{ "id": "color", "value": { "fixedColor": "orange", "mode": "fixed" } }] }
+            ]
+          },
+          "targets": [
+            { "expr": "histogram_quantile(0.50, sum(rate(k6_read_all_latency_bucket[1m])) by (le))", "legendFormat": "p50", "refId": "A" },
+            { "expr": "histogram_quantile(0.95, sum(rate(k6_read_all_latency_bucket[1m])) by (le))", "legendFormat": "p95", "refId": "B" }
+          ],
+          "options": { "legend": { "displayMode": "list", "placement": "bottom", "calcs": ["lastNotNull", "max"] }, "tooltip": { "mode": "multi", "sort": "desc" } }
+        }
+      ]
+    },
+
+    {
+      "id": 60,
+      "title": "HTTP General",
+      "type": "row",
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 71 },
+      "collapsed": true,
+      "panels": [
+        {
+          "id": 61,
+          "title": "HTTP Request Duration (percentiles)",
+          "description": "HTTP request duration p50, p90, p95, p99",
+          "type": "timeseries",
+          "gridPos": { "h": 8, "w": 12, "x": 0, "y": 72 },
+          "datasource": { "type": "prometheus", "uid": "Prometheus" },
+          "fieldConfig": {
+            "defaults": {
+              "color": { "mode": "palette-classic" },
+              "custom": { "drawStyle": "line", "fillOpacity": 10, "lineInterpolation": "smooth", "lineWidth": 2, "showPoints": "never", "spanNulls": false, "stacking": { "mode": "none" }, "thresholdsStyle": { "mode": "off" } },
+              "unit": "s",
+              "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "yellow", "value": 0.5 }, { "color": "red", "value": 1.0 }] }
+            },
+            "overrides": [
+              { "matcher": { "id": "byName", "options": "p99" }, "properties": [{ "id": "color", "value": { "fixedColor": "red", "mode": "fixed" } }] },
+              { "matcher": { "id": "byName", "options": "p95" }, "properties": [{ "id": "color", "value": { "fixedColor": "orange", "mode": "fixed" } }] },
+              { "matcher": { "id": "byName", "options": "p90" }, "properties": [{ "id": "color", "value": { "fixedColor": "yellow", "mode": "fixed" } }] },
+              { "matcher": { "id": "byName", "options": "p50" }, "properties": [{ "id": "color", "value": { "fixedColor": "green", "mode": "fixed" } }] }
+            ]
+          },
+          "targets": [
+            { "expr": "histogram_quantile(0.50, sum(rate(k6_http_req_duration_seconds_bucket{scenario=~\"$scenario\"}[1m])) by (le))", "legendFormat": "p50", "refId": "A" },
+            { "expr": "histogram_quantile(0.90, sum(rate(k6_http_req_duration_seconds_bucket{scenario=~\"$scenario\"}[1m])) by (le))", "legendFormat": "p90", "refId": "B" },
+            { "expr": "histogram_quantile(0.95, sum(rate(k6_http_req_duration_seconds_bucket{scenario=~\"$scenario\"}[1m])) by (le))", "legendFormat": "p95", "refId": "C" },
+            { "expr": "histogram_quantile(0.99, sum(rate(k6_http_req_duration_seconds_bucket{scenario=~\"$scenario\"}[1m])) by (le))", "legendFormat": "p99", "refId": "D" }
+          ],
+          "options": { "legend": { "displayMode": "list", "placement": "bottom", "calcs": ["lastNotNull", "max", "mean"] }, "tooltip": { "mode": "multi", "sort": "desc" } }
+        },
+        {
+          "id": 62,
+          "title": "HTTP Failure Rate (%)",
+          "description": "Percentage of failed HTTP requests over time",
+          "type": "timeseries",
+          "gridPos": { "h": 8, "w": 12, "x": 12, "y": 72 },
+          "datasource": { "type": "prometheus", "uid": "Prometheus" },
+          "fieldConfig": {
+            "defaults": {
+              "color": { "mode": "fixed", "fixedColor": "red" },
+              "custom": { "drawStyle": "line", "fillOpacity": 25, "gradientMode": "scheme", "lineInterpolation": "smooth", "lineWidth": 2, "showPoints": "never", "spanNulls": false, "stacking": { "mode": "none" }, "thresholdsStyle": { "mode": "area" } },
+              "unit": "percent", "min": 0, "max": 100,
+              "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "yellow", "value": 1 }, { "color": "red", "value": 5 }] }
+            }, "overrides": []
+          },
+          "targets": [
+            { "expr": "sum(rate(k6_http_req_failed_total{scenario=~\"$scenario\"}[1m])) / sum(rate(k6_http_reqs_total{scenario=~\"$scenario\"}[1m])) * 100", "legendFormat": "Failure Rate %", "refId": "A" }
+          ],
+          "options": { "legend": { "displayMode": "list", "placement": "bottom", "calcs": ["lastNotNull", "max", "mean"] }, "tooltip": { "mode": "single", "sort": "none" } }
+        },
+        {
+          "id": 63,
+          "title": "HTTP Duration by Endpoint",
+          "description": "p95 latency by tagged endpoint name",
+          "type": "timeseries",
+          "gridPos": { "h": 8, "w": 12, "x": 0, "y": 80 },
+          "datasource": { "type": "prometheus", "uid": "Prometheus" },
+          "fieldConfig": {
+            "defaults": {
+              "color": { "mode": "palette-classic" },
+              "custom": { "drawStyle": "line", "fillOpacity": 5, "lineInterpolation": "smooth", "lineWidth": 1, "showPoints": "never", "spanNulls": false, "stacking": { "mode": "none" }, "thresholdsStyle": { "mode": "off" } },
+              "unit": "s"
+            }, "overrides": []
+          },
+          "targets": [
+            { "expr": "histogram_quantile(0.95, sum by (le, name) (rate(k6_http_req_duration_seconds_bucket{scenario=~\"$scenario\", name!=\"\"}[1m])))", "legendFormat": "{{name}}", "refId": "A" }
+          ],
+          "options": { "legend": { "displayMode": "table", "placement": "right", "calcs": ["lastNotNull", "max"] }, "tooltip": { "mode": "multi", "sort": "desc" } }
+        },
+        {
+          "id": 64,
+          "title": "Data Transfer & Iterations",
+          "description": "Data received/sent rates and iteration duration",
+          "type": "timeseries",
+          "gridPos": { "h": 8, "w": 12, "x": 12, "y": 80 },
+          "datasource": { "type": "prometheus", "uid": "Prometheus" },
+          "fieldConfig": {
+            "defaults": {
+              "color": { "mode": "palette-classic" },
+              "custom": { "drawStyle": "line", "fillOpacity": 15, "gradientMode": "scheme", "lineInterpolation": "smooth", "lineWidth": 2, "showPoints": "never", "spanNulls": false, "stacking": { "mode": "none" }, "thresholdsStyle": { "mode": "off" } },
+              "unit": "Bps"
+            },
+            "overrides": [
+              { "matcher": { "id": "byName", "options": "Data Received" }, "properties": [{ "id": "color", "value": { "fixedColor": "blue", "mode": "fixed" } }] },
+              { "matcher": { "id": "byName", "options": "Data Sent" }, "properties": [{ "id": "color", "value": { "fixedColor": "orange", "mode": "fixed" } }] }
+            ]
+          },
+          "targets": [
+            { "expr": "sum(rate(k6_data_received[1m]))", "legendFormat": "Data Received", "refId": "A" },
+            { "expr": "sum(rate(k6_data_sent[1m]))", "legendFormat": "Data Sent", "refId": "B" }
+          ],
+          "options": { "legend": { "displayMode": "list", "placement": "bottom", "calcs": ["lastNotNull", "max", "mean"] }, "tooltip": { "mode": "multi", "sort": "desc" } }
+        },
+        {
+          "id": 65,
+          "title": "Iteration Duration",
+          "description": "Full test iteration duration p50, p95",
+          "type": "timeseries",
+          "gridPos": { "h": 8, "w": 12, "x": 0, "y": 88 },
+          "datasource": { "type": "prometheus", "uid": "Prometheus" },
+          "fieldConfig": {
+            "defaults": {
+              "color": { "mode": "palette-classic" },
+              "custom": { "drawStyle": "line", "fillOpacity": 10, "lineInterpolation": "smooth", "lineWidth": 2, "showPoints": "never", "spanNulls": false, "stacking": { "mode": "none" }, "thresholdsStyle": { "mode": "off" } },
+              "unit": "s",
+              "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "yellow", "value": 2 }, { "color": "red", "value": 5 }] }
+            },
+            "overrides": [
+              { "matcher": { "id": "byName", "options": "p95" }, "properties": [{ "id": "color", "value": { "fixedColor": "orange", "mode": "fixed" } }] },
+              { "matcher": { "id": "byName", "options": "p50" }, "properties": [{ "id": "color", "value": { "fixedColor": "green", "mode": "fixed" } }] }
+            ]
+          },
+          "targets": [
+            { "expr": "histogram_quantile(0.50, sum(rate(k6_iteration_duration_seconds_bucket[1m])) by (le))", "legendFormat": "p50", "refId": "A" },
+            { "expr": "histogram_quantile(0.95, sum(rate(k6_iteration_duration_seconds_bucket[1m])) by (le))", "legendFormat": "p95", "refId": "B" }
+          ],
+          "options": { "legend": { "displayMode": "list", "placement": "bottom", "calcs": ["lastNotNull", "max", "mean"] }, "tooltip": { "mode": "multi", "sort": "desc" } }
+        },
+        {
+          "id": 66,
+          "title": "Checks Pass Rate",
+          "description": "k6 checks success rate over time",
+          "type": "timeseries",
+          "gridPos": { "h": 8, "w": 12, "x": 12, "y": 88 },
+          "datasource": { "type": "prometheus", "uid": "Prometheus" },
+          "fieldConfig": {
+            "defaults": {
+              "color": { "fixedColor": "green", "mode": "fixed" },
+              "custom": { "drawStyle": "line", "fillOpacity": 15, "gradientMode": "scheme", "lineInterpolation": "smooth", "lineWidth": 2, "showPoints": "never", "spanNulls": false, "stacking": { "mode": "none" }, "thresholdsStyle": { "mode": "off" } },
+              "unit": "short"
+            }, "overrides": []
+          },
+          "targets": [
+            { "expr": "sum(rate(k6_checks[1m]))", "legendFormat": "Checks/s", "refId": "A" }
+          ],
+          "options": { "legend": { "displayMode": "list", "placement": "bottom", "calcs": ["lastNotNull", "max", "mean"] }, "tooltip": { "mode": "single", "sort": "none" } }
+        }
+      ]
+    },
+
+    {
+      "id": 70,
+      "title": "Error Rate Correlation",
+      "type": "row",
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 96 },
+      "collapsed": true,
+      "panels": [
+        {
+          "id": 71,
+          "title": "VU vs Error Rate Correlation",
+          "description": "VU count overlaid with error rates to identify saturation points",
+          "type": "timeseries",
+          "gridPos": { "h": 8, "w": 24, "x": 0, "y": 97 },
+          "datasource": { "type": "prometheus", "uid": "Prometheus" },
+          "fieldConfig": {
+            "defaults": {
+              "color": { "mode": "palette-classic" },
+              "custom": { "drawStyle": "line", "fillOpacity": 5, "lineInterpolation": "smooth", "lineWidth": 2, "showPoints": "never", "spanNulls": false, "stacking": { "mode": "none" }, "thresholdsStyle": { "mode": "off" },
+                "axisPlacement": "auto"
+              },
+              "unit": "short"
+            },
+            "overrides": [
+              {
+                "matcher": { "id": "byName", "options": "VUs" },
+                "properties": [
+                  { "id": "color", "value": { "fixedColor": "blue", "mode": "fixed" } },
+                  { "id": "custom.fillOpacity", "value": 20 },
+                  { "id": "custom.axisPlacement", "value": "left" },
+                  { "id": "unit", "value": "short" }
+                ]
+              },
+              {
+                "matcher": { "id": "byName", "options": "Custom Error Rate" },
+                "properties": [
+                  { "id": "color", "value": { "fixedColor": "red", "mode": "fixed" } },
+                  { "id": "custom.axisPlacement", "value": "right" },
+                  { "id": "unit", "value": "percentunit" }
+                ]
+              },
+              {
+                "matcher": { "id": "byName", "options": "HTTP Failure Rate" },
+                "properties": [
+                  { "id": "color", "value": { "fixedColor": "orange", "mode": "fixed" } },
+                  { "id": "custom.axisPlacement", "value": "right" },
+                  { "id": "unit", "value": "percentunit" }
+                ]
+              },
+              {
+                "matcher": { "id": "byName", "options": "REST API Success" },
+                "properties": [
+                  { "id": "color", "value": { "fixedColor": "green", "mode": "fixed" } },
+                  { "id": "custom.axisPlacement", "value": "right" },
+                  { "id": "unit", "value": "percentunit" }
+                ]
+              }
+            ]
+          },
+          "targets": [
+            { "expr": "k6_vus", "legendFormat": "VUs", "refId": "A" },
+            { "expr": "k6_errors", "legendFormat": "Custom Error Rate", "refId": "B" },
+            { "expr": "sum(rate(k6_http_req_failed_total[1m])) / sum(rate(k6_http_reqs_total[1m]))", "legendFormat": "HTTP Failure Rate", "refId": "C" },
+            { "expr": "k6_rest_api_success or k6_rest_success_during_saturation", "legendFormat": "REST API Success", "refId": "D" }
+          ],
+          "options": { "legend": { "displayMode": "table", "placement": "bottom", "calcs": ["lastNotNull", "min", "max", "mean"] }, "tooltip": { "mode": "multi", "sort": "desc" } }
+        },
+        {
+          "id": 72,
+          "title": "VU vs SSE Success Correlation",
+          "description": "VU count overlaid with SSE success rates",
+          "type": "timeseries",
+          "gridPos": { "h": 8, "w": 24, "x": 0, "y": 105 },
+          "datasource": { "type": "prometheus", "uid": "Prometheus" },
+          "fieldConfig": {
+            "defaults": {
+              "color": { "mode": "palette-classic" },
+              "custom": { "drawStyle": "line", "fillOpacity": 5, "lineInterpolation": "smooth", "lineWidth": 2, "showPoints": "never", "spanNulls": false, "stacking": { "mode": "none" }, "thresholdsStyle": { "mode": "off" } },
+              "unit": "short"
+            },
+            "overrides": [
+              {
+                "matcher": { "id": "byName", "options": "VUs" },
+                "properties": [
+                  { "id": "color", "value": { "fixedColor": "blue", "mode": "fixed" } },
+                  { "id": "custom.fillOpacity", "value": 20 },
+                  { "id": "custom.axisPlacement", "value": "left" }
+                ]
+              },
+              {
+                "matcher": { "id": "byName", "options": "SSE Connection" },
+                "properties": [
+                  { "id": "color", "value": { "fixedColor": "green", "mode": "fixed" } },
+                  { "id": "custom.axisPlacement", "value": "right" },
+                  { "id": "unit", "value": "percentunit" }
+                ]
+              },
+              {
+                "matcher": { "id": "byName", "options": "SSE Lifecycle" },
+                "properties": [
+                  { "id": "color", "value": { "fixedColor": "purple", "mode": "fixed" } },
+                  { "id": "custom.axisPlacement", "value": "right" },
+                  { "id": "unit", "value": "percentunit" }
+                ]
+              },
+              {
+                "matcher": { "id": "byName", "options": "SSE Delivery" },
+                "properties": [
+                  { "id": "color", "value": { "fixedColor": "orange", "mode": "fixed" } },
+                  { "id": "custom.axisPlacement", "value": "right" },
+                  { "id": "unit", "value": "percentunit" }
+                ]
+              }
+            ]
+          },
+          "targets": [
+            { "expr": "k6_vus", "legendFormat": "VUs", "refId": "A" },
+            { "expr": "k6_sse_connection_success or k6_connected_user_sse_success", "legendFormat": "SSE Connection", "refId": "B" },
+            { "expr": "k6_sse_lifecycle_success", "legendFormat": "SSE Lifecycle", "refId": "C" },
+            { "expr": "k6_sse_delivery_success", "legendFormat": "SSE Delivery", "refId": "D" }
+          ],
+          "options": { "legend": { "displayMode": "table", "placement": "bottom", "calcs": ["lastNotNull", "min", "max", "mean"] }, "tooltip": { "mode": "multi", "sort": "desc" } }
+        }
+      ]
+    }
+  ],
+  "schemaVersion": 39,
+  "version": 2,
+  "weekStart": ""
+}

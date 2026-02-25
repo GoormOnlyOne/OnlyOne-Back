@@ -192,7 +192,7 @@ function connectSSE(user, timeout) {
     const token = generateJWT(user);
     const start = Date.now();
 
-    const res = http.get(`${BASE_URL}/sse/subscribe`, {
+    const res = http.get(`${BASE_URL}/api/v1/sse/subscribe`, {
         headers: sseHeaders(token),
         timeout: timeout || '3s',
         responseType: 'text',
@@ -481,7 +481,7 @@ export function setup() {
     console.log(`List check: status=${list.status}, body_len=${list.body ? list.body.length : 0}`);
 
     // SSE check
-    const sse = http.get(`${BASE_URL}/sse/subscribe`, {
+    const sse = http.get(`${BASE_URL}/api/v1/sse/subscribe`, {
         headers: sseHeaders(token),
         timeout: '2s',
         responseType: 'text',

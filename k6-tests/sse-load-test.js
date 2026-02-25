@@ -173,7 +173,7 @@ function getRandomUser() {
 
 function connectSSE(user, lastEventId = null) {
     const token = generateJWT(user);
-    let url = `${BASE_URL}/sse/subscribe`;
+    let url = `${BASE_URL}/api/v1/sse/subscribe`;
 
     // Last-Event-ID가 있으면 쿼리 파라미터로 전달
     if (lastEventId) {
