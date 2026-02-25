@@ -5,6 +5,7 @@ import com.example.onlyone.domain.club.repository.ClubRepository;
 import com.example.onlyone.domain.club.repository.UserClubRepository;
 import com.example.onlyone.domain.feed.dto.response.FeedDetailResponseDto;
 import com.example.onlyone.domain.feed.entity.*;
+import com.example.onlyone.domain.feed.repository.FeedCommentRepository;
 import com.example.onlyone.domain.feed.repository.FeedLikeRepository;
 import com.example.onlyone.domain.feed.repository.FeedRepository;
 import com.example.onlyone.domain.user.entity.Gender;
@@ -19,11 +20,17 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import jakarta.persistence.EntityManager;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.redis.core.StringRedisTemplate;
 
 import java.time.LocalDate;
+import java.util.List;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -33,9 +40,12 @@ class FeedQueryServiceTest {
     @InjectMocks private FeedQueryService feedQueryService;
     @Mock private ClubRepository clubRepository;
     @Mock private FeedRepository feedRepository;
+    @Mock private FeedCommentRepository feedCommentRepository;
     @Mock private FeedLikeRepository feedLikeRepository;
     @Mock private UserService userService;
     @Mock private UserClubRepository userClubRepository;
+    @Mock private EntityManager entityManager;
+    @Mock private StringRedisTemplate redis;
 
     private User user;
     private User otherUser;
@@ -85,11 +95,13 @@ class FeedQueryServiceTest {
                     .build();
             feedWithCounts.getFeedComments().add(comment);
 
-            when(clubRepository.findById(club.getClubId())).thenReturn(Optional.of(club));
-            when(feedRepository.findByFeedIdAndClub(feedWithCounts.getFeedId(), club)).thenReturn(Optional.of(feedWithCounts));
+            when(feedRepository.findByIdAndClubIdWithRelations(feedWithCounts.getFeedId(), club.getClubId()))
+                    .thenReturn(Optional.of(feedWithCounts));
             when(userService.getCurrentUser()).thenReturn(user);
             when(feedLikeRepository.existsByFeed_FeedIdAndUser_UserId(feedWithCounts.getFeedId(), user.getUserId()))
                     .thenReturn(true);
+            when(feedCommentRepository.findByFeedIdWithUser(eq(feedWithCounts.getFeedId()), any(Pageable.class)))
+                    .thenReturn(List.of(comment));
             when(feedRepository.countByParentFeedId(feedWithCounts.getFeedId())).thenReturn(3L);
 
             FeedDetailResponseDto result = feedQueryService.getFeedDetail(club.getClubId(), feedWithCounts.getFeedId());

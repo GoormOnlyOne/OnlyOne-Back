@@ -15,7 +15,11 @@ import org.springframework.stereotype.Service;
 import java.time.Clock;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 @Slf4j
 @Service
@@ -30,6 +34,11 @@ public class FeedLikeService {
     private final StringRedisTemplate redis;
     private final Clock clock;
 
+    /** 비동기 워밍업용 스레드풀 (최대 2스레드, DB 부하 제한) */
+    private static final ExecutorService warmupExecutor = Executors.newFixedThreadPool(2);
+    /** 현재 워밍업 진행중인 feedId 추적 (중복 제출 방지) */
+    private static final Set<Long> warmingUp = ConcurrentHashMap.newKeySet();
+
     public boolean toggleLike(long clubId, long feedId) {
         if (!clubRepository.existsById(clubId)) {
             throw new CustomException(ErrorCode.CLUB_NOT_FOUND);
@@ -39,7 +48,8 @@ public class FeedLikeService {
         }
         long userId = userService.getCurrentUser().getUserId();
 
-        ensureLikeCacheWarmed(feedId);
+        // 비동기 워밍업 — 현재 요청을 블로킹하지 않음
+        triggerAsyncWarmup(feedId);
 
         String reqId = UUID.randomUUID().toString();
 
@@ -68,43 +78,42 @@ public class FeedLikeService {
     }
 
     /**
-     * Redis에 좋아요 캐시가 없으면 DB에서 복구한다.
-     * Redis 재시작 후 첫 호출 시에만 실행되며, 이후에는 키가 존재하므로 스킵.
+     * 비동기 캐시 워밍업 — DB 쿼리를 별도 스레드에서 실행하여 요청 지연 방지.
+     * Lua 스크립트는 SET이 없어도 정상 동작 (SADD/SREM이 key 자동 생성).
+     * 워밍업이 완료되면 이후 요청부터 정확한 SISMEMBER 결과 반영.
      */
-    private void ensureLikeCacheWarmed(long feedId) {
-        String likersKey = "feed:" + feedId + ":likers";
+    private void triggerAsyncWarmup(long feedId) {
         String countKey = "feed:" + feedId + ":like_count";
-        String warmupLock = "feed:" + feedId + ":warmup_lock";
 
-        // 키가 이미 존재하면 워밍업 불필요
-        if (Boolean.TRUE.equals(redis.hasKey(likersKey)) || Boolean.TRUE.equals(redis.hasKey(countKey))) {
+        // 이미 캐시가 있으면 스킵
+        if (Boolean.TRUE.equals(redis.hasKey(countKey))) {
+            return;
+        }
+        // 이미 워밍업 중이면 스킵
+        if (!warmingUp.add(feedId)) {
             return;
         }
 
-        // SETNX 기반 락으로 동시 워밍업 방지
-        Boolean acquired = redis.opsForValue().setIfAbsent(warmupLock, "1",
-                java.time.Duration.ofSeconds(10));
-        if (!Boolean.TRUE.equals(acquired)) {
-            return;
-        }
+        warmupExecutor.submit(() -> {
+            try {
+                String likersKey = "feed:" + feedId + ":likers";
+                // 제출~실행 사이 다른 스레드가 완료했을 수 있음
+                if (Boolean.TRUE.equals(redis.hasKey(countKey))) {
+                    return;
+                }
 
-        try {
-            // 락 획득 후 다시 확인 (다른 스레드가 이미 완료했을 수 있음)
-            if (Boolean.TRUE.equals(redis.hasKey(likersKey))) {
-                return;
+                List<Long> userIds = feedLikeRepository.findUserIdsByFeedId(feedId);
+                if (!userIds.isEmpty()) {
+                    String[] members = userIds.stream().map(String::valueOf).toArray(String[]::new);
+                    redis.opsForSet().add(likersKey, members);
+                }
+                redis.opsForValue().set(countKey, String.valueOf(userIds.size()));
+                log.debug("좋아요 캐시 워밍업 완료: feedId={}, count={}", feedId, userIds.size());
+            } catch (Exception e) {
+                log.warn("좋아요 캐시 워밍업 실패: feedId={}", feedId, e);
+            } finally {
+                warmingUp.remove(feedId);
             }
-
-            List<Long> userIds = feedLikeRepository.findUserIdsByFeedId(feedId);
-            if (!userIds.isEmpty()) {
-                String[] members = userIds.stream().map(String::valueOf).toArray(String[]::new);
-                redis.opsForSet().add(likersKey, members);
-            }
-            redis.opsForValue().set(countKey, String.valueOf(userIds.size()));
-            log.info("좋아요 캐시 워밍업 완료: feedId={}, count={}", feedId, userIds.size());
-        } catch (Exception e) {
-            log.warn("좋아요 캐시 워밍업 실패: feedId={}", feedId, e);
-        } finally {
-            redis.delete(warmupLock);
-        }
+        });
     }
 }

@@ -24,6 +24,8 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.cache.Cache;
+import org.springframework.cache.CacheManager;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.test.util.ReflectionTestUtils;
 
@@ -49,6 +51,13 @@ class ClubCommandServiceTest {
     @Mock private UserClubRepository userClubRepository;
     @Mock private UserService userService;
     @Mock private ApplicationEventPublisher eventPublisher;
+    @Mock private CacheManager cacheManager;
+    @Mock private Cache cache;
+
+    @org.junit.jupiter.api.BeforeEach
+    void setUp() {
+        lenient().when(cacheManager.getCache("accessibleClubIds")).thenReturn(cache);
+    }
 
     @Nested
     @DisplayName("모임 생성")

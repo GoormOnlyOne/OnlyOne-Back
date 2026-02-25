@@ -66,7 +66,7 @@ class FeedLikeServiceTest {
             // given
             when(clubRepository.existsById(100L)).thenReturn(true);
             when(feedRepository.existsById(10L)).thenReturn(true);
-            when(redis.hasKey("feed:10:likers")).thenReturn(true);
+            when(redis.hasKey("feed:10:like_count")).thenReturn(true);
             when(userService.getCurrentUser()).thenReturn(user);
             when(clock.millis()).thenReturn(Instant.now().toEpochMilli());
             doReturn(List.of(1L, 1L, 1L)).when(redis)
@@ -85,7 +85,7 @@ class FeedLikeServiceTest {
             // given
             when(clubRepository.existsById(100L)).thenReturn(true);
             when(feedRepository.existsById(10L)).thenReturn(true);
-            when(redis.hasKey("feed:10:likers")).thenReturn(true);
+            when(redis.hasKey("feed:10:like_count")).thenReturn(true);
             when(userService.getCurrentUser()).thenReturn(user);
             when(clock.millis()).thenReturn(Instant.now().toEpochMilli());
             doReturn(List.of(0L, 0L, 1L)).when(redis)
@@ -131,7 +131,7 @@ class FeedLikeServiceTest {
             // given
             when(clubRepository.existsById(100L)).thenReturn(true);
             when(feedRepository.existsById(10L)).thenReturn(true);
-            when(redis.hasKey("feed:10:likers")).thenReturn(true);
+            when(redis.hasKey("feed:10:like_count")).thenReturn(true);
             when(userService.getCurrentUser()).thenReturn(user);
             when(clock.millis()).thenReturn(Instant.now().toEpochMilli());
             doReturn(null).when(redis)

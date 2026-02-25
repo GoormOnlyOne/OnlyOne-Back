@@ -83,17 +83,27 @@ BEGIN
         CREATE INDEX idx_feed_like_feed_id ON feed_like(feed_id);
     END IF;
     IF NOT EXISTS (SELECT 1 FROM information_schema.statistics
-                   WHERE table_schema = DATABASE() AND table_name = 'feed_comment' AND index_name = 'idx_feed_comment_feed_id') THEN
-        CREATE INDEX idx_feed_comment_feed_id ON feed_comment(feed_id);
+                   WHERE table_schema = DATABASE() AND table_name = 'feed_comment' AND index_name = 'idx_feed_comment_feed_created') THEN
+        CREATE INDEX idx_feed_comment_feed_created ON feed_comment(feed_id, created_at ASC);
+    END IF;
+    -- 기존 단일 컬럼 idx_feed_comment_feed_id 제거 (복합 인덱스가 대체)
+    IF EXISTS (SELECT 1 FROM information_schema.statistics
+               WHERE table_schema = DATABASE() AND table_name = 'feed_comment' AND index_name = 'idx_feed_comment_feed_id') THEN
+        DROP INDEX idx_feed_comment_feed_id ON feed_comment;
     END IF;
     IF NOT EXISTS (SELECT 1 FROM information_schema.statistics
                    WHERE table_schema = DATABASE() AND table_name = 'feed' AND index_name = 'idx_feed_club_deleted') THEN
         CREATE INDEX idx_feed_club_deleted ON feed(club_id, deleted, created_at DESC);
     END IF;
-    -- 커버링 인덱스: popular/personal 피드 쿼리의 테이블 랜덤 I/O 제거
+    -- 커버링 인덱스: popular 피드 쿼리용 (deleted 선행 — 7일 범위 필터에 유리)
     IF NOT EXISTS (SELECT 1 FROM information_schema.statistics
                    WHERE table_schema = DATABASE() AND table_name = 'feed' AND index_name = 'idx_feed_popular_cover') THEN
         CREATE INDEX idx_feed_popular_cover ON feed(deleted, club_id, created_at, like_count, comment_count, parent_feed_id, feed_id);
+    END IF;
+    -- 커버링 인덱스: personal 피드 쿼리용 (club_id 선행 — IN clause 최적화)
+    IF NOT EXISTS (SELECT 1 FROM information_schema.statistics
+                   WHERE table_schema = DATABASE() AND table_name = 'feed' AND index_name = 'idx_feed_personal_cover') THEN
+        CREATE INDEX idx_feed_personal_cover ON feed(club_id, deleted, created_at DESC, feed_id, like_count, comment_count);
     END IF;
     IF NOT EXISTS (SELECT 1 FROM information_schema.statistics
                    WHERE table_schema = DATABASE() AND table_name = 'feed_image' AND index_name = 'idx_feed_image_feed_id') THEN

@@ -17,6 +17,7 @@ import com.example.onlyone.global.exception.CustomException;
 import com.example.onlyone.global.exception.ErrorCode;
 import com.example.onlyone.common.event.ClubCreatedEvent;
 import com.example.onlyone.common.event.ClubLeftEvent;
+import org.springframework.cache.CacheManager;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.transaction.annotation.Transactional;
@@ -34,6 +35,7 @@ public class ClubCommandService {
     private final UserClubRepository userClubRepository;
     private final UserService userService;
     private final ApplicationEventPublisher eventPublisher;
+    private final CacheManager cacheManager;
 
     public ClubCreateResponseDto createClub(ClubRequestDto requestDto) {
         Interest interest = interestRepository.findByCategory(Category.from(requestDto.category()))
@@ -56,6 +58,7 @@ public class ClubCommandService {
                 club.getName()
         ));
 
+        evictAccessibleClubIds(user.getUserId());
         log.info("모임 생성: clubId={}, userId={}", club.getClubId(), user.getUserId());
         return new ClubCreateResponseDto(club.getClubId());
     }
@@ -105,6 +108,7 @@ public class ClubCommandService {
             throw new CustomException(ErrorCode.ALREADY_JOINED_CLUB);
         }
         clubRepository.incrementMemberCount(club.getClubId());
+        evictAccessibleClubIds(user.getUserId());
         log.info("모임 가입: clubId={}, userId={}", clubId, user.getUserId());
     }
 
@@ -121,8 +125,14 @@ public class ClubCommandService {
         }
         userClubRepository.delete(userClub);
         clubRepository.decrementMemberCount(club.getClubId());
+        evictAccessibleClubIds(user.getUserId());
         eventPublisher.publishEvent(new ClubLeftEvent(clubId, user.getUserId()));
         log.info("모임 탈퇴: clubId={}, userId={}", clubId, user.getUserId());
+    }
+
+    private void evictAccessibleClubIds(Long userId) {
+        var cache = cacheManager.getCache("accessibleClubIds");
+        if (cache != null) cache.evict(userId);
     }
 
     private Club findClubOrThrow(Long clubId) {

@@ -75,7 +75,7 @@ public interface FeedRepository extends JpaRepository<Feed,Long> {
                 .map(p -> new FeedSummaryResponseDto(p.getFeedId(), p.getThumbnailUrl(), p.getLikeCount(), p.getCommentCount()));
     }
 
-    /** Pass 1: 개인 피드 ID + 비정규화 count (correlated subquery 제거) */
+    /** Pass 1: 개인 피드 ID + 비정규화 count (커버링 인덱스 idx_feed_personal_cover 활용) */
     @Query(value = """
         SELECT f.feed_id as feedId,
                f.like_count as likeCount,

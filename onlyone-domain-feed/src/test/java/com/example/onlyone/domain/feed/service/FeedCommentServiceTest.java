@@ -1,7 +1,6 @@
 package com.example.onlyone.domain.feed.service;
 
 import com.example.onlyone.domain.club.entity.Club;
-import com.example.onlyone.domain.club.repository.ClubRepository;
 import com.example.onlyone.domain.club.repository.UserClubRepository;
 import com.example.onlyone.domain.feed.dto.request.FeedCommentRequestDto;
 import com.example.onlyone.domain.feed.entity.Feed;
@@ -22,13 +21,13 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import java.time.LocalDate;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
@@ -36,11 +35,11 @@ import static org.mockito.Mockito.*;
 class FeedCommentServiceTest {
 
     @InjectMocks private FeedCommentService feedCommentService;
-    @Mock private ClubRepository clubRepository;
     @Mock private FeedRepository feedRepository;
     @Mock private FeedCommentRepository feedCommentRepository;
     @Mock private UserClubRepository userClubRepository;
     @Mock private UserService userService;
+    @Mock private TransactionTemplate transactionTemplate;
 
     private User user;
     private User otherUser;
@@ -50,6 +49,13 @@ class FeedCommentServiceTest {
 
     @BeforeEach
     void setUp() {
+        // TransactionTemplate mock이 callback을 실제 실행하도록 설정
+        lenient().doAnswer(invocation -> {
+            java.util.function.Consumer<org.springframework.transaction.TransactionStatus> action = invocation.getArgument(0);
+            action.accept(null);
+            return null;
+        }).when(transactionTemplate).executeWithoutResult(any());
+
         user = User.builder()
                 .userId(1L).kakaoId(11111L).nickname("테스트유저")
                 .status(Status.ACTIVE).gender(Gender.MALE)
@@ -88,8 +94,7 @@ class FeedCommentServiceTest {
         void success() {
             // given
             FeedCommentRequestDto dto = new FeedCommentRequestDto("새 댓글");
-            when(clubRepository.findById(club.getClubId())).thenReturn(Optional.of(club));
-            when(feedRepository.findByFeedIdAndClub(feed.getFeedId(), club)).thenReturn(Optional.of(feed));
+            when(feedRepository.findById(feed.getFeedId())).thenReturn(Optional.of(feed));
             when(userService.getCurrentUser()).thenReturn(user);
             when(userClubRepository.existsByUser_UserIdAndClub_ClubId(user.getUserId(), club.getClubId()))
                     .thenReturn(true);
@@ -107,8 +112,7 @@ class FeedCommentServiceTest {
         void failNotMember() {
             // given
             FeedCommentRequestDto dto = new FeedCommentRequestDto("새 댓글");
-            when(clubRepository.findById(club.getClubId())).thenReturn(Optional.of(club));
-            when(feedRepository.findByFeedIdAndClub(feed.getFeedId(), club)).thenReturn(Optional.of(feed));
+            when(feedRepository.findById(feed.getFeedId())).thenReturn(Optional.of(feed));
             when(userService.getCurrentUser()).thenReturn(user);
             when(userClubRepository.existsByUser_UserIdAndClub_ClubId(user.getUserId(), club.getClubId()))
                     .thenReturn(false);
@@ -123,17 +127,17 @@ class FeedCommentServiceTest {
         }
 
         @Test
-        @DisplayName("실패: 모임이 없으면 CLUB_NOT_FOUND")
-        void failClubNotFound() {
+        @DisplayName("실패: 피드가 없으면 FEED_NOT_FOUND")
+        void failFeedNotFound() {
             // given
             FeedCommentRequestDto dto = new FeedCommentRequestDto("새 댓글");
-            when(clubRepository.findById(999L)).thenReturn(Optional.empty());
+            when(feedRepository.findById(999L)).thenReturn(Optional.empty());
 
             // when & then
-            assertThatThrownBy(() -> feedCommentService.createComment(999L, feed.getFeedId(), dto))
+            assertThatThrownBy(() -> feedCommentService.createComment(club.getClubId(), 999L, dto))
                     .isInstanceOf(CustomException.class)
                     .extracting("errorCode")
-                    .isEqualTo(ErrorCode.CLUB_NOT_FOUND);
+                    .isEqualTo(ErrorCode.FEED_NOT_FOUND);
         }
     }
 
@@ -145,8 +149,7 @@ class FeedCommentServiceTest {
         @DisplayName("성공: 댓글 작성자가 삭제하면 댓글 수가 감소한다")
         void successByCommentAuthor() {
             // given
-            when(clubRepository.findById(club.getClubId())).thenReturn(Optional.of(club));
-            when(feedRepository.findByFeedIdAndClub(feed.getFeedId(), club)).thenReturn(Optional.of(feed));
+            when(feedRepository.findById(feed.getFeedId())).thenReturn(Optional.of(feed));
             when(feedCommentRepository.findById(comment.getFeedCommentId())).thenReturn(Optional.of(comment));
             when(userService.getCurrentUser()).thenReturn(user);
 
@@ -167,8 +170,7 @@ class FeedCommentServiceTest {
                     .feed(feed).user(otherUser)
                     .build();
 
-            when(clubRepository.findById(club.getClubId())).thenReturn(Optional.of(club));
-            when(feedRepository.findByFeedIdAndClub(feed.getFeedId(), club)).thenReturn(Optional.of(feed));
+            when(feedRepository.findById(feed.getFeedId())).thenReturn(Optional.of(feed));
             when(feedCommentRepository.findById(2L)).thenReturn(Optional.of(otherComment));
             when(userService.getCurrentUser()).thenReturn(user); // feed owner
 
@@ -183,8 +185,7 @@ class FeedCommentServiceTest {
         @DisplayName("실패: 권한 없는 사용자이면 UNAUTHORIZED_COMMENT_ACCESS")
         void failUnauthorized() {
             // given
-            when(clubRepository.findById(club.getClubId())).thenReturn(Optional.of(club));
-            when(feedRepository.findByFeedIdAndClub(feed.getFeedId(), club)).thenReturn(Optional.of(feed));
+            when(feedRepository.findById(feed.getFeedId())).thenReturn(Optional.of(feed));
             when(feedCommentRepository.findById(comment.getFeedCommentId())).thenReturn(Optional.of(comment));
             when(userService.getCurrentUser()).thenReturn(otherUser); // neither comment author nor feed author
 

@@ -3,6 +3,7 @@ package com.example.onlyone.domain.club.repository;
 import com.example.onlyone.domain.club.entity.Club;
 import com.example.onlyone.domain.club.entity.UserClub;
 import com.example.onlyone.domain.user.entity.User;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -37,7 +38,8 @@ public interface UserClubRepository extends JpaRepository<UserClub,Long> {
 
     boolean existsByUser_UserIdAndClub_ClubId(Long userId, Long clubId);
 
-    /** 사용자 소속 클럽 ID 목록 (인덱스 스캔, O(1)) */
+    /** 사용자 소속 클럽 ID 목록 (인덱스 스캔, O(1), Redis 캐시 5분) */
+    @Cacheable(value = "accessibleClubIds", key = "#userId")
     @Query(value = "SELECT uc.club_id FROM user_club uc WHERE uc.user_id = :userId", nativeQuery = true)
     List<Long> findAccessibleClubIds(@Param("userId") Long userId);
 }

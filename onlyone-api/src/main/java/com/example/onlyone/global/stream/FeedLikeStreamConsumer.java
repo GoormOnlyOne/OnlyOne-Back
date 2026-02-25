@@ -41,7 +41,7 @@ public class FeedLikeStreamConsumer implements SmartLifecycle {
     private static final String CONSUMER_NAME = "c-" + UUID.randomUUID().toString().substring(0, 8);
 
     private static final Duration BLOCK_TIMEOUT = Duration.ofSeconds(2);
-    private static final int      BATCH_COUNT   = 8;
+    private static final int      BATCH_COUNT   = 1;
     private static final long     MAX_BACKOFF_MS = 5000;
 
     private volatile boolean running = false;

@@ -10,6 +10,7 @@ import java.util.List;
 
 @Getter
 @Builder
+@NoArgsConstructor
 @AllArgsConstructor
 @JsonInclude(Include.NON_NULL)
 public class FeedOverviewDto {
