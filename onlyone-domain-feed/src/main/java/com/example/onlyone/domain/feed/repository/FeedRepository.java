@@ -37,13 +37,23 @@ public interface FeedRepository extends JpaRepository<Feed,Long> {
 
     Optional<Feed> findByFeedIdAndClub(Long feedId, Club club);
 
-    /** getFeedList 최적화: 비정규화 컬럼 사용 — correlated subquery 제거 */
+    /** 피드 상세: Feed + User + Images + Club 한번에 로딩 */
+    @Query("SELECT f FROM Feed f " +
+           "LEFT JOIN FETCH f.user " +
+           "LEFT JOIN FETCH f.club " +
+           "LEFT JOIN FETCH f.feedImages " +
+           "WHERE f.feedId = :feedId AND f.club.clubId = :clubId")
+    Optional<Feed> findByIdAndClubIdWithRelations(@Param("feedId") Long feedId, @Param("clubId") Long clubId);
+
+    /** getFeedList 최적화: LEFT JOIN으로 첫 이미지 가져오기 (상관 서브쿼리 제거) */
     @Query(value = """
         SELECT f.feed_id as feedId,
-               (SELECT fi.feed_image FROM feed_image fi WHERE fi.feed_id = f.feed_id LIMIT 1) as thumbnailUrl,
+               fi_first.feed_image as thumbnailUrl,
                f.like_count as likeCount,
                f.comment_count as commentCount
         FROM feed f
+        LEFT JOIN feed_image fi_first ON fi_first.feed_id = f.feed_id
+            AND fi_first.feed_image_id = (SELECT MIN(fi2.feed_image_id) FROM feed_image fi2 WHERE fi2.feed_id = f.feed_id)
         WHERE f.club_id = :clubId
           AND f.parent_feed_id IS NULL
           AND f.deleted = false
@@ -106,9 +116,10 @@ public interface FeedRepository extends JpaRepository<Feed,Long> {
         Long getCommentCount();
     }
 
-    /** Pass 2: ID 목록으로 Feed + User + FeedImages 한번에 로딩 (N+1 제거) */
+    /** Pass 2: ID 목록으로 Feed + User + Club + FeedImages 한번에 로딩 (N+1 제거) */
     @Query("SELECT DISTINCT f FROM Feed f " +
            "LEFT JOIN FETCH f.user " +
+           "LEFT JOIN FETCH f.club " +
            "LEFT JOIN FETCH f.feedImages " +
            "WHERE f.feedId IN :ids")
     List<Feed> findByIdsWithRelations(@Param("ids") List<Long> ids);

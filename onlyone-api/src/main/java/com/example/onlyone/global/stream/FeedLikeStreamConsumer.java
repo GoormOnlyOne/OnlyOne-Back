@@ -40,8 +40,9 @@ public class FeedLikeStreamConsumer implements SmartLifecycle {
     public static final String GROUP  = "likes-v1";
     private static final String CONSUMER_NAME = "c-" + UUID.randomUUID().toString().substring(0, 8);
 
-    private static final Duration BLOCK_TIMEOUT = Duration.ofSeconds(5);
+    private static final Duration BLOCK_TIMEOUT = Duration.ofSeconds(2);
     private static final int      BATCH_COUNT   = 8;
+    private static final long     MAX_BACKOFF_MS = 5000;
 
     private volatile boolean running = false;
     private Thread worker;
@@ -64,11 +65,14 @@ public class FeedLikeStreamConsumer implements SmartLifecycle {
     private void consumeLoop() {
         final Consumer consumer = Consumer.from(GROUP, CONSUMER_NAME);
         final StreamReadOptions opts = StreamReadOptions.empty().count(BATCH_COUNT).block(BLOCK_TIMEOUT);
+        long backoffMs = 50;
 
         while (running) {
             try {
                 List<MapRecord<String, Object, Object>> records =
                         redis.opsForStream().read(consumer, opts, StreamOffset.create(STREAM, ReadOffset.lastConsumed()));
+
+                backoffMs = 50; // 성공 시 backoff 리셋
 
                 if (records == null || records.isEmpty()) continue;
 
@@ -81,10 +85,12 @@ public class FeedLikeStreamConsumer implements SmartLifecycle {
 
             } catch (DataAccessException dae) {
                 handleDataAccessError(dae);
-                sleepQuiet(50);
+                sleepQuiet(backoffMs);
+                backoffMs = Math.min(backoffMs * 2, MAX_BACKOFF_MS);
             } catch (Exception ex) {
                 log.warn("[likes] unexpected; will NOT ack. err={}", ex.toString());
-                sleepQuiet(50);
+                sleepQuiet(backoffMs);
+                backoffMs = Math.min(backoffMs * 2, MAX_BACKOFF_MS);
             }
         }
     }

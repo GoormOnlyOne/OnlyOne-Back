@@ -18,7 +18,9 @@ import java.util.List;
 @Table(
         name = "feed",
         indexes = {
-                @Index(name = "uq_refeed_once_alive", columnList = "user_id, club_id, active_parent", unique = true)
+                @Index(name = "uq_refeed_once_alive", columnList = "user_id, club_id, active_parent", unique = true),
+                @Index(name = "idx_feed_club_deleted_created", columnList = "club_id, deleted, created_at"),
+                @Index(name = "idx_feed_parent_deleted", columnList = "parent_feed_id, deleted")
         }
 )
 @Getter

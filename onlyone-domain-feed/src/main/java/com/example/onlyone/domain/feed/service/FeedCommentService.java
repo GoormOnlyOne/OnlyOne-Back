@@ -44,9 +44,10 @@ public class FeedCommentService {
         if (!isMember) {
             throw new CustomException(ErrorCode.CLUB_NOT_JOIN);
         }
+        // X lock 선점 → FK check 시 S lock 대신 이미 보유한 X lock 사용 (Deadlock 방지)
+        feedRepository.incrementCommentCount(feedId);
         FeedComment feedComment = requestDto.toEntity(feed, currentUser);
         feedCommentRepository.save(feedComment);
-        feedRepository.incrementCommentCount(feedId);
         log.info("댓글 생성: feedId={}, userId={}", feedId, userId);
     }
 
@@ -69,8 +70,9 @@ public class FeedCommentService {
             throw new CustomException(ErrorCode.UNAUTHORIZED_COMMENT_ACCESS);
         }
 
-        feedCommentRepository.delete(feedComment);
+        // X lock 선점 후 DELETE (Deadlock 방지)
         feedRepository.decrementCommentCount(feedId);
+        feedCommentRepository.delete(feedComment);
         log.info("댓글 삭제: commentId={}, feedId={}, userId={}", commentId, feedId, userId);
     }
 

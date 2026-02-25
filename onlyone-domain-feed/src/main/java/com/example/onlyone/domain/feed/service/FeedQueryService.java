@@ -1,6 +1,5 @@
 package com.example.onlyone.domain.feed.service;
 
-import com.example.onlyone.domain.club.entity.Club;
 import com.example.onlyone.domain.club.repository.ClubRepository;
 import com.example.onlyone.domain.club.repository.UserClubRepository;
 import com.example.onlyone.domain.feed.dto.response.FeedCommentResponseDto;
@@ -9,6 +8,7 @@ import com.example.onlyone.domain.feed.dto.response.FeedOverviewDto;
 import com.example.onlyone.domain.feed.dto.response.FeedSummaryResponseDto;
 import com.example.onlyone.domain.feed.entity.Feed;
 import com.example.onlyone.domain.feed.entity.FeedImage;
+import com.example.onlyone.domain.feed.repository.FeedCommentRepository;
 import com.example.onlyone.domain.feed.repository.FeedLikeRepository;
 import com.example.onlyone.domain.feed.repository.FeedRepository;
 import com.example.onlyone.domain.user.service.UserService;
@@ -33,6 +33,7 @@ public class FeedQueryService {
 
     private final ClubRepository clubRepository;
     private final FeedRepository feedRepository;
+    private final FeedCommentRepository feedCommentRepository;
     private final FeedLikeRepository feedLikeRepository;
     private final UserService userService;
     private final UserClubRepository userClubRepository;
@@ -57,9 +58,8 @@ public class FeedQueryService {
     }
 
     public FeedDetailResponseDto getFeedDetail(Long clubId, Long feedId) {
-        Club club = clubRepository.findById(clubId)
-                .orElseThrow(() -> new CustomException(ErrorCode.CLUB_NOT_FOUND));
-        Feed feed = feedRepository.findByFeedIdAndClub(feedId, club)
+        // 1쿼리: Feed + User + Club + Images JOIN FETCH (N+1 제거)
+        Feed feed = feedRepository.findByIdAndClubIdWithRelations(feedId, clubId)
                 .orElseThrow(() -> new CustomException(ErrorCode.FEED_NOT_FOUND));
         Long currentUserId = userService.getCurrentUser().getUserId();
 
@@ -70,7 +70,8 @@ public class FeedQueryService {
         boolean isLiked = feedLikeRepository.existsByFeed_FeedIdAndUser_UserId(feedId, currentUserId);
         boolean isMine = feed.getUser().getUserId().equals(currentUserId);
 
-        List<FeedCommentResponseDto> commentResponseDtos = feed.getFeedComments().stream()
+        // 1쿼리: Comments + User JOIN FETCH (N+1 제거)
+        List<FeedCommentResponseDto> commentResponseDtos = feedCommentRepository.findByFeedIdWithUser(feedId).stream()
                 .map(comment -> FeedCommentResponseDto.from(comment, currentUserId))
                 .collect(Collectors.toList());
         long repostCount = feedRepository.countByParentFeedId(feedId);
