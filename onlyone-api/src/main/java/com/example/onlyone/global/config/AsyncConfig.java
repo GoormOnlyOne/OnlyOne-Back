@@ -1,7 +1,6 @@
 package com.example.onlyone.global.config;
 
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.DisposableBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.scheduling.annotation.AsyncConfigurer;
@@ -11,15 +10,15 @@ import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Semaphore;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.ThreadPoolExecutor;
-import java.util.concurrent.TimeUnit;
 
 /**
  * 비동기 처리 설정
  * - 기본 @Async 실행자: 플랫폼 스레드 기반 ThreadPoolTaskExecutor
  * - 커스텀 실행자: 특정 작업용 (DB 저장, 메일 발송 등)
- * - SSE/알림 실행자는 SseConfig에서 Virtual Thread로 별도 설정
+ * - SSE 이벤트 전송: Virtual Thread (무제한, JDK 관리)
  */
 @Slf4j
 @Configuration
@@ -80,41 +79,14 @@ public class AsyncConfig implements AsyncConfigurer {
     }
 
     /**
-     * 무제한 가상 스레드에 세마포어로 동시 실행 상한을 주고,
-     * 종료 시 graceful shutdown을 보장하는 래퍼.
-     * execute() 호출 스레드를 블로킹하지 않기 위해,
-     * 실제 대기는 가상 스레드 안에서 수행한다.
+     * SSE 이벤트 전송용 Virtual Thread Executor
+     * JDBC 호출 없이 응답 스트림에 쓰기만 하므로 pinning 문제 없음.
+     * 동시 전송 수는 실제 SSE 연결 수로 자연 제한됨.
      */
-    static class BoundedVtExecutor implements Executor, DisposableBean {
-        private final ExecutorService es;
-        private final Semaphore sem;
-        private final int awaitSec;
-
-        BoundedVtExecutor(ExecutorService es, int permits, int awaitSec) {
-            this.es = es;
-            this.sem = new Semaphore(permits);
-            this.awaitSec = awaitSec;
-        }
-
-        @Override
-        public void execute(Runnable task) {
-            // 제출 스레드는 즉시 반환, 가상 스레드 내에서 상한 대기
-            es.execute(() -> {
-                sem.acquireUninterruptibly();
-                try {
-                    task.run();
-                } finally {
-                    sem.release();
-                }
-            });
-        }
-
-        @Override
-        public void destroy() throws Exception {
-            es.shutdown(); // 새 작업 받지 않음
-            if (!es.awaitTermination(awaitSec, TimeUnit.SECONDS)) {
-                es.shutdownNow();
-            }
-        }
+    @Bean(name = "sseEventExecutor", destroyMethod = "close")
+    public ExecutorService sseEventExecutor() {
+        ThreadFactory tf = Thread.ofVirtual().name("sse-event-", 0).factory();
+        log.info("SSE Virtual Thread Executor initialized");
+        return Executors.newThreadPerTaskExecutor(tf);
     }
 }

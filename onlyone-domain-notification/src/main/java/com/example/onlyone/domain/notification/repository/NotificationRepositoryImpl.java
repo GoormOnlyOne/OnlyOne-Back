@@ -1,7 +1,6 @@
 package com.example.onlyone.domain.notification.repository;
 
 import com.example.onlyone.domain.notification.dto.response.NotificationItemDto;
-import com.example.onlyone.domain.notification.entity.Notification;
 import com.example.onlyone.domain.notification.entity.NotificationType;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -51,11 +50,6 @@ public class NotificationRepositoryImpl implements NotificationRepositoryCustom 
                 .getSingleResult();
 
         return result instanceof Number n ? n.longValue() : 0L;
-    }
-
-    @Override
-    public Notification findByIdWithFetchJoin(Long notificationId) {
-        return entityManager.find(Notification.class, notificationId);
     }
 
     @Override

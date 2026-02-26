@@ -56,10 +56,10 @@ class MessageCommandServiceTest {
     }
 
     private void stubCommonSaveMessageDependencies(ChatRoom chatRoom, User user) {
-        given(chatRoomRepository.findById(chatRoom.getChatRoomId())).willReturn(Optional.of(chatRoom));
-        given(userRepository.findById(user.getUserId())).willReturn(Optional.of(user));
         given(userChatRoomRepository.existsByUserUserIdAndChatRoomChatRoomId(
                 user.getUserId(), chatRoom.getChatRoomId())).willReturn(true);
+        given(userRepository.findById(user.getUserId())).willReturn(Optional.of(user));
+        given(chatRoomRepository.getReferenceById(chatRoom.getChatRoomId())).willReturn(chatRoom);
     }
 
     // ========== sendAndPublish 테스트 ==========
@@ -216,21 +216,22 @@ class MessageCommandServiceTest {
         }
 
         @Test
-        @DisplayName("실패: 채팅방이 없으면 CHAT_ROOM_NOT_FOUND")
+        @DisplayName("실패: 존재하지 않는 채팅방이면 FORBIDDEN_CHAT_ROOM (멤버십 검증 fail-fast)")
         void saveMessage_chatRoomNotFound_throwsException() {
-            given(chatRoomRepository.findById(999L)).willReturn(Optional.empty());
+            given(userChatRoomRepository.existsByUserUserIdAndChatRoomChatRoomId(DEFAULT_USER_ID, 999L))
+                    .willReturn(false);
 
             assertThatThrownBy(() -> messageCommandService.saveMessage(999L, DEFAULT_USER_ID, "메시지"))
                     .isInstanceOf(CustomException.class)
                     .extracting(e -> ((CustomException) e).getErrorCode())
-                    .isEqualTo(ErrorCode.CHAT_ROOM_NOT_FOUND);
+                    .isEqualTo(ErrorCode.FORBIDDEN_CHAT_ROOM);
         }
 
         @Test
         @DisplayName("실패: 사용자가 없으면 USER_NOT_FOUND")
         void saveMessage_userNotFound_throwsException() {
-            ChatRoom chatRoom = clubChatRoom(1L, club());
-            given(chatRoomRepository.findById(1L)).willReturn(Optional.of(chatRoom));
+            given(userChatRoomRepository.existsByUserUserIdAndChatRoomChatRoomId(999L, 1L))
+                    .willReturn(true);
             given(userRepository.findById(999L)).willReturn(Optional.empty());
 
             assertThatThrownBy(() -> messageCommandService.saveMessage(1L, 999L, "메시지"))
@@ -242,11 +243,6 @@ class MessageCommandServiceTest {
         @Test
         @DisplayName("실패: 채팅방 미참여면 FORBIDDEN_CHAT_ROOM")
         void saveMessage_notJoined_throwsException() {
-            ChatRoom chatRoom = clubChatRoom(1L, club());
-            User user = user();
-
-            given(chatRoomRepository.findById(1L)).willReturn(Optional.of(chatRoom));
-            given(userRepository.findById(DEFAULT_USER_ID)).willReturn(Optional.of(user));
             given(userChatRoomRepository.existsByUserUserIdAndChatRoomChatRoomId(DEFAULT_USER_ID, 1L))
                     .willReturn(false);
 
@@ -331,7 +327,7 @@ class MessageCommandServiceTest {
         }
 
         @Test
-        @DisplayName("실패: 본인 메시지가 아니면 MESSAGE_DELETE_ERROR")
+        @DisplayName("실패: 본인 메시지가 아니면 MESSAGE_FORBIDDEN")
         void deleteMessage_notOwner_throwsException() {
             ChatRoom chatRoom = clubChatRoom(1L, club());
             User user = user();
@@ -342,7 +338,7 @@ class MessageCommandServiceTest {
             assertThatThrownBy(() -> messageCommandService.deleteMessage(1L, 999L))
                     .isInstanceOf(CustomException.class)
                     .extracting(e -> ((CustomException) e).getErrorCode())
-                    .isEqualTo(ErrorCode.MESSAGE_DELETE_ERROR);
+                    .isEqualTo(ErrorCode.MESSAGE_FORBIDDEN);
         }
     }
 }

@@ -34,91 +34,50 @@ public class ChatScheduleEventListener {
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void handleScheduleCreatedEvent(ScheduleCreatedEvent event) {
-        log.info("[Event.Received] type=ScheduleCreatedEvent, scheduleId={}, scheduleName={}",
-                event.scheduleId(), event.scheduleName());
+        Club club = clubRepository.getReferenceById(event.clubId());
+        User user = userRepository.getReferenceById(event.leaderUserId());
 
-        try {
-            Club club = clubRepository.findById(event.clubId())
-                    .orElseThrow(() -> new IllegalArgumentException("Club not found: " + event.clubId()));
+        ChatRoom chatRoom = chatRoomCommandService.createChatRoom(
+                club, ChatRoomType.SCHEDULE, event.scheduleId());
+        chatRoomCommandService.addMember(chatRoom, user, ChatRole.LEADER);
 
-            User user = userRepository.findById(event.leaderUserId())
-                    .orElseThrow(() -> new IllegalArgumentException("User not found: " + event.leaderUserId()));
-
-            ChatRoom chatRoom = chatRoomCommandService.createChatRoom(
-                    club, ChatRoomType.SCHEDULE, event.scheduleId());
-            chatRoomCommandService.addMember(chatRoom, user, ChatRole.LEADER);
-
-            log.info("[Event.Completed] type=ScheduleCreatedEvent, scheduleId={}, chatRoomId={}",
-                    event.scheduleId(), chatRoom.getChatRoomId());
-        } catch (Exception e) {
-            log.error("[Event.Failed] type=ScheduleCreatedEvent, scheduleId={}",
-                    event.scheduleId(), e);
-            throw e;
-        }
+        log.info("[ScheduleCreated] scheduleId={}, chatRoomId={}",
+                event.scheduleId(), chatRoom.getChatRoomId());
     }
 
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void handleScheduleJoinedEvent(ScheduleJoinedEvent event) {
-        log.info("[Event.Received] type=ScheduleJoinedEvent, scheduleId={}, userId={}",
-                event.scheduleId(), event.userId());
+        ChatRoom chatRoom = chatRoomRepository
+                .findByTypeAndScheduleId(ChatRoomType.SCHEDULE, event.scheduleId())
+                .orElseThrow(() -> new IllegalStateException(
+                        "ChatRoom not found for scheduleId: " + event.scheduleId()));
 
-        try {
-            ChatRoom chatRoom = chatRoomRepository
-                    .findByTypeAndScheduleId(ChatRoomType.SCHEDULE, event.scheduleId())
-                    .orElseThrow(() -> new IllegalArgumentException(
-                            "ChatRoom not found for scheduleId: " + event.scheduleId()));
+        User user = userRepository.getReferenceById(event.userId());
+        chatRoomCommandService.addMember(chatRoom, user, ChatRole.MEMBER);
 
-            User user = userRepository.findById(event.userId())
-                    .orElseThrow(() -> new IllegalArgumentException("User not found: " + event.userId()));
-
-            chatRoomCommandService.addMember(chatRoom, user, ChatRole.MEMBER);
-
-            log.info("[Event.Completed] type=ScheduleJoinedEvent, scheduleId={}, userId={}, chatRoomId={}",
-                    event.scheduleId(), event.userId(), chatRoom.getChatRoomId());
-        } catch (Exception e) {
-            log.error("[Event.Failed] type=ScheduleJoinedEvent, scheduleId={}, userId={}",
-                    event.scheduleId(), event.userId(), e);
-            throw e;
-        }
+        log.info("[ScheduleJoined] scheduleId={}, userId={}, chatRoomId={}",
+                event.scheduleId(), event.userId(), chatRoom.getChatRoomId());
     }
 
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void handleScheduleLeftEvent(ScheduleLeftEvent event) {
-        log.info("[Event.Received] type=ScheduleLeftEvent, scheduleId={}, userId={}",
-                event.scheduleId(), event.userId());
+        ChatRoom chatRoom = chatRoomRepository
+                .findByTypeAndScheduleId(ChatRoomType.SCHEDULE, event.scheduleId())
+                .orElseThrow(() -> new IllegalStateException(
+                        "ChatRoom not found for scheduleId: " + event.scheduleId()));
 
-        try {
-            ChatRoom chatRoom = chatRoomRepository
-                    .findByTypeAndScheduleId(ChatRoomType.SCHEDULE, event.scheduleId())
-                    .orElseThrow(() -> new IllegalArgumentException(
-                            "ChatRoom not found for scheduleId: " + event.scheduleId()));
+        chatRoomCommandService.removeMember(event.userId(), chatRoom.getChatRoomId());
 
-            chatRoomCommandService.removeMember(event.userId(), chatRoom.getChatRoomId());
-
-            log.info("[Event.Completed] type=ScheduleLeftEvent, scheduleId={}, userId={}",
-                    event.scheduleId(), event.userId());
-        } catch (Exception e) {
-            log.error("[Event.Failed] type=ScheduleLeftEvent, scheduleId={}, userId={}",
-                    event.scheduleId(), event.userId(), e);
-            throw e;
-        }
+        log.info("[ScheduleLeft] scheduleId={}, userId={}", event.scheduleId(), event.userId());
     }
 
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void handleScheduleDeletedEvent(ScheduleDeletedEvent event) {
-        log.info("[Event.Received] type=ScheduleDeletedEvent, scheduleId={}", event.scheduleId());
+        chatRoomCommandService.deleteChatRoomBySchedule(event.scheduleId());
 
-        try {
-            chatRoomCommandService.deleteChatRoomBySchedule(event.scheduleId());
-
-            log.info("[Event.Completed] type=ScheduleDeletedEvent, scheduleId={}", event.scheduleId());
-        } catch (Exception e) {
-            log.error("[Event.Failed] type=ScheduleDeletedEvent, scheduleId={}",
-                    event.scheduleId(), e);
-            throw e;
-        }
+        log.info("[ScheduleDeleted] scheduleId={}", event.scheduleId());
     }
 }

@@ -1,6 +1,5 @@
 package com.example.onlyone.domain.chat.service;
 
-import com.example.onlyone.domain.chat.dto.ChatMessageResponse;
 import com.example.onlyone.domain.chat.dto.ChatRoomMessageResponse;
 import com.example.onlyone.domain.chat.entity.ChatRoom;
 import com.example.onlyone.domain.chat.entity.Message;
@@ -35,40 +34,21 @@ public class MessageQueryService {
         ChatRoom chatRoom = chatRoomRepository.findById(chatRoomId)
                 .orElseThrow(() -> new CustomException(ErrorCode.CHAT_ROOM_NOT_FOUND));
 
-        String chatRoomName = chatRoom.resolveName();
-
         int pageSize = clampPageSize(size);
-        int fetchSize = pageSize + 1;
-        Pageable limit = PageRequest.of(0, fetchSize);
-
-        List<Message> slice;
-        if (cursorId == null || cursorAt == null) {
-            slice = messageRepository.findLatest(chatRoomId, limit);
-        } else {
-            slice = messageRepository.findOlderThan(chatRoomId, cursorAt, cursorId, limit);
-        }
-
+        List<Message> slice = fetchSlice(chatRoomId, pageSize, cursorId, cursorAt);
         boolean hasMore = slice.size() > pageSize;
-        if (hasMore) {
-            slice = slice.subList(0, pageSize);
-        }
-
+        if (hasMore) slice = slice.subList(0, pageSize);
         Collections.reverse(slice);
 
-        Long nextCursorId = null;
-        LocalDateTime nextCursorAt = null;
-        if (!slice.isEmpty()) {
-            Message oldest = slice.get(0);
-            nextCursorId = oldest.getMessageId();
-            nextCursorAt = oldest.getSentAt();
+        return ChatRoomMessageResponse.of(chatRoomId, chatRoom.resolveName(), slice, hasMore);
+    }
+
+    private List<Message> fetchSlice(Long chatRoomId, int pageSize, Long cursorId, LocalDateTime cursorAt) {
+        Pageable limit = PageRequest.of(0, pageSize + 1);
+        if (cursorId == null || cursorAt == null) {
+            return messageRepository.findLatest(chatRoomId, limit);
         }
-
-        List<ChatMessageResponse> messages = slice.stream()
-                .map(ChatMessageResponse::from)
-                .toList();
-
-        return new ChatRoomMessageResponse(
-                chatRoomId, chatRoomName, messages, hasMore, nextCursorId, nextCursorAt);
+        return messageRepository.findOlderThan(chatRoomId, cursorAt, cursorId, limit);
     }
 
     private int clampPageSize(Integer size) {

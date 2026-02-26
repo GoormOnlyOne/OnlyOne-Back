@@ -1,5 +1,6 @@
 package com.example.onlyone.domain.chat.dto;
 
+import com.example.onlyone.domain.chat.entity.Message;
 import com.fasterxml.jackson.annotation.JsonFormat;
 import io.swagger.v3.oas.annotations.media.Schema;
 
@@ -16,4 +17,15 @@ public record ChatRoomMessageResponse(
     @Schema(description = "다음 페이지 조회용 커서(메시지 시간)")
     @JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm:ss") LocalDateTime nextCursorAt
 ) {
+    public static ChatRoomMessageResponse of(
+            Long chatRoomId, String chatRoomName,
+            List<Message> messages, boolean hasMore) {
+        Message oldest = messages.isEmpty() ? null : messages.get(0);
+        return new ChatRoomMessageResponse(
+                chatRoomId, chatRoomName,
+                messages.stream().map(ChatMessageResponse::from).toList(),
+                hasMore,
+                oldest != null ? oldest.getMessageId() : null,
+                oldest != null ? oldest.getSentAt() : null);
+    }
 }

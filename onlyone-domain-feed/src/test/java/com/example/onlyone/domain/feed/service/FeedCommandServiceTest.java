@@ -1,8 +1,6 @@
 package com.example.onlyone.domain.feed.service;
 
 import com.example.onlyone.domain.club.entity.Club;
-import com.example.onlyone.domain.club.entity.ClubRole;
-import com.example.onlyone.domain.club.entity.UserClub;
 import com.example.onlyone.domain.club.repository.ClubRepository;
 import com.example.onlyone.domain.club.repository.UserClubRepository;
 import com.example.onlyone.domain.feed.dto.request.FeedRequestDto;
@@ -88,9 +86,8 @@ class FeedCommandServiceTest {
 
             when(clubRepository.findById(club.getClubId())).thenReturn(Optional.of(club));
             when(userService.getCurrentUser()).thenReturn(user);
-            when(userClubRepository.findByUserAndClub(user, club))
-                    .thenReturn(Optional.of(UserClub.builder()
-                            .userClubId(1L).user(user).club(club).clubRole(ClubRole.MEMBER).build()));
+            when(userClubRepository.existsByUser_UserIdAndClub_ClubId(user.getUserId(), club.getClubId()))
+                    .thenReturn(true);
             when(feedRepository.save(any(Feed.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
             feedCommandService.createFeed(club.getClubId(), requestDto);
@@ -123,7 +120,8 @@ class FeedCommandServiceTest {
             FeedRequestDto requestDto = new FeedRequestDto(List.of("url1.jpg"), "내용");
             when(clubRepository.findById(club.getClubId())).thenReturn(Optional.of(club));
             when(userService.getCurrentUser()).thenReturn(user);
-            when(userClubRepository.findByUserAndClub(user, club)).thenReturn(Optional.empty());
+            when(userClubRepository.existsByUser_UserIdAndClub_ClubId(user.getUserId(), club.getClubId()))
+                    .thenReturn(false);
 
             assertThatThrownBy(() -> feedCommandService.createFeed(club.getClubId(), requestDto))
                     .isInstanceOf(CustomException.class)
@@ -189,7 +187,7 @@ class FeedCommandServiceTest {
         void success() {
             when(clubRepository.findById(club.getClubId())).thenReturn(Optional.of(club));
             when(feedRepository.findByFeedIdAndClub(feed.getFeedId(), club)).thenReturn(Optional.of(feed));
-            when(userService.getCurrentUser()).thenReturn(user);
+            when(userService.getCurrentUserId()).thenReturn(user.getUserId());
             when(feedRepository.clearParentAndRootForChildren(feed.getFeedId())).thenReturn(2);
             when(feedRepository.clearRootForDescendants(feed.getFeedId())).thenReturn(1);
             when(feedRepository.softDeleteById(feed.getFeedId())).thenReturn(1);
@@ -206,7 +204,7 @@ class FeedCommandServiceTest {
         void failUnauthorized() {
             when(clubRepository.findById(club.getClubId())).thenReturn(Optional.of(club));
             when(feedRepository.findByFeedIdAndClub(feed.getFeedId(), club)).thenReturn(Optional.of(feed));
-            when(userService.getCurrentUser()).thenReturn(otherUser);
+            when(userService.getCurrentUserId()).thenReturn(otherUser.getUserId());
 
             assertThatThrownBy(() -> feedCommandService.softDeleteFeed(club.getClubId(), feed.getFeedId()))
                     .isInstanceOf(CustomException.class)
@@ -220,7 +218,7 @@ class FeedCommandServiceTest {
         void failAlreadyDeleted() {
             when(clubRepository.findById(club.getClubId())).thenReturn(Optional.of(club));
             when(feedRepository.findByFeedIdAndClub(feed.getFeedId(), club)).thenReturn(Optional.of(feed));
-            when(userService.getCurrentUser()).thenReturn(user);
+            when(userService.getCurrentUserId()).thenReturn(user.getUserId());
             when(feedRepository.clearParentAndRootForChildren(feed.getFeedId())).thenReturn(0);
             when(feedRepository.clearRootForDescendants(feed.getFeedId())).thenReturn(0);
             when(feedRepository.softDeleteById(feed.getFeedId())).thenReturn(0);

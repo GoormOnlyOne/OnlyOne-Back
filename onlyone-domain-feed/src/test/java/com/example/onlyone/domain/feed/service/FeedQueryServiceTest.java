@@ -20,9 +20,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import jakarta.persistence.EntityManager;
 import org.springframework.data.domain.Pageable;
-import org.springframework.data.redis.core.StringRedisTemplate;
 
 import java.time.LocalDate;
 import java.util.List;
@@ -44,8 +42,8 @@ class FeedQueryServiceTest {
     @Mock private FeedLikeRepository feedLikeRepository;
     @Mock private UserService userService;
     @Mock private UserClubRepository userClubRepository;
-    @Mock private EntityManager entityManager;
-    @Mock private StringRedisTemplate redis;
+    @Mock private FeedCacheService cache;
+    @Mock private FeedRenderService renderService;
 
     private User user;
     private User otherUser;
@@ -97,7 +95,7 @@ class FeedQueryServiceTest {
 
             when(feedRepository.findByIdAndClubIdWithRelations(feedWithCounts.getFeedId(), club.getClubId()))
                     .thenReturn(Optional.of(feedWithCounts));
-            when(userService.getCurrentUser()).thenReturn(user);
+            when(userService.getCurrentUserId()).thenReturn(user.getUserId());
             when(feedLikeRepository.existsByFeed_FeedIdAndUser_UserId(feedWithCounts.getFeedId(), user.getUserId()))
                     .thenReturn(true);
             when(feedCommentRepository.findByFeedIdWithUser(eq(feedWithCounts.getFeedId()), any(Pageable.class)))

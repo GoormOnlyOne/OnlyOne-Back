@@ -9,11 +9,13 @@ import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
-import java.util.concurrent.Semaphore;
+import java.util.Objects;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.TimeUnit;
 
 /**
- * SSE 놓친 알림 복구 — 별도 Bean으로 분리하여 @Transactional 프록시 정상 동작 보장
- * 동시 복구 요청을 세마포어로 제한하여 DB 커넥션 풀 고갈 방지
+ * SSE 놓친 알림 복구 — 별도 Bean으로 분리하여 @Transactional 프록시 정상 동작 보장.
+ * 동시성 제어는 sseEventExecutor(BoundedVtExecutor, 500 permits)가 담당.
  */
 @Slf4j
 @Component
@@ -21,34 +23,19 @@ import java.util.concurrent.Semaphore;
 public class SseMissedNotificationRecovery {
 
     private static final int MAX_RECOVERY_SIZE = 50;
-    private static final int MAX_CONCURRENT_RECOVERY = 30;
+    private static final int SEND_TIMEOUT_SECONDS = 5;
 
     private final NotificationRepository notificationRepository;
     private final SseEventSender sseEventSender;
-    private final Semaphore recoverySemaphore = new Semaphore(MAX_CONCURRENT_RECOVERY);
 
     @Transactional
     public void recover(Long userId) {
-        if (!recoverySemaphore.tryAcquire()) {
-            log.debug("놓친 알림 복구 스킵 (동시 한도 초과): userId={}", userId);
-            return;
-        }
         try {
             List<NotificationItemDto> missed = notificationRepository
                     .findUnsentNotificationsByUserId(userId, MAX_RECOVERY_SIZE);
             if (missed.isEmpty()) return;
 
-            List<Long> sentIds = missed.stream()
-                    .filter(item -> {
-                        try {
-                            return Boolean.TRUE.equals(
-                                    sseEventSender.sendEvent(userId, "notification", item).join());
-                        } catch (Exception e) {
-                            return false;
-                        }
-                    })
-                    .map(NotificationItemDto::notificationId)
-                    .toList();
+            List<Long> sentIds = sendAllInParallel(userId, missed);
 
             if (!sentIds.isEmpty()) {
                 notificationRepository.markSseSentByIds(sentIds);
@@ -56,8 +43,26 @@ public class SseMissedNotificationRecovery {
             log.debug("놓친 알림 복구: userId={}, sent={}/{}", userId, sentIds.size(), missed.size());
         } catch (Exception e) {
             log.warn("놓친 알림 복구 실패: userId={}", userId, e);
-        } finally {
-            recoverySemaphore.release();
         }
+    }
+
+    /**
+     * 모든 알림을 병렬 전송하고, 성공한 ID 목록을 반환한다.
+     * 타임아웃을 적용하여 send 블로킹으로 인한 스레드 점유를 방지.
+     */
+    private List<Long> sendAllInParallel(Long userId, List<NotificationItemDto> missed) {
+        List<CompletableFuture<Long>> futures = missed.stream()
+                .map(item -> sseEventSender.sendEvent(userId, "notification", item)
+                        .orTimeout(SEND_TIMEOUT_SECONDS, TimeUnit.SECONDS)
+                        .thenApply(success -> success ? item.notificationId() : null)
+                        .exceptionally(ex -> null))
+                .toList();
+
+        CompletableFuture.allOf(futures.toArray(CompletableFuture[]::new)).join();
+
+        return futures.stream()
+                .map(CompletableFuture::join)
+                .filter(Objects::nonNull)
+                .toList();
     }
 }

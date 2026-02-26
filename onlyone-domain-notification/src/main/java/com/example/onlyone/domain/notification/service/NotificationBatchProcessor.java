@@ -6,6 +6,7 @@ import com.example.onlyone.domain.notification.entity.Notification;
 import com.example.onlyone.domain.notification.repository.NotificationRepository;
 import com.example.onlyone.sse.service.SseEventSender;
 import jakarta.annotation.PreDestroy;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -32,6 +33,7 @@ import java.util.concurrent.TimeUnit;
  */
 @Slf4j
 @Component
+@RequiredArgsConstructor
 public class NotificationBatchProcessor {
 
     private final NotificationRepository notificationRepository;
@@ -47,34 +49,19 @@ public class NotificationBatchProcessor {
     @Value("${app.notification.batch-timeout-seconds:5}")
     private int batchTimeoutSeconds;
 
-    // 사용자별 전송 대기 큐
     private final Map<Long, BlockingQueue<Notification>> pendingQueues = new ConcurrentHashMap<>();
     private volatile boolean shuttingDown = false;
     private volatile CompletableFuture<Void> currentBatchFuture = CompletableFuture.completedFuture(null);
 
-    public NotificationBatchProcessor(NotificationRepository notificationRepository,
-                                      SseEventSender sseEventSender,
-                                      TransactionTemplate transactionTemplate) {
-        this.notificationRepository = notificationRepository;
-        this.sseEventSender = sseEventSender;
-        this.transactionTemplate = transactionTemplate;
-    }
-
     // ========== 이벤트 수신 ==========
 
-    /**
-     * 알림 생성 트랜잭션 커밋 후, 온라인 사용자의 큐에 알림을 적재한다.
-     */
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     public void onNotificationCreated(NotificationCreatedEvent event) {
-        if (shuttingDown) {
-            return;
-        }
+        if (shuttingDown) return;
 
         Notification notification = event.notification();
         Long userId = notification.getUser().getUserId();
 
-        // 오프라인 사용자는 SSE 전송 불필요
         if (!sseEventSender.isUserConnected(userId)) {
             log.debug("오프라인 사용자 스킵: userId={}", userId);
             return;
@@ -85,25 +72,17 @@ public class NotificationBatchProcessor {
 
     // ========== 주기적 배치 처리 ==========
 
-    /**
-     * 일정 주기로 큐를 확인하여 SSE 전송을 수행한다.
-     */
     @Scheduled(fixedDelayString = "${app.notification.batch-processing-interval:100}")
     public void processBatch() {
-        if (shuttingDown || pendingQueues.isEmpty()) {
-            return;
-        }
-
-        // 이전 배치가 아직 진행 중이면 스킵
+        if (shuttingDown || pendingQueues.isEmpty()) return;
         if (!currentBatchFuture.isDone()) {
             log.debug("이전 배치 진행 중, 스킵");
             return;
         }
 
         List<CompletableFuture<Void>> sendFutures = new ArrayList<>();
-        var snapshot = new ArrayList<>(pendingQueues.entrySet());
 
-        for (var entry : snapshot) {
+        for (var entry : new ArrayList<>(pendingQueues.entrySet())) {
             Long userId = entry.getKey();
             BlockingQueue<Notification> queue = entry.getValue();
 
@@ -116,13 +95,11 @@ public class NotificationBatchProcessor {
             if (!batch.isEmpty()) {
                 sendFutures.add(sendBatchToUser(userId, batch));
             }
-
             if (queue.isEmpty()) {
                 pendingQueues.remove(userId);
             }
         }
 
-        // 모든 사용자 전송 완료 대기 (타임아웃 적용)
         if (!sendFutures.isEmpty()) {
             currentBatchFuture = CompletableFuture.allOf(sendFutures.toArray(CompletableFuture[]::new))
                     .orTimeout(batchTimeoutSeconds, TimeUnit.SECONDS)
@@ -159,13 +136,9 @@ public class NotificationBatchProcessor {
 
     // ========== 내부 메서드 ==========
 
-    /**
-     * 큐에 알림을 추가한다. 큐가 가득 차면 가장 오래된 알림을 제거한다.
-     */
     private void enqueueNotification(Long userId, Notification notification) {
         BlockingQueue<Notification> queue = pendingQueues.computeIfAbsent(
-                userId, k -> new LinkedBlockingQueue<>(maxQueueSizePerUser)
-        );
+                userId, k -> new LinkedBlockingQueue<>(maxQueueSizePerUser));
 
         if (!queue.offer(notification)) {
             log.warn("큐 포화 - 오래된 알림 제거: userId={}", userId);
@@ -181,20 +154,14 @@ public class NotificationBatchProcessor {
     }
 
     private CompletableFuture<Void> sendBatchToUser(Long userId, List<Notification> notifications) {
-        try {
-            List<CompletableFuture<Long>> sendResults = notifications.stream()
-                    .map(n -> sendSingleNotification(userId, n))
-                    .toList();
+        List<CompletableFuture<Long>> sendResults = notifications.stream()
+                .map(n -> sendSingleNotification(userId, n))
+                .toList();
 
-            return CompletableFuture.allOf(sendResults.toArray(CompletableFuture[]::new))
-                    .thenRun(() -> markSentNotifications(userId, sendResults));
-        } catch (Exception e) {
-            log.warn("배치 전송 실패: userId={}, count={}", userId, notifications.size(), e);
-            return CompletableFuture.completedFuture(null);
-        }
+        return CompletableFuture.allOf(sendResults.toArray(CompletableFuture[]::new))
+                .thenRun(() -> markSentNotifications(userId, sendResults));
     }
 
-    /** 단건 SSE 전송. 성공 시 알림 ID, 실패 시 null 반환 */
     private CompletableFuture<Long> sendSingleNotification(Long userId, Notification notification) {
         NotificationSseDto dto = NotificationSseDto.from(notification);
         return sseEventSender.sendEvent(userId, "notification", dto)
@@ -205,21 +172,20 @@ public class NotificationBatchProcessor {
                 });
     }
 
-    /**
-     * 전송 성공한 알림들의 sse_sent를 DB에 반영한다.
-     */
     private void markSentNotifications(Long userId, List<CompletableFuture<Long>> sendResults) {
         List<Long> sentIds = sendResults.stream()
                 .map(CompletableFuture::join)
                 .filter(Objects::nonNull)
                 .toList();
 
-        if (sentIds.isEmpty()) {
-            return;
-        }
+        if (sentIds.isEmpty()) return;
 
-        transactionTemplate.executeWithoutResult(status ->
-                notificationRepository.markSseSentByIds(sentIds));
-        log.debug("SSE 전송 완료: userId={}, count={}", userId, sentIds.size());
+        try {
+            transactionTemplate.executeWithoutResult(status ->
+                    notificationRepository.markSseSentByIds(sentIds));
+            log.debug("SSE 전송 완료: userId={}, count={}", userId, sentIds.size());
+        } catch (Exception e) {
+            log.warn("SSE 전송 후 DB 반영 실패: userId={}, count={}", userId, sentIds.size(), e);
+        }
     }
 }

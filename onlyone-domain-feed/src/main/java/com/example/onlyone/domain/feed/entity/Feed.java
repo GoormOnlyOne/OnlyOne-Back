@@ -84,6 +84,18 @@ public class Feed extends BaseTimeEntity {
     @BatchSize(size = 100)
     private List<FeedImage> feedImages = new ArrayList<>();
 
+    public Feed createRefeed(String content, Club targetClub, User user) {
+        Long rootId = (this.rootFeedId != null) ? this.rootFeedId : this.feedId;
+        return Feed.builder()
+                .content(content)
+                .feedType(FeedType.REFEED)
+                .parentFeedId(this.feedId)
+                .rootFeedId(rootId)
+                .club(targetClub)
+                .user(user)
+                .build();
+    }
+
     public void update(String content) {
         this.content = content;
     }

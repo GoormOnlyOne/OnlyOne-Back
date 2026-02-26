@@ -12,6 +12,7 @@ import java.util.List;
 import java.util.Optional;
 
 public interface UserScheduleRepository extends JpaRepository<UserSchedule,Long> {
+    boolean existsByUser_UserIdAndSchedule_ScheduleId(Long userId, Long scheduleId);
     Optional<UserSchedule> findByUserAndSchedule(User user, Schedule schedule);
     int countBySchedule(Schedule schedule);
     List<UserSchedule> findUserSchedulesBySchedule(Schedule schedule);

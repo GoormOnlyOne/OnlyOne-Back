@@ -25,6 +25,7 @@ import org.springframework.transaction.support.TransactionTemplate;
 
 import java.time.LocalDate;
 import java.util.Optional;
+import java.util.function.Consumer;
 
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
@@ -49,13 +50,6 @@ class FeedCommentServiceTest {
 
     @BeforeEach
     void setUp() {
-        // TransactionTemplate mock이 callback을 실제 실행하도록 설정
-        lenient().doAnswer(invocation -> {
-            java.util.function.Consumer<org.springframework.transaction.TransactionStatus> action = invocation.getArgument(0);
-            action.accept(null);
-            return null;
-        }).when(transactionTemplate).executeWithoutResult(any());
-
         user = User.builder()
                 .userId(1L).kakaoId(11111L).nickname("테스트유저")
                 .status(Status.ACTIVE).gender(Gender.MALE)
@@ -89,10 +83,19 @@ class FeedCommentServiceTest {
     @DisplayName("댓글 생성")
     class CreateComment {
 
+        @SuppressWarnings("unchecked")
+        private void stubTransactionTemplate() {
+            doAnswer(inv -> {
+                ((Consumer<?>) inv.getArgument(0)).accept(null);
+                return null;
+            }).when(transactionTemplate).executeWithoutResult(any());
+        }
+
         @Test
         @DisplayName("성공: 댓글이 저장되고 댓글 수가 증가한다")
         void success() {
             // given
+            stubTransactionTemplate();
             FeedCommentRequestDto dto = new FeedCommentRequestDto("새 댓글");
             when(feedRepository.findById(feed.getFeedId())).thenReturn(Optional.of(feed));
             when(userService.getCurrentUser()).thenReturn(user);
@@ -145,13 +148,22 @@ class FeedCommentServiceTest {
     @DisplayName("댓글 삭제")
     class DeleteComment {
 
+        @SuppressWarnings("unchecked")
+        private void stubTransactionTemplate() {
+            doAnswer(inv -> {
+                ((Consumer<?>) inv.getArgument(0)).accept(null);
+                return null;
+            }).when(transactionTemplate).executeWithoutResult(any());
+        }
+
         @Test
         @DisplayName("성공: 댓글 작성자가 삭제하면 댓글 수가 감소한다")
         void successByCommentAuthor() {
             // given
+            stubTransactionTemplate();
             when(feedRepository.findById(feed.getFeedId())).thenReturn(Optional.of(feed));
             when(feedCommentRepository.findById(comment.getFeedCommentId())).thenReturn(Optional.of(comment));
-            when(userService.getCurrentUser()).thenReturn(user);
+            when(userService.getCurrentUserId()).thenReturn(user.getUserId());
 
             // when
             feedCommentService.deleteComment(club.getClubId(), feed.getFeedId(), comment.getFeedCommentId());
@@ -165,6 +177,7 @@ class FeedCommentServiceTest {
         @DisplayName("성공: 피드 작성자도 댓글을 삭제할 수 있다")
         void successByFeedAuthor() {
             // given
+            stubTransactionTemplate();
             FeedComment otherComment = FeedComment.builder()
                     .feedCommentId(2L).content("다른 사람 댓글")
                     .feed(feed).user(otherUser)
@@ -172,7 +185,7 @@ class FeedCommentServiceTest {
 
             when(feedRepository.findById(feed.getFeedId())).thenReturn(Optional.of(feed));
             when(feedCommentRepository.findById(2L)).thenReturn(Optional.of(otherComment));
-            when(userService.getCurrentUser()).thenReturn(user); // feed owner
+            when(userService.getCurrentUserId()).thenReturn(user.getUserId()); // feed owner
 
             // when
             feedCommentService.deleteComment(club.getClubId(), feed.getFeedId(), 2L);
@@ -187,7 +200,7 @@ class FeedCommentServiceTest {
             // given
             when(feedRepository.findById(feed.getFeedId())).thenReturn(Optional.of(feed));
             when(feedCommentRepository.findById(comment.getFeedCommentId())).thenReturn(Optional.of(comment));
-            when(userService.getCurrentUser()).thenReturn(otherUser); // neither comment author nor feed author
+            when(userService.getCurrentUserId()).thenReturn(otherUser.getUserId()); // neither comment author nor feed author
 
             // when & then
             assertThatThrownBy(() ->

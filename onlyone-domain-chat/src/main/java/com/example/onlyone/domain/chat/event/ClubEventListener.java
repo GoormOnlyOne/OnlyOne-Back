@@ -13,6 +13,7 @@ import com.example.onlyone.domain.user.entity.User;
 import com.example.onlyone.domain.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
@@ -29,45 +30,27 @@ public class ClubEventListener {
     private final ClubRepository clubRepository;
     private final UserRepository userRepository;
 
+    @Async
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void handleClubCreatedEvent(ClubCreatedEvent event) {
-        log.info("[Event.Received] type=ClubCreatedEvent, clubId={}, leaderUserId={}",
-                event.clubId(), event.leaderUserId());
+        Club club = clubRepository.getReferenceById(event.clubId());
+        User user = userRepository.getReferenceById(event.leaderUserId());
 
-        try {
-            Club club = clubRepository.findById(event.clubId())
-                    .orElseThrow(() -> new IllegalArgumentException("Club not found: " + event.clubId()));
+        ChatRoom chatRoom = chatRoomCommandService.createChatRoom(club, ChatRoomType.CLUB, null);
+        chatRoomCommandService.addMember(chatRoom, user, ChatRole.LEADER);
 
-            User user = userRepository.findById(event.leaderUserId())
-                    .orElseThrow(() -> new IllegalArgumentException("User not found: " + event.leaderUserId()));
-
-            ChatRoom chatRoom = chatRoomCommandService.createChatRoom(club, ChatRoomType.CLUB, null);
-            chatRoomCommandService.addMember(chatRoom, user, ChatRole.LEADER);
-
-            log.info("[Event.Completed] type=ClubCreatedEvent, clubId={}, chatRoomId={}",
-                    event.clubId(), chatRoom.getChatRoomId());
-        } catch (Exception e) {
-            log.error("[Event.Failed] type=ClubCreatedEvent, clubId={}", event.clubId(), e);
-            throw e;
-        }
+        log.info("[ClubCreated] clubId={}, chatRoomId={}", event.clubId(), chatRoom.getChatRoomId());
     }
 
+    @Async
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void handleClubLeftEvent(ClubLeftEvent event) {
-        log.info("[Event.Received] type=ClubLeftEvent, clubId={}, userId={}",
-                event.clubId(), event.userId());
+        int deleted = userChatRoomRepository.deleteByUserIdAndClubId(
+                event.userId(), event.clubId());
 
-        try {
-            int deleted = userChatRoomRepository.deleteByUserIdAndClubId(
-                    event.userId(), event.clubId());
-
-            log.info("[Event.Completed] type=ClubLeftEvent, clubId={}, userId={}, deletedChatRooms={}",
-                    event.clubId(), event.userId(), deleted);
-        } catch (Exception e) {
-            log.error("[Event.Failed] type=ClubLeftEvent, clubId={}, userId={}",
-                    event.clubId(), event.userId(), e);
-        }
+        log.info("[ClubLeft] clubId={}, userId={}, deletedChatRooms={}",
+                event.clubId(), event.userId(), deleted);
     }
 }

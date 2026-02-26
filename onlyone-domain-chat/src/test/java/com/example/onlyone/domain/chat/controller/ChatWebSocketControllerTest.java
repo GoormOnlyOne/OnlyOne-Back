@@ -70,6 +70,8 @@ class ChatWebSocketControllerTest {
             then(messageCommandService).should().publishImmediately(
                     eq(chatRoomId), eq(USER_ID), eq("인증유저"),
                     eq(authenticatedUser.getProfileImage()), eq("안녕하세요!"));
+            then(asyncMessageService).should()
+                    .saveMessageAsync(eq(chatRoomId), eq(USER_ID), eq("안녕하세요!"));
         }
 
         @Test

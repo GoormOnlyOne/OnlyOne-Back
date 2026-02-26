@@ -2,8 +2,7 @@ import http from 'k6/http';
 import { check, sleep, group } from 'k6';
 import { Rate, Trend, Counter } from 'k6/metrics';
 import { SharedArray } from 'k6/data';
-import { hmac } from 'k6/crypto';
-import encoding from 'k6/encoding';
+import { generateJWT, BASE_URL, headers as getHeaders } from './lib/common.js';
 
 // ============================================
 // Club 도메인 부하 테스트
@@ -23,9 +22,6 @@ const joinLimitExceeded = new Counter('join_limit_exceeded');
 // ============================================
 // 테스트 설정
 // ============================================
-const BASE_URL = __ENV.BASE_URL || 'http://localhost:8080';
-const JWT_SECRET = __ENV.JWT_SECRET || 'test-secret-key-for-testing-min-256-bits';
-
 export const options = {
     scenarios: {
         // 시나리오 1: 클럽 생성 + 이벤트 발행 (ClubCreatedEvent → ES + ChatRoom)
@@ -119,36 +115,6 @@ const categories = new SharedArray('club_categories', function () {
 // ============================================
 // 유틸리티 함수
 // ============================================
-function generateJWT(user) {
-    const now = Date.now();
-    const expiryDate = now + (3600 * 1000);
-
-    const header = { alg: 'HS512', typ: 'JWT' };
-    const payload = {
-        sub: user.userId.toString(),
-        kakaoId: user.kakaoId.toString(),
-        nickname: `testuser${user.userId}`,
-        status: user.status,
-        role: user.role,
-        type: 'access',
-        iat: Math.floor(now / 1000),
-        exp: Math.floor(expiryDate / 1000),
-    };
-
-    const headerEncoded = encoding.b64encode(JSON.stringify(header), 'rawurl');
-    const payloadEncoded = encoding.b64encode(JSON.stringify(payload), 'rawurl');
-    const signatureInput = `${headerEncoded}.${payloadEncoded}`;
-    const signature = hmac('sha512', JWT_SECRET, signatureInput, 'base64rawurl');
-
-    return `${signatureInput}.${signature}`;
-}
-
-function getHeaders(token) {
-    return {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json',
-    };
-}
 
 function getRandomUser() {
     return testUsers[Math.floor(Math.random() * testUsers.length)];

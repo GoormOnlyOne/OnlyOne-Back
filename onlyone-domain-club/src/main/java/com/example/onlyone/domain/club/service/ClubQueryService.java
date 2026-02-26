@@ -30,11 +30,10 @@ public class ClubQueryService {
         Club club = clubRepository.findById(clubId)
                 .orElseThrow(() -> new CustomException(ErrorCode.CLUB_NOT_FOUND));
         User user = userService.getCurrentUser();
-        Optional<UserClub> userClub = userClubRepository.findByUserAndClub(user, club);
         int userCount = userClubRepository.countByClub_ClubId(club.getClubId());
-        if (userClub.isEmpty()) {
-            return ClubDetailResponseDto.from(club, userCount, ClubRole.GUEST);
-        }
-        return ClubDetailResponseDto.from(club, userCount, userClub.get().getClubRole());
+        ClubRole role = userClubRepository.findByUserAndClub(user, club)
+                .map(UserClub::getClubRole)
+                .orElse(ClubRole.GUEST);
+        return ClubDetailResponseDto.from(club, userCount, role);
     }
 }

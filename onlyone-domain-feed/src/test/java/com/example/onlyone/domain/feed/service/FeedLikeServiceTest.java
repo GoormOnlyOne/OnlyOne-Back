@@ -1,15 +1,10 @@
 package com.example.onlyone.domain.feed.service;
 
 import com.example.onlyone.domain.club.repository.ClubRepository;
-import com.example.onlyone.domain.feed.repository.FeedLikeRepository;
 import com.example.onlyone.domain.feed.repository.FeedRepository;
-import com.example.onlyone.domain.user.entity.Gender;
-import com.example.onlyone.domain.user.entity.Status;
-import com.example.onlyone.domain.user.entity.User;
 import com.example.onlyone.domain.user.service.UserService;
 import com.example.onlyone.global.exception.CustomException;
 import com.example.onlyone.global.exception.ErrorCode;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -22,8 +17,6 @@ import org.springframework.data.redis.core.script.DefaultRedisScript;
 
 import java.time.Clock;
 import java.time.Instant;
-import java.time.LocalDate;
-import java.time.ZoneId;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -39,22 +32,13 @@ class FeedLikeServiceTest {
     @InjectMocks private FeedLikeService feedLikeService;
     @Mock private ClubRepository clubRepository;
     @Mock private FeedRepository feedRepository;
-    @Mock private FeedLikeRepository feedLikeRepository;
     @Mock private UserService userService;
+    @Mock private FeedLikeWarmupService warmupService;
     @Mock private DefaultRedisScript<List> likeToggleScript;
     @Mock private StringRedisTemplate redis;
     @Mock private Clock clock;
 
-    private User user;
-
-    @BeforeEach
-    void setUp() {
-        user = User.builder()
-                .userId(1L).kakaoId(11111L).nickname("테스트유저")
-                .status(Status.ACTIVE).gender(Gender.MALE)
-                .birth(LocalDate.of(1995, 1, 1))
-                .build();
-    }
+    private static final long USER_ID = 1L;
 
     @Nested
     @DisplayName("좋아요 토글")
@@ -66,8 +50,7 @@ class FeedLikeServiceTest {
             // given
             when(clubRepository.existsById(100L)).thenReturn(true);
             when(feedRepository.existsById(10L)).thenReturn(true);
-            when(redis.hasKey("feed:10:like_count")).thenReturn(true);
-            when(userService.getCurrentUser()).thenReturn(user);
+            when(userService.getCurrentUserId()).thenReturn(USER_ID);
             when(clock.millis()).thenReturn(Instant.now().toEpochMilli());
             doReturn(List.of(1L, 1L, 1L)).when(redis)
                     .execute(any(DefaultRedisScript.class), anyList(), any(), any(), any(), any());
@@ -85,8 +68,7 @@ class FeedLikeServiceTest {
             // given
             when(clubRepository.existsById(100L)).thenReturn(true);
             when(feedRepository.existsById(10L)).thenReturn(true);
-            when(redis.hasKey("feed:10:like_count")).thenReturn(true);
-            when(userService.getCurrentUser()).thenReturn(user);
+            when(userService.getCurrentUserId()).thenReturn(USER_ID);
             when(clock.millis()).thenReturn(Instant.now().toEpochMilli());
             doReturn(List.of(0L, 0L, 1L)).when(redis)
                     .execute(any(DefaultRedisScript.class), anyList(), any(), any(), any(), any());
@@ -131,8 +113,7 @@ class FeedLikeServiceTest {
             // given
             when(clubRepository.existsById(100L)).thenReturn(true);
             when(feedRepository.existsById(10L)).thenReturn(true);
-            when(redis.hasKey("feed:10:like_count")).thenReturn(true);
-            when(userService.getCurrentUser()).thenReturn(user);
+            when(userService.getCurrentUserId()).thenReturn(USER_ID);
             when(clock.millis()).thenReturn(Instant.now().toEpochMilli());
             doReturn(null).when(redis)
                     .execute(any(DefaultRedisScript.class), anyList(), any(), any(), any(), any());

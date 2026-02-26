@@ -10,8 +10,6 @@ import com.example.onlyone.domain.notification.entity.NotificationType;
 import com.example.onlyone.domain.notification.repository.NotificationRepository;
 import com.example.onlyone.domain.user.entity.User;
 import com.example.onlyone.domain.user.service.AuthService;
-import com.example.onlyone.global.exception.CustomException;
-import com.example.onlyone.global.exception.ErrorCode;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -26,7 +24,6 @@ import java.util.List;
 
 import static com.example.onlyone.domain.notification.fixture.NotificationFixtures.*;
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.*;
 
@@ -38,6 +35,7 @@ class NotificationServiceTest {
     @Mock private NotificationRepository notificationRepository;
     @Mock private ApplicationEventPublisher eventPublisher;
     @Mock private AuthService authService;
+    @Mock private NotificationUnreadCounter unreadCounter;
 
     @Nested
     @DisplayName("알림 목록 조회")
@@ -95,10 +93,10 @@ class NotificationServiceTest {
     class GetUnreadCount {
 
         @Test
-        @DisplayName("성공: 개수가 반환된다")
+        @DisplayName("성공: 카운터에서 개수를 조회한다")
         void success_returnsUnreadCount() {
             given(authService.getCurrentUserId()).willReturn(DEFAULT_USER_ID);
-            given(notificationRepository.countUnreadByUserId(DEFAULT_USER_ID)).willReturn(5L);
+            given(unreadCounter.getCount(DEFAULT_USER_ID)).willReturn(5L);
 
             Long count = notificationService.getUnreadCount();
 
@@ -111,42 +109,26 @@ class NotificationServiceTest {
     class MarkAsRead {
 
         @Test
-        @DisplayName("성공: 알림이 읽음으로 변경된다")
+        @DisplayName("성공: 알림이 읽음으로 변경되고 카운터 감소")
         void success_notificationIsMarkedAsRead() {
-            User user = user();
-            Notification notification = likeNotification(user);
             given(authService.getCurrentUserId()).willReturn(DEFAULT_USER_ID);
-            given(notificationRepository.findByIdWithFetchJoin(1L)).willReturn(notification);
+            given(notificationRepository.markAsReadByIdAndUserId(1L, DEFAULT_USER_ID)).willReturn(1);
 
             notificationService.markAsRead(1L);
 
-            assertThat(notification.isRead()).isTrue();
+            then(notificationRepository).should().markAsReadByIdAndUserId(1L, DEFAULT_USER_ID);
+            then(unreadCounter).should().decrement(DEFAULT_USER_ID);
         }
 
         @Test
-        @DisplayName("실패: 알림이 존재하지 않으면 NOTIFICATION_NOT_FOUND")
-        void fail_notificationNotFound() {
+        @DisplayName("성공: 이미 읽은 알림이면 카운터 변경 없음")
+        void success_alreadyReadDoesNotDecrementCounter() {
             given(authService.getCurrentUserId()).willReturn(DEFAULT_USER_ID);
-            given(notificationRepository.findByIdWithFetchJoin(999L)).willReturn(null);
+            given(notificationRepository.markAsReadByIdAndUserId(1L, DEFAULT_USER_ID)).willReturn(0);
 
-            assertThatThrownBy(() -> notificationService.markAsRead(999L))
-                    .isInstanceOf(CustomException.class)
-                    .extracting(e -> ((CustomException) e).getErrorCode())
-                    .isEqualTo(ErrorCode.NOTIFICATION_NOT_FOUND);
-        }
+            notificationService.markAsRead(1L);
 
-        @Test
-        @DisplayName("실패: 다른 사용자의 알림이면 NOTIFICATION_NOT_FOUND")
-        void fail_otherUserNotification() {
-            User other = otherUser();
-            Notification notification = likeNotification(other);
-            given(authService.getCurrentUserId()).willReturn(DEFAULT_USER_ID);
-            given(notificationRepository.findByIdWithFetchJoin(1L)).willReturn(notification);
-
-            assertThatThrownBy(() -> notificationService.markAsRead(1L))
-                    .isInstanceOf(CustomException.class)
-                    .extracting(e -> ((CustomException) e).getErrorCode())
-                    .isEqualTo(ErrorCode.NOTIFICATION_NOT_FOUND);
+            then(unreadCounter).shouldHaveNoInteractions();
         }
     }
 
@@ -155,7 +137,7 @@ class NotificationServiceTest {
     class MarkAllAsRead {
 
         @Test
-        @DisplayName("성공: 모든 알림이 읽음으로 변경된다")
+        @DisplayName("성공: 모든 알림이 읽음으로 변경되고 카운터 리셋")
         void success_allNotificationsMarkedAsRead() {
             given(authService.getCurrentUserId()).willReturn(DEFAULT_USER_ID);
             given(notificationRepository.markAllAsReadByUserId(DEFAULT_USER_ID)).willReturn(3L);
@@ -163,6 +145,7 @@ class NotificationServiceTest {
             notificationService.markAllAsRead();
 
             then(notificationRepository).should().markAllAsReadByUserId(DEFAULT_USER_ID);
+            then(unreadCounter).should().reset(DEFAULT_USER_ID);
         }
     }
 
@@ -171,30 +154,26 @@ class NotificationServiceTest {
     class DeleteNotification {
 
         @Test
-        @DisplayName("성공: 알림이 삭제된다")
-        void success_notificationIsDeleted() {
-            User user = user();
-            Notification notification = likeNotification(user);
+        @DisplayName("성공: 읽지 않은 알림 삭제 시 카운터 감소")
+        void success_unreadNotificationDeletedDecrementsCounter() {
             given(authService.getCurrentUserId()).willReturn(DEFAULT_USER_ID);
-            given(notificationRepository.findByIdWithFetchJoin(1L)).willReturn(notification);
+            given(notificationRepository.deleteByIdAndUserId(1L, DEFAULT_USER_ID)).willReturn(true);
 
             notificationService.deleteNotification(1L);
 
-            then(notificationRepository).should().delete(notification);
+            then(notificationRepository).should().deleteByIdAndUserId(1L, DEFAULT_USER_ID);
+            then(unreadCounter).should().decrement(DEFAULT_USER_ID);
         }
 
         @Test
-        @DisplayName("실패: 다른 사용자의 알림이면 NOTIFICATION_NOT_FOUND")
-        void fail_otherUserNotification() {
-            User other = otherUser();
-            Notification notification = likeNotification(other);
+        @DisplayName("성공: 이미 읽은 알림 삭제 시 카운터 변경 없음")
+        void success_readNotificationDeletedNoCounterChange() {
             given(authService.getCurrentUserId()).willReturn(DEFAULT_USER_ID);
-            given(notificationRepository.findByIdWithFetchJoin(1L)).willReturn(notification);
+            given(notificationRepository.deleteByIdAndUserId(1L, DEFAULT_USER_ID)).willReturn(false);
 
-            assertThatThrownBy(() -> notificationService.deleteNotification(1L))
-                    .isInstanceOf(CustomException.class)
-                    .extracting(e -> ((CustomException) e).getErrorCode())
-                    .isEqualTo(ErrorCode.NOTIFICATION_NOT_FOUND);
+            notificationService.deleteNotification(1L);
+
+            then(unreadCounter).shouldHaveNoInteractions();
         }
     }
 
@@ -215,6 +194,7 @@ class NotificationServiceTest {
 
             then(notificationRepository).should().save(any(Notification.class));
             then(eventPublisher).should().publishEvent(any(NotificationCreatedEvent.class));
+            then(unreadCounter).should().increment(DEFAULT_USER_ID);
         }
     }
 }

@@ -32,64 +32,33 @@ public class FeedCommentService {
     private final TransactionTemplate transactionTemplate;
 
     public void createComment(Long clubId, Long feedId, FeedCommentRequestDto requestDto) {
-        // validation: club 별도 조회 제거 → feed 1쿼리 + 멤버십 1쿼리 (3→2 SELECT)
-        Feed feed = feedRepository.findById(feedId)
-                .filter(f -> f.getClub() != null && f.getClub().getClubId().equals(clubId))
-                .orElseThrow(() -> new CustomException(ErrorCode.FEED_NOT_FOUND));
+        Feed feed = findFeedInClub(feedId, clubId);
         User currentUser = userService.getCurrentUser();
-        Long userId = currentUser.getUserId();
-        boolean isMember = userClubRepository.existsByUser_UserIdAndClub_ClubId(userId, clubId);
-        if (!isMember) {
-            throw new CustomException(ErrorCode.CLUB_NOT_JOIN);
-        }
-        // 1) 댓글 INSERT (feed 행 lock 불필요 — FK 참조만)
+        validateMembership(currentUser.getUserId(), clubId);
+
         FeedComment feedComment = requestDto.toEntity(feed, currentUser);
-        transactionTemplate.executeWithoutResult(status -> {
-            feedCommentRepository.save(feedComment);
-        });
-        // 2) count 증가를 별도 트랜잭션으로 분리 — feed X lock 보유 최소화
-        //    like_count UPDATE와의 lock 경합 시간을 나노초 수준으로 축소
-        try {
-            transactionTemplate.executeWithoutResult(status -> {
-                feedRepository.incrementCommentCount(feedId);
-            });
-        } catch (Exception e) {
-            // count 동기화 실패해도 댓글은 보존 (sync_feed_counts 프로시저로 보정 가능)
-            log.warn("댓글 카운트 증가 실패 (댓글은 정상 저장됨): feedId={}, err={}", feedId, e.getMessage());
-        }
-        log.info("댓글 생성: feedId={}, userId={}", feedId, userId);
+        runInTx(() -> feedCommentRepository.save(feedComment));
+        updateCountSafely(() -> feedRepository.incrementCommentCount(feedId),
+                "댓글 카운트 증가 실패 (댓글은 정상 저장됨)", feedId);
+        log.info("댓글 생성: feedId={}, userId={}", feedId, currentUser.getUserId());
     }
 
     public void deleteComment(Long clubId, Long feedId, Long commentId) {
-        // validation: club 별도 조회 제거 → feed 1쿼리 (3→2 SELECT)
-        Feed feed = feedRepository.findById(feedId)
-                .filter(f -> f.getClub() != null && f.getClub().getClubId().equals(clubId))
-                .orElseThrow(() -> new CustomException(ErrorCode.FEED_NOT_FOUND));
+        Feed feed = findFeedInClub(feedId, clubId);
         FeedComment feedComment = feedCommentRepository.findById(commentId)
                 .orElseThrow(() -> new CustomException(ErrorCode.COMMENT_NOT_FOUND));
         if (!feedComment.getFeed().getFeedId().equals(feedId)) {
             throw new CustomException(ErrorCode.FEED_NOT_FOUND);
         }
 
-        Long userId = userService.getCurrentUser().getUserId();
-        boolean isCommentAuthor = userId.equals(feedComment.getUser().getUserId());
-        boolean isFeedAuthor = userId.equals(feed.getUser().getUserId());
-        if (!isCommentAuthor && !isFeedAuthor) {
+        Long userId = userService.getCurrentUserId();
+        if (!userId.equals(feedComment.getUser().getUserId()) && !userId.equals(feed.getUser().getUserId())) {
             throw new CustomException(ErrorCode.UNAUTHORIZED_COMMENT_ACCESS);
         }
 
-        // 1) 댓글 DELETE (feed 행 lock 불필요)
-        transactionTemplate.executeWithoutResult(status -> {
-            feedCommentRepository.delete(feedComment);
-        });
-        // 2) count 감소를 별도 트랜잭션 — feed X lock 최소화
-        try {
-            transactionTemplate.executeWithoutResult(status -> {
-                feedRepository.decrementCommentCount(feedId);
-            });
-        } catch (Exception e) {
-            log.warn("댓글 카운트 감소 실패 (댓글은 정상 삭제됨): feedId={}, err={}", feedId, e.getMessage());
-        }
+        runInTx(() -> feedCommentRepository.delete(feedComment));
+        updateCountSafely(() -> feedRepository.decrementCommentCount(feedId),
+                "댓글 카운트 감소 실패 (댓글은 정상 삭제됨)", feedId);
         log.info("댓글 삭제: commentId={}, feedId={}, userId={}", commentId, feedId, userId);
     }
 
@@ -98,11 +67,35 @@ public class FeedCommentService {
         if (!feedRepository.existsById(feedId)) {
             throw new CustomException(ErrorCode.FEED_NOT_FOUND);
         }
-        Long userId = userService.getCurrentUser().getUserId();
-
-        return feedCommentRepository.findByFeedIdWithUser(feedId, pageable)
-                .stream()
+        Long userId = userService.getCurrentUserId();
+        return feedCommentRepository.findByFeedIdWithUser(feedId, pageable).stream()
                 .map(c -> FeedCommentResponseDto.from(c, userId))
                 .toList();
+    }
+
+    // ── private helpers ──
+
+    private Feed findFeedInClub(Long feedId, Long clubId) {
+        return feedRepository.findById(feedId)
+                .filter(f -> f.getClub() != null && f.getClub().getClubId().equals(clubId))
+                .orElseThrow(() -> new CustomException(ErrorCode.FEED_NOT_FOUND));
+    }
+
+    private void validateMembership(Long userId, Long clubId) {
+        if (!userClubRepository.existsByUser_UserIdAndClub_ClubId(userId, clubId)) {
+            throw new CustomException(ErrorCode.CLUB_NOT_JOIN);
+        }
+    }
+
+    private void runInTx(Runnable action) {
+        transactionTemplate.executeWithoutResult(status -> action.run());
+    }
+
+    private void updateCountSafely(Runnable action, String failMsg, Long feedId) {
+        try {
+            runInTx(action);
+        } catch (Exception e) {
+            log.warn("{}: feedId={}, err={}", failMsg, feedId, e.getMessage());
+        }
     }
 }

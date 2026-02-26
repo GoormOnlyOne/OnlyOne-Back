@@ -27,9 +27,13 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.cache.Cache;
 import org.springframework.cache.CacheManager;
 import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.test.util.ReflectionTestUtils;
+import org.springframework.transaction.support.TransactionCallback;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import java.util.Optional;
+import java.util.function.Consumer;
 
 import static com.example.onlyone.test.ClubFixtures.*;
 import static com.example.onlyone.test.UserFixtures.aUser;
@@ -53,11 +57,7 @@ class ClubCommandServiceTest {
     @Mock private ApplicationEventPublisher eventPublisher;
     @Mock private CacheManager cacheManager;
     @Mock private Cache cache;
-
-    @org.junit.jupiter.api.BeforeEach
-    void setUp() {
-        lenient().when(cacheManager.getCache("accessibleClubIds")).thenReturn(cache);
-    }
+    @Mock private TransactionTemplate transactionTemplate;
 
     @Nested
     @DisplayName("모임 생성")
@@ -82,6 +82,7 @@ class ClubCommandServiceTest {
             given(userClubRepository.save(any(UserClub.class)))
                     .willAnswer(invocation -> invocation.getArgument(0));
             given(clubRepository.incrementMemberCount(1L)).willReturn(1);
+            given(cacheManager.getCache("accessibleClubIds")).willReturn(cache);
 
             // when
             ClubCreateResponseDto result = clubCommandService.createClub(requestDto);
@@ -203,10 +204,27 @@ class ClubCommandServiceTest {
     @DisplayName("모임 가입")
     class JoinClub {
 
+        @SuppressWarnings("unchecked")
+        private void stubExecuteCallback() {
+            given(transactionTemplate.execute(any(TransactionCallback.class)))
+                    .willAnswer(inv -> ((TransactionCallback<?>) inv.getArgument(0)).doInTransaction(null));
+        }
+
+        @SuppressWarnings("unchecked")
+        private void stubFullTransaction() {
+            stubExecuteCallback();
+            willAnswer(inv -> {
+                ((Consumer<?>) inv.getArgument(0)).accept(null);
+                return null;
+            }).given(transactionTemplate).executeWithoutResult(any());
+            given(cacheManager.getCache("accessibleClubIds")).willReturn(cache);
+        }
+
         @Test
         @DisplayName("성공: 멤버 역할로 모임에 가입한다")
         void joinClub_success() {
             // given
+            stubFullTransaction();
             Club club = aClub().build();
             User user = aUser(2L).build();
 
@@ -236,6 +254,7 @@ class ClubCommandServiceTest {
         @DisplayName("실패: 정원 초과시 CLUB_NOT_ENTER")
         void joinClub_fail_capacityExceeded() {
             // given
+            stubExecuteCallback();
             Club club = aClub().build();
 
             given(clubRepository.findById(1L)).willReturn(Optional.of(club));
@@ -254,6 +273,7 @@ class ClubCommandServiceTest {
         @DisplayName("실패: 이미 가입한 경우 ALREADY_JOINED_CLUB")
         void joinClub_fail_alreadyJoined() {
             // given
+            stubExecuteCallback();
             Club club = aClub().build();
             User user = aUser(1L).build();
 
@@ -271,16 +291,58 @@ class ClubCommandServiceTest {
             then(userClubRepository).should(never()).save(any(UserClub.class));
             then(clubRepository).should(never()).incrementMemberCount(anyLong());
         }
+
+        @Test
+        @DisplayName("실패: UniqueConstraint 위반 시 ALREADY_JOINED_CLUB")
+        void joinClub_fail_uniqueConstraintViolation() {
+            // given
+            stubExecuteCallback();
+            Club club = aClub().build();
+            User user = aUser(1L).build();
+
+            given(clubRepository.findById(1L)).willReturn(Optional.of(club));
+            given(userClubRepository.countByClub_ClubId(1L)).willReturn(1);
+            given(userService.getCurrentUser()).willReturn(user);
+            given(userClubRepository.existsByUser_UserIdAndClub_ClubId(1L, 1L)).willReturn(false);
+            given(userClubRepository.save(any(UserClub.class))).willReturn(
+                    UserClub.builder().user(user).club(club).clubRole(ClubRole.MEMBER).build());
+            willThrow(new DataIntegrityViolationException("Duplicate entry"))
+                    .given(userClubRepository).flush();
+
+            // when & then
+            assertThatThrownBy(() -> clubCommandService.joinClub(1L))
+                    .isInstanceOf(CustomException.class)
+                    .extracting("errorCode").isEqualTo(ErrorCode.ALREADY_JOINED_CLUB);
+
+            then(clubRepository).should(never()).incrementMemberCount(anyLong());
+        }
     }
 
     @Nested
     @DisplayName("모임 탈퇴")
     class LeaveClub {
 
+        @SuppressWarnings("unchecked")
+        private void stubExecuteCallback() {
+            given(transactionTemplate.execute(any(TransactionCallback.class)))
+                    .willAnswer(inv -> ((TransactionCallback<?>) inv.getArgument(0)).doInTransaction(null));
+        }
+
+        @SuppressWarnings("unchecked")
+        private void stubFullTransaction() {
+            stubExecuteCallback();
+            willAnswer(inv -> {
+                ((Consumer<?>) inv.getArgument(0)).accept(null);
+                return null;
+            }).given(transactionTemplate).executeWithoutResult(any());
+            given(cacheManager.getCache("accessibleClubIds")).willReturn(cache);
+        }
+
         @Test
         @DisplayName("성공: 멤버가 모임을 탈퇴한다")
         void leaveClub_success() {
             // given
+            stubFullTransaction();
             Club club = aClub().build();
             User user = aUser(2L).build();
             UserClub userClub = aUserClub(user, club, ClubRole.MEMBER).userClubId(1L).build();
@@ -308,6 +370,7 @@ class ClubCommandServiceTest {
         @DisplayName("실패: GUEST는 탈퇴 불가 CLUB_NOT_LEAVE")
         void leaveClub_fail_guestCannotLeave() {
             // given
+            stubExecuteCallback();
             Club club = aClub().build();
             User user = aUser(3L).build();
             UserClub userClub = aUserClub(user, club, ClubRole.GUEST).userClubId(1L).build();
@@ -330,6 +393,7 @@ class ClubCommandServiceTest {
         @DisplayName("실패: 리더는 탈퇴 불가 CLUB_LEADER_NOT_LEAVE")
         void leaveClub_fail_leaderCannotLeave() {
             // given
+            stubExecuteCallback();
             Club club = aClub().build();
             User user = aUser(1L).build();
             UserClub userClub = aUserClub(user, club, ClubRole.LEADER).userClubId(1L).build();

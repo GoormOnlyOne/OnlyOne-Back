@@ -23,7 +23,6 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.time.LocalDateTime;
 import java.util.List;
-import java.util.Optional;
 
 import static com.example.onlyone.domain.chat.fixture.ChatFixtures.*;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -48,26 +47,25 @@ class ChatRoomQueryServiceTest {
         @Test
         @DisplayName("성공: 사용자가 참여한 채팅방 목록이 반환된다")
         void success() {
-            User u = user(1L, 1001L, "유저A");
-            Club c = club(10L, "모임A");
+            Long clubId = 10L, userId = 1L;
+            User u = user(userId, 1001L, "유저A");
+            Club c = club(clubId, "모임A");
 
             ChatRoom clubRoom = clubChatRoom(101L, c);
             Schedule sch = schedule(20L, "정모A", c);
             ChatRoom scheduleRoom = scheduleChatRoom(102L, c, 20L, sch);
 
-            given(userService.getCurrentUser()).willReturn(u);
-            given(clubRepository.findById(10L)).willReturn(Optional.of(c));
-            given(userClubRepository.findByUserAndClub(u, c))
-                    .willReturn(Optional.of(userClub(u, c)));
-            given(chatRoomRepository.findChatRoomsByUserIdAndClubId(1L, 10L))
+            given(userService.getCurrentUserId()).willReturn(userId);
+            given(clubRepository.existsById(clubId)).willReturn(true);
+            given(userClubRepository.existsByUser_UserIdAndClub_ClubId(userId, clubId)).willReturn(true);
+            given(chatRoomRepository.findChatRoomsByUserIdAndClubId(userId, clubId))
                     .willReturn(List.of(clubRoom, scheduleRoom));
 
-            LocalDateTime now = LocalDateTime.now();
-            Message lastMsg = message(5001L, clubRoom, u, "마지막 메시지", now, false);
+            Message lastMsg = message(5001L, clubRoom, u, "마지막 메시지", LocalDateTime.now(), false);
             given(messageRepository.findLastMessagesByChatRoomIds(List.of(101L, 102L)))
                     .willReturn(List.of(lastMsg));
 
-            List<ChatRoomResponse> result = chatRoomQueryService.getChatRoomsUserJoinedInClub(10L);
+            List<ChatRoomResponse> result = chatRoomQueryService.getChatRoomsUserJoinedInClub(clubId);
 
             assertThat(result).hasSize(2);
             assertThat(result).extracting(ChatRoomResponse::chatRoomId)
@@ -77,12 +75,13 @@ class ChatRoomQueryServiceTest {
         @Test
         @DisplayName("실패: 모임이 없으면 CLUB_NOT_FOUND")
         void failClubNotFound() {
-            User u = user(1L, 1001L, "유저A");
+            Long clubId = 10L, userId = 1L;
+            User u = user(userId, 1001L, "유저A");
 
-            given(userService.getCurrentUser()).willReturn(u);
-            given(clubRepository.findById(10L)).willReturn(Optional.empty());
+            given(userService.getCurrentUserId()).willReturn(userId);
+            given(clubRepository.existsById(clubId)).willReturn(false);
 
-            Throwable thrown = catchThrowable(() -> chatRoomQueryService.getChatRoomsUserJoinedInClub(10L));
+            Throwable thrown = catchThrowable(() -> chatRoomQueryService.getChatRoomsUserJoinedInClub(clubId));
 
             assertThat(thrown).isInstanceOf(CustomException.class);
             assertThat(((CustomException) thrown).getErrorCode()).isEqualTo(ErrorCode.CLUB_NOT_FOUND);
@@ -91,14 +90,14 @@ class ChatRoomQueryServiceTest {
         @Test
         @DisplayName("실패: 모임 미가입이면 CLUB_NOT_JOIN")
         void failClubNotJoin() {
-            User u = user(1L, 1001L, "유저A");
-            Club c = club(10L, "모임A");
+            Long clubId = 10L, userId = 1L;
+            User u = user(userId, 1001L, "유저A");
 
-            given(userService.getCurrentUser()).willReturn(u);
-            given(clubRepository.findById(10L)).willReturn(Optional.of(c));
-            given(userClubRepository.findByUserAndClub(u, c)).willReturn(Optional.empty());
+            given(userService.getCurrentUserId()).willReturn(userId);
+            given(clubRepository.existsById(clubId)).willReturn(true);
+            given(userClubRepository.existsByUser_UserIdAndClub_ClubId(userId, clubId)).willReturn(false);
 
-            Throwable thrown = catchThrowable(() -> chatRoomQueryService.getChatRoomsUserJoinedInClub(10L));
+            Throwable thrown = catchThrowable(() -> chatRoomQueryService.getChatRoomsUserJoinedInClub(clubId));
 
             assertThat(thrown).isInstanceOf(CustomException.class);
             assertThat(((CustomException) thrown).getErrorCode()).isEqualTo(ErrorCode.CLUB_NOT_JOIN);

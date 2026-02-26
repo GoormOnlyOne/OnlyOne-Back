@@ -1,7 +1,6 @@
 package com.example.onlyone.domain.chat.service;
 
 import com.example.onlyone.domain.chat.dto.ChatMessageResponse;
-import com.example.onlyone.domain.chat.entity.ChatRoom;
 import com.example.onlyone.domain.chat.entity.Message;
 import com.example.onlyone.domain.chat.repository.ChatRoomRepository;
 import com.example.onlyone.domain.chat.repository.MessageRepository;
@@ -57,43 +56,26 @@ public class MessageCommandService {
 
     /**
      * 메시지 DB 저장 (AsyncMessageService에서도 호출)
-     * 최적화: 멤버십 검증을 먼저 수행 (fail-fast), ChatRoom은 getReferenceById로 프록시만 생성 (SELECT 제거)
      */
     @Transactional
     public ChatMessageResponse saveMessage(Long chatRoomId, Long userId, String text) {
         if (text == null || text.isBlank()) throw new CustomException(ErrorCode.MESSAGE_BAD_REQUEST);
+        if (!userChatRoomRepository.existsByUserUserIdAndChatRoomChatRoomId(userId, chatRoomId)) {
+            throw new CustomException(ErrorCode.FORBIDDEN_CHAT_ROOM);
+        }
 
-        // 1) 멤버십 검증 먼저 (fail-fast) — 1 SELECT
-        boolean joined = userChatRoomRepository.existsByUserUserIdAndChatRoomChatRoomId(userId, chatRoomId);
-        if (!joined) throw new CustomException(ErrorCode.FORBIDDEN_CHAT_ROOM);
-
-        // 2) User는 닉네임/프로필 필요하므로 조회 — 1 SELECT
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new CustomException(ErrorCode.USER_NOT_FOUND));
 
-        // 3) ChatRoom은 FK 참조만 필요 → 프록시로 SELECT 제거
-        ChatRoom chatRoom = chatRoomRepository.getReferenceById(chatRoomId);
-
-        boolean isImage = MessageUtils.isImageMessage(text);
-        String imageUrl = null;
-        String storedText;
-
-        if (isImage) {
-            imageUrl = validateAndExtractImageUrl(text);
-            storedText = MessageUtils.IMAGE_PREFIX + imageUrl;
-        } else {
-            storedText = truncateText(text);
-        }
-
         Message saved = messageRepository.save(Message.builder()
-                .chatRoom(chatRoom).user(user).text(storedText)
-                .sentAt(LocalDateTime.now()).deleted(false).build());
+                .chatRoom(chatRoomRepository.getReferenceById(chatRoomId))
+                .user(user)
+                .text(resolveStoredText(text))
+                .sentAt(LocalDateTime.now())
+                .deleted(false)
+                .build());
 
-        return new ChatMessageResponse(
-                saved.getMessageId(), chatRoomId,
-                user.getUserId(), user.getNickname(), user.getProfileImage(),
-                isImage ? null : storedText, imageUrl,
-                saved.getSentAt(), false);
+        return ChatMessageResponse.from(saved);
     }
 
     @Transactional
@@ -101,7 +83,7 @@ public class MessageCommandService {
         Message m = messageRepository.findById(messageId)
                 .orElseThrow(() -> new CustomException(ErrorCode.MESSAGE_NOT_FOUND));
         if (m.isDeleted()) throw new CustomException(ErrorCode.MESSAGE_CONFLICT);
-        if (!m.isOwnedBy(userId)) throw new CustomException(ErrorCode.MESSAGE_DELETE_ERROR);
+        if (!m.isOwnedBy(userId)) throw new CustomException(ErrorCode.MESSAGE_FORBIDDEN);
         m.markAsDeleted();
     }
 
@@ -112,23 +94,22 @@ public class MessageCommandService {
             String payload = objectMapper.writeValueAsString(response);
             chatPublisher.publish(chatRoomId, payload);
         } catch (JsonProcessingException e) {
-            log.error("[MessageCommand] JSON serialization failed: chatRoomId={}", chatRoomId, e);
+            log.error("메시지 JSON 직렬화 실패: chatRoomId={}", chatRoomId, e);
             throw new CustomException(ErrorCode.MESSAGE_SERVER_ERROR);
         }
     }
 
-    private String validateAndExtractImageUrl(String text) {
-        String url = text.substring(MessageUtils.IMAGE_PREFIX.length()).trim();
-        if (url.isBlank() || url.contains(",") || url.contains(" ")) {
+    private String resolveStoredText(String text) {
+        if (!MessageUtils.isImageMessage(text)) {
+            return text.length() > MAX_TEXT_LENGTH ? text.substring(0, MAX_TEXT_LENGTH) : text;
+        }
+        String url = MessageUtils.extractImageUrl(text);
+        if (!MessageUtils.isValidImageUrlFormat(url)) {
             throw new CustomException(ErrorCode.MESSAGE_BAD_REQUEST);
         }
-        if (!url.matches("(?i).+\\.(png|jpg|jpeg)$")) {
+        if (!MessageUtils.hasValidImageExtension(url)) {
             throw new CustomException(ErrorCode.INVALID_IMAGE_CONTENT_TYPE);
         }
-        return url;
-    }
-
-    private String truncateText(String text) {
-        return text.length() > MAX_TEXT_LENGTH ? text.substring(0, MAX_TEXT_LENGTH) : text;
+        return MessageUtils.IMAGE_PREFIX + url;
     }
 }

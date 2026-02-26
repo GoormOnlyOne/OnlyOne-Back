@@ -25,45 +25,44 @@ import java.util.List;
 @RequiredArgsConstructor
 @RequestMapping("/api/v1/feeds")
 public class FeedMainController {
+
     private final FeedQueryService feedQueryService;
     private final FeedCommandService feedCommandService;
     private final FeedCommentService feedCommentService;
 
     @Operation(summary = "최신순 피드 목록 조회", description = "유저와 관련된 모든 피드들을 조회합니다.")
     @GetMapping
-    public ResponseEntity<?> getAllFeeds(
+    public ResponseEntity<CommonResponse<List<FeedOverviewDto>>> getAllFeeds(
             @RequestParam(name = "page", defaultValue = "0") int page,
-            @RequestParam(name = "limit", defaultValue = "20") int limit
-    ) {
+            @RequestParam(name = "limit", defaultValue = "20") int limit) {
         Pageable pageable = PageRequest.of(page, limit);
-        List<FeedOverviewDto> feeds = feedQueryService.getPersonalFeed(pageable);
-        return ResponseEntity.status(HttpStatus.OK).body(CommonResponse.success(feeds));
+        return ResponseEntity.ok(CommonResponse.success(feedQueryService.getPersonalFeed(pageable)));
     }
 
     @Operation(summary = "인기순 피드 목록 조회", description = "전체 피드 목록 조회 기반으로 인기순 페이징 조회")
     @GetMapping("/popular")
-    public ResponseEntity<?> getPopularFeeds(
-            @RequestParam(name = "page", defaultValue = "0")  int page,
-            @RequestParam(name = "limit", defaultValue = "20") int limit
-    ) {
+    public ResponseEntity<CommonResponse<List<FeedOverviewDto>>> getPopularFeeds(
+            @RequestParam(name = "page", defaultValue = "0") int page,
+            @RequestParam(name = "limit", defaultValue = "20") int limit) {
         Pageable pageable = PageRequest.of(page, limit, Sort.unsorted());
-        List<FeedOverviewDto> popularFeeds = feedQueryService.getPopularFeed(pageable);
-        return ResponseEntity.ok(CommonResponse.success(popularFeeds));
+        return ResponseEntity.ok(CommonResponse.success(feedQueryService.getPopularFeed(pageable)));
     }
 
     @Operation(summary = "댓글 목록 조회", description = "해당 피드에 댓글 목록을 조회합니다.")
     @GetMapping("/{feedId}/comments")
-    public ResponseEntity<?> getCommentList(@PathVariable Long feedId,
-                                            @RequestParam(name = "page", defaultValue = "0")  int page,
-                                            @RequestParam(name = "limit", defaultValue = "20") int limit) {
+    public ResponseEntity<CommonResponse<List<FeedCommentResponseDto>>> getCommentList(
+            @PathVariable Long feedId,
+            @RequestParam(name = "page", defaultValue = "0") int page,
+            @RequestParam(name = "limit", defaultValue = "20") int limit) {
         Pageable pageable = PageRequest.of(page, limit, Sort.by(Sort.Direction.ASC, "createdAt"));
-        List<FeedCommentResponseDto> feedCommentResponseDto = feedCommentService.getCommentList(feedId, pageable);
-        return ResponseEntity.ok(CommonResponse.success(feedCommentResponseDto));
+        return ResponseEntity.ok(CommonResponse.success(feedCommentService.getCommentList(feedId, pageable)));
     }
 
     @Operation(summary = "리피드", description = "피드를 리피드 합니다.")
     @PostMapping("/{feedId}/{clubId}")
-    public ResponseEntity<?> createRefeed(@PathVariable Long feedId, @PathVariable Long clubId, @RequestBody @Valid RefeedRequestDto requestDto) {
+    public ResponseEntity<CommonResponse<Void>> createRefeed(
+            @PathVariable Long feedId, @PathVariable Long clubId,
+            @RequestBody @Valid RefeedRequestDto requestDto) {
         feedCommandService.createRefeed(feedId, clubId, requestDto);
         return ResponseEntity.status(HttpStatus.CREATED).body(CommonResponse.success(null));
     }

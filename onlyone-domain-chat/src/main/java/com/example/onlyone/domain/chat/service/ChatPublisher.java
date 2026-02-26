@@ -22,6 +22,6 @@ public class ChatPublisher {
         if (roomId == null || message == null || message.isBlank()) return;
         String channel = "chat.room." + roomId;
         redisTemplate.convertAndSend(channel, message);
-        log.debug("Redis pub 발행: channel={}", channel);
+        log.debug("채팅 메시지 발행: channel={}", channel);
     }
 }

@@ -13,17 +13,18 @@ import java.util.List;
 
 @Repository
 public interface MessageRepository extends JpaRepository<Message,Long> {
-    //채팅방들의 마지막 메세지들 조회 (GROUP BY + JOIN으로 상관 서브쿼리 제거)
-    @Query(value = """
-        SELECT m.* FROM message m
-        INNER JOIN (
-            SELECT chat_room_id, MAX(sent_at) AS max_sent_at
-            FROM message
-            WHERE chat_room_id IN :chatRoomIds AND deleted = 0
-            GROUP BY chat_room_id
-        ) latest ON m.chat_room_id = latest.chat_room_id AND m.sent_at = latest.max_sent_at
-        WHERE m.deleted = 0
-    """, nativeQuery = true)
+    // 채팅방들의 마지막 메시지 조회 (상관 서브쿼리로 각 방의 MAX messageId 사용)
+    @Query("""
+        SELECT m FROM Message m
+        JOIN FETCH m.user
+        WHERE m.deleted = false
+          AND m.chatRoom.chatRoomId IN :chatRoomIds
+          AND m.messageId IN (
+              SELECT MAX(m2.messageId) FROM Message m2
+              WHERE m2.chatRoom.chatRoomId IN :chatRoomIds AND m2.deleted = false
+              GROUP BY m2.chatRoom.chatRoomId
+          )
+    """)
     List<Message> findLastMessagesByChatRoomIds(@Param("chatRoomIds") List<Long> chatRoomIds);
 
     // 최신 N건 (초기 로드) — JOIN FETCH로 N+1 제거

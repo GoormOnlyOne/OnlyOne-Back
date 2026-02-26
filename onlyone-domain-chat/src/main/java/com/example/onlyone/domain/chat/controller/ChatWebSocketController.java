@@ -35,33 +35,27 @@ public class ChatWebSocketController {
             SimpMessageHeaderAccessor headerAccessor) {
 
         UserPrincipal principal = extractPrincipal(headerAccessor);
+        User user = userService.getMemberById(principal.getUserId());
 
-        log.debug("[WebSocket.Receive] chatRoomId={}, userId={}", chatRoomId, principal.getUserId());
+        messageCommandService.publishImmediately(
+                chatRoomId, user.getUserId(), user.getNickname(),
+                user.getProfileImage(), request.text());
 
-        try {
-            User user = userService.getMemberById(principal.getUserId());
-
-            messageCommandService.publishImmediately(
-                    chatRoomId, user.getUserId(), user.getNickname(),
-                    user.getProfileImage(), request.text());
-
-            asyncMessageService.saveMessageAsync(chatRoomId, principal.getUserId(), request.text());
-
-            log.debug("[WebSocket.Publish] chatRoomId={}, userId={}", chatRoomId, principal.getUserId());
-
-        } catch (CustomException e) {
-            log.error("[WebSocket.Error] {}", e.getMessage());
-            throw e;
-        } catch (Exception e) {
-            log.error("[WebSocket.Error] unexpected", e);
-            throw new CustomException(ErrorCode.MESSAGE_SERVER_ERROR);
-        }
+        asyncMessageService.saveMessageAsync(chatRoomId, user.getUserId(), request.text());
     }
 
     @MessageExceptionHandler(CustomException.class)
     @SendToUser("/sub/errors")
     public String handleCustomException(CustomException ex) {
+        log.warn("[WebSocket.Error] code={}, message={}", ex.getErrorCode(), ex.getMessage());
         return ex.getErrorCode().getMessage();
+    }
+
+    @MessageExceptionHandler(Exception.class)
+    @SendToUser("/sub/errors")
+    public String handleException(Exception ex) {
+        log.error("[WebSocket.Error] unexpected", ex);
+        return ErrorCode.MESSAGE_SERVER_ERROR.getMessage();
     }
 
     private UserPrincipal extractPrincipal(SimpMessageHeaderAccessor accessor) {

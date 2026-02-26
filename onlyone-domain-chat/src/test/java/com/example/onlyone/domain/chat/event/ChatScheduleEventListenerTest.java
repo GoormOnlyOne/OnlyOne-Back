@@ -66,8 +66,8 @@ class ChatScheduleEventListenerTest {
         @DisplayName("성공: 채팅방 생성 + 리더 추가")
         void 채팅방_생성_및_리더_추가() {
             ScheduleCreatedEvent event = new ScheduleCreatedEvent(10L, 1L, 1L, "정기 모임", LocalDateTime.now());
-            given(clubRepository.findById(1L)).willReturn(Optional.of(club));
-            given(userRepository.findById(1L)).willReturn(Optional.of(leader));
+            given(clubRepository.getReferenceById(1L)).willReturn(club);
+            given(userRepository.getReferenceById(1L)).willReturn(leader);
             given(chatRoomCommandService.createChatRoom(club, ChatRoomType.SCHEDULE, 10L))
                     .willReturn(chatRoom);
 
@@ -88,7 +88,7 @@ class ChatScheduleEventListenerTest {
             ScheduleJoinedEvent event = new ScheduleJoinedEvent(10L, 1L, 2L, 5000L);
             given(chatRoomRepository.findByTypeAndScheduleId(ChatRoomType.SCHEDULE, 10L))
                     .willReturn(Optional.of(chatRoom));
-            given(userRepository.findById(2L)).willReturn(Optional.of(member));
+            given(userRepository.getReferenceById(2L)).willReturn(member);
 
             listener.handleScheduleJoinedEvent(event);
 

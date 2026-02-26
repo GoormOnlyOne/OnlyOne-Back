@@ -10,11 +10,8 @@ import com.example.onlyone.domain.club.entity.Club;
 import com.example.onlyone.domain.club.repository.ClubRepository;
 import com.example.onlyone.domain.club.repository.UserClubRepository;
 import com.example.onlyone.domain.schedule.entity.Schedule;
-import com.example.onlyone.domain.schedule.entity.UserSchedule;
-import com.example.onlyone.domain.schedule.repository.ScheduleRepository;
 import com.example.onlyone.domain.schedule.repository.UserScheduleRepository;
 import com.example.onlyone.domain.user.entity.User;
-import com.example.onlyone.domain.user.repository.UserRepository;
 import com.example.onlyone.global.exception.CustomException;
 import com.example.onlyone.global.exception.ErrorCode;
 import org.junit.jupiter.api.DisplayName;
@@ -43,11 +40,7 @@ class ChatRoomCommandServiceTest {
     @Mock private UserChatRoomRepository userChatRoomRepository;
     @Mock private ClubRepository clubRepository;
     @Mock private UserClubRepository userClubRepository;
-    @Mock private ScheduleRepository scheduleRepository;
     @Mock private UserScheduleRepository userScheduleRepository;
-    @Mock private UserRepository userRepository;
-
-    // ==================== 채팅방 삭제 ====================
 
     @Nested
     @DisplayName("채팅방 삭제")
@@ -97,8 +90,6 @@ class ChatRoomCommandServiceTest {
         }
     }
 
-    // ==================== 모임 채팅방 참여 ====================
-
     @Nested
     @DisplayName("모임 채팅방 참여")
     class JoinClubChatRoom {
@@ -106,17 +97,14 @@ class ChatRoomCommandServiceTest {
         @Test
         @DisplayName("성공: 모임 채팅방에 참여한다")
         void success() {
-            Long clubId = 10L;
-            Long userId = 1L;
+            Long clubId = 10L, userId = 1L;
             Club c = club(clubId, "모임A");
             ChatRoom clubRoom = clubChatRoom(101L, c);
-            User u = user(userId, 1001L, "유저A");
 
-            given(clubRepository.findById(clubId)).willReturn(Optional.of(c));
+            given(clubRepository.existsById(clubId)).willReturn(true);
+            given(userClubRepository.existsByUser_UserIdAndClub_ClubId(userId, clubId)).willReturn(true);
             given(chatRoomRepository.findByTypeAndClub_ClubId(ChatRoomType.CLUB, clubId))
                     .willReturn(Optional.of(clubRoom));
-            given(userClubRepository.findByUserAndClub(any(User.class), eq(c)))
-                    .willReturn(Optional.of(userClub(u, c)));
             given(userChatRoomRepository.existsByUserUserIdAndChatRoomChatRoomId(userId, 101L))
                     .willReturn(false);
 
@@ -131,16 +119,10 @@ class ChatRoomCommandServiceTest {
         @Test
         @DisplayName("실패: 모임 미가입이면 CLUB_NOT_JOIN")
         void failClubNotJoin() {
-            Long clubId = 10L;
-            Long userId = 1L;
-            Club c = club(clubId, "모임A");
-            ChatRoom clubRoom = clubChatRoom(101L, c);
+            Long clubId = 10L, userId = 1L;
 
-            given(clubRepository.findById(clubId)).willReturn(Optional.of(c));
-            given(chatRoomRepository.findByTypeAndClub_ClubId(ChatRoomType.CLUB, clubId))
-                    .willReturn(Optional.of(clubRoom));
-            given(userClubRepository.findByUserAndClub(any(User.class), eq(c)))
-                    .willReturn(Optional.empty());
+            given(clubRepository.existsById(clubId)).willReturn(true);
+            given(userClubRepository.existsByUser_UserIdAndClub_ClubId(userId, clubId)).willReturn(false);
 
             Throwable thrown = catchThrowable(() -> chatRoomCommandService.joinClubChatRoom(clubId, userId));
 
@@ -151,17 +133,14 @@ class ChatRoomCommandServiceTest {
         @Test
         @DisplayName("실패: 이미 참여중이면 ALREADY_JOINED")
         void failAlreadyJoined() {
-            Long clubId = 10L;
-            Long userId = 1L;
+            Long clubId = 10L, userId = 1L;
             Club c = club(clubId, "모임A");
             ChatRoom clubRoom = clubChatRoom(101L, c);
-            User u = user(userId, 1001L, "유저A");
 
-            given(clubRepository.findById(clubId)).willReturn(Optional.of(c));
+            given(clubRepository.existsById(clubId)).willReturn(true);
+            given(userClubRepository.existsByUser_UserIdAndClub_ClubId(userId, clubId)).willReturn(true);
             given(chatRoomRepository.findByTypeAndClub_ClubId(ChatRoomType.CLUB, clubId))
                     .willReturn(Optional.of(clubRoom));
-            given(userClubRepository.findByUserAndClub(any(User.class), eq(c)))
-                    .willReturn(Optional.of(userClub(u, c)));
             given(userChatRoomRepository.existsByUserUserIdAndChatRoomChatRoomId(userId, 101L))
                     .willReturn(true);
 
@@ -172,8 +151,6 @@ class ChatRoomCommandServiceTest {
         }
     }
 
-    // ==================== 정기모임 채팅방 참여 ====================
-
     @Nested
     @DisplayName("정기모임 채팅방 참여")
     class JoinScheduleChatRoom {
@@ -181,24 +158,15 @@ class ChatRoomCommandServiceTest {
         @Test
         @DisplayName("성공: 정기모임 채팅방에 참여한다")
         void success() {
-            Long scheduleId = 20L;
-            Long userId = 1L;
+            Long scheduleId = 20L, userId = 1L;
             Club c = club(10L, "모임A");
             Schedule sch = schedule(scheduleId, "정모A", c);
             ChatRoom scheduleRoom = scheduleChatRoom(201L, c, scheduleId, sch);
 
-            given(scheduleRepository.findById(scheduleId)).willReturn(Optional.of(sch));
+            given(userScheduleRepository.existsByUser_UserIdAndSchedule_ScheduleId(userId, scheduleId))
+                    .willReturn(true);
             given(chatRoomRepository.findByTypeAndScheduleId(ChatRoomType.SCHEDULE, scheduleId))
                     .willReturn(Optional.of(scheduleRoom));
-            given(userScheduleRepository.findByUserAndSchedule(
-                    argThat(u -> u != null && userId.equals(u.getUserId())),
-                    argThat(s -> s != null && scheduleId.equals(s.getScheduleId()))
-            )).willReturn(Optional.of(
-                    UserSchedule.builder()
-                            .user(user(userId, 1001L, "유저A"))
-                            .schedule(sch)
-                            .build()
-            ));
             given(userChatRoomRepository.existsByUserUserIdAndChatRoomChatRoomId(userId, 201L))
                     .willReturn(false);
 
@@ -213,19 +181,10 @@ class ChatRoomCommandServiceTest {
         @Test
         @DisplayName("실패: 정기모임 미참여면 SCHEDULE_NOT_JOIN")
         void failScheduleNotJoin() {
-            Long scheduleId = 20L;
-            Long userId = 1L;
-            Club c = club(10L, "모임A");
-            Schedule sch = schedule(scheduleId, "정모A", c);
-            scheduleChatRoom(201L, c, scheduleId, sch);
+            Long scheduleId = 20L, userId = 1L;
 
-            given(scheduleRepository.findById(scheduleId)).willReturn(Optional.of(sch));
-            given(chatRoomRepository.findByTypeAndScheduleId(ChatRoomType.SCHEDULE, scheduleId))
-                    .willReturn(Optional.of(scheduleChatRoom(201L, c, scheduleId, sch)));
-            given(userScheduleRepository.findByUserAndSchedule(
-                    argThat(u -> u != null && userId.equals(u.getUserId())),
-                    argThat(s -> s != null && scheduleId.equals(s.getScheduleId()))
-            )).willReturn(Optional.empty());
+            given(userScheduleRepository.existsByUser_UserIdAndSchedule_ScheduleId(userId, scheduleId))
+                    .willReturn(false);
 
             Throwable thrown = catchThrowable(() -> chatRoomCommandService.joinScheduleChatRoom(scheduleId, userId));
 
@@ -236,24 +195,15 @@ class ChatRoomCommandServiceTest {
         @Test
         @DisplayName("실패: 이미 참여중이면 ALREADY_JOINED")
         void failAlreadyJoined() {
-            Long scheduleId = 20L;
-            Long userId = 1L;
+            Long scheduleId = 20L, userId = 1L;
             Club c = club(10L, "모임A");
             Schedule sch = schedule(scheduleId, "정모A", c);
             ChatRoom scheduleRoom = scheduleChatRoom(201L, c, scheduleId, sch);
 
-            given(scheduleRepository.findById(scheduleId)).willReturn(Optional.of(sch));
+            given(userScheduleRepository.existsByUser_UserIdAndSchedule_ScheduleId(userId, scheduleId))
+                    .willReturn(true);
             given(chatRoomRepository.findByTypeAndScheduleId(ChatRoomType.SCHEDULE, scheduleId))
                     .willReturn(Optional.of(scheduleRoom));
-            given(userScheduleRepository.findByUserAndSchedule(
-                    argThat(u -> u != null && userId.equals(u.getUserId())),
-                    argThat(s -> s != null && scheduleId.equals(s.getScheduleId()))
-            )).willReturn(Optional.of(
-                    UserSchedule.builder()
-                            .user(user(userId, 1001L, "유저A"))
-                            .schedule(sch)
-                            .build()
-            ));
             given(userChatRoomRepository.existsByUserUserIdAndChatRoomChatRoomId(userId, 201L))
                     .willReturn(true);
 
@@ -263,8 +213,6 @@ class ChatRoomCommandServiceTest {
             assertThat(((CustomException) thrown).getErrorCode()).isEqualTo(ErrorCode.ALREADY_JOINED);
         }
     }
-
-    // ==================== 채팅방 생성 (이벤트 리스너용) ====================
 
     @Nested
     @DisplayName("채팅방 생성")
@@ -295,8 +243,6 @@ class ChatRoomCommandServiceTest {
             assertThat(result.getScheduleId()).isEqualTo(20L);
         }
     }
-
-    // ==================== 멤버 추가/제거 (이벤트 리스너용) ====================
 
     @Nested
     @DisplayName("멤버 추가")
@@ -355,18 +301,17 @@ class ChatRoomCommandServiceTest {
         }
 
         @Test
-        @DisplayName("실패: 참여 정보가 없으면 IllegalArgumentException")
+        @DisplayName("실패: 참여 정보가 없으면 USER_CHAT_ROOM_NOT_FOUND")
         void failNotFound() {
             given(userChatRoomRepository.findByUserUserIdAndChatRoomChatRoomId(999L, 101L))
                     .willReturn(Optional.empty());
 
             Throwable thrown = catchThrowable(() -> chatRoomCommandService.removeMember(999L, 101L));
 
-            assertThat(thrown).isInstanceOf(IllegalArgumentException.class);
+            assertThat(thrown).isInstanceOf(CustomException.class);
+            assertThat(((CustomException) thrown).getErrorCode()).isEqualTo(ErrorCode.USER_CHAT_ROOM_NOT_FOUND);
         }
     }
-
-    // ==================== 스케줄 채팅방 삭제 ====================
 
     @Nested
     @DisplayName("스케줄 채팅방 삭제")
@@ -388,14 +333,15 @@ class ChatRoomCommandServiceTest {
         }
 
         @Test
-        @DisplayName("실패: 채팅방 미존재시 IllegalArgumentException")
+        @DisplayName("실패: 채팅방 미존재시 CHAT_ROOM_NOT_FOUND")
         void failNotFound() {
             given(chatRoomRepository.findByTypeAndScheduleId(ChatRoomType.SCHEDULE, 999L))
                     .willReturn(Optional.empty());
 
             Throwable thrown = catchThrowable(() -> chatRoomCommandService.deleteChatRoomBySchedule(999L));
 
-            assertThat(thrown).isInstanceOf(IllegalArgumentException.class);
+            assertThat(thrown).isInstanceOf(CustomException.class);
+            assertThat(((CustomException) thrown).getErrorCode()).isEqualTo(ErrorCode.CHAT_ROOM_NOT_FOUND);
         }
     }
 }

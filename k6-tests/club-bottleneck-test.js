@@ -2,13 +2,11 @@ import http from 'k6/http';
 import { check, sleep, group } from 'k6';
 import { Rate, Trend, Counter } from 'k6/metrics';
 import { SharedArray } from 'k6/data';
-import { hmac } from 'k6/crypto';
-import encoding from 'k6/encoding';
+import { generateJWT, BASE_URL, headers as authHeaders } from './lib/common.js';
 
 // ============================================
-// Club 도메인 병목 탐지 테스트 (축약 ~8분)
-// 목적: detail 조회, join/leave 경합, memberCount 동시성 병목
-// 검색(search)은 제외
+// Club 도메인 병목 탐지 테스트 (~8분)
+// 전략: VU별 고유 유저 + 멤버십 상태 추적 → 4xx 최소화
 // ============================================
 
 const errorRate = new Rate('errors');
@@ -20,12 +18,9 @@ const joinServerErrors = new Counter('join_server_errors');
 const leaveServerErrors = new Counter('leave_server_errors');
 const detailServerErrors = new Counter('detail_server_errors');
 
-const BASE_URL = __ENV.BASE_URL || 'http://localhost:8080';
-const JWT_SECRET = __ENV.JWT_SECRET || 'test-secret-key-for-testing-min-256-bits';
-
 export const options = {
     scenarios: {
-        // Phase 1: Club Detail + Hot Join/Leave — 200 VU, 2.5분
+        // Phase 1: Hot Club (10개 집중) — 200 VU, 2.5분
         hot_club_contention: {
             executor: 'ramping-vus',
             exec: 'hotClubContention',
@@ -38,8 +33,7 @@ export const options = {
             startTime: '0s',
             gracefulRampDown: '10s',
         },
-
-        // Phase 2: Wide Club (전체 10000개 분산) — 300 VU, 2.5분
+        // Phase 2: Wide Club (10000개 분산) — 300 VU, 2.5분
         wide_club_load: {
             executor: 'ramping-vus',
             exec: 'wideClubLoad',
@@ -52,8 +46,7 @@ export const options = {
             startTime: '3m',
             gracefulRampDown: '10s',
         },
-
-        // Phase 3: 고부하 혼합 (detail + join + leave) — 400 VU, 2분
+        // Phase 3: 고부하 혼합 — 400 VU, 2분
         high_load_mixed: {
             executor: 'ramping-vus',
             exec: 'highLoadMixed',
@@ -67,7 +60,6 @@ export const options = {
             gracefulRampDown: '10s',
         },
     },
-
     thresholds: {
         club_detail_duration: ['p(95)<500', 'p(50)<100'],
         club_join_duration: ['p(95)<500', 'p(50)<200'],
@@ -81,188 +73,145 @@ export const options = {
 // ============================================
 const testUsers = new SharedArray('club_users', function () {
     const users = [];
-    for (let i = 1; i <= 1000; i++) {
-        users.push({
-            userId: i,
-            kakaoId: 10000000 + i,
-            status: 'ACTIVE',
-            role: 'ROLE_USER',
-        });
+    for (let i = 1; i <= 2000; i++) {
+        users.push({ userId: i, kakaoId: 10000000 + i, status: 'ACTIVE', role: 'ROLE_USER' });
     }
     return users;
-});
-
-const clubIds = new SharedArray('club_ids', function () {
-    const ids = [];
-    for (let i = 1; i <= 10000; i++) ids.push(i);
-    return ids;
 });
 
 // ============================================
 // 유틸리티
 // ============================================
-function generateJWT(user) {
-    const now = Date.now();
-    const header = { alg: 'HS512', typ: 'JWT' };
-    const payload = {
-        sub: user.userId.toString(),
-        kakaoId: user.kakaoId.toString(),
-        nickname: `testuser${user.userId}`,
-        status: user.status,
-        role: user.role,
-        type: 'access',
-        iat: Math.floor(now / 1000),
-        exp: Math.floor((now + 3600000) / 1000),
-    };
-    const h = encoding.b64encode(JSON.stringify(header), 'rawurl');
-    const p = encoding.b64encode(JSON.stringify(payload), 'rawurl');
-    const sig = hmac('sha512', JWT_SECRET, `${h}.${p}`, 'base64rawurl');
-    return `${h}.${p}.${sig}`;
+function reqOpts(token) {
+    return { headers: authHeaders(token) };
 }
 
-function headers(token) {
-    return { headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' } };
+// VU별 멤버십 상태 캐시 (clubId → 'MEMBER'|'LEADER'|false)
+const membership = {};
+
+// 클럽 상세 조회로 현재 멤버 여부 감지 (VU당 클럽별 1회)
+function detectMembership(clubId, opts) {
+    if (membership[clubId] !== undefined) return;
+    const res = http.get(`${BASE_URL}/api/v1/clubs/${clubId}`, opts);
+    clubDetailDuration.add(res.timings.duration);
+    if (res.status === 200) {
+        try {
+            const body = JSON.parse(res.body);
+            const role = body.data && body.data.clubRole;
+            membership[clubId] = (role && role !== 'GUEST') ? role : false;
+        } catch (e) {
+            membership[clubId] = false;
+        }
+    } else {
+        membership[clubId] = false;
+    }
 }
 
-function randomUser() { return testUsers[Math.floor(Math.random() * testUsers.length)]; }
-function randomClub() { return clubIds[Math.floor(Math.random() * clubIds.length)]; }
+// 상태 기반 Join↔Leave 토글
+function toggleMembership(clubId, opts) {
+    // LEADER는 탈퇴 불가 → detail만 측정
+    if (membership[clubId] === 'LEADER') return;
+
+    if (membership[clubId]) {
+        // 현재 멤버 → 탈퇴
+        const res = http.del(`${BASE_URL}/api/v1/clubs/${clubId}/leave`, null, opts);
+        clubLeaveDuration.add(res.timings.duration);
+        errorRate.add(res.status >= 500);
+        if (res.status >= 500) leaveServerErrors.add(1);
+        if (res.status === 200 || res.status === 400) membership[clubId] = false;
+    } else {
+        // 비멤버 → 가입
+        const res = http.post(`${BASE_URL}/api/v1/clubs/${clubId}/join`, null, opts);
+        clubJoinDuration.add(res.timings.duration);
+        errorRate.add(res.status >= 500);
+        memberCountContention.add(res.status >= 500 ? 1 : 0);
+        if (res.status >= 500) joinServerErrors.add(1);
+        if (res.status === 200 || res.status === 400) membership[clubId] = 'MEMBER';
+    }
+}
 
 // ============================================
-// Phase 1: Hot Club — Detail + Join/Leave (10개 클럽 집중)
+// Phase 1: Hot Club (10개 집중, memberCount 경합)
 // ============================================
 export function hotClubContention() {
-    const user = randomUser();
+    const user = testUsers[(__VU - 1) % testUsers.length];
     const token = generateJWT(user);
-    const opts = headers(token);
+    const opts = reqOpts(token);
     const hotClubId = (__VU % 10) + 1;
 
-    group('hot_club', () => {
-        const action = Math.random();
+    detectMembership(hotClubId, opts);
 
-        if (action < 0.3) {
-            // 30%: Detail 조회
+    group('hot_club', () => {
+        // 30%: Detail 조회
+        if (Math.random() < 0.3) {
             const res = http.get(`${BASE_URL}/api/v1/clubs/${hotClubId}`, opts);
             check(res, { 'hot detail: success': (r) => r.status === 200 });
             clubDetailDuration.add(res.timings.duration);
             errorRate.add(res.status >= 500);
             if (res.status >= 500) detailServerErrors.add(1);
-        } else if (action < 0.7) {
-            // 40%: Join
-            const res = http.post(`${BASE_URL}/api/v1/clubs/${hotClubId}/join`, null, opts);
-            check(res, { 'hot join: not server error': (r) => r.status < 500 });
-            clubJoinDuration.add(res.timings.duration);
-            errorRate.add(res.status >= 500);
-            memberCountContention.add(res.status >= 500 ? 1 : 0);
-            if (res.status >= 500) joinServerErrors.add(1);
-        } else {
-            // 30%: Leave
-            const res = http.del(`${BASE_URL}/api/v1/clubs/${hotClubId}/leave`, null, opts);
-            check(res, { 'hot leave: not server error': (r) => r.status < 500 });
-            clubLeaveDuration.add(res.timings.duration);
-            errorRate.add(res.status >= 500);
-            if (res.status >= 500) leaveServerErrors.add(1);
         }
+        // Join↔Leave 토글
+        toggleMembership(hotClubId, opts);
     });
 
-    sleep(0.2);
+    sleep(0.3);
 }
 
 // ============================================
-// Phase 2: Wide Club — Detail + Join/Leave (전체 분산)
+// Phase 2: Wide Club (10000개 분산)
 // ============================================
 export function wideClubLoad() {
-    const user = randomUser();
+    const user = testUsers[(__VU - 1) % testUsers.length];
     const token = generateJWT(user);
-    const opts = headers(token);
-    const clubId = randomClub();
+    const opts = reqOpts(token);
+    const clubId = ((__VU * 7 + __ITER * 13) % 200000) + 1;
+
+    detectMembership(clubId, opts);
 
     group('wide_club', () => {
-        const action = Math.random();
-
-        if (action < 0.3) {
-            // 30%: Detail 조회
+        if (Math.random() < 0.3) {
             const res = http.get(`${BASE_URL}/api/v1/clubs/${clubId}`, opts);
             check(res, { 'wide detail: success': (r) => r.status === 200 });
             clubDetailDuration.add(res.timings.duration);
             errorRate.add(res.status >= 500);
             if (res.status >= 500) detailServerErrors.add(1);
-        } else if (action < 0.65) {
-            // 35%: Join
-            const res = http.post(`${BASE_URL}/api/v1/clubs/${clubId}/join`, null, opts);
-            check(res, { 'wide join: not server error': (r) => r.status < 500 });
-            clubJoinDuration.add(res.timings.duration);
-            errorRate.add(res.status >= 500);
-            if (res.status >= 500) joinServerErrors.add(1);
-        } else {
-            // 35%: Leave
-            const res = http.del(`${BASE_URL}/api/v1/clubs/${clubId}/leave`, null, opts);
-            check(res, { 'wide leave: not server error': (r) => r.status < 500 });
-            clubLeaveDuration.add(res.timings.duration);
-            errorRate.add(res.status >= 500);
-            if (res.status >= 500) leaveServerErrors.add(1);
         }
+        toggleMembership(clubId, opts);
     });
 
-    sleep(0.2);
+    sleep(0.3);
 }
 
 // ============================================
-// Phase 3: 고부하 혼합 (detail + join + leave) — 400 VU
+// Phase 3: 고부하 혼합 (400 VU)
 // ============================================
 export function highLoadMixed() {
-    const user = randomUser();
+    const user = testUsers[(__VU - 1) % testUsers.length];
     const token = generateJWT(user);
-    const opts = headers(token);
+    const opts = reqOpts(token);
     const action = Math.random();
 
     group('high_load', () => {
-        if (action < 0.2) {
-            // 20%: Detail hot club
-            const hotClubId = (__VU % 20) + 1;
-            const res = http.get(`${BASE_URL}/api/v1/clubs/${hotClubId}`, opts);
-            clubDetailDuration.add(res.timings.duration);
-            errorRate.add(res.status >= 500);
-            if (res.status >= 500) detailServerErrors.add(1);
-        } else if (action < 0.4) {
-            // 20%: Join hot club
-            const hotClubId = (__VU % 20) + 1;
-            const res = http.post(`${BASE_URL}/api/v1/clubs/${hotClubId}/join`, null, opts);
-            clubJoinDuration.add(res.timings.duration);
-            memberCountContention.add(res.status >= 500 ? 1 : 0);
-            errorRate.add(res.status >= 500);
-            if (res.status >= 500) joinServerErrors.add(1);
-        } else if (action < 0.55) {
-            // 15%: Leave hot club
-            const hotClubId = (__VU % 20) + 1;
-            const res = http.del(`${BASE_URL}/api/v1/clubs/${hotClubId}/leave`, null, opts);
-            clubLeaveDuration.add(res.timings.duration);
-            errorRate.add(res.status >= 500);
-            if (res.status >= 500) leaveServerErrors.add(1);
-        } else if (action < 0.7) {
-            // 15%: Detail wide
-            const clubId = randomClub();
+        if (action < 0.35) {
+            // 35%: Detail
+            const clubId = action < 0.2
+                ? (__VU % 20) + 1
+                : ((__VU * 7 + __ITER * 13) % 200000) + 1;
             const res = http.get(`${BASE_URL}/api/v1/clubs/${clubId}`, opts);
             clubDetailDuration.add(res.timings.duration);
             errorRate.add(res.status >= 500);
             if (res.status >= 500) detailServerErrors.add(1);
-        } else if (action < 0.85) {
-            // 15%: Join wide
-            const clubId = randomClub();
-            const res = http.post(`${BASE_URL}/api/v1/clubs/${clubId}/join`, null, opts);
-            clubJoinDuration.add(res.timings.duration);
-            errorRate.add(res.status >= 500);
-            if (res.status >= 500) joinServerErrors.add(1);
         } else {
-            // 15%: Leave wide
-            const clubId = randomClub();
-            const res = http.del(`${BASE_URL}/api/v1/clubs/${clubId}/leave`, null, opts);
-            clubLeaveDuration.add(res.timings.duration);
-            errorRate.add(res.status >= 500);
-            if (res.status >= 500) leaveServerErrors.add(1);
+            // 65%: Join↔Leave 토글
+            const clubId = action < 0.65
+                ? (__VU % 20) + 1
+                : ((__VU * 7 + __ITER * 13) % 200000) + 1;
+            detectMembership(clubId, opts);
+            toggleMembership(clubId, opts);
         }
     });
 
-    sleep(0.15);
+    sleep(0.2);
 }
 
 // ============================================
@@ -272,30 +221,28 @@ export function setup() {
     console.log('=== Club Bottleneck Test (~8min) ===');
     console.log(`Base URL: ${BASE_URL}`);
     console.log('');
-    console.log('Phase 1 (0-2.5m):   Hot Club (10 clubs) detail+join+leave — 0→200 VU');
-    console.log('Phase 2 (3-5.5m):   Wide Club (10000 clubs) detail+join+leave — 0→300 VU');
-    console.log('Phase 3 (6-8m):     High Load Mixed — 0→400 VU');
+    console.log('Phase 1 (0-2.5m):   Hot Club (10 clubs) — 0→200 VU, sleep 0.3s');
+    console.log('Phase 2 (3-5.5m):   Wide Club (200000 clubs) — 0→300 VU, sleep 0.3s');
+    console.log('Phase 3 (6-8m):     High Load Mixed — 0→400 VU, sleep 0.2s');
     console.log('');
-    console.log('Endpoints: GET /{clubId}, POST /{clubId}/join, DELETE /{clubId}/leave');
+    console.log('Strategy: VU별 고유 유저 + 상태 추적 (4xx 최소화)');
     console.log('==============================================');
 
-    // Smoke test: detail + join
+    // Smoke test
     const user = testUsers[999];
     const token = generateJWT(user);
-    const detailRes = http.get(`${BASE_URL}/api/v1/clubs/5000`, headers(token));
-    console.log(`Smoke (detail club 5000): status=${detailRes.status}, ${detailRes.timings.duration.toFixed(0)}ms`);
-    const joinRes = http.post(`${BASE_URL}/api/v1/clubs/5000/join`, null, headers(token));
-    console.log(`Smoke (join club 5000): status=${joinRes.status}, ${joinRes.timings.duration.toFixed(0)}ms`);
+    const opts = reqOpts(token);
+    const res = http.get(`${BASE_URL}/api/v1/clubs/50000`, opts);
+    console.log(`Smoke (detail club 5000): status=${res.status}, ${res.timings.duration.toFixed(0)}ms`);
 }
 
 export function teardown() {
     console.log('');
     console.log('=== Club Bottleneck Test Complete ===');
     console.log('Key metrics:');
-    console.log('  club_detail_duration — 상세 조회 응답시간');
-    console.log('  club_join_duration — p50 vs p95 gap = lock contention');
-    console.log('  club_leave_duration — p50 vs p95 gap');
-    console.log('  member_count_contention — 500 error rate on hot clubs');
-    console.log('  join/leave/detail_server_errors — total 500s');
+    console.log('  club_detail_duration — p50 vs p95');
+    console.log('  club_join_duration — lock contention');
+    console.log('  club_leave_duration — lock contention');
+    console.log('  member_count_contention — 500 error rate');
     console.log('=====================================');
 }

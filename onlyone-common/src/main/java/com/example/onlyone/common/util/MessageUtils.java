@@ -13,11 +13,21 @@ public final class MessageUtils {
     }
 
     /**
-     * IMAGE:: 프리픽스가 있으면 URL 부분만 추출, 아니면 원본 반환
+     * IMAGE:: 프리픽스가 있으면 URL 부분만 추출, 아니면 null 반환
      */
     public static String extractImageUrl(String text) {
         if (!isImageMessage(text)) return null;
         return text.substring(IMAGE_PREFIX.length()).trim();
+    }
+
+    /** 이미지 URL 기본 형식 검증 (빈값/공백/쉼표 불가) */
+    public static boolean isValidImageUrlFormat(String url) {
+        return url != null && !url.isBlank() && !url.contains(",") && !url.contains(" ");
+    }
+
+    /** 이미지 확장자 검증 (png/jpg/jpeg만 허용) */
+    public static boolean hasValidImageExtension(String url) {
+        return url != null && url.matches("(?i).+\\.(png|jpg|jpeg)$");
     }
 
     public static String getDisplayText(String text) {
