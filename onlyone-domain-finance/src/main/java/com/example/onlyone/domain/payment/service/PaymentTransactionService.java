@@ -76,13 +76,15 @@ public class PaymentTransactionService {
      */
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void applyPaymentResult(String orderId, Long amount, ConfirmTossPayResponse response) {
-        Payment payment = paymentRepository.findByTossOrderIdWithoutLock(orderId)
-                .orElseThrow(() -> new CustomException(ErrorCode.INTERNAL_SERVER_ERROR));
-
         User user = userService.getCurrentUser();
 
+        // creditByUserId는 @Modifying(clearAutomatically=true)로 영속성 컨텍스트를 클리어하므로
+        // payment 조회를 그 이후에 수행해야 detached entity 문제를 방지한다.
         int updated = walletRepository.creditByUserId(user.getUserId(), amount);
         if (updated != 1) throw new CustomException(ErrorCode.WALLET_NOT_FOUND);
+
+        Payment payment = paymentRepository.findByTossOrderIdWithoutLock(orderId)
+                .orElseThrow(() -> new CustomException(ErrorCode.INTERNAL_SERVER_ERROR));
 
         Wallet wallet = walletRepository.findByUserWithoutLock(user)
                 .orElseThrow(() -> new CustomException(ErrorCode.WALLET_NOT_FOUND));

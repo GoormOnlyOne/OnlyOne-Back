@@ -53,9 +53,10 @@ public class WalletService {
 
     private UserWalletTransactionDto convertToDto(WalletTransaction walletTransaction, TransactionType type) {
         if (type == TransactionType.CHARGE) {
-            // 충전 거래의 경우
             Payment payment = walletTransaction.getPayment();
-            String title = payment.getTotalAmount() + "원";
+            String title = (payment != null)
+                    ? payment.getTotalAmount() + "원"
+                    : walletTransaction.getAmount() + "원";
             return UserWalletTransactionDto.from(walletTransaction, title, null);
         } else {
             return UserWalletTransactionDto.from(walletTransaction, "정산 거래", null);

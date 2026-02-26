@@ -7,6 +7,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.cloud.openfeign.EnableFeignClients;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Profile;
 import feign.codec.Encoder;
 import feign.jackson.JacksonEncoder;
 import java.nio.charset.StandardCharsets;
@@ -14,6 +15,7 @@ import java.util.Base64;
 
 @Slf4j
 @Configuration
+@Profile("!loadtest")
 @EnableFeignClients(basePackages = "com.example.onlyone.domain.payment.feign")
 public class TossFeignConfig implements RequestInterceptor {
     private static final String AUTH_HEADER_PREFIX = "Basic ";
