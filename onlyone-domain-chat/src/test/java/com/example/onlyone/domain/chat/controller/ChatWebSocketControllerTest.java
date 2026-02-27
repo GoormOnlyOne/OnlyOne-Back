@@ -6,8 +6,8 @@ import com.example.onlyone.domain.chat.service.MessageCommandService;
 import com.example.onlyone.domain.user.dto.UserPrincipal;
 import com.example.onlyone.domain.user.entity.User;
 import com.example.onlyone.domain.user.service.UserService;
+import com.example.onlyone.domain.user.exception.UserErrorCode;
 import com.example.onlyone.global.exception.CustomException;
-import com.example.onlyone.global.exception.ErrorCode;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -121,13 +121,13 @@ class ChatWebSocketControllerTest {
             SimpMessageHeaderAccessor accessor = headerWithPrincipal(USER_ID, KAKAO_ID);
 
             given(userService.getMemberById(USER_ID))
-                    .willThrow(new CustomException(ErrorCode.USER_NOT_FOUND));
+                    .willThrow(new CustomException(UserErrorCode.USER_NOT_FOUND));
 
             Throwable thrown = catchThrowable(() ->
                     controller.sendMessage(chatRoomId, request, accessor));
 
             assertThat(thrown).isInstanceOf(CustomException.class);
-            assertThat(((CustomException) thrown).getErrorCode()).isEqualTo(ErrorCode.USER_NOT_FOUND);
+            assertThat(((CustomException) thrown).getErrorCode()).isEqualTo(UserErrorCode.USER_NOT_FOUND);
             then(messageCommandService).shouldHaveNoInteractions();
             then(asyncMessageService).shouldHaveNoInteractions();
         }

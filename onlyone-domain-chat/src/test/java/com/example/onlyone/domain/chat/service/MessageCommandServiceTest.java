@@ -8,8 +8,9 @@ import com.example.onlyone.domain.chat.repository.MessageRepository;
 import com.example.onlyone.domain.chat.repository.UserChatRoomRepository;
 import com.example.onlyone.domain.user.entity.User;
 import com.example.onlyone.domain.user.repository.UserRepository;
+import com.example.onlyone.domain.chat.exception.ChatErrorCode;
+import com.example.onlyone.domain.user.exception.UserErrorCode;
 import com.example.onlyone.global.exception.CustomException;
-import com.example.onlyone.global.exception.ErrorCode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -100,7 +101,7 @@ class MessageCommandServiceTest {
                     messageCommandService.sendAndPublish(1L, DEFAULT_USER_ID, "테스트"))
                     .isInstanceOf(CustomException.class)
                     .extracting(e -> ((CustomException) e).getErrorCode())
-                    .isEqualTo(ErrorCode.MESSAGE_SERVER_ERROR);
+                    .isEqualTo(ChatErrorCode.MESSAGE_SERVER_ERROR);
         }
     }
 
@@ -203,7 +204,7 @@ class MessageCommandServiceTest {
             assertThatThrownBy(() -> messageCommandService.saveMessage(1L, DEFAULT_USER_ID, "   "))
                     .isInstanceOf(CustomException.class)
                     .extracting(e -> ((CustomException) e).getErrorCode())
-                    .isEqualTo(ErrorCode.MESSAGE_BAD_REQUEST);
+                    .isEqualTo(ChatErrorCode.MESSAGE_BAD_REQUEST);
         }
 
         @Test
@@ -212,7 +213,7 @@ class MessageCommandServiceTest {
             assertThatThrownBy(() -> messageCommandService.saveMessage(1L, DEFAULT_USER_ID, null))
                     .isInstanceOf(CustomException.class)
                     .extracting(e -> ((CustomException) e).getErrorCode())
-                    .isEqualTo(ErrorCode.MESSAGE_BAD_REQUEST);
+                    .isEqualTo(ChatErrorCode.MESSAGE_BAD_REQUEST);
         }
 
         @Test
@@ -224,7 +225,7 @@ class MessageCommandServiceTest {
             assertThatThrownBy(() -> messageCommandService.saveMessage(999L, DEFAULT_USER_ID, "메시지"))
                     .isInstanceOf(CustomException.class)
                     .extracting(e -> ((CustomException) e).getErrorCode())
-                    .isEqualTo(ErrorCode.FORBIDDEN_CHAT_ROOM);
+                    .isEqualTo(ChatErrorCode.FORBIDDEN_CHAT_ROOM);
         }
 
         @Test
@@ -237,7 +238,7 @@ class MessageCommandServiceTest {
             assertThatThrownBy(() -> messageCommandService.saveMessage(1L, 999L, "메시지"))
                     .isInstanceOf(CustomException.class)
                     .extracting(e -> ((CustomException) e).getErrorCode())
-                    .isEqualTo(ErrorCode.USER_NOT_FOUND);
+                    .isEqualTo(UserErrorCode.USER_NOT_FOUND);
         }
 
         @Test
@@ -249,7 +250,7 @@ class MessageCommandServiceTest {
             assertThatThrownBy(() -> messageCommandService.saveMessage(1L, DEFAULT_USER_ID, "메시지"))
                     .isInstanceOf(CustomException.class)
                     .extracting(e -> ((CustomException) e).getErrorCode())
-                    .isEqualTo(ErrorCode.FORBIDDEN_CHAT_ROOM);
+                    .isEqualTo(ChatErrorCode.FORBIDDEN_CHAT_ROOM);
         }
 
         @Test
@@ -262,7 +263,7 @@ class MessageCommandServiceTest {
             assertThatThrownBy(() -> messageCommandService.saveMessage(1L, DEFAULT_USER_ID, "IMAGE::https://example.com/file.gif"))
                     .isInstanceOf(CustomException.class)
                     .extracting(e -> ((CustomException) e).getErrorCode())
-                    .isEqualTo(ErrorCode.INVALID_IMAGE_CONTENT_TYPE);
+                    .isEqualTo(ChatErrorCode.INVALID_IMAGE_CONTENT_TYPE);
         }
 
         @Test
@@ -275,7 +276,7 @@ class MessageCommandServiceTest {
             assertThatThrownBy(() -> messageCommandService.saveMessage(1L, DEFAULT_USER_ID, "IMAGE::https://example.com/a,b.png"))
                     .isInstanceOf(CustomException.class)
                     .extracting(e -> ((CustomException) e).getErrorCode())
-                    .isEqualTo(ErrorCode.MESSAGE_BAD_REQUEST);
+                    .isEqualTo(ChatErrorCode.MESSAGE_BAD_REQUEST);
         }
     }
 
@@ -308,7 +309,7 @@ class MessageCommandServiceTest {
             assertThatThrownBy(() -> messageCommandService.deleteMessage(999L, DEFAULT_USER_ID))
                     .isInstanceOf(CustomException.class)
                     .extracting(e -> ((CustomException) e).getErrorCode())
-                    .isEqualTo(ErrorCode.MESSAGE_NOT_FOUND);
+                    .isEqualTo(ChatErrorCode.MESSAGE_NOT_FOUND);
         }
 
         @Test
@@ -323,7 +324,7 @@ class MessageCommandServiceTest {
             assertThatThrownBy(() -> messageCommandService.deleteMessage(1L, DEFAULT_USER_ID))
                     .isInstanceOf(CustomException.class)
                     .extracting(e -> ((CustomException) e).getErrorCode())
-                    .isEqualTo(ErrorCode.MESSAGE_CONFLICT);
+                    .isEqualTo(ChatErrorCode.MESSAGE_CONFLICT);
         }
 
         @Test
@@ -338,7 +339,7 @@ class MessageCommandServiceTest {
             assertThatThrownBy(() -> messageCommandService.deleteMessage(1L, 999L))
                     .isInstanceOf(CustomException.class)
                     .extracting(e -> ((CustomException) e).getErrorCode())
-                    .isEqualTo(ErrorCode.MESSAGE_FORBIDDEN);
+                    .isEqualTo(ChatErrorCode.MESSAGE_FORBIDDEN);
         }
     }
 }

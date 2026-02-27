@@ -1,7 +1,7 @@
 package com.example.onlyone.domain.image.entity;
 
+import com.example.onlyone.domain.image.exception.ImageErrorCode;
 import com.example.onlyone.global.exception.CustomException;
-import com.example.onlyone.global.exception.ErrorCode;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 
@@ -22,6 +22,6 @@ public enum ImageFolderType {
                 return value;
             }
         }
-        throw new CustomException(ErrorCode.INVALID_IMAGE_FOLDER_TYPE);
+        throw new CustomException(ImageErrorCode.INVALID_IMAGE_FOLDER_TYPE);
     }
 }

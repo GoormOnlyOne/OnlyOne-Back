@@ -17,8 +17,10 @@ import com.example.onlyone.domain.schedule.repository.UserScheduleRepository;
 import com.example.onlyone.domain.user.entity.User;
 import com.example.onlyone.domain.user.service.UserService;
 import com.example.onlyone.domain.wallet.service.WalletHoldService;
+import com.example.onlyone.domain.club.exception.ClubErrorCode;
+import com.example.onlyone.domain.finance.exception.FinanceErrorCode;
+import com.example.onlyone.domain.schedule.exception.ScheduleErrorCode;
 import com.example.onlyone.global.exception.CustomException;
-import com.example.onlyone.global.exception.ErrorCode;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -110,7 +112,7 @@ class ScheduleCommandServiceTest {
 
             assertThatThrownBy(() -> scheduleCommandService.createSchedule(999L, requestDto()))
                     .isInstanceOf(CustomException.class)
-                    .extracting("errorCode").isEqualTo(ErrorCode.CLUB_NOT_FOUND);
+                    .extracting("errorCode").isEqualTo(ClubErrorCode.CLUB_NOT_FOUND);
         }
 
         @Test
@@ -122,7 +124,7 @@ class ScheduleCommandServiceTest {
 
             assertThatThrownBy(() -> scheduleCommandService.createSchedule(1L, requestDto()))
                     .isInstanceOf(CustomException.class)
-                    .extracting("errorCode").isEqualTo(ErrorCode.MEMBER_CANNOT_CREATE_SCHEDULE);
+                    .extracting("errorCode").isEqualTo(ScheduleErrorCode.MEMBER_CANNOT_CREATE_SCHEDULE);
         }
     }
 
@@ -160,7 +162,7 @@ class ScheduleCommandServiceTest {
 
             assertThatThrownBy(() -> scheduleCommandService.updateSchedule(1L, 1L, updateRequestDto()))
                     .isInstanceOf(CustomException.class)
-                    .extracting("errorCode").isEqualTo(ErrorCode.MEMBER_CANNOT_MODIFY_SCHEDULE);
+                    .extracting("errorCode").isEqualTo(ScheduleErrorCode.MEMBER_CANNOT_MODIFY_SCHEDULE);
         }
 
         @Test
@@ -177,7 +179,7 @@ class ScheduleCommandServiceTest {
 
             assertThatThrownBy(() -> scheduleCommandService.updateSchedule(1L, 1L, updateRequestDto()))
                     .isInstanceOf(CustomException.class)
-                    .extracting("errorCode").isEqualTo(ErrorCode.ALREADY_ENDED_SCHEDULE);
+                    .extracting("errorCode").isEqualTo(ScheduleErrorCode.ALREADY_ENDED_SCHEDULE);
         }
 
         @Test
@@ -188,7 +190,7 @@ class ScheduleCommandServiceTest {
 
             assertThatThrownBy(() -> scheduleCommandService.updateSchedule(999L, 1L, updateRequestDto()))
                     .isInstanceOf(CustomException.class)
-                    .extracting("errorCode").isEqualTo(ErrorCode.SCHEDULE_NOT_FOUND);
+                    .extracting("errorCode").isEqualTo(ScheduleErrorCode.SCHEDULE_NOT_FOUND);
         }
 
         @Test
@@ -203,7 +205,7 @@ class ScheduleCommandServiceTest {
 
             assertThatThrownBy(() -> scheduleCommandService.updateSchedule(1L, 1L, costChangeRequestDto(20000L)))
                     .isInstanceOf(CustomException.class)
-                    .extracting("errorCode").isEqualTo(ErrorCode.MEMBER_CANNOT_MODIFY_SCHEDULE);
+                    .extracting("errorCode").isEqualTo(ScheduleErrorCode.MEMBER_CANNOT_MODIFY_SCHEDULE);
         }
     }
 
@@ -247,7 +249,7 @@ class ScheduleCommandServiceTest {
 
             assertThatThrownBy(() -> scheduleCommandService.joinSchedule(1L, 1L))
                     .isInstanceOf(CustomException.class)
-                    .extracting("errorCode").isEqualTo(ErrorCode.ALREADY_EXCEEDED_SCHEDULE);
+                    .extracting("errorCode").isEqualTo(ScheduleErrorCode.ALREADY_EXCEEDED_SCHEDULE);
         }
 
         @Test
@@ -260,7 +262,7 @@ class ScheduleCommandServiceTest {
 
             assertThatThrownBy(() -> scheduleCommandService.joinSchedule(1L, 1L))
                     .isInstanceOf(CustomException.class)
-                    .extracting("errorCode").isEqualTo(ErrorCode.ALREADY_ENDED_SCHEDULE);
+                    .extracting("errorCode").isEqualTo(ScheduleErrorCode.ALREADY_ENDED_SCHEDULE);
         }
 
         @Test
@@ -270,7 +272,7 @@ class ScheduleCommandServiceTest {
 
             assertThatThrownBy(() -> scheduleCommandService.joinSchedule(999L, 1L))
                     .isInstanceOf(CustomException.class)
-                    .extracting("errorCode").isEqualTo(ErrorCode.SCHEDULE_NOT_FOUND);
+                    .extracting("errorCode").isEqualTo(ScheduleErrorCode.SCHEDULE_NOT_FOUND);
         }
 
         @Test
@@ -283,7 +285,7 @@ class ScheduleCommandServiceTest {
 
             assertThatThrownBy(() -> scheduleCommandService.joinSchedule(1L, 1L))
                     .isInstanceOf(CustomException.class)
-                    .extracting("errorCode").isEqualTo(ErrorCode.USER_CLUB_NOT_FOUND);
+                    .extracting("errorCode").isEqualTo(ClubErrorCode.USER_CLUB_NOT_FOUND);
         }
 
         @Test
@@ -293,12 +295,12 @@ class ScheduleCommandServiceTest {
             given(userService.getCurrentUser()).willReturn(member);
             given(userScheduleRepository.countBySchedule(schedule)).willReturn(1);
             given(userClubRepository.existsByUser_UserIdAndClub_ClubId(2L, 1L)).willReturn(true);
-            willThrow(new CustomException(ErrorCode.WALLET_BALANCE_NOT_ENOUGH))
+            willThrow(new CustomException(FinanceErrorCode.WALLET_BALANCE_NOT_ENOUGH))
                     .given(walletHoldService).holdOrThrow(2L, 10000L);
 
             assertThatThrownBy(() -> scheduleCommandService.joinSchedule(1L, 1L))
                     .isInstanceOf(CustomException.class)
-                    .extracting("errorCode").isEqualTo(ErrorCode.WALLET_BALANCE_NOT_ENOUGH);
+                    .extracting("errorCode").isEqualTo(FinanceErrorCode.WALLET_BALANCE_NOT_ENOUGH);
         }
     }
 
@@ -342,7 +344,7 @@ class ScheduleCommandServiceTest {
 
             assertThatThrownBy(() -> scheduleCommandService.leaveSchedule(1L, 1L))
                     .isInstanceOf(CustomException.class)
-                    .extracting("errorCode").isEqualTo(ErrorCode.ALREADY_ENDED_SCHEDULE);
+                    .extracting("errorCode").isEqualTo(ScheduleErrorCode.ALREADY_ENDED_SCHEDULE);
         }
 
         @Test
@@ -354,7 +356,7 @@ class ScheduleCommandServiceTest {
 
             assertThatThrownBy(() -> scheduleCommandService.leaveSchedule(1L, 1L))
                     .isInstanceOf(CustomException.class)
-                    .extracting("errorCode").isEqualTo(ErrorCode.LEADER_CANNOT_LEAVE_SCHEDULE);
+                    .extracting("errorCode").isEqualTo(ScheduleErrorCode.LEADER_CANNOT_LEAVE_SCHEDULE);
         }
 
         @Test
@@ -363,12 +365,12 @@ class ScheduleCommandServiceTest {
             given(userService.getCurrentUser()).willReturn(member);
             given(userScheduleRepository.findByUserAndScheduleIdWithSchedule(member, 1L))
                     .willReturn(Optional.of(memberUS));
-            willThrow(new CustomException(ErrorCode.WALLET_HOLD_STATE_CONFLICT))
+            willThrow(new CustomException(FinanceErrorCode.WALLET_HOLD_STATE_CONFLICT))
                     .given(walletHoldService).releaseOrThrow(2L, 10000L);
 
             assertThatThrownBy(() -> scheduleCommandService.leaveSchedule(1L, 1L))
                     .isInstanceOf(CustomException.class)
-                    .extracting("errorCode").isEqualTo(ErrorCode.WALLET_HOLD_STATE_CONFLICT);
+                    .extracting("errorCode").isEqualTo(FinanceErrorCode.WALLET_HOLD_STATE_CONFLICT);
         }
     }
 
@@ -411,7 +413,7 @@ class ScheduleCommandServiceTest {
 
             assertThatThrownBy(() -> scheduleCommandService.deleteSchedule(999L, 1L))
                     .isInstanceOf(CustomException.class)
-                    .extracting("errorCode").isEqualTo(ErrorCode.SCHEDULE_NOT_FOUND);
+                    .extracting("errorCode").isEqualTo(ScheduleErrorCode.SCHEDULE_NOT_FOUND);
         }
 
         @Test
@@ -423,7 +425,7 @@ class ScheduleCommandServiceTest {
 
             assertThatThrownBy(() -> scheduleCommandService.deleteSchedule(1L, 1L))
                     .isInstanceOf(CustomException.class)
-                    .extracting("errorCode").isEqualTo(ErrorCode.INVALID_SCHEDULE_DELETE);
+                    .extracting("errorCode").isEqualTo(ScheduleErrorCode.INVALID_SCHEDULE_DELETE);
         }
 
         @Test
@@ -437,7 +439,7 @@ class ScheduleCommandServiceTest {
 
             assertThatThrownBy(() -> scheduleCommandService.deleteSchedule(1L, 1L))
                     .isInstanceOf(CustomException.class)
-                    .extracting("errorCode").isEqualTo(ErrorCode.MEMBER_CANNOT_DELETE_SCHEDULE);
+                    .extracting("errorCode").isEqualTo(ScheduleErrorCode.MEMBER_CANNOT_DELETE_SCHEDULE);
         }
     }
 }

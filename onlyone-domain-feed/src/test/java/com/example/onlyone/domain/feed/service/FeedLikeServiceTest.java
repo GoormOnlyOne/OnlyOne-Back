@@ -3,8 +3,9 @@ package com.example.onlyone.domain.feed.service;
 import com.example.onlyone.domain.club.repository.ClubRepository;
 import com.example.onlyone.domain.feed.repository.FeedRepository;
 import com.example.onlyone.domain.user.service.UserService;
+import com.example.onlyone.domain.club.exception.ClubErrorCode;
+import com.example.onlyone.domain.feed.exception.FeedErrorCode;
 import com.example.onlyone.global.exception.CustomException;
-import com.example.onlyone.global.exception.ErrorCode;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -90,7 +91,7 @@ class FeedLikeServiceTest {
             assertThatThrownBy(() -> feedLikeService.toggleLike(999L, 10L))
                     .isInstanceOf(CustomException.class)
                     .extracting("errorCode")
-                    .isEqualTo(ErrorCode.CLUB_NOT_FOUND);
+                    .isEqualTo(ClubErrorCode.CLUB_NOT_FOUND);
         }
 
         @Test
@@ -104,7 +105,7 @@ class FeedLikeServiceTest {
             assertThatThrownBy(() -> feedLikeService.toggleLike(100L, 999L))
                     .isInstanceOf(CustomException.class)
                     .extracting("errorCode")
-                    .isEqualTo(ErrorCode.FEED_NOT_FOUND);
+                    .isEqualTo(FeedErrorCode.FEED_NOT_FOUND);
         }
 
         @Test

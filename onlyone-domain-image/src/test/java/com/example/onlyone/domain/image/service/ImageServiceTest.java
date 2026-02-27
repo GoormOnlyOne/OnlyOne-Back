@@ -20,8 +20,8 @@ import software.amazon.awssdk.services.s3.presigner.model.PutObjectPresignReques
 
 import com.example.onlyone.domain.image.dto.request.PresignedUrlRequestDto;
 import com.example.onlyone.domain.image.entity.ImageFolderType;
+import com.example.onlyone.domain.image.exception.ImageErrorCode;
 import com.example.onlyone.global.exception.CustomException;
-import com.example.onlyone.global.exception.ErrorCode;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -99,7 +99,7 @@ class ImageServiceTest {
                             new PresignedUrlRequestDto("a.gif", "image/gif", 100L)))
                     .isInstanceOf(CustomException.class)
                     .extracting(e -> ((CustomException) e).getErrorCode())
-                    .isEqualTo(ErrorCode.INVALID_IMAGE_CONTENT_TYPE);
+                    .isEqualTo(ImageErrorCode.INVALID_IMAGE_CONTENT_TYPE);
         }
 
         @Test
@@ -112,7 +112,7 @@ class ImageServiceTest {
                             new PresignedUrlRequestDto("a.jpg", "image/jpeg", over)))
                     .isInstanceOf(CustomException.class)
                     .extracting(e -> ((CustomException) e).getErrorCode())
-                    .isEqualTo(ErrorCode.IMAGE_SIZE_EXCEEDED);
+                    .isEqualTo(ImageErrorCode.IMAGE_SIZE_EXCEEDED);
         }
 
         @Test
@@ -123,7 +123,7 @@ class ImageServiceTest {
                             new PresignedUrlRequestDto("a.png", "image/png", 0L)))
                     .isInstanceOf(CustomException.class)
                     .extracting(e -> ((CustomException) e).getErrorCode())
-                    .isEqualTo(ErrorCode.INVALID_IMAGE_SIZE);
+                    .isEqualTo(ImageErrorCode.INVALID_IMAGE_SIZE);
         }
 
         @Test
@@ -134,7 +134,7 @@ class ImageServiceTest {
                             new PresignedUrlRequestDto("a.png", "image/png", 100L)))
                     .isInstanceOf(CustomException.class)
                     .extracting(e -> ((CustomException) e).getErrorCode())
-                    .isEqualTo(ErrorCode.INVALID_IMAGE_FOLDER_TYPE);
+                    .isEqualTo(ImageErrorCode.INVALID_IMAGE_FOLDER_TYPE);
         }
     }
 
@@ -169,7 +169,7 @@ class ImageServiceTest {
             assertThatThrownBy(() -> ImageFolderType.from("VIDEO"))
                     .isInstanceOf(CustomException.class)
                     .extracting(e -> ((CustomException) e).getErrorCode())
-                    .isEqualTo(ErrorCode.INVALID_IMAGE_FOLDER_TYPE);
+                    .isEqualTo(ImageErrorCode.INVALID_IMAGE_FOLDER_TYPE);
         }
     }
 }

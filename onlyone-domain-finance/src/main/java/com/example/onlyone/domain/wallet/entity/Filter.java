@@ -1,8 +1,8 @@
 package com.example.onlyone.domain.wallet.entity;
 
 import com.example.onlyone.domain.club.entity.ClubRole;
+import com.example.onlyone.domain.finance.exception.FinanceErrorCode;
 import com.example.onlyone.global.exception.CustomException;
-import com.example.onlyone.global.exception.ErrorCode;
 import com.fasterxml.jackson.annotation.JsonCreator;
 
 public enum Filter {
@@ -14,7 +14,7 @@ public enum Filter {
         try {
             return Filter.valueOf(value.toUpperCase());
         } catch (IllegalArgumentException e) {
-            throw new CustomException(ErrorCode.INVALID_FILTER);
+            throw new CustomException(FinanceErrorCode.INVALID_FILTER);
         }
     }
 }

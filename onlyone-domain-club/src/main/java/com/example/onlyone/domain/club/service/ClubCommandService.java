@@ -13,8 +13,9 @@ import com.example.onlyone.domain.interest.entity.Interest;
 import com.example.onlyone.domain.interest.repository.InterestRepository;
 import com.example.onlyone.domain.user.entity.User;
 import com.example.onlyone.domain.user.service.UserService;
+import com.example.onlyone.domain.club.exception.ClubErrorCode;
+import com.example.onlyone.domain.interest.exception.InterestErrorCode;
 import com.example.onlyone.global.exception.CustomException;
-import com.example.onlyone.global.exception.ErrorCode;
 import com.example.onlyone.common.event.ClubCreatedEvent;
 import com.example.onlyone.common.event.ClubLeftEvent;
 import org.springframework.cache.CacheManager;
@@ -70,9 +71,9 @@ public class ClubCommandService {
         Interest interest = findInterestOrThrow(requestDto.category());
         User user = userService.getCurrentUser();
         UserClub userClub = userClubRepository.findByUserAndClub(user, club)
-                .orElseThrow(() -> new CustomException(ErrorCode.USER_CLUB_NOT_FOUND));
+                .orElseThrow(() -> new CustomException(ClubErrorCode.USER_CLUB_NOT_FOUND));
         if (userClub.getClubRole() != ClubRole.LEADER) {
-            throw new CustomException(ErrorCode.LEADER_ONLY_CLUB_MODIFY);
+            throw new CustomException(ClubErrorCode.LEADER_ONLY_CLUB_MODIFY);
         }
         club.update(new ClubUpdateCommand(
                 requestDto.name(), requestDto.userLimit(), requestDto.description(),
@@ -112,7 +113,7 @@ public class ClubCommandService {
             User user = userService.getCurrentUser();
             Club club = findClubOrThrow(clubId);
             UserClub userClub = userClubRepository.findByUserAndClub(user, club)
-                    .orElseThrow(() -> new CustomException(ErrorCode.USER_CLUB_NOT_FOUND));
+                    .orElseThrow(() -> new CustomException(ClubErrorCode.USER_CLUB_NOT_FOUND));
             validateLeavePermission(userClub);
             userClubRepository.delete(userClub);
             eventPublisher.publishEvent(new ClubLeftEvent(clubId, user.getUserId()));
@@ -129,22 +130,22 @@ public class ClubCommandService {
     private void validateCapacity(Club club) {
         int userCount = userClubRepository.countByClub_ClubId(club.getClubId());
         if (userCount >= club.getUserLimit()) {
-            throw new CustomException(ErrorCode.CLUB_NOT_ENTER);
+            throw new CustomException(ClubErrorCode.CLUB_NOT_ENTER);
         }
     }
 
     private void validateNotAlreadyJoined(Long userId, Long clubId) {
         if (userClubRepository.existsByUser_UserIdAndClub_ClubId(userId, clubId)) {
-            throw new CustomException(ErrorCode.ALREADY_JOINED_CLUB);
+            throw new CustomException(ClubErrorCode.ALREADY_JOINED_CLUB);
         }
     }
 
     private void validateLeavePermission(UserClub userClub) {
         if (userClub.getClubRole() == ClubRole.GUEST) {
-            throw new CustomException(ErrorCode.CLUB_NOT_LEAVE);
+            throw new CustomException(ClubErrorCode.CLUB_NOT_LEAVE);
         }
         if (userClub.getClubRole() == ClubRole.LEADER) {
-            throw new CustomException(ErrorCode.CLUB_LEADER_NOT_LEAVE);
+            throw new CustomException(ClubErrorCode.CLUB_LEADER_NOT_LEAVE);
         }
     }
 
@@ -155,7 +156,7 @@ public class ClubCommandService {
             userClubRepository.save(userClub);
             userClubRepository.flush();
         } catch (DataIntegrityViolationException e) {
-            throw new CustomException(ErrorCode.ALREADY_JOINED_CLUB);
+            throw new CustomException(ClubErrorCode.ALREADY_JOINED_CLUB);
         }
     }
 
@@ -183,12 +184,12 @@ public class ClubCommandService {
 
     private Club findClubOrThrow(Long clubId) {
         return clubRepository.findById(clubId)
-                .orElseThrow(() -> new CustomException(ErrorCode.CLUB_NOT_FOUND));
+                .orElseThrow(() -> new CustomException(ClubErrorCode.CLUB_NOT_FOUND));
     }
 
     private Interest findInterestOrThrow(String category) {
         return interestRepository.findByCategory(Category.from(category))
-                .orElseThrow(() -> new CustomException(ErrorCode.INTEREST_NOT_FOUND));
+                .orElseThrow(() -> new CustomException(InterestErrorCode.INTEREST_NOT_FOUND));
     }
 
     private void evictAccessibleClubIds(Long userId) {

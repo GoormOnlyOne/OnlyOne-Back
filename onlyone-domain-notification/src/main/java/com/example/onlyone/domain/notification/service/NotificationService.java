@@ -1,6 +1,6 @@
 package com.example.onlyone.domain.notification.service;
 
-import com.example.onlyone.domain.notification.dto.event.NotificationCreatedEvent;
+import com.example.onlyone.domain.notification.event.NotificationCreatedEvent;
 import com.example.onlyone.domain.notification.dto.request.NotificationCreateDto;
 import com.example.onlyone.domain.notification.dto.request.NotificationQueryDto;
 import com.example.onlyone.domain.notification.dto.response.NotificationItemDto;
@@ -88,7 +88,7 @@ public class NotificationService {
 
         unreadCounter.increment(dto.user().getUserId());
 
-        eventPublisher.publishEvent(new NotificationCreatedEvent(notification));
+        eventPublisher.publishEvent(NotificationCreatedEvent.from(notification));
         log.debug("알림 생성: userId={}, type={}, id={}",
                 dto.user().getUserId(), dto.type(), notification.getId());
     }

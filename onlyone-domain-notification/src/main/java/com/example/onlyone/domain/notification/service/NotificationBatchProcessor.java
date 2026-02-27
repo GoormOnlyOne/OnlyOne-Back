@@ -1,8 +1,7 @@
 package com.example.onlyone.domain.notification.service;
 
-import com.example.onlyone.domain.notification.dto.event.NotificationCreatedEvent;
 import com.example.onlyone.domain.notification.dto.response.NotificationSseDto;
-import com.example.onlyone.domain.notification.entity.Notification;
+import com.example.onlyone.domain.notification.event.NotificationCreatedEvent;
 import com.example.onlyone.domain.notification.repository.NotificationRepository;
 import com.example.onlyone.sse.service.SseEventSender;
 import jakarta.annotation.PreDestroy;
@@ -49,7 +48,7 @@ public class NotificationBatchProcessor {
     @Value("${app.notification.batch-timeout-seconds:5}")
     private int batchTimeoutSeconds;
 
-    private final Map<Long, BlockingQueue<Notification>> pendingQueues = new ConcurrentHashMap<>();
+    private final Map<Long, BlockingQueue<NotificationCreatedEvent>> pendingQueues = new ConcurrentHashMap<>();
     private volatile boolean shuttingDown = false;
     private volatile CompletableFuture<Void> currentBatchFuture = CompletableFuture.completedFuture(null);
 
@@ -59,15 +58,14 @@ public class NotificationBatchProcessor {
     public void onNotificationCreated(NotificationCreatedEvent event) {
         if (shuttingDown) return;
 
-        Notification notification = event.notification();
-        Long userId = notification.getUser().getUserId();
+        Long userId = event.userId();
 
         if (!sseEventSender.isUserConnected(userId)) {
             log.debug("오프라인 사용자 스킵: userId={}", userId);
             return;
         }
 
-        enqueueNotification(userId, notification);
+        enqueueNotification(userId, event);
     }
 
     // ========== 주기적 배치 처리 ==========
@@ -84,14 +82,14 @@ public class NotificationBatchProcessor {
 
         for (var entry : new ArrayList<>(pendingQueues.entrySet())) {
             Long userId = entry.getKey();
-            BlockingQueue<Notification> queue = entry.getValue();
+            BlockingQueue<NotificationCreatedEvent> queue = entry.getValue();
 
             if (!sseEventSender.isUserConnected(userId)) {
                 pendingQueues.remove(userId);
                 continue;
             }
 
-            List<Notification> batch = drainQueue(queue);
+            List<NotificationCreatedEvent> batch = drainQueue(queue);
             if (!batch.isEmpty()) {
                 sendFutures.add(sendBatchToUser(userId, batch));
             }
@@ -136,38 +134,38 @@ public class NotificationBatchProcessor {
 
     // ========== 내부 메서드 ==========
 
-    private void enqueueNotification(Long userId, Notification notification) {
-        BlockingQueue<Notification> queue = pendingQueues.computeIfAbsent(
+    private void enqueueNotification(Long userId, NotificationCreatedEvent event) {
+        BlockingQueue<NotificationCreatedEvent> queue = pendingQueues.computeIfAbsent(
                 userId, k -> new LinkedBlockingQueue<>(maxQueueSizePerUser));
 
-        if (!queue.offer(notification)) {
+        if (!queue.offer(event)) {
             log.warn("큐 포화 - 오래된 알림 제거: userId={}", userId);
             queue.poll();
-            queue.offer(notification);
+            queue.offer(event);
         }
     }
 
-    private List<Notification> drainQueue(BlockingQueue<Notification> queue) {
-        List<Notification> batch = new ArrayList<>(batchSize);
+    private List<NotificationCreatedEvent> drainQueue(BlockingQueue<NotificationCreatedEvent> queue) {
+        List<NotificationCreatedEvent> batch = new ArrayList<>(batchSize);
         queue.drainTo(batch, batchSize);
         return batch;
     }
 
-    private CompletableFuture<Void> sendBatchToUser(Long userId, List<Notification> notifications) {
-        List<CompletableFuture<Long>> sendResults = notifications.stream()
-                .map(n -> sendSingleNotification(userId, n))
+    private CompletableFuture<Void> sendBatchToUser(Long userId, List<NotificationCreatedEvent> events) {
+        List<CompletableFuture<Long>> sendResults = events.stream()
+                .map(e -> sendSingleNotification(userId, e))
                 .toList();
 
         return CompletableFuture.allOf(sendResults.toArray(CompletableFuture[]::new))
                 .thenRun(() -> markSentNotifications(userId, sendResults));
     }
 
-    private CompletableFuture<Long> sendSingleNotification(Long userId, Notification notification) {
-        NotificationSseDto dto = NotificationSseDto.from(notification);
+    private CompletableFuture<Long> sendSingleNotification(Long userId, NotificationCreatedEvent event) {
+        NotificationSseDto dto = NotificationSseDto.from(event);
         return sseEventSender.sendEvent(userId, "notification", dto)
-                .thenApply(success -> success ? notification.getId() : null)
+                .thenApply(success -> success ? event.notificationId() : null)
                 .exceptionally(ex -> {
-                    log.debug("SSE 전송 실패: notificationId={}", notification.getId());
+                    log.debug("SSE 전송 실패: notificationId={}", event.notificationId());
                     return null;
                 });
     }

@@ -11,8 +11,8 @@ import com.example.onlyone.domain.club.repository.UserClubRepository;
 import com.example.onlyone.domain.schedule.entity.Schedule;
 import com.example.onlyone.domain.user.entity.User;
 import com.example.onlyone.domain.user.service.UserService;
+import com.example.onlyone.domain.club.exception.ClubErrorCode;
 import com.example.onlyone.global.exception.CustomException;
-import com.example.onlyone.global.exception.ErrorCode;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -84,7 +84,7 @@ class ChatRoomQueryServiceTest {
             Throwable thrown = catchThrowable(() -> chatRoomQueryService.getChatRoomsUserJoinedInClub(clubId));
 
             assertThat(thrown).isInstanceOf(CustomException.class);
-            assertThat(((CustomException) thrown).getErrorCode()).isEqualTo(ErrorCode.CLUB_NOT_FOUND);
+            assertThat(((CustomException) thrown).getErrorCode()).isEqualTo(ClubErrorCode.CLUB_NOT_FOUND);
         }
 
         @Test
@@ -100,7 +100,7 @@ class ChatRoomQueryServiceTest {
             Throwable thrown = catchThrowable(() -> chatRoomQueryService.getChatRoomsUserJoinedInClub(clubId));
 
             assertThat(thrown).isInstanceOf(CustomException.class);
-            assertThat(((CustomException) thrown).getErrorCode()).isEqualTo(ErrorCode.CLUB_NOT_JOIN);
+            assertThat(((CustomException) thrown).getErrorCode()).isEqualTo(ClubErrorCode.CLUB_NOT_JOIN);
         }
     }
 }

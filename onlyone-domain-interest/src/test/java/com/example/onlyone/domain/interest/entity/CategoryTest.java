@@ -1,7 +1,7 @@
 package com.example.onlyone.domain.interest.entity;
 
 import com.example.onlyone.global.exception.CustomException;
-import com.example.onlyone.global.exception.ErrorCode;
+import com.example.onlyone.domain.interest.exception.InterestErrorCode;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -42,6 +42,6 @@ class CategoryTest {
         assertThatThrownBy(() -> Category.from("UNKNOWN"))
                 .isInstanceOf(CustomException.class)
                 .extracting(e -> ((CustomException) e).getErrorCode())
-                .isEqualTo(ErrorCode.INVALID_CATEGORY);
+                .isEqualTo(InterestErrorCode.INVALID_CATEGORY);
     }
 }

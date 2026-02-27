@@ -19,8 +19,9 @@ import com.example.onlyone.domain.schedule.repository.UserScheduleRepository;
 import com.example.onlyone.domain.user.entity.User;
 import com.example.onlyone.domain.user.service.UserService;
 import com.example.onlyone.domain.wallet.service.WalletHoldService;
+import com.example.onlyone.domain.club.exception.ClubErrorCode;
+import com.example.onlyone.domain.schedule.exception.ScheduleErrorCode;
 import com.example.onlyone.global.exception.CustomException;
-import com.example.onlyone.global.exception.ErrorCode;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationEventPublisher;
@@ -53,10 +54,10 @@ public class ScheduleCommandService {
 
         User user = userService.getCurrentUser();
         UserClub userClub = userClubRepository.findByUserAndClub(user, club)
-                .orElseThrow(() -> new CustomException(ErrorCode.USER_CLUB_NOT_FOUND));
+                .orElseThrow(() -> new CustomException(ClubErrorCode.USER_CLUB_NOT_FOUND));
 
         if (userClub.getClubRole() != ClubRole.LEADER) {
-            throw new CustomException(ErrorCode.MEMBER_CANNOT_CREATE_SCHEDULE);
+            throw new CustomException(ScheduleErrorCode.MEMBER_CANNOT_CREATE_SCHEDULE);
         }
 
         Schedule schedule = requestDto.toEntity(club);
@@ -90,14 +91,14 @@ public class ScheduleCommandService {
 
         User user = userService.getCurrentUser();
         UserSchedule userSchedule = userScheduleRepository.findByUserAndSchedule(user, schedule)
-                .orElseThrow(() -> new CustomException(ErrorCode.USER_SCHEDULE_NOT_FOUND));
+                .orElseThrow(() -> new CustomException(ScheduleErrorCode.USER_SCHEDULE_NOT_FOUND));
 
         if (userSchedule.getScheduleRole() != ScheduleRole.LEADER) {
-            throw new CustomException(ErrorCode.MEMBER_CANNOT_MODIFY_SCHEDULE);
+            throw new CustomException(ScheduleErrorCode.MEMBER_CANNOT_MODIFY_SCHEDULE);
         }
 
         if (schedule.isNotModifiable()) {
-            throw new CustomException(ErrorCode.ALREADY_ENDED_SCHEDULE);
+            throw new CustomException(ScheduleErrorCode.ALREADY_ENDED_SCHEDULE);
         }
 
         if (!schedule.getCost().equals(requestDto.cost())) {
@@ -105,7 +106,7 @@ public class ScheduleCommandService {
             if (participantCount > 1) {
                 log.warn("참여자가 있는 일정의 비용 변경은 지원하지 않습니다. scheduleId={}, participants={}",
                          scheduleId, participantCount);
-                throw new CustomException(ErrorCode.MEMBER_CANNOT_MODIFY_SCHEDULE);
+                throw new CustomException(ScheduleErrorCode.MEMBER_CANNOT_MODIFY_SCHEDULE);
             }
         }
 
@@ -116,22 +117,22 @@ public class ScheduleCommandService {
     /** 정기 모임 참여 */
     public void joinSchedule(Long clubId, Long scheduleId) {
         Schedule schedule = scheduleRepository.findByIdWithLock(scheduleId)
-                .orElseThrow(() -> new CustomException(ErrorCode.SCHEDULE_NOT_FOUND));
+                .orElseThrow(() -> new CustomException(ScheduleErrorCode.SCHEDULE_NOT_FOUND));
         validateScheduleBelongsToClub(schedule, clubId);
 
         User user = userService.getCurrentUser();
 
         int userCount = userScheduleRepository.countBySchedule(schedule);
         if (userCount >= schedule.getUserLimit()) {
-            throw new CustomException(ErrorCode.ALREADY_EXCEEDED_SCHEDULE);
+            throw new CustomException(ScheduleErrorCode.ALREADY_EXCEEDED_SCHEDULE);
         }
 
         if (schedule.isNotModifiable()) {
-            throw new CustomException(ErrorCode.ALREADY_ENDED_SCHEDULE);
+            throw new CustomException(ScheduleErrorCode.ALREADY_ENDED_SCHEDULE);
         }
 
         if (!userClubRepository.existsByUser_UserIdAndClub_ClubId(user.getUserId(), clubId)) {
-            throw new CustomException(ErrorCode.USER_CLUB_NOT_FOUND);
+            throw new CustomException(ClubErrorCode.USER_CLUB_NOT_FOUND);
         }
 
         walletHoldService.holdOrThrow(user.getUserId(), schedule.getCost());
@@ -146,7 +147,7 @@ public class ScheduleCommandService {
             userScheduleRepository.flush();
         } catch (DataIntegrityViolationException e) {
             walletHoldService.releaseOrThrow(user.getUserId(), schedule.getCost());
-            throw new CustomException(ErrorCode.ALREADY_JOINED_SCHEDULE);
+            throw new CustomException(ScheduleErrorCode.ALREADY_JOINED_SCHEDULE);
         }
 
         eventPublisher.publishEvent(new ScheduleJoinedEvent(
@@ -163,20 +164,20 @@ public class ScheduleCommandService {
         User user = userService.getCurrentUser();
 
         UserSchedule userSchedule = userScheduleRepository.findByUserAndScheduleIdWithSchedule(user, scheduleId)
-                .orElseThrow(() -> new CustomException(ErrorCode.USER_SCHEDULE_NOT_FOUND));
+                .orElseThrow(() -> new CustomException(ScheduleErrorCode.USER_SCHEDULE_NOT_FOUND));
 
         Schedule schedule = userSchedule.getSchedule();
 
         if (!schedule.getClub().getClubId().equals(clubId)) {
-            throw new CustomException(ErrorCode.SCHEDULE_NOT_FOUND);
+            throw new CustomException(ScheduleErrorCode.SCHEDULE_NOT_FOUND);
         }
 
         if (schedule.isNotModifiable()) {
-            throw new CustomException(ErrorCode.ALREADY_ENDED_SCHEDULE);
+            throw new CustomException(ScheduleErrorCode.ALREADY_ENDED_SCHEDULE);
         }
 
         if (userSchedule.getScheduleRole() == ScheduleRole.LEADER) {
-            throw new CustomException(ErrorCode.LEADER_CANNOT_LEAVE_SCHEDULE);
+            throw new CustomException(ScheduleErrorCode.LEADER_CANNOT_LEAVE_SCHEDULE);
         }
 
         walletHoldService.releaseOrThrow(user.getUserId(), schedule.getCost());
@@ -199,15 +200,15 @@ public class ScheduleCommandService {
         validateScheduleBelongsToClub(schedule, clubId);
 
         if (schedule.isNotModifiable()) {
-            throw new CustomException(ErrorCode.INVALID_SCHEDULE_DELETE);
+            throw new CustomException(ScheduleErrorCode.INVALID_SCHEDULE_DELETE);
         }
 
         User user = userService.getCurrentUser();
         UserSchedule userSchedule = userScheduleRepository.findByUserAndSchedule(user, schedule)
-                .orElseThrow(() -> new CustomException(ErrorCode.USER_SCHEDULE_NOT_FOUND));
+                .orElseThrow(() -> new CustomException(ScheduleErrorCode.USER_SCHEDULE_NOT_FOUND));
 
         if (userSchedule.getScheduleRole() != ScheduleRole.LEADER) {
-            throw new CustomException(ErrorCode.MEMBER_CANNOT_DELETE_SCHEDULE);
+            throw new CustomException(ScheduleErrorCode.MEMBER_CANNOT_DELETE_SCHEDULE);
         }
 
         List<Long> memberUserIds = userScheduleRepository.findMemberUserIdsByScheduleAndRole(
@@ -225,17 +226,17 @@ public class ScheduleCommandService {
 
     private Club findClubOrThrow(Long clubId) {
         return clubRepository.findById(clubId)
-                .orElseThrow(() -> new CustomException(ErrorCode.CLUB_NOT_FOUND));
+                .orElseThrow(() -> new CustomException(ClubErrorCode.CLUB_NOT_FOUND));
     }
 
     private Schedule findScheduleOrThrow(Long scheduleId) {
         return scheduleRepository.findById(scheduleId)
-                .orElseThrow(() -> new CustomException(ErrorCode.SCHEDULE_NOT_FOUND));
+                .orElseThrow(() -> new CustomException(ScheduleErrorCode.SCHEDULE_NOT_FOUND));
     }
 
     private void validateScheduleBelongsToClub(Schedule schedule, Long clubId) {
         if (!schedule.getClub().getClubId().equals(clubId)) {
-            throw new CustomException(ErrorCode.SCHEDULE_NOT_FOUND);
+            throw new CustomException(ScheduleErrorCode.SCHEDULE_NOT_FOUND);
         }
     }
 }

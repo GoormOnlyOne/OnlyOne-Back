@@ -10,8 +10,9 @@ import com.example.onlyone.domain.user.entity.Gender;
 import com.example.onlyone.domain.user.entity.Status;
 import com.example.onlyone.domain.user.entity.User;
 import com.example.onlyone.domain.user.service.UserService;
+import com.example.onlyone.domain.club.exception.ClubErrorCode;
+import com.example.onlyone.domain.feed.exception.FeedErrorCode;
 import com.example.onlyone.global.exception.CustomException;
-import com.example.onlyone.global.exception.ErrorCode;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -111,7 +112,7 @@ class FeedCommandServiceTest {
 
             assertThatThrownBy(() -> feedCommandService.createFeed(999L, requestDto))
                     .isInstanceOf(CustomException.class)
-                    .extracting("errorCode").isEqualTo(ErrorCode.CLUB_NOT_FOUND);
+                    .extracting("errorCode").isEqualTo(ClubErrorCode.CLUB_NOT_FOUND);
         }
 
         @Test
@@ -125,7 +126,7 @@ class FeedCommandServiceTest {
 
             assertThatThrownBy(() -> feedCommandService.createFeed(club.getClubId(), requestDto))
                     .isInstanceOf(CustomException.class)
-                    .extracting("errorCode").isEqualTo(ErrorCode.CLUB_NOT_JOIN);
+                    .extracting("errorCode").isEqualTo(ClubErrorCode.CLUB_NOT_JOIN);
         }
     }
 
@@ -160,7 +161,7 @@ class FeedCommandServiceTest {
 
             assertThatThrownBy(() -> feedCommandService.updateFeed(club.getClubId(), feed.getFeedId(), requestDto))
                     .isInstanceOf(CustomException.class)
-                    .extracting("errorCode").isEqualTo(ErrorCode.UNAUTHORIZED_FEED_ACCESS);
+                    .extracting("errorCode").isEqualTo(FeedErrorCode.UNAUTHORIZED_FEED_ACCESS);
         }
 
         @Test
@@ -173,7 +174,7 @@ class FeedCommandServiceTest {
 
             assertThatThrownBy(() -> feedCommandService.updateFeed(club.getClubId(), 999L, requestDto))
                     .isInstanceOf(CustomException.class)
-                    .extracting("errorCode").isEqualTo(ErrorCode.FEED_NOT_FOUND);
+                    .extracting("errorCode").isEqualTo(FeedErrorCode.FEED_NOT_FOUND);
         }
     }
 
@@ -208,7 +209,7 @@ class FeedCommandServiceTest {
 
             assertThatThrownBy(() -> feedCommandService.softDeleteFeed(club.getClubId(), feed.getFeedId()))
                     .isInstanceOf(CustomException.class)
-                    .extracting("errorCode").isEqualTo(ErrorCode.UNAUTHORIZED_FEED_ACCESS);
+                    .extracting("errorCode").isEqualTo(FeedErrorCode.UNAUTHORIZED_FEED_ACCESS);
 
             verify(feedRepository, never()).softDeleteById(anyLong());
         }
@@ -225,7 +226,7 @@ class FeedCommandServiceTest {
 
             assertThatThrownBy(() -> feedCommandService.softDeleteFeed(club.getClubId(), feed.getFeedId()))
                     .isInstanceOf(CustomException.class)
-                    .extracting("errorCode").isEqualTo(ErrorCode.FEED_NOT_FOUND);
+                    .extracting("errorCode").isEqualTo(FeedErrorCode.FEED_NOT_FOUND);
         }
     }
 }

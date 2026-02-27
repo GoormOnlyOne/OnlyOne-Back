@@ -14,8 +14,9 @@ import com.example.onlyone.domain.user.entity.User;
 import com.example.onlyone.domain.user.entity.UserInterest;
 import com.example.onlyone.domain.user.repository.UserInterestRepository;
 import com.example.onlyone.domain.user.repository.UserRepository;
+import com.example.onlyone.domain.interest.exception.InterestErrorCode;
+import com.example.onlyone.domain.user.exception.UserErrorCode;
 import com.example.onlyone.global.exception.CustomException;
-import com.example.onlyone.global.exception.ErrorCode;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -156,7 +157,7 @@ class UserServiceTest {
             assertThatThrownBy(() -> userService.getMemberById(999L))
                     .isInstanceOf(CustomException.class)
                     .extracting(e -> ((CustomException) e).getErrorCode())
-                    .isEqualTo(ErrorCode.USER_NOT_FOUND);
+                    .isEqualTo(UserErrorCode.USER_NOT_FOUND);
         }
     }
 
@@ -226,7 +227,14 @@ class UserServiceTest {
         @DisplayName("실패 - 관심사가 존재하지 않으면 INTEREST_NOT_FOUND 예외")
         void signup_관심사_없으면_INTEREST_NOT_FOUND() {
             // given
-            when(authService.getCurrentUser()).thenReturn(testUser);
+            User guestUser = User.builder()
+                    .userId(2L)
+                    .kakaoId(789L)
+                    .nickname("guest")
+                    .status(Status.GUEST)
+                    .role(Role.ROLE_USER)
+                    .build();
+            when(authService.getCurrentUser()).thenReturn(guestUser);
 
             SignupRequestDto dto = new SignupRequestDto(
                     "newUser",
@@ -243,7 +251,7 @@ class UserServiceTest {
             assertThatThrownBy(() -> userService.signup(dto))
                     .isInstanceOf(CustomException.class)
                     .extracting(e -> ((CustomException) e).getErrorCode())
-                    .isEqualTo(ErrorCode.INTEREST_NOT_FOUND);
+                    .isEqualTo(InterestErrorCode.INTEREST_NOT_FOUND);
         }
     }
 
@@ -480,7 +488,7 @@ class UserServiceTest {
             assertThatThrownBy(() -> userService.updateUserProfile(request))
                     .isInstanceOf(CustomException.class)
                     .extracting(e -> ((CustomException) e).getErrorCode())
-                    .isEqualTo(ErrorCode.INTEREST_NOT_FOUND);
+                    .isEqualTo(InterestErrorCode.INTEREST_NOT_FOUND);
         }
     }
 }

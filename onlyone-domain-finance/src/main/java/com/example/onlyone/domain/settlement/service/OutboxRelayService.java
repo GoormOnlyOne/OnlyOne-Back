@@ -3,8 +3,8 @@ package com.example.onlyone.domain.settlement.service;
 import com.example.onlyone.domain.settlement.entity.OutboxStatus;
 import com.example.onlyone.domain.settlement.repository.OutboxRepository;
 import com.example.onlyone.domain.settlement.config.kafka.KafkaProperties;
+import com.example.onlyone.domain.finance.exception.FinanceErrorCode;
 import com.example.onlyone.global.exception.CustomException;
-import com.example.onlyone.global.exception.ErrorCode;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -96,7 +96,7 @@ public class OutboxRelayService {
                     .getUserSettlementLedgerConsumerConfig().getTopic();
             case "SettlementProcessEvent" -> props.getProducer()
                     .getSettlementProcessProducerConfig().getTopic();
-            default -> throw new CustomException(ErrorCode.INVALID_TOPIC);
+            default -> throw new CustomException(FinanceErrorCode.INVALID_TOPIC);
         };
     }
 }

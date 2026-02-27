@@ -12,8 +12,11 @@ import com.example.onlyone.domain.club.repository.UserClubRepository;
 import com.example.onlyone.domain.schedule.entity.Schedule;
 import com.example.onlyone.domain.schedule.repository.UserScheduleRepository;
 import com.example.onlyone.domain.user.entity.User;
+import com.example.onlyone.domain.chat.exception.ChatErrorCode;
+import com.example.onlyone.domain.club.exception.ClubErrorCode;
+import com.example.onlyone.domain.schedule.exception.ScheduleErrorCode;
 import com.example.onlyone.global.exception.CustomException;
-import com.example.onlyone.global.exception.ErrorCode;
+import com.example.onlyone.global.exception.GlobalErrorCode;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -70,7 +73,7 @@ class ChatRoomCommandServiceTest {
             Throwable thrown = catchThrowable(() -> chatRoomCommandService.deleteChatRoom(1L, 10L));
 
             assertThat(thrown).isInstanceOf(CustomException.class);
-            assertThat(((CustomException) thrown).getErrorCode()).isEqualTo(ErrorCode.CHAT_ROOM_NOT_FOUND);
+            assertThat(((CustomException) thrown).getErrorCode()).isEqualTo(ChatErrorCode.CHAT_ROOM_NOT_FOUND);
         }
 
         @Test
@@ -86,7 +89,7 @@ class ChatRoomCommandServiceTest {
             Throwable thrown = catchThrowable(() -> chatRoomCommandService.deleteChatRoom(1L, 10L));
 
             assertThat(thrown).isInstanceOf(CustomException.class);
-            assertThat(((CustomException) thrown).getErrorCode()).isEqualTo(ErrorCode.CHAT_ROOM_DELETE_FAILED);
+            assertThat(((CustomException) thrown).getErrorCode()).isEqualTo(ChatErrorCode.CHAT_ROOM_DELETE_FAILED);
         }
     }
 
@@ -127,7 +130,7 @@ class ChatRoomCommandServiceTest {
             Throwable thrown = catchThrowable(() -> chatRoomCommandService.joinClubChatRoom(clubId, userId));
 
             assertThat(thrown).isInstanceOf(CustomException.class);
-            assertThat(((CustomException) thrown).getErrorCode()).isEqualTo(ErrorCode.CLUB_NOT_JOIN);
+            assertThat(((CustomException) thrown).getErrorCode()).isEqualTo(ClubErrorCode.CLUB_NOT_JOIN);
         }
 
         @Test
@@ -147,7 +150,7 @@ class ChatRoomCommandServiceTest {
             Throwable thrown = catchThrowable(() -> chatRoomCommandService.joinClubChatRoom(clubId, userId));
 
             assertThat(thrown).isInstanceOf(CustomException.class);
-            assertThat(((CustomException) thrown).getErrorCode()).isEqualTo(ErrorCode.ALREADY_JOINED);
+            assertThat(((CustomException) thrown).getErrorCode()).isEqualTo(GlobalErrorCode.ALREADY_JOINED);
         }
     }
 
@@ -189,7 +192,7 @@ class ChatRoomCommandServiceTest {
             Throwable thrown = catchThrowable(() -> chatRoomCommandService.joinScheduleChatRoom(scheduleId, userId));
 
             assertThat(thrown).isInstanceOf(CustomException.class);
-            assertThat(((CustomException) thrown).getErrorCode()).isEqualTo(ErrorCode.SCHEDULE_NOT_JOIN);
+            assertThat(((CustomException) thrown).getErrorCode()).isEqualTo(ScheduleErrorCode.SCHEDULE_NOT_JOIN);
         }
 
         @Test
@@ -210,7 +213,7 @@ class ChatRoomCommandServiceTest {
             Throwable thrown = catchThrowable(() -> chatRoomCommandService.joinScheduleChatRoom(scheduleId, userId));
 
             assertThat(thrown).isInstanceOf(CustomException.class);
-            assertThat(((CustomException) thrown).getErrorCode()).isEqualTo(ErrorCode.ALREADY_JOINED);
+            assertThat(((CustomException) thrown).getErrorCode()).isEqualTo(GlobalErrorCode.ALREADY_JOINED);
         }
     }
 
@@ -309,7 +312,7 @@ class ChatRoomCommandServiceTest {
             Throwable thrown = catchThrowable(() -> chatRoomCommandService.removeMember(999L, 101L));
 
             assertThat(thrown).isInstanceOf(CustomException.class);
-            assertThat(((CustomException) thrown).getErrorCode()).isEqualTo(ErrorCode.USER_CHAT_ROOM_NOT_FOUND);
+            assertThat(((CustomException) thrown).getErrorCode()).isEqualTo(ChatErrorCode.USER_CHAT_ROOM_NOT_FOUND);
         }
     }
 
@@ -341,7 +344,7 @@ class ChatRoomCommandServiceTest {
             Throwable thrown = catchThrowable(() -> chatRoomCommandService.deleteChatRoomBySchedule(999L));
 
             assertThat(thrown).isInstanceOf(CustomException.class);
-            assertThat(((CustomException) thrown).getErrorCode()).isEqualTo(ErrorCode.CHAT_ROOM_NOT_FOUND);
+            assertThat(((CustomException) thrown).getErrorCode()).isEqualTo(ChatErrorCode.CHAT_ROOM_NOT_FOUND);
         }
     }
 }

@@ -5,8 +5,9 @@ import com.example.onlyone.domain.payment.dto.request.ConfirmTossPayRequest;
 import com.example.onlyone.domain.payment.dto.response.ConfirmTossPayResponse;
 import com.example.onlyone.domain.payment.dto.request.SavePaymentRequestDto;
 import com.example.onlyone.domain.payment.feign.TossPaymentClient;
+import com.example.onlyone.domain.finance.exception.FinanceErrorCode;
 import com.example.onlyone.global.exception.CustomException;
-import com.example.onlyone.global.exception.ErrorCode;
+import com.example.onlyone.global.exception.GlobalErrorCode;
 import feign.FeignException;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -56,11 +57,11 @@ public class PaymentService {
         String redisKey = REDIS_PAYMENT_KEY_PREFIX + dto.orderId();
         Object saved = redisTemplate.opsForValue().get(redisKey);
         if (saved == null) {
-            throw new CustomException(ErrorCode.INVALID_PAYMENT_INFO);
+            throw new CustomException(FinanceErrorCode.INVALID_PAYMENT_INFO);
         }
         String savedAmount = saved.toString();
         if (!savedAmount.equals(String.valueOf(dto.amount()))) {
-            throw new CustomException(ErrorCode.INVALID_PAYMENT_INFO);
+            throw new CustomException(FinanceErrorCode.INVALID_PAYMENT_INFO);
         }
         redisTemplate.delete(redisKey);
     }
@@ -81,7 +82,7 @@ public class PaymentService {
         Boolean acquired = redisTemplate.opsForValue()
                 .setIfAbsent(gateKey, "1", PAYMENT_GATE_TTL_SECONDS, TimeUnit.SECONDS);
         if (Boolean.FALSE.equals(acquired)) {
-            throw new CustomException(ErrorCode.PAYMENT_IN_PROGRESS);
+            throw new CustomException(FinanceErrorCode.PAYMENT_IN_PROGRESS);
         }
 
         try {
@@ -91,10 +92,10 @@ public class PaymentService {
                 permitAcquired = claimSemaphore.tryAcquire(CLAIM_ACQUIRE_TIMEOUT_MS, TimeUnit.MILLISECONDS);
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
-                throw new CustomException(ErrorCode.PAYMENT_IN_PROGRESS);
+                throw new CustomException(FinanceErrorCode.PAYMENT_IN_PROGRESS);
             }
             if (!permitAcquired) {
-                throw new CustomException(ErrorCode.PAYMENT_IN_PROGRESS);
+                throw new CustomException(FinanceErrorCode.PAYMENT_IN_PROGRESS);
             }
 
             // Phase 1: CAS 기반 Payment 선점 (독립 트랜잭션, 즉시 커밋)
@@ -110,13 +111,13 @@ public class PaymentService {
                 response = tossPaymentClient.confirmPayment(req);
             } catch (FeignException.BadRequest e) {
                 txService.reportFail(req);
-                throw new CustomException(ErrorCode.INVALID_PAYMENT_INFO);
+                throw new CustomException(FinanceErrorCode.INVALID_PAYMENT_INFO);
             } catch (FeignException e) {
                 txService.reportFail(req);
-                throw new CustomException(ErrorCode.TOSS_PAYMENT_FAILED);
+                throw new CustomException(FinanceErrorCode.TOSS_PAYMENT_FAILED);
             } catch (Exception e) {
                 txService.reportFail(req);
-                throw new CustomException(ErrorCode.INTERNAL_SERVER_ERROR);
+                throw new CustomException(GlobalErrorCode.INTERNAL_SERVER_ERROR);
             }
 
             // Phase 3: paymentKey 저장 + 지갑 반영 + 트랜잭션 기록 (독립 트랜잭션)
@@ -125,7 +126,7 @@ public class PaymentService {
             } catch (Exception e) {
                 log.error("Phase 3 failed for orderId={}. Initiating Toss cancel compensation.", req.orderId(), e);
                 cancelAndAbort(response.paymentKey(), req.orderId());
-                throw new CustomException(ErrorCode.TOSS_PAYMENT_FAILED);
+                throw new CustomException(FinanceErrorCode.TOSS_PAYMENT_FAILED);
             }
 
             return response;

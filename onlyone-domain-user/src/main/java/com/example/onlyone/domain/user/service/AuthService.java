@@ -6,8 +6,9 @@ import com.example.onlyone.domain.user.entity.Gender;
 import com.example.onlyone.domain.user.entity.Status;
 import com.example.onlyone.domain.user.entity.User;
 import com.example.onlyone.domain.user.repository.UserRepository;
+import com.example.onlyone.domain.user.exception.UserErrorCode;
 import com.example.onlyone.global.exception.CustomException;
-import com.example.onlyone.global.exception.ErrorCode;
+import com.example.onlyone.global.exception.GlobalErrorCode;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.core.Authentication;
@@ -57,7 +58,7 @@ public class AuthService {
     public User getCurrentUser() {
         UserPrincipal principal = getAuthenticatedPrincipal();
         return userRepository.findById(principal.getUserId())
-                .orElseThrow(() -> new CustomException(ErrorCode.USER_NOT_FOUND));
+                .orElseThrow(() -> new CustomException(UserErrorCode.USER_NOT_FOUND));
     }
 
     /**
@@ -76,14 +77,14 @@ public class AuthService {
         try {
             userId = jwtTokenProvider.parseRefreshToken(refreshToken);
         } catch (Exception e) {
-            throw new CustomException(ErrorCode.INVALID_REFRESH_TOKEN);
+            throw new CustomException(UserErrorCode.INVALID_REFRESH_TOKEN);
         }
 
         User user = userRepository.findById(userId)
-                .orElseThrow(() -> new CustomException(ErrorCode.USER_NOT_FOUND));
+                .orElseThrow(() -> new CustomException(UserErrorCode.USER_NOT_FOUND));
 
         if (Status.INACTIVE.equals(user.getStatus())) {
-            throw new CustomException(ErrorCode.USER_WITHDRAWN);
+            throw new CustomException(UserErrorCode.USER_WITHDRAWN);
         }
 
         String newAccessToken = jwtTokenProvider.generateAccessToken(user);
@@ -101,7 +102,7 @@ public class AuthService {
 
         User user = existingUser.get();
         if (Status.INACTIVE.equals(user.getStatus())) {
-            throw new CustomException(ErrorCode.USER_WITHDRAWN);
+            throw new CustomException(UserErrorCode.USER_WITHDRAWN);
         }
 
         user.updateKakaoAccessToken(kakaoAccessToken);
@@ -127,12 +128,12 @@ public class AuthService {
     private UserPrincipal getAuthenticatedPrincipal() {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
         if (authentication == null || !authentication.isAuthenticated()) {
-            throw new CustomException(ErrorCode.UNAUTHORIZED);
+            throw new CustomException(GlobalErrorCode.UNAUTHORIZED);
         }
 
         Object principal = authentication.getPrincipal();
         if (!(principal instanceof UserPrincipal userPrincipal)) {
-            throw new CustomException(ErrorCode.UNAUTHORIZED);
+            throw new CustomException(GlobalErrorCode.UNAUTHORIZED);
         }
 
         return userPrincipal;

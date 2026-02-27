@@ -1,7 +1,7 @@
 package com.example.onlyone.domain.wallet.service;
 
+import com.example.onlyone.domain.finance.exception.FinanceErrorCode;
 import com.example.onlyone.global.exception.CustomException;
-import com.example.onlyone.global.exception.ErrorCode;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.script.DefaultRedisScript;
@@ -59,12 +59,12 @@ public class RedisLuaService implements WalletGateService {
                     Thread.sleep(ThreadLocalRandom.current().nextInt(5, 20));
                 } catch (InterruptedException ie) {
                     Thread.currentThread().interrupt();
-                    throw new CustomException(ErrorCode.WALLET_OPERATION_IN_PROGRESS);
+                    throw new CustomException(FinanceErrorCode.WALLET_OPERATION_IN_PROGRESS);
                 }
             }
         }
         // 모든 시도 실패 시에만 예외
-        throw new CustomException(ErrorCode.WALLET_OPERATION_IN_PROGRESS);
+        throw new CustomException(FinanceErrorCode.WALLET_OPERATION_IN_PROGRESS);
     }
 
 

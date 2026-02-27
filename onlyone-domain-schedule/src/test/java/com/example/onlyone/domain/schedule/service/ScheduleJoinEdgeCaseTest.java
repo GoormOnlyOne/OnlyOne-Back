@@ -10,8 +10,9 @@ import com.example.onlyone.domain.schedule.repository.UserScheduleRepository;
 import com.example.onlyone.domain.user.entity.User;
 import com.example.onlyone.domain.user.service.UserService;
 import com.example.onlyone.domain.wallet.service.WalletHoldService;
+import com.example.onlyone.domain.finance.exception.FinanceErrorCode;
+import com.example.onlyone.domain.schedule.exception.ScheduleErrorCode;
 import com.example.onlyone.global.exception.CustomException;
-import com.example.onlyone.global.exception.ErrorCode;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -67,7 +68,7 @@ class ScheduleJoinEdgeCaseTest {
 
         assertThatThrownBy(() -> scheduleCommandService.joinSchedule(1L, 1L))
                 .isInstanceOf(CustomException.class)
-                .extracting("errorCode").isEqualTo(ErrorCode.ALREADY_JOINED_SCHEDULE);
+                .extracting("errorCode").isEqualTo(ScheduleErrorCode.ALREADY_JOINED_SCHEDULE);
 
         then(walletHoldService).should().releaseOrThrow(2L, 10000L);
     }
@@ -94,12 +95,12 @@ class ScheduleJoinEdgeCaseTest {
         given(userService.getCurrentUser()).willReturn(member);
         given(userScheduleRepository.countBySchedule(schedule)).willReturn(1);
         given(userClubRepository.existsByUser_UserIdAndClub_ClubId(2L, 1L)).willReturn(true);
-        willThrow(new CustomException(ErrorCode.WALLET_BALANCE_NOT_ENOUGH))
+        willThrow(new CustomException(FinanceErrorCode.WALLET_BALANCE_NOT_ENOUGH))
                 .given(walletHoldService).holdOrThrow(2L, 10000L);
 
         assertThatThrownBy(() -> scheduleCommandService.joinSchedule(1L, 1L))
                 .isInstanceOf(CustomException.class)
-                .extracting("errorCode").isEqualTo(ErrorCode.WALLET_BALANCE_NOT_ENOUGH);
+                .extracting("errorCode").isEqualTo(FinanceErrorCode.WALLET_BALANCE_NOT_ENOUGH);
 
         then(userScheduleRepository).should(never()).save(any(UserSchedule.class));
     }

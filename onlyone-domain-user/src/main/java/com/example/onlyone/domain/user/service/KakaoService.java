@@ -1,7 +1,8 @@
 package com.example.onlyone.domain.user.service;
 
+import com.example.onlyone.domain.user.exception.UserErrorCode;
 import com.example.onlyone.global.exception.CustomException;
-import com.example.onlyone.global.exception.ErrorCode;
+import com.example.onlyone.global.exception.GlobalErrorCode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -51,24 +52,24 @@ public class KakaoService {
             ResponseEntity<String> response = restTemplate.postForEntity(tokenUrl, request, String.class);
 
             if (!response.getStatusCode().is2xxSuccessful()) {
-                throw new CustomException(ErrorCode.KAKAO_API_ERROR);
+                throw new CustomException(UserErrorCode.KAKAO_API_ERROR);
             }
 
             Map<String, Object> responseMap = objectMapper.readValue(response.getBody(), Map.class);
 
             if (responseMap.containsKey("error")) {
-                throw new CustomException(ErrorCode.KAKAO_AUTH_FAILED);
+                throw new CustomException(UserErrorCode.KAKAO_AUTH_FAILED);
             }
 
             return (String) responseMap.get("access_token");
         } catch (RestClientException e) {
             log.warn("카카오 토큰 요청 실패: {}", e.getMessage());
-            throw new CustomException(ErrorCode.EXTERNAL_API_ERROR);
+            throw new CustomException(GlobalErrorCode.EXTERNAL_API_ERROR);
         } catch (CustomException e) {
             throw e;
         } catch (Exception e) {
             log.warn("카카오 토큰 요청 중 예외 발생: {}", e.getMessage());
-            throw new CustomException(ErrorCode.KAKAO_API_ERROR);
+            throw new CustomException(UserErrorCode.KAKAO_API_ERROR);
         }
     }
 
@@ -81,22 +82,22 @@ public class KakaoService {
                     userInfoUrl, HttpMethod.GET, request, String.class);
 
             if (!response.getStatusCode().is2xxSuccessful()) {
-                throw new CustomException(ErrorCode.KAKAO_API_ERROR);
+                throw new CustomException(UserErrorCode.KAKAO_API_ERROR);
             }
 
             Map<String, Object> responseMap = objectMapper.readValue(response.getBody(), Map.class);
 
             if (responseMap.containsKey("error")) {
-                throw new CustomException(ErrorCode.KAKAO_AUTH_FAILED);
+                throw new CustomException(UserErrorCode.KAKAO_AUTH_FAILED);
             }
 
             return responseMap;
         } catch (RestClientException e) {
-            throw new CustomException(ErrorCode.EXTERNAL_API_ERROR);
+            throw new CustomException(GlobalErrorCode.EXTERNAL_API_ERROR);
         } catch (CustomException e) {
             throw e;
         } catch (Exception e) {
-            throw new CustomException(ErrorCode.KAKAO_API_ERROR);
+            throw new CustomException(UserErrorCode.KAKAO_API_ERROR);
         }
     }
 

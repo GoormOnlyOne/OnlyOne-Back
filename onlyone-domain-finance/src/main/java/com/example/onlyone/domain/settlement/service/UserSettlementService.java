@@ -1,6 +1,6 @@
 package com.example.onlyone.domain.settlement.service;
 
-import com.example.onlyone.domain.settlement.dto.event.FailedSettlementContext;
+import com.example.onlyone.domain.settlement.event.FailedSettlementContext;
 import com.example.onlyone.domain.settlement.entity.SettlementStatus;
 import com.example.onlyone.domain.settlement.entity.UserSettlement;
 import com.example.onlyone.domain.settlement.repository.UserSettlementRepository;
@@ -9,8 +9,9 @@ import com.example.onlyone.domain.user.repository.UserRepository;
 import com.example.onlyone.domain.wallet.entity.Wallet;
 import com.example.onlyone.domain.wallet.repository.WalletRepository;
 import com.example.onlyone.domain.wallet.service.WalletGateService;
+import com.example.onlyone.domain.finance.exception.FinanceErrorCode;
+import com.example.onlyone.domain.user.exception.UserErrorCode;
 import com.example.onlyone.global.exception.CustomException;
-import com.example.onlyone.global.exception.ErrorCode;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -49,22 +50,22 @@ public class UserSettlementService {
             // 조회
             UserSettlement us = userSettlementRepository
                     .findBySettlement_SettlementIdAndUser_UserId(settlementId, participantId)
-                    .orElseThrow(() -> new CustomException(ErrorCode.USER_SETTLEMENT_NOT_FOUND));
+                    .orElseThrow(() -> new CustomException(FinanceErrorCode.USER_SETTLEMENT_NOT_FOUND));
             // 이미 처리 완료면 멱등 스킵
             if (us.getSettlementStatus() == SettlementStatus.COMPLETED) {
                 return;
             }
             User participant = userRepository.findById(participantId)
-                    .orElseThrow(() -> new CustomException(ErrorCode.USER_NOT_FOUND));
+                    .orElseThrow(() -> new CustomException(UserErrorCode.USER_NOT_FOUND));
             Wallet memberWallet = walletRepository.findByUserWithoutLock(participant)
-                    .orElseThrow(() -> new CustomException(ErrorCode.WALLET_NOT_FOUND));
+                    .orElseThrow(() -> new CustomException(FinanceErrorCode.WALLET_NOT_FOUND));
             Long memberWalletId = memberWallet.getWalletId();
             String operationId = ("stl:%d:usr:%d:v1").formatted(settlementId, participantId);
             try {
                 // 조건부 UPDATE
                 int captured = walletRepository.captureHold(participantId, amount);
                 if (captured != 1) {
-                    throw new CustomException(ErrorCode.WALLET_HOLD_CAPTURE_FAILED);
+                    throw new CustomException(FinanceErrorCode.WALLET_HOLD_CAPTURE_FAILED);
                 }
                 // 상태 변경
                 us.markCompleted(LocalDateTime.now());
@@ -111,7 +112,7 @@ public class UserSettlementService {
         walletGateService.withWalletGate(leaderId, "credit", 10, () -> {
             int credited = walletRepository.creditByUserId(leaderId, totalAmount);
             if (credited != 1) {
-                throw new CustomException(ErrorCode.WALLET_CREDIT_APPLY_FAILED);
+                throw new CustomException(FinanceErrorCode.WALLET_CREDIT_APPLY_FAILED);
             }
         });
     }

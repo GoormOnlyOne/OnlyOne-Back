@@ -1,7 +1,7 @@
 package com.example.onlyone.domain.payment.entity;
 
+import com.example.onlyone.domain.finance.exception.FinanceErrorCode;
 import com.example.onlyone.global.exception.CustomException;
-import com.example.onlyone.global.exception.ErrorCode;
 
 import java.util.Map;
 import java.util.function.Function;
@@ -23,10 +23,10 @@ public enum Status {
 
     public static Status from(String value) {
         if (value == null || value.isBlank()) {
-            throw new CustomException(ErrorCode.INVALID_PAYMENT_INFO);
+            throw new CustomException(FinanceErrorCode.INVALID_PAYMENT_INFO);
         }
         Status s = BY_NAME.get(value.toUpperCase());
         if (s != null) return s;
-        throw new CustomException(ErrorCode.INVALID_PAYMENT_INFO);
+        throw new CustomException(FinanceErrorCode.INVALID_PAYMENT_INFO);
     }
 }

@@ -1,6 +1,6 @@
 package com.example.onlyone.domain.settlement.service;
 
-import com.example.onlyone.domain.settlement.dto.event.OutboxEvent;
+import com.example.onlyone.domain.settlement.event.OutboxEvent;
 import com.example.onlyone.domain.settlement.entity.OutboxStatus;
 import com.example.onlyone.domain.settlement.repository.OutboxRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;

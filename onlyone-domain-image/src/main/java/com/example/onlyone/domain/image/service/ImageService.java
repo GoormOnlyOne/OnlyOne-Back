@@ -3,8 +3,8 @@ package com.example.onlyone.domain.image.service;
 import com.example.onlyone.domain.image.dto.request.PresignedUrlRequestDto;
 import com.example.onlyone.domain.image.dto.response.PresignedUrlResponseDto;
 import com.example.onlyone.domain.image.entity.ImageFolderType;
+import com.example.onlyone.domain.image.exception.ImageErrorCode;
 import com.example.onlyone.global.exception.CustomException;
-import com.example.onlyone.global.exception.ErrorCode;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -82,16 +82,16 @@ public class ImageService {
 
     private void validateContentType(String contentType) {
         if (contentType == null || !ALLOWED_CONTENT_TYPES.contains(contentType)) {
-            throw new CustomException(ErrorCode.INVALID_IMAGE_CONTENT_TYPE);
+            throw new CustomException(ImageErrorCode.INVALID_IMAGE_CONTENT_TYPE);
         }
     }
 
     private void validateImageSize(Long imageSize) {
         if (imageSize == null || imageSize <= 0) {
-            throw new CustomException(ErrorCode.INVALID_IMAGE_SIZE);
+            throw new CustomException(ImageErrorCode.INVALID_IMAGE_SIZE);
         }
         if (imageSize > MAX_IMAGE_SIZE) {
-            throw new CustomException(ErrorCode.IMAGE_SIZE_EXCEEDED);
+            throw new CustomException(ImageErrorCode.IMAGE_SIZE_EXCEEDED);
         }
     }
 }

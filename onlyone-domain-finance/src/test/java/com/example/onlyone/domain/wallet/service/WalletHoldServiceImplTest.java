@@ -1,8 +1,8 @@
 package com.example.onlyone.domain.wallet.service;
 
 import com.example.onlyone.domain.wallet.repository.WalletRepository;
+import com.example.onlyone.domain.finance.exception.FinanceErrorCode;
 import com.example.onlyone.global.exception.CustomException;
-import com.example.onlyone.global.exception.ErrorCode;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -44,7 +44,7 @@ class WalletHoldServiceImplTest {
 
             assertThatThrownBy(() -> walletHoldService.holdOrThrow(1L, 5000L))
                     .isInstanceOf(CustomException.class)
-                    .extracting("errorCode").isEqualTo(ErrorCode.WALLET_BALANCE_NOT_ENOUGH);
+                    .extracting("errorCode").isEqualTo(FinanceErrorCode.WALLET_BALANCE_NOT_ENOUGH);
         }
     }
 
@@ -68,7 +68,7 @@ class WalletHoldServiceImplTest {
 
             assertThatThrownBy(() -> walletHoldService.releaseOrThrow(1L, 5000L))
                     .isInstanceOf(CustomException.class)
-                    .extracting("errorCode").isEqualTo(ErrorCode.WALLET_HOLD_STATE_CONFLICT);
+                    .extracting("errorCode").isEqualTo(FinanceErrorCode.WALLET_HOLD_STATE_CONFLICT);
         }
     }
 

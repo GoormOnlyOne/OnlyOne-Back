@@ -59,9 +59,6 @@ dependencies {
     // Validation
     api 'jakarta.validation:jakarta.validation-api:3.1.0'
 
-    // Tomcat (for ClientAbortException)
-    compileOnly 'org.apache.tomcat.embed:tomcat-embed-core:11.0.4'
-
     // Test
     testImplementation 'org.junit.jupiter:junit-jupiter:5.11.4'
     testImplementation 'org.assertj:assertj-core:3.27.3'

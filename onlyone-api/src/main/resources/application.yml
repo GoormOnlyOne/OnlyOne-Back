@@ -1,0 +1,96 @@
+# =============================================================
+# OnlyOne 공통 설정 (모든 프로필에서 공유)
+# 프로필별 오버라이드: application-{local|dev|prod}.yml
+# =============================================================
+
+# --- Spring 기본 설정 ---
+spring:
+  application:
+    name: onlyone
+
+  profiles:
+    active: ${SPRING_PROFILES_ACTIVE:local}
+
+  jpa:
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.MySQLDialect
+    open-in-view: false    # OSIV 비활성화 (지연 로딩은 서비스 계층에서 처리)
+
+  servlet:
+    multipart:
+      max-file-size: 10MB
+      max-request-size: 10MB
+
+# --- 서버 설정 ---
+server:
+  shutdown: graceful       # Graceful Shutdown (진행 중인 요청 완료 후 종료)
+
+# --- AWS S3 업로드 폴더 경로 ---
+aws:
+  s3:
+    folder:
+      chat: chat
+      club: club
+      feed: feed
+      user: user
+
+# --- 카카오 OAuth 로그인 ---
+Kakao:
+  client:
+    id: ${KAKAO_CLIENT_ID}
+
+# --- JWT 인증 토큰 ---
+jwt:
+  secret: ${JWT_SECRET}
+  access-expiration: ${JWT_ACCESS_EXPIRATION:3600000}      # Access Token 만료: 1시간
+  refresh-expiration: ${JWT_REFRESH_EXPIRATION:604800000}  # Refresh Token 만료: 7일
+
+# --- 토스 결제 연동 ---
+payment:
+  toss:
+    client_key: ${TOSS_CLIENT_KEY}
+    test_secret_api_key: ${TOSS_SECRET_API_KEY}
+    security_key: ${TOSS_SECURITY_KEY}
+    base_url: ${TOSS_BASE_URL:https://api.tosspayments.com/v1/payments}
+
+# --- 애플리케이션 커스텀 설정 ---
+app:
+  base-url: ${APP_BASE_URL:http://localhost:8080}
+  cors:
+    allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:8080,http://localhost:5173,https://only-one-front-delta.vercel.app}
+
+  # SSE 실시간 알림 설정
+  notification:
+    sse-timeout-millis: 60000                                    # SSE 연결 타임아웃 (60초)
+    max-connections: 7000                                        # 최대 동시 SSE 연결 수
+    cleanup-interval-minutes: 2                                  # 만료 연결 정리 주기
+    batch-size: ${NOTIFICATION_BATCH_SIZE:20}                    # 배치 처리 단위 크기
+    max-queue-size-per-user: ${NOTIFICATION_MAX_QUEUE:100}       # 사용자별 최대 큐 크기
+    batch-processing-interval: ${NOTIFICATION_BATCH_INTERVAL:100}  # 배치 처리 간격 (ms)
+    batch-timeout-seconds: ${NOTIFICATION_BATCH_TIMEOUT:5}       # 배치 타임아웃 (초)
+    sse-executor-permits: ${SSE_EXECUTOR_PERMITS:200}            # SSE 이벤트 전송 동시실행 상한
+    notification-executor-permits: ${NOTIFICATION_EXECUTOR_PERMITS:100}
+
+  # 정산 처리 설정
+  settlement:
+    concurrency: 32
+    shutdown:
+      await-seconds: 60
+
+# --- Actuator 모니터링 (Prometheus + Grafana) ---
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+  endpoint:
+    health:
+      show-details: always
+  prometheus:
+    metrics:
+      export:
+        enabled: true
+  metrics:
+    tags:
+      application: ${spring.application.name}

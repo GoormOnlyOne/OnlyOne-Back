@@ -11,9 +11,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.HashSet;
 import java.util.List;
-import java.util.Set;
 
 @Repository
 @RequiredArgsConstructor
@@ -41,7 +39,7 @@ public class ClubRepositoryImpl implements ClubRepositoryCustom {
             return List.of();
         }
 
-        // Step 2: 해당 모임의 팀원 ID 목록
+        // Step 2: 해당 모임의 팀원 ID 목록 (추천 목적이므로 30명이면 충분)
         QUserClub teammates = new QUserClub("teammates");
         List<Long> teammateIds = queryFactory
             .selectDistinct(teammates.user.userId)
@@ -50,47 +48,49 @@ public class ClubRepositoryImpl implements ClubRepositoryCustom {
                 teammates.club.clubId.in(recentClubIds)
                     .and(teammates.user.userId.ne(userId))
             )
-            .limit(100)
+            .limit(30)
             .fetch();
 
         if (teammateIds.isEmpty()) {
             return List.of();
         }
 
-        // Step 3: 팀원들의 클럽 중 내가 참여하지 않은 클럽 조회
-        QUserClub excl = new QUserClub("excl");
-        List<Long> myClubIds = queryFactory
-            .select(excl.club.clubId)
-            .from(excl)
-            .where(excl.user.userId.eq(userId))
-            .fetch();
-
+        // Step 3: 팀원들의 클럽 중 내가 참여하지 않은 클럽 ID (200개 제한)
+        // - club JOIN 제거: 정렬은 Step 4에서 수행 (불필요한 JOIN + filesort 회피)
+        // - NOT IN → NOT EXISTS: 서브쿼리 최적화
+        // - GROUP BY → DISTINCT: covering index만으로 중복 제거
         QUserClub theirClubs = new QUserClub("theirClubs");
-        List<Long> candidateClubIds = queryFactory
+        QUserClub excl = new QUserClub("excl");
+
+        List<Long> filteredClubIds = queryFactory
             .selectDistinct(theirClubs.club.clubId)
             .from(theirClubs)
-            .where(theirClubs.user.userId.in(teammateIds))
+            .where(
+                theirClubs.user.userId.in(teammateIds)
+                    .and(JPAExpressions.selectOne()
+                        .from(excl)
+                        .where(excl.club.clubId.eq(theirClubs.club.clubId)
+                            .and(excl.user.userId.eq(userId)))
+                        .notExists())
+            )
+            .limit(200)
             .fetch();
-
-        Set<Long> myClubIdSet = new HashSet<>(myClubIds);
-        List<Long> filteredClubIds = candidateClubIds.stream()
-            .filter(id -> !myClubIdSet.contains(id))
-            .toList();
 
         if (filteredClubIds.isEmpty()) {
             return List.of();
         }
 
+        // Step 4: 필터링된 club 조회 (최대 200개 IN절 + 정렬 + 페이징)
         return queryFactory
-            .select(club, club.memberCount)
-            .from(club)
+            .selectFrom(club)
+            .join(club.interest).fetchJoin()
             .where(club.clubId.in(filteredClubIds))
             .orderBy(club.memberCount.desc(), club.createdAt.desc())
             .offset(pageable.getOffset())
             .limit(pageable.getPageSize())
             .fetch()
             .stream()
-            .map(tuple -> new ClubWithMemberCount(tuple.get(club), tuple.get(club.memberCount)))
+            .map(c -> new ClubWithMemberCount(c, c.getMemberCount()))
             .toList();
     }
 
@@ -166,6 +166,7 @@ public class ClubRepositoryImpl implements ClubRepositoryCustom {
     private List<ClubWithMemberCount> executeClubQuery(BooleanBuilder condition, Pageable pageable) {
         return queryFactory
                 .selectFrom(club)
+                .join(club.interest).fetchJoin()
                 .where(condition)
                 .orderBy(club.memberCount.desc(), club.createdAt.desc())
                 .offset(pageable.getOffset())

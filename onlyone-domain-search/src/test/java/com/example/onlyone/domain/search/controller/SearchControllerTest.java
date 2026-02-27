@@ -3,15 +3,14 @@ package com.example.onlyone.domain.search.controller;
 import com.example.onlyone.domain.search.dto.response.ClubResponseDto;
 import com.example.onlyone.domain.search.service.SearchService;
 import com.example.onlyone.domain.user.repository.UserRepository;
-import com.example.onlyone.global.exception.GlobalExceptionHandler;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
-import org.springframework.context.annotation.Import;
 import org.springframework.data.jpa.mapping.JpaMetamodelMappingContext;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
@@ -26,7 +25,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @ActiveProfiles("test")
 @WebMvcTest(SearchController.class)
 @AutoConfigureMockMvc(addFilters = false)
-@Import(GlobalExceptionHandler.class)
+@TestPropertySource(properties = "spring.elasticsearch.uris=http://localhost:9200")
 class SearchControllerTest {
 
     @Autowired private MockMvc mockMvc;
@@ -77,7 +76,7 @@ class SearchControllerTest {
                 .andExpect(jsonPath("$.data[0].district").value("강남구"))
                 .andExpect(jsonPath("$.data[0].memberCount").value(10))
                 .andExpect(jsonPath("$.data[0].image").value("image.jpg"))
-                .andExpect(jsonPath("$.data[0].joined").value(false));
+                .andExpect(jsonPath("$.data[0].isJoined").value(false));
     }
 
     @Test
@@ -104,7 +103,7 @@ class SearchControllerTest {
                 .andExpect(jsonPath("$.data[0].district").value("강남구"))
                 .andExpect(jsonPath("$.data[0].memberCount").value(10))
                 .andExpect(jsonPath("$.data[0].image").value("image.jpg"))
-                .andExpect(jsonPath("$.data[0].joined").value(false));
+                .andExpect(jsonPath("$.data[0].isJoined").value(false));
 
     }
 
@@ -130,7 +129,7 @@ class SearchControllerTest {
                 .andExpect(jsonPath("$.data[0].name").value("강남구 클럽"))
                 .andExpect(jsonPath("$.data[0].district").value("강남구"))
                 .andExpect(jsonPath("$.data[0].memberCount").value(10))
-                .andExpect(jsonPath("$.data[0].joined").value(false));
+                .andExpect(jsonPath("$.data[0].isJoined").value(false));
 
     }
 

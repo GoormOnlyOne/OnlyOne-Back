@@ -11,7 +11,8 @@ import lombok.*;
 @Table(name = "user_club",
     uniqueConstraints = @UniqueConstraint(name = "uk_user_club", columnNames = {"user_id", "club_id"}),
     indexes = {
-        @Index(name = "idx_user_club_club_user", columnList = "club_id, user_id")
+        @Index(name = "idx_user_club_club_user", columnList = "club_id, user_id"),
+        @Index(name = "idx_user_club_user", columnList = "user_id")
     })
 @Getter
 @Builder

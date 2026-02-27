@@ -3,8 +3,9 @@ package com.example.onlyone.domain.feed.service;
 import com.example.onlyone.domain.club.repository.ClubRepository;
 import com.example.onlyone.domain.feed.repository.FeedRepository;
 import com.example.onlyone.domain.user.service.UserService;
+import com.example.onlyone.domain.club.exception.ClubErrorCode;
+import com.example.onlyone.domain.feed.exception.FeedErrorCode;
 import com.example.onlyone.global.exception.CustomException;
-import com.example.onlyone.global.exception.ErrorCode;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.StringRedisTemplate;
@@ -31,10 +32,10 @@ public class FeedLikeService {
 
     public boolean toggleLike(long clubId, long feedId) {
         if (!clubRepository.existsById(clubId)) {
-            throw new CustomException(ErrorCode.CLUB_NOT_FOUND);
+            throw new CustomException(ClubErrorCode.CLUB_NOT_FOUND);
         }
         if (!feedRepository.existsById(feedId)) {
-            throw new CustomException(ErrorCode.FEED_NOT_FOUND);
+            throw new CustomException(FeedErrorCode.FEED_NOT_FOUND);
         }
         long userId = userService.getCurrentUserId();
 

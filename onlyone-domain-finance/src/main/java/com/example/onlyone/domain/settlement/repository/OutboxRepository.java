@@ -1,6 +1,6 @@
 package com.example.onlyone.domain.settlement.repository;
 
-import com.example.onlyone.domain.settlement.dto.event.OutboxEvent;
+import com.example.onlyone.domain.settlement.event.OutboxEvent;
 import org.springframework.data.jpa.repository.*;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;

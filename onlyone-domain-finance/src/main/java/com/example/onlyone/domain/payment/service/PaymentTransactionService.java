@@ -14,8 +14,9 @@ import com.example.onlyone.domain.wallet.entity.WalletTransaction;
 import com.example.onlyone.domain.wallet.entity.WalletTransactionStatus;
 import com.example.onlyone.domain.wallet.repository.WalletRepository;
 import com.example.onlyone.domain.wallet.repository.WalletTransactionRepository;
+import com.example.onlyone.domain.finance.exception.FinanceErrorCode;
 import com.example.onlyone.global.exception.CustomException;
-import com.example.onlyone.global.exception.ErrorCode;
+import com.example.onlyone.global.exception.GlobalErrorCode;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -55,14 +56,14 @@ public class PaymentTransactionService {
 
         // Duplicate: 상태 확인 후 적절한 에러 반환
         Payment p = paymentRepository.findByTossOrderIdWithoutLock(orderId)
-                .orElseThrow(() -> new CustomException(ErrorCode.INTERNAL_SERVER_ERROR));
+                .orElseThrow(() -> new CustomException(GlobalErrorCode.INTERNAL_SERVER_ERROR));
 
         switch (p.getStatus()) {
-            case DONE -> throw new CustomException(ErrorCode.ALREADY_COMPLETED_PAYMENT);
-            case IN_PROGRESS -> throw new CustomException(ErrorCode.PAYMENT_IN_PROGRESS);
+            case DONE -> throw new CustomException(FinanceErrorCode.ALREADY_COMPLETED_PAYMENT);
+            case IN_PROGRESS -> throw new CustomException(FinanceErrorCode.PAYMENT_IN_PROGRESS);
             case CANCELED -> {
                 int reactivated = paymentRepository.casReactivate(orderId);
-                if (reactivated == 0) throw new CustomException(ErrorCode.PAYMENT_IN_PROGRESS);
+                if (reactivated == 0) throw new CustomException(FinanceErrorCode.PAYMENT_IN_PROGRESS);
             }
         }
     }
@@ -81,13 +82,13 @@ public class PaymentTransactionService {
         // creditByUserId는 @Modifying(clearAutomatically=true)로 영속성 컨텍스트를 클리어하므로
         // payment 조회를 그 이후에 수행해야 detached entity 문제를 방지한다.
         int updated = walletRepository.creditByUserId(user.getUserId(), amount);
-        if (updated != 1) throw new CustomException(ErrorCode.WALLET_NOT_FOUND);
+        if (updated != 1) throw new CustomException(FinanceErrorCode.WALLET_NOT_FOUND);
 
         Payment payment = paymentRepository.findByTossOrderIdWithoutLock(orderId)
-                .orElseThrow(() -> new CustomException(ErrorCode.INTERNAL_SERVER_ERROR));
+                .orElseThrow(() -> new CustomException(GlobalErrorCode.INTERNAL_SERVER_ERROR));
 
         Wallet wallet = walletRepository.findByUserWithoutLock(user)
-                .orElseThrow(() -> new CustomException(ErrorCode.WALLET_NOT_FOUND));
+                .orElseThrow(() -> new CustomException(FinanceErrorCode.WALLET_NOT_FOUND));
 
         WalletTransaction walletTransaction = payment.getWalletTransaction();
 
@@ -153,7 +154,7 @@ public class PaymentTransactionService {
         }
 
         Wallet wallet = walletRepository.findByUserWithoutLock(userService.getCurrentUser())
-                .orElseThrow(() -> new CustomException(ErrorCode.WALLET_NOT_FOUND));
+                .orElseThrow(() -> new CustomException(FinanceErrorCode.WALLET_NOT_FOUND));
 
         WalletTransaction failTx = WalletTransaction.builder()
                 .type(TransactionType.CHARGE)

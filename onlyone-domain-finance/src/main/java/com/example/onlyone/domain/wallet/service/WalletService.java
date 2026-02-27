@@ -8,8 +8,8 @@ import com.example.onlyone.domain.wallet.dto.response.WalletTransactionResponseD
 import com.example.onlyone.domain.wallet.entity.*;
 import com.example.onlyone.domain.wallet.repository.WalletRepository;
 import com.example.onlyone.domain.wallet.repository.WalletTransactionRepository;
+import com.example.onlyone.domain.finance.exception.FinanceErrorCode;
 import com.example.onlyone.global.exception.CustomException;
-import com.example.onlyone.global.exception.ErrorCode;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -37,12 +37,12 @@ public class WalletService {
         }
         User user = userService.getCurrentUser();
         Wallet wallet = walletRepository.findByUserWithoutLock(user)
-                .orElseThrow(() -> new CustomException(ErrorCode.WALLET_NOT_FOUND));
+                .orElseThrow(() -> new CustomException(FinanceErrorCode.WALLET_NOT_FOUND));
         Page<WalletTransaction> transactionPageList = switch (filter) {
             case ALL -> walletTransactionRepository.findByWalletAndWalletTransactionStatus(wallet, WalletTransactionStatus.COMPLETED, pageable);
             case CHARGE -> walletTransactionRepository.findByWalletAndTypeAndWalletTransactionStatus(wallet, TransactionType.CHARGE, WalletTransactionStatus.COMPLETED, pageable);
             case TRANSACTION -> walletTransactionRepository.findByWalletAndTypeNotAndWalletTransactionStatus(wallet, TransactionType.CHARGE, WalletTransactionStatus.COMPLETED, pageable);
-            default -> throw new CustomException(ErrorCode.INVALID_FILTER);
+            default -> throw new CustomException(FinanceErrorCode.INVALID_FILTER);
         };
         List<UserWalletTransactionDto> dtoList = transactionPageList.getContent().stream()
                 .map(tx -> convertToDto(tx, tx.getType()))

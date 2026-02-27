@@ -1,6 +1,6 @@
 package com.example.onlyone.domain.settlement.service;
 
-import com.example.onlyone.domain.settlement.dto.event.FailedSettlementContext;
+import com.example.onlyone.domain.settlement.event.FailedSettlementContext;
 import com.example.onlyone.domain.settlement.entity.SettlementStatus;
 import com.example.onlyone.domain.settlement.entity.UserSettlement;
 import com.example.onlyone.domain.settlement.repository.UserSettlementRepository;
@@ -9,8 +9,9 @@ import com.example.onlyone.domain.user.repository.UserRepository;
 import com.example.onlyone.domain.wallet.entity.Wallet;
 import com.example.onlyone.domain.wallet.repository.WalletRepository;
 import com.example.onlyone.domain.wallet.service.WalletGateService;
+import com.example.onlyone.domain.finance.exception.FinanceErrorCode;
+import com.example.onlyone.domain.user.exception.UserErrorCode;
 import com.example.onlyone.global.exception.CustomException;
-import com.example.onlyone.global.exception.ErrorCode;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -119,7 +120,7 @@ class UserSettlementServiceTest {
             // when & then
             assertThatThrownBy(() -> userSettlementService.processParticipantSettlement(100L, 1L, 50L, 2L, 100L))
                     .isInstanceOf(CustomException.class)
-                    .extracting("errorCode").isEqualTo(ErrorCode.WALLET_HOLD_CAPTURE_FAILED);
+                    .extracting("errorCode").isEqualTo(FinanceErrorCode.WALLET_HOLD_CAPTURE_FAILED);
 
             then(failedEventAppender).should().appendFailedUserSettlementEvent(any(FailedSettlementContext.class));
         }
@@ -134,7 +135,7 @@ class UserSettlementServiceTest {
 
             assertThatThrownBy(() -> userSettlementService.processParticipantSettlement(100L, 1L, 50L, 2L, 100L))
                     .isInstanceOf(CustomException.class)
-                    .extracting("errorCode").isEqualTo(ErrorCode.USER_SETTLEMENT_NOT_FOUND);
+                    .extracting("errorCode").isEqualTo(FinanceErrorCode.USER_SETTLEMENT_NOT_FOUND);
         }
 
         @Test
@@ -153,7 +154,7 @@ class UserSettlementServiceTest {
             // when & then
             assertThatThrownBy(() -> userSettlementService.processParticipantSettlement(100L, 1L, 50L, 2L, 100L))
                     .isInstanceOf(CustomException.class)
-                    .extracting("errorCode").isEqualTo(ErrorCode.USER_NOT_FOUND);
+                    .extracting("errorCode").isEqualTo(UserErrorCode.USER_NOT_FOUND);
         }
 
         @Test
@@ -173,7 +174,7 @@ class UserSettlementServiceTest {
             // when & then
             assertThatThrownBy(() -> userSettlementService.processParticipantSettlement(100L, 1L, 50L, 2L, 100L))
                     .isInstanceOf(CustomException.class)
-                    .extracting("errorCode").isEqualTo(ErrorCode.WALLET_NOT_FOUND);
+                    .extracting("errorCode").isEqualTo(FinanceErrorCode.WALLET_NOT_FOUND);
         }
     }
 
@@ -207,7 +208,7 @@ class UserSettlementServiceTest {
             // when & then
             assertThatThrownBy(() -> userSettlementService.creditToLeader(1L, 200L))
                     .isInstanceOf(CustomException.class)
-                    .extracting("errorCode").isEqualTo(ErrorCode.WALLET_CREDIT_APPLY_FAILED);
+                    .extracting("errorCode").isEqualTo(FinanceErrorCode.WALLET_CREDIT_APPLY_FAILED);
         }
     }
 }

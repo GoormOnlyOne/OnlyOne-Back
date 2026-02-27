@@ -5,8 +5,8 @@ import com.example.onlyone.domain.chat.entity.ChatRoom;
 import com.example.onlyone.domain.chat.entity.Message;
 import com.example.onlyone.domain.chat.repository.ChatRoomRepository;
 import com.example.onlyone.domain.chat.repository.MessageRepository;
+import com.example.onlyone.domain.chat.exception.ChatErrorCode;
 import com.example.onlyone.global.exception.CustomException;
-import com.example.onlyone.global.exception.ErrorCode;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -32,7 +32,7 @@ public class MessageQueryService {
             Long chatRoomId, Integer size, Long cursorId, LocalDateTime cursorAt) {
 
         ChatRoom chatRoom = chatRoomRepository.findById(chatRoomId)
-                .orElseThrow(() -> new CustomException(ErrorCode.CHAT_ROOM_NOT_FOUND));
+                .orElseThrow(() -> new CustomException(ChatErrorCode.CHAT_ROOM_NOT_FOUND));
 
         int pageSize = clampPageSize(size);
         List<Message> slice = fetchSlice(chatRoomId, pageSize, cursorId, cursorAt);

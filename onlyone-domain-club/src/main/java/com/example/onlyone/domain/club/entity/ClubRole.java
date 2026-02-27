@@ -1,7 +1,7 @@
 package com.example.onlyone.domain.club.entity;
 
+import com.example.onlyone.domain.club.exception.ClubErrorCode;
 import com.example.onlyone.global.exception.CustomException;
-import com.example.onlyone.global.exception.ErrorCode;
 
 public enum ClubRole {
     LEADER,
@@ -12,7 +12,7 @@ public enum ClubRole {
         try {
             return ClubRole.valueOf(value.toUpperCase());
         } catch (IllegalArgumentException e) {
-            throw new CustomException(ErrorCode.INVALID_ROLE);
+            throw new CustomException(ClubErrorCode.INVALID_ROLE);
         }
     }
 }

@@ -5,8 +5,8 @@ import com.example.onlyone.domain.club.entity.Club;
 import com.example.onlyone.domain.schedule.entity.Schedule;
 import com.example.onlyone.domain.schedule.entity.ScheduleStatus;
 import com.example.onlyone.domain.schedule.repository.ScheduleRepository;
+import com.example.onlyone.domain.schedule.exception.ScheduleErrorCode;
 import com.example.onlyone.global.exception.CustomException;
-import com.example.onlyone.global.exception.ErrorCode;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -52,7 +52,7 @@ class ScheduleSettlementEventListenerTest {
 
         assertThatThrownBy(() -> listener.onSettlementCompleted(event))
                 .isInstanceOf(CustomException.class)
-                .extracting("errorCode").isEqualTo(ErrorCode.SCHEDULE_NOT_FOUND);
+                .extracting("errorCode").isEqualTo(ScheduleErrorCode.SCHEDULE_NOT_FOUND);
     }
 
     @Test

@@ -1,8 +1,8 @@
 package com.example.onlyone.domain.settlement.service;
 
-import com.example.onlyone.domain.settlement.dto.event.FailedSettlementContext;
-import com.example.onlyone.domain.settlement.dto.event.OutboxEvent;
-import com.example.onlyone.domain.settlement.dto.event.UserSettlementStatusEvent;
+import com.example.onlyone.domain.settlement.event.FailedSettlementContext;
+import com.example.onlyone.domain.settlement.event.OutboxEvent;
+import com.example.onlyone.domain.settlement.event.UserSettlementStatusEvent;
 import com.example.onlyone.domain.settlement.entity.OutboxStatus;
 import com.example.onlyone.domain.settlement.entity.SettlementStatus;
 import com.example.onlyone.domain.settlement.repository.OutboxRepository;

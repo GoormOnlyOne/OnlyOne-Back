@@ -1,7 +1,8 @@
 package com.example.onlyone.global.filter;
 
 import com.example.onlyone.domain.user.dto.UserPrincipal;
-import com.example.onlyone.global.exception.ErrorCode;
+import com.example.onlyone.domain.user.exception.UserErrorCode;
+import com.example.onlyone.global.exception.GlobalErrorCode;
 import io.jsonwebtoken.JwtException;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
@@ -65,7 +66,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
             if (!principal.isEnabled() && !"/api/v1/auth/logout".equals(request.getRequestURI())) {
                 log.warn("Inactive user attempting to access: userId={}", principal.getUserId());
-                JwtTokenParser.writeErrorResponse(response, ErrorCode.USER_WITHDRAWN);
+                JwtTokenParser.writeErrorResponse(response, UserErrorCode.USER_WITHDRAWN);
                 return;
             }
 
@@ -75,7 +76,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                         && !"/api/v1/auth/withdraw".equals(uri)) {
                     log.warn("GUEST user attempting to access protected resource: userId={}, uri={}",
                             principal.getUserId(), uri);
-                    JwtTokenParser.writeErrorResponse(response, ErrorCode.NO_PERMISSION);
+                    JwtTokenParser.writeErrorResponse(response, GlobalErrorCode.NO_PERMISSION);
                     return;
                 }
             }
@@ -85,7 +86,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
         } catch (JwtException | IllegalArgumentException e) {
             log.warn("JWT validation failed: {}", e.getClass().getSimpleName());
-            JwtTokenParser.writeErrorResponse(response, ErrorCode.UNAUTHORIZED);
+            JwtTokenParser.writeErrorResponse(response, GlobalErrorCode.UNAUTHORIZED);
             return;
         }
         filterChain.doFilter(request, response);

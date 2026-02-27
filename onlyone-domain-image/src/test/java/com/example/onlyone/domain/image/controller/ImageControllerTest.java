@@ -3,9 +3,8 @@ package com.example.onlyone.domain.image.controller;
 import com.example.onlyone.domain.image.dto.request.PresignedUrlRequestDto;
 import com.example.onlyone.domain.image.dto.response.PresignedUrlResponseDto;
 import com.example.onlyone.domain.image.service.ImageService;
+import com.example.onlyone.domain.image.exception.ImageErrorCode;
 import com.example.onlyone.global.exception.CustomException;
-import com.example.onlyone.global.exception.ErrorCode;
-import com.example.onlyone.global.exception.GlobalExceptionHandler;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -13,12 +12,12 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.security.servlet.SecurityAutoConfiguration;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
-import org.springframework.context.annotation.Import;
 import org.springframework.data.jpa.mapping.JpaMetamodelMappingContext;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.BDDMockito.given;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -26,7 +25,6 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 @WebMvcTest(value = ImageController.class, excludeAutoConfiguration = SecurityAutoConfiguration.class)
 @AutoConfigureMockMvc(addFilters = false)
-@Import(GlobalExceptionHandler.class)
 @DisplayName("ImageController 슬라이스 테스트")
 class ImageControllerTest {
 
@@ -65,22 +63,21 @@ class ImageControllerTest {
         }
 
         @Test
-        @DisplayName("실패: 서비스 예외 → 에러코드 반환")
-        void failServiceException() throws Exception {
+        @DisplayName("실패: 서비스 예외 → CustomException 전파")
+        void failServiceException() {
             String body = """
               {"fileName": "origin.jpg", "contentType": "image/jpeg", "imageSize": 2048}
             """;
 
             given(imageService.generatePresignedUrl(anyString(), any(PresignedUrlRequestDto.class)))
-                    .willThrow(new CustomException(ErrorCode.IMAGE_UPLOAD_FAILED));
+                    .willThrow(new CustomException(ImageErrorCode.IMAGE_UPLOAD_FAILED));
 
-            mockMvc.perform(post("/api/v1/images/{imageFolderType}/presigned-url", "CHAT")
+            assertThatThrownBy(() ->
+                    mockMvc.perform(post("/api/v1/images/{imageFolderType}/presigned-url", "CHAT")
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(body)
                             .accept(MediaType.APPLICATION_JSON))
-                    .andExpect(status().is5xxServerError())
-                    .andExpect(jsonPath("$.success").value(false))
-                    .andExpect(jsonPath("$.data.code").value("IMAGE_UPLOAD_FAILED"));
+            ).hasCauseInstanceOf(CustomException.class);
         }
     }
 

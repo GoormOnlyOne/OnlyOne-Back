@@ -11,8 +11,9 @@ import com.example.onlyone.domain.user.entity.User;
 import com.example.onlyone.domain.user.service.UserService;
 import com.example.onlyone.domain.wallet.entity.Wallet;
 import com.example.onlyone.domain.wallet.repository.WalletRepository;
+import com.example.onlyone.domain.club.exception.ClubErrorCode;
+import com.example.onlyone.domain.finance.exception.FinanceErrorCode;
 import com.example.onlyone.global.exception.CustomException;
-import com.example.onlyone.global.exception.ErrorCode;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationEventPublisher;
@@ -46,27 +47,27 @@ public class SettlementCommandService {
         User user = userService.getCurrentUser();
 
         if (!clubRepository.existsById(clubId)) {
-            throw new CustomException(ErrorCode.CLUB_NOT_FOUND);
+            throw new CustomException(ClubErrorCode.CLUB_NOT_FOUND);
         }
 
         if (!settlementRepository.existsScheduleInClub(scheduleId, clubId)) {
-            throw new CustomException(ErrorCode.SCHEDULE_NOT_FOUND);
+            throw new CustomException(FinanceErrorCode.SCHEDULE_NOT_FOUND);
         }
 
         Settlement settlement = settlementRepository.findByScheduleId(scheduleId)
-                .orElseThrow(() -> new CustomException(ErrorCode.SETTLEMENT_NOT_FOUND));
+                .orElseThrow(() -> new CustomException(FinanceErrorCode.SETTLEMENT_NOT_FOUND));
 
         if (!settlement.getReceiver().getUserId().equals(user.getUserId())) {
-            throw new CustomException(ErrorCode.MEMBER_CANNOT_CREATE_SETTLEMENT);
+            throw new CustomException(FinanceErrorCode.MEMBER_CANNOT_CREATE_SETTLEMENT);
         }
 
         if (settlement.getTotalStatus() == TotalStatus.COMPLETED) {
-            throw new CustomException(ErrorCode.ALREADY_COMPLETED_SETTLEMENT);
+            throw new CustomException(FinanceErrorCode.ALREADY_COMPLETED_SETTLEMENT);
         }
 
         int updated = settlementRepository.markProcessing(settlement.getSettlementId());
         if (updated != 1) {
-            throw new CustomException(ErrorCode.ALREADY_SETTLING_SCHEDULE);
+            throw new CustomException(FinanceErrorCode.ALREADY_SETTLING_SCHEDULE);
         }
 
         List<Long> targetUserIds =
@@ -86,7 +87,7 @@ public class SettlementCommandService {
         settlementRepository.save(settlement);
 
         Wallet leaderWallet = walletRepository.findByUserWithoutLock(user)
-                .orElseThrow(() -> new CustomException(ErrorCode.WALLET_NOT_FOUND));
+                .orElseThrow(() -> new CustomException(FinanceErrorCode.WALLET_NOT_FOUND));
 
         log.info("정산 Outbox 발행: settlementId={}, targetUsers={}, totalAmount={}", settlement.getSettlementId(), userCount, totalAmount);
         outboxAppender.append(

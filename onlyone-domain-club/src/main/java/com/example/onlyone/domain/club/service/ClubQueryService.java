@@ -8,8 +8,8 @@ import com.example.onlyone.domain.club.repository.ClubRepository;
 import com.example.onlyone.domain.club.repository.UserClubRepository;
 import com.example.onlyone.domain.user.entity.User;
 import com.example.onlyone.domain.user.service.UserService;
+import com.example.onlyone.domain.club.exception.ClubErrorCode;
 import com.example.onlyone.global.exception.CustomException;
-import com.example.onlyone.global.exception.ErrorCode;
 import org.springframework.transaction.annotation.Transactional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -28,7 +28,7 @@ public class ClubQueryService {
 
     public ClubDetailResponseDto getClubDetail(Long clubId) {
         Club club = clubRepository.findById(clubId)
-                .orElseThrow(() -> new CustomException(ErrorCode.CLUB_NOT_FOUND));
+                .orElseThrow(() -> new CustomException(ClubErrorCode.CLUB_NOT_FOUND));
         User user = userService.getCurrentUser();
         int userCount = userClubRepository.countByClub_ClubId(club.getClubId());
         ClubRole role = userClubRepository.findByUserAndClub(user, club)

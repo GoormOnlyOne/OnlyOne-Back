@@ -10,8 +10,9 @@ import com.example.onlyone.domain.user.entity.User;
 import com.example.onlyone.domain.user.service.UserService;
 import com.example.onlyone.domain.wallet.entity.Wallet;
 import com.example.onlyone.domain.wallet.repository.WalletRepository;
+import com.example.onlyone.domain.club.exception.ClubErrorCode;
+import com.example.onlyone.domain.finance.exception.FinanceErrorCode;
 import com.example.onlyone.global.exception.CustomException;
-import com.example.onlyone.global.exception.ErrorCode;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -84,7 +85,7 @@ class SettlementCommandServiceTest {
 
         assertThatThrownBy(() -> settlementCommandService.automaticSettlement(CLUB_ID, SCHEDULE_ID, COST_PER_USER))
                 .isInstanceOf(CustomException.class)
-                .extracting("errorCode").isEqualTo(ErrorCode.CLUB_NOT_FOUND);
+                .extracting("errorCode").isEqualTo(ClubErrorCode.CLUB_NOT_FOUND);
     }
 
     @Test
@@ -100,7 +101,7 @@ class SettlementCommandServiceTest {
 
         assertThatThrownBy(() -> settlementCommandService.automaticSettlement(CLUB_ID, SCHEDULE_ID, COST_PER_USER))
                 .isInstanceOf(CustomException.class)
-                .extracting("errorCode").isEqualTo(ErrorCode.ALREADY_COMPLETED_SETTLEMENT);
+                .extracting("errorCode").isEqualTo(FinanceErrorCode.ALREADY_COMPLETED_SETTLEMENT);
     }
 
     @Test
@@ -117,7 +118,7 @@ class SettlementCommandServiceTest {
 
         assertThatThrownBy(() -> settlementCommandService.automaticSettlement(CLUB_ID, SCHEDULE_ID, COST_PER_USER))
                 .isInstanceOf(CustomException.class)
-                .extracting("errorCode").isEqualTo(ErrorCode.ALREADY_SETTLING_SCHEDULE);
+                .extracting("errorCode").isEqualTo(FinanceErrorCode.ALREADY_SETTLING_SCHEDULE);
     }
 
     @Test
@@ -177,7 +178,7 @@ class SettlementCommandServiceTest {
 
         assertThatThrownBy(() -> settlementCommandService.automaticSettlement(CLUB_ID, SCHEDULE_ID, COST_PER_USER))
                 .isInstanceOf(CustomException.class)
-                .extracting("errorCode").isEqualTo(ErrorCode.SCHEDULE_NOT_FOUND);
+                .extracting("errorCode").isEqualTo(FinanceErrorCode.SCHEDULE_NOT_FOUND);
     }
 
     @Test
@@ -194,7 +195,7 @@ class SettlementCommandServiceTest {
 
         assertThatThrownBy(() -> settlementCommandService.automaticSettlement(CLUB_ID, SCHEDULE_ID, COST_PER_USER))
                 .isInstanceOf(CustomException.class)
-                .extracting("errorCode").isEqualTo(ErrorCode.MEMBER_CANNOT_CREATE_SETTLEMENT);
+                .extracting("errorCode").isEqualTo(FinanceErrorCode.MEMBER_CANNOT_CREATE_SETTLEMENT);
     }
 
     @Test
@@ -207,6 +208,6 @@ class SettlementCommandServiceTest {
 
         assertThatThrownBy(() -> settlementCommandService.automaticSettlement(CLUB_ID, SCHEDULE_ID, COST_PER_USER))
                 .isInstanceOf(CustomException.class)
-                .extracting("errorCode").isEqualTo(ErrorCode.SETTLEMENT_NOT_FOUND);
+                .extracting("errorCode").isEqualTo(FinanceErrorCode.SETTLEMENT_NOT_FOUND);
     }
 }

@@ -5,8 +5,8 @@ import com.example.onlyone.domain.settlement.dto.response.UserSettlementDto;
 import com.example.onlyone.domain.settlement.entity.Settlement;
 import com.example.onlyone.domain.settlement.repository.SettlementRepository;
 import com.example.onlyone.domain.settlement.repository.UserSettlementRepository;
+import com.example.onlyone.domain.finance.exception.FinanceErrorCode;
 import com.example.onlyone.global.exception.CustomException;
-import com.example.onlyone.global.exception.ErrorCode;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -29,7 +29,7 @@ public class SettlementQueryService {
     /** 스케줄 참여자 정산 목록 조회 */
     public SettlementResponseDto getSettlementList(Long scheduleId, Pageable pageable) {
         Settlement settlement = settlementRepository.findByScheduleId(scheduleId)
-                .orElseThrow(() -> new CustomException(ErrorCode.SETTLEMENT_NOT_FOUND));
+                .orElseThrow(() -> new CustomException(FinanceErrorCode.SETTLEMENT_NOT_FOUND));
         Page<UserSettlementDto> userSettlementList = userSettlementRepository
                 .findAllDtoBySettlement(settlement, pageable);
         return SettlementResponseDto.from(userSettlementList);

@@ -11,8 +11,9 @@ import com.example.onlyone.domain.user.entity.Gender;
 import com.example.onlyone.domain.user.entity.Status;
 import com.example.onlyone.domain.user.entity.User;
 import com.example.onlyone.domain.user.service.UserService;
+import com.example.onlyone.domain.club.exception.ClubErrorCode;
+import com.example.onlyone.domain.feed.exception.FeedErrorCode;
 import com.example.onlyone.global.exception.CustomException;
-import com.example.onlyone.global.exception.ErrorCode;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -124,7 +125,7 @@ class FeedCommentServiceTest {
             assertThatThrownBy(() -> feedCommentService.createComment(club.getClubId(), feed.getFeedId(), dto))
                     .isInstanceOf(CustomException.class)
                     .extracting("errorCode")
-                    .isEqualTo(ErrorCode.CLUB_NOT_JOIN);
+                    .isEqualTo(ClubErrorCode.CLUB_NOT_JOIN);
 
             verify(feedCommentRepository, never()).save(any());
         }
@@ -140,7 +141,7 @@ class FeedCommentServiceTest {
             assertThatThrownBy(() -> feedCommentService.createComment(club.getClubId(), 999L, dto))
                     .isInstanceOf(CustomException.class)
                     .extracting("errorCode")
-                    .isEqualTo(ErrorCode.FEED_NOT_FOUND);
+                    .isEqualTo(FeedErrorCode.FEED_NOT_FOUND);
         }
     }
 
@@ -207,7 +208,7 @@ class FeedCommentServiceTest {
                     feedCommentService.deleteComment(club.getClubId(), feed.getFeedId(), comment.getFeedCommentId()))
                     .isInstanceOf(CustomException.class)
                     .extracting("errorCode")
-                    .isEqualTo(ErrorCode.UNAUTHORIZED_COMMENT_ACCESS);
+                    .isEqualTo(FeedErrorCode.UNAUTHORIZED_COMMENT_ACCESS);
 
             verify(feedCommentRepository, never()).delete(any());
         }

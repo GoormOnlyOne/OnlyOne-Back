@@ -11,8 +11,11 @@ import com.example.onlyone.domain.club.repository.ClubRepository;
 import com.example.onlyone.domain.club.repository.UserClubRepository;
 import com.example.onlyone.domain.schedule.repository.UserScheduleRepository;
 import com.example.onlyone.domain.user.entity.User;
+import com.example.onlyone.domain.chat.exception.ChatErrorCode;
+import com.example.onlyone.domain.club.exception.ClubErrorCode;
+import com.example.onlyone.domain.schedule.exception.ScheduleErrorCode;
 import com.example.onlyone.global.exception.CustomException;
-import com.example.onlyone.global.exception.ErrorCode;
+import com.example.onlyone.global.exception.GlobalErrorCode;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -36,26 +39,26 @@ public class ChatRoomCommandService {
     @Transactional
     public void deleteChatRoom(Long chatRoomId, Long clubId) {
         ChatRoom chatRoom = chatRoomRepository.findByChatRoomIdAndClubClubId(chatRoomId, clubId)
-                .orElseThrow(() -> new CustomException(ErrorCode.CHAT_ROOM_NOT_FOUND));
+                .orElseThrow(() -> new CustomException(ChatErrorCode.CHAT_ROOM_NOT_FOUND));
         try {
             chatRoomRepository.delete(chatRoom);
             log.info("채팅방 삭제: chatRoomId={}, clubId={}", chatRoomId, clubId);
         } catch (DataIntegrityViolationException e) {
-            throw new CustomException(ErrorCode.CHAT_ROOM_DELETE_FAILED);
+            throw new CustomException(ChatErrorCode.CHAT_ROOM_DELETE_FAILED);
         }
     }
 
     @Transactional
     public void joinClubChatRoom(Long clubId, Long userId) {
         if (!clubRepository.existsById(clubId)) {
-            throw new CustomException(ErrorCode.CLUB_NOT_FOUND);
+            throw new CustomException(ClubErrorCode.CLUB_NOT_FOUND);
         }
         if (!userClubRepository.existsByUser_UserIdAndClub_ClubId(userId, clubId)) {
-            throw new CustomException(ErrorCode.CLUB_NOT_JOIN);
+            throw new CustomException(ClubErrorCode.CLUB_NOT_JOIN);
         }
 
         ChatRoom room = chatRoomRepository.findByTypeAndClub_ClubId(ChatRoomType.CLUB, clubId)
-                .orElseThrow(() -> new CustomException(ErrorCode.CHAT_ROOM_NOT_FOUND));
+                .orElseThrow(() -> new CustomException(ChatErrorCode.CHAT_ROOM_NOT_FOUND));
         validateNotAlreadyJoined(userId, room.getChatRoomId());
         saveMember(userId, room, ChatRole.MEMBER);
     }
@@ -63,11 +66,11 @@ public class ChatRoomCommandService {
     @Transactional
     public void joinScheduleChatRoom(Long scheduleId, Long userId) {
         if (!userScheduleRepository.existsByUser_UserIdAndSchedule_ScheduleId(userId, scheduleId)) {
-            throw new CustomException(ErrorCode.SCHEDULE_NOT_JOIN);
+            throw new CustomException(ScheduleErrorCode.SCHEDULE_NOT_JOIN);
         }
 
         ChatRoom room = chatRoomRepository.findByTypeAndScheduleId(ChatRoomType.SCHEDULE, scheduleId)
-                .orElseThrow(() -> new CustomException(ErrorCode.CHAT_ROOM_NOT_FOUND));
+                .orElseThrow(() -> new CustomException(ChatErrorCode.CHAT_ROOM_NOT_FOUND));
         validateNotAlreadyJoined(userId, room.getChatRoomId());
         saveMember(userId, room, ChatRole.MEMBER);
     }
@@ -97,7 +100,7 @@ public class ChatRoomCommandService {
     public void removeMember(Long userId, Long chatRoomId) {
         UserChatRoom userChatRoom = userChatRoomRepository
                 .findByUserUserIdAndChatRoomChatRoomId(userId, chatRoomId)
-                .orElseThrow(() -> new CustomException(ErrorCode.USER_CHAT_ROOM_NOT_FOUND));
+                .orElseThrow(() -> new CustomException(ChatErrorCode.USER_CHAT_ROOM_NOT_FOUND));
         userChatRoomRepository.delete(userChatRoom);
     }
 
@@ -105,7 +108,7 @@ public class ChatRoomCommandService {
     public void deleteChatRoomBySchedule(Long scheduleId) {
         ChatRoom chatRoom = chatRoomRepository
                 .findByTypeAndScheduleId(ChatRoomType.SCHEDULE, scheduleId)
-                .orElseThrow(() -> new CustomException(ErrorCode.CHAT_ROOM_NOT_FOUND));
+                .orElseThrow(() -> new CustomException(ChatErrorCode.CHAT_ROOM_NOT_FOUND));
         chatRoomRepository.delete(chatRoom);
     }
 
@@ -113,7 +116,7 @@ public class ChatRoomCommandService {
 
     private void validateNotAlreadyJoined(Long userId, Long chatRoomId) {
         if (userChatRoomRepository.existsByUserUserIdAndChatRoomChatRoomId(userId, chatRoomId)) {
-            throw new CustomException(ErrorCode.ALREADY_JOINED);
+            throw new CustomException(GlobalErrorCode.ALREADY_JOINED);
         }
     }
 

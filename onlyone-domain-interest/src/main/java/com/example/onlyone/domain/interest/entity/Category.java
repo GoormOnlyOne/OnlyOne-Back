@@ -1,7 +1,7 @@
 package com.example.onlyone.domain.interest.entity;
 
 import com.example.onlyone.global.exception.CustomException;
-import com.example.onlyone.global.exception.ErrorCode;
+import com.example.onlyone.domain.interest.exception.InterestErrorCode;
 
 public enum Category {
     CULTURE("문화"),
@@ -27,7 +27,7 @@ public enum Category {
         try {
             return Category.valueOf(value.toUpperCase());
         } catch (IllegalArgumentException e) {
-            throw new CustomException(ErrorCode.INVALID_CATEGORY);
+            throw new CustomException(InterestErrorCode.INVALID_CATEGORY);
         }
     }
 }

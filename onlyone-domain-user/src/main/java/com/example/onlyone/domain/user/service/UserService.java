@@ -13,8 +13,9 @@ import com.example.onlyone.domain.user.entity.User;
 import com.example.onlyone.domain.user.entity.UserInterest;
 import com.example.onlyone.domain.user.repository.UserInterestRepository;
 import com.example.onlyone.domain.user.repository.UserRepository;
+import com.example.onlyone.domain.interest.exception.InterestErrorCode;
+import com.example.onlyone.domain.user.exception.UserErrorCode;
 import com.example.onlyone.global.exception.CustomException;
-import com.example.onlyone.global.exception.ErrorCode;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -46,7 +47,7 @@ public class UserService {
     @Transactional(readOnly = true)
     public User getMemberById(Long memberId) {
         return userRepository.findById(memberId)
-                .orElseThrow(() -> new CustomException(ErrorCode.USER_NOT_FOUND));
+                .orElseThrow(() -> new CustomException(UserErrorCode.USER_NOT_FOUND));
     }
 
     /**
@@ -57,7 +58,7 @@ public class UserService {
         User user = authService.getCurrentUser();
 
         if (Status.ACTIVE.equals(user.getStatus())) {
-            throw new CustomException(ErrorCode.ALREADY_SIGNED_UP);
+            throw new CustomException(UserErrorCode.ALREADY_SIGNED_UP);
         }
 
         user.updateProfile(new ProfileUpdateCommand(
@@ -194,7 +195,7 @@ public class UserService {
     private void saveUserInterests(User user, List<String> categoryNames) {
         for (String categoryName : categoryNames) {
             Interest interest = interestRepository.findByCategory(Category.from(categoryName))
-                    .orElseThrow(() -> new CustomException(ErrorCode.INTEREST_NOT_FOUND));
+                    .orElseThrow(() -> new CustomException(InterestErrorCode.INTEREST_NOT_FOUND));
 
             UserInterest userInterest = UserInterest.builder()
                     .user(user)

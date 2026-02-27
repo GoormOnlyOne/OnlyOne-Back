@@ -14,8 +14,9 @@ import com.example.onlyone.domain.interest.entity.Interest;
 import com.example.onlyone.domain.interest.repository.InterestRepository;
 import com.example.onlyone.domain.user.entity.User;
 import com.example.onlyone.domain.user.service.UserService;
+import com.example.onlyone.domain.club.exception.ClubErrorCode;
+import com.example.onlyone.domain.interest.exception.InterestErrorCode;
 import com.example.onlyone.global.exception.CustomException;
-import com.example.onlyone.global.exception.ErrorCode;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -116,7 +117,7 @@ class ClubCommandServiceTest {
             // when & then
             assertThatThrownBy(() -> clubCommandService.createClub(requestDto))
                     .isInstanceOf(CustomException.class)
-                    .extracting("errorCode").isEqualTo(ErrorCode.INTEREST_NOT_FOUND);
+                    .extracting("errorCode").isEqualTo(InterestErrorCode.INTEREST_NOT_FOUND);
 
             then(clubRepository).should(never()).save(any(Club.class));
             then(eventPublisher).should(never()).publishEvent(any());
@@ -172,7 +173,7 @@ class ClubCommandServiceTest {
             // when & then
             assertThatThrownBy(() -> clubCommandService.updateClub(999L, requestDto))
                     .isInstanceOf(CustomException.class)
-                    .extracting("errorCode").isEqualTo(ErrorCode.CLUB_NOT_FOUND);
+                    .extracting("errorCode").isEqualTo(ClubErrorCode.CLUB_NOT_FOUND);
         }
 
         @Test
@@ -196,7 +197,7 @@ class ClubCommandServiceTest {
             // when & then
             assertThatThrownBy(() -> clubCommandService.updateClub(1L, requestDto))
                     .isInstanceOf(CustomException.class)
-                    .extracting("errorCode").isEqualTo(ErrorCode.LEADER_ONLY_CLUB_MODIFY);
+                    .extracting("errorCode").isEqualTo(ClubErrorCode.LEADER_ONLY_CLUB_MODIFY);
         }
     }
 
@@ -263,7 +264,7 @@ class ClubCommandServiceTest {
             // when & then
             assertThatThrownBy(() -> clubCommandService.joinClub(1L))
                     .isInstanceOf(CustomException.class)
-                    .extracting("errorCode").isEqualTo(ErrorCode.CLUB_NOT_ENTER);
+                    .extracting("errorCode").isEqualTo(ClubErrorCode.CLUB_NOT_ENTER);
 
             then(userClubRepository).should(never()).save(any(UserClub.class));
             then(clubRepository).should(never()).incrementMemberCount(anyLong());
@@ -286,7 +287,7 @@ class ClubCommandServiceTest {
             // when & then
             assertThatThrownBy(() -> clubCommandService.joinClub(1L))
                     .isInstanceOf(CustomException.class)
-                    .extracting("errorCode").isEqualTo(ErrorCode.ALREADY_JOINED_CLUB);
+                    .extracting("errorCode").isEqualTo(ClubErrorCode.ALREADY_JOINED_CLUB);
 
             then(userClubRepository).should(never()).save(any(UserClub.class));
             then(clubRepository).should(never()).incrementMemberCount(anyLong());
@@ -312,7 +313,7 @@ class ClubCommandServiceTest {
             // when & then
             assertThatThrownBy(() -> clubCommandService.joinClub(1L))
                     .isInstanceOf(CustomException.class)
-                    .extracting("errorCode").isEqualTo(ErrorCode.ALREADY_JOINED_CLUB);
+                    .extracting("errorCode").isEqualTo(ClubErrorCode.ALREADY_JOINED_CLUB);
 
             then(clubRepository).should(never()).incrementMemberCount(anyLong());
         }
@@ -383,7 +384,7 @@ class ClubCommandServiceTest {
             // when & then
             assertThatThrownBy(() -> clubCommandService.leaveClub(1L))
                     .isInstanceOf(CustomException.class)
-                    .extracting("errorCode").isEqualTo(ErrorCode.CLUB_NOT_LEAVE);
+                    .extracting("errorCode").isEqualTo(ClubErrorCode.CLUB_NOT_LEAVE);
 
             then(userClubRepository).should(never()).delete(any(UserClub.class));
             then(clubRepository).should(never()).decrementMemberCount(anyLong());
@@ -406,7 +407,7 @@ class ClubCommandServiceTest {
             // when & then
             assertThatThrownBy(() -> clubCommandService.leaveClub(1L))
                     .isInstanceOf(CustomException.class)
-                    .extracting("errorCode").isEqualTo(ErrorCode.CLUB_LEADER_NOT_LEAVE);
+                    .extracting("errorCode").isEqualTo(ClubErrorCode.CLUB_LEADER_NOT_LEAVE);
 
             then(userClubRepository).should(never()).delete(any(UserClub.class));
             then(clubRepository).should(never()).decrementMemberCount(anyLong());

@@ -6,8 +6,9 @@ import com.example.onlyone.domain.user.entity.Gender;
 import com.example.onlyone.domain.user.entity.Status;
 import com.example.onlyone.domain.user.entity.User;
 import com.example.onlyone.domain.user.repository.UserRepository;
+import com.example.onlyone.domain.user.exception.UserErrorCode;
 import com.example.onlyone.global.exception.CustomException;
-import com.example.onlyone.global.exception.ErrorCode;
+import com.example.onlyone.global.exception.GlobalErrorCode;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -160,7 +161,7 @@ class AuthServiceTest {
             assertThatThrownBy(() -> authService.kakaoLogin("code"))
                     .isInstanceOf(CustomException.class)
                     .extracting("errorCode")
-                    .isEqualTo(ErrorCode.USER_WITHDRAWN);
+                    .isEqualTo(UserErrorCode.USER_WITHDRAWN);
         }
     }
 
@@ -198,7 +199,7 @@ class AuthServiceTest {
             assertThatThrownBy(() -> authService.getCurrentUser())
                     .isInstanceOf(CustomException.class)
                     .extracting("errorCode")
-                    .isEqualTo(ErrorCode.USER_NOT_FOUND);
+                    .isEqualTo(UserErrorCode.USER_NOT_FOUND);
         }
 
         @Test
@@ -211,7 +212,7 @@ class AuthServiceTest {
             assertThatThrownBy(() -> authService.getCurrentUser())
                     .isInstanceOf(CustomException.class)
                     .extracting("errorCode")
-                    .isEqualTo(ErrorCode.UNAUTHORIZED);
+                    .isEqualTo(GlobalErrorCode.UNAUTHORIZED);
         }
 
         @Test
@@ -224,7 +225,7 @@ class AuthServiceTest {
             assertThatThrownBy(() -> authService.getCurrentUser())
                     .isInstanceOf(CustomException.class)
                     .extracting("errorCode")
-                    .isEqualTo(ErrorCode.UNAUTHORIZED);
+                    .isEqualTo(GlobalErrorCode.UNAUTHORIZED);
         }
     }
 

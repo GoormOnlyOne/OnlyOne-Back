@@ -6,7 +6,7 @@ import com.example.onlyone.domain.chat.entity.ChatRoomType;
 import com.fasterxml.jackson.annotation.JsonFormat;
 import io.swagger.v3.oas.annotations.media.Schema;
 import java.time.LocalDateTime;
-import com.example.onlyone.global.common.util.MessageUtils;
+import com.example.onlyone.domain.chat.util.MessageUtils;
 
 @Schema(description = "채팅방 응답 DTO")
 public record ChatRoomResponse(

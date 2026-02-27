@@ -8,8 +8,8 @@ import com.example.onlyone.domain.chat.repository.MessageRepository;
 import com.example.onlyone.domain.club.repository.ClubRepository;
 import com.example.onlyone.domain.club.repository.UserClubRepository;
 import com.example.onlyone.domain.user.service.UserService;
+import com.example.onlyone.domain.club.exception.ClubErrorCode;
 import com.example.onlyone.global.exception.CustomException;
-import com.example.onlyone.global.exception.ErrorCode;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -35,10 +35,10 @@ public class ChatRoomQueryService {
         Long userId = userService.getCurrentUserId();
 
         if (!clubRepository.existsById(clubId)) {
-            throw new CustomException(ErrorCode.CLUB_NOT_FOUND);
+            throw new CustomException(ClubErrorCode.CLUB_NOT_FOUND);
         }
         if (!userClubRepository.existsByUser_UserIdAndClub_ClubId(userId, clubId)) {
-            throw new CustomException(ErrorCode.CLUB_NOT_JOIN);
+            throw new CustomException(ClubErrorCode.CLUB_NOT_JOIN);
         }
 
         List<ChatRoom> chatRooms = chatRoomRepository.findChatRoomsByUserIdAndClubId(userId, clubId);

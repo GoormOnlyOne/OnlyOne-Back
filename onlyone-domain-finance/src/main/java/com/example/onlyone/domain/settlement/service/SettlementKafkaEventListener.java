@@ -1,11 +1,11 @@
 package com.example.onlyone.domain.settlement.service;
 
 import com.example.onlyone.common.event.SettlementCompletedEvent;
-import com.example.onlyone.domain.settlement.dto.event.SettlementProcessEvent;
+import com.example.onlyone.domain.settlement.event.SettlementProcessEvent;
 import com.example.onlyone.domain.settlement.repository.SettlementRepository;
 import com.example.onlyone.domain.settlement.repository.UserSettlementRepository;
+import com.example.onlyone.domain.finance.exception.FinanceErrorCode;
 import com.example.onlyone.global.exception.CustomException;
-import com.example.onlyone.global.exception.ErrorCode;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
@@ -84,7 +84,7 @@ public class SettlementKafkaEventListener {
             JsonNode payload = root.has("payload") ? root.get("payload") : root;
             return objectMapper.treeToValue(payload, SettlementProcessEvent.class);
         } catch (Exception e) {
-            throw new CustomException(ErrorCode.INVALID_EVENT_PAYLOAD);
+            throw new CustomException(FinanceErrorCode.INVALID_EVENT_PAYLOAD);
         }
     }
 
@@ -141,10 +141,10 @@ public class SettlementKafkaEventListener {
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             revertSettlementToFailed(event.settlementId());
-            throw new CustomException(ErrorCode.SETTLEMENT_PROCESS_FAILED);
+            throw new CustomException(FinanceErrorCode.SETTLEMENT_PROCESS_FAILED);
         } catch (Exception e) {
             revertSettlementToFailed(event.settlementId());
-            throw new CustomException(ErrorCode.SETTLEMENT_PROCESS_FAILED);
+            throw new CustomException(FinanceErrorCode.SETTLEMENT_PROCESS_FAILED);
         }
     }
 
@@ -166,13 +166,13 @@ public class SettlementKafkaEventListener {
                 return;
             } catch (Exception e) {
                 if (attempt == maxRetries) {
-                    throw new CustomException(ErrorCode.SETTLEMENT_PROCESS_FAILED);
+                    throw new CustomException(FinanceErrorCode.SETTLEMENT_PROCESS_FAILED);
                 }
                 try {
                     Thread.sleep(retryDelay * attempt);
                 } catch (InterruptedException ie) {
                     Thread.currentThread().interrupt();
-                    throw new CustomException(ErrorCode.SETTLEMENT_PROCESS_FAILED);
+                    throw new CustomException(FinanceErrorCode.SETTLEMENT_PROCESS_FAILED);
                 }
             }
         }

@@ -10,8 +10,8 @@ import com.example.onlyone.domain.wallet.entity.WalletTransactionStatus;
 import com.example.onlyone.domain.wallet.repository.WalletRepository;
 import com.example.onlyone.domain.wallet.repository.WalletTransactionRepository;
 import com.example.onlyone.domain.wallet.entity.TransactionType;
+import com.example.onlyone.domain.finance.exception.FinanceErrorCode;
 import com.example.onlyone.global.exception.CustomException;
-import com.example.onlyone.global.exception.ErrorCode;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
@@ -183,7 +183,7 @@ public class LedgerWriter {
         try {
             return objectMapper.readTree(s);
         } catch (Exception e) {
-            throw new CustomException(ErrorCode.INVALID_EVENT_PAYLOAD);
+            throw new CustomException(FinanceErrorCode.INVALID_EVENT_PAYLOAD);
         }
     }
 

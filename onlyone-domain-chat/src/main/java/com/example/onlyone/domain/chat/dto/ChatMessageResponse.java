@@ -1,7 +1,7 @@
 package com.example.onlyone.domain.chat.dto;
 
 import com.example.onlyone.domain.chat.entity.Message;
-import com.example.onlyone.global.common.util.MessageUtils;
+import com.example.onlyone.domain.chat.util.MessageUtils;
 import com.fasterxml.jackson.annotation.JsonFormat;
 import io.swagger.v3.oas.annotations.media.Schema;
 import java.time.LocalDateTime;

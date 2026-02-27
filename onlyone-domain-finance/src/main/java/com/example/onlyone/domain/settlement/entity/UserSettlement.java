@@ -9,7 +9,9 @@ import lombok.*;
 import java.time.*;
 
 @Entity
-@Table(name = "user_settlement")
+@Table(name = "user_settlement", indexes = {
+        @Index(name = "idx_user_settlement_user_status", columnList = "user_id, status")
+})
 @Getter
 @Builder
 @NoArgsConstructor(access = AccessLevel.PROTECTED)

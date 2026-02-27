@@ -6,8 +6,8 @@ import com.example.onlyone.domain.chat.service.MessageCommandService;
 import com.example.onlyone.domain.user.dto.UserPrincipal;
 import com.example.onlyone.domain.user.entity.User;
 import com.example.onlyone.domain.user.service.UserService;
+import com.example.onlyone.domain.chat.exception.ChatErrorCode;
 import com.example.onlyone.global.exception.CustomException;
-import com.example.onlyone.global.exception.ErrorCode;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.messaging.handler.annotation.DestinationVariable;
@@ -55,7 +55,7 @@ public class ChatWebSocketController {
     @SendToUser("/sub/errors")
     public String handleException(Exception ex) {
         log.error("[WebSocket.Error] unexpected", ex);
-        return ErrorCode.MESSAGE_SERVER_ERROR.getMessage();
+        return ChatErrorCode.MESSAGE_SERVER_ERROR.getMessage();
     }
 
     private UserPrincipal extractPrincipal(SimpMessageHeaderAccessor accessor) {

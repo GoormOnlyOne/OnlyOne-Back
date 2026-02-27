@@ -7,8 +7,8 @@ import com.example.onlyone.domain.settlement.entity.SettlementStatus;
 import com.example.onlyone.domain.settlement.repository.SettlementRepository;
 import com.example.onlyone.domain.settlement.repository.UserSettlementRepository;
 import com.example.onlyone.domain.user.entity.User;
+import com.example.onlyone.domain.finance.exception.FinanceErrorCode;
 import com.example.onlyone.global.exception.CustomException;
-import com.example.onlyone.global.exception.ErrorCode;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -72,6 +72,6 @@ class SettlementQueryServiceTest {
 
         assertThatThrownBy(() -> settlementQueryService.getSettlementList(SCHEDULE_ID, PageRequest.of(0, 10)))
                 .isInstanceOf(CustomException.class)
-                .extracting("errorCode").isEqualTo(ErrorCode.SETTLEMENT_NOT_FOUND);
+                .extracting("errorCode").isEqualTo(FinanceErrorCode.SETTLEMENT_NOT_FOUND);
     }
 }

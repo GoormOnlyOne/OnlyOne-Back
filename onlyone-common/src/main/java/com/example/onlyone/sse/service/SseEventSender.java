@@ -1,7 +1,7 @@
 package com.example.onlyone.sse.service;
 
 import com.example.onlyone.global.exception.CustomException;
-import com.example.onlyone.global.exception.ErrorCode;
+import com.example.onlyone.sse.exception.SseErrorCode;
 import com.example.onlyone.sse.SseConnection;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -67,10 +67,10 @@ public class SseEventSender {
             return false;
         } catch (IllegalStateException e) {
             connectionManager.cleanupConnection(userId);
-            throw new CustomException(ErrorCode.SSE_CONNECTION_FAILED);
+            throw new CustomException(SseErrorCode.SSE_CONNECTION_FAILED);
         } catch (Exception e) {
             connectionManager.cleanupConnection(userId);
-            throw new CustomException(ErrorCode.SSE_SEND_FAILED);
+            throw new CustomException(SseErrorCode.SSE_SEND_FAILED);
         }
     }
 
@@ -81,7 +81,7 @@ public class SseEventSender {
 
         if (!isClientDisconnect) {
             log.error("Failed to send SSE event: userId={}, eventName={}", userId, eventName, e);
-            throw new CustomException(ErrorCode.SSE_SEND_FAILED);
+            throw new CustomException(SseErrorCode.SSE_SEND_FAILED);
         }
 
         connectionManager.cleanupConnection(userId);

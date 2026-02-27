@@ -1,4 +1,4 @@
-HELP.md
+### Gradle ###
 .gradle
 build/
 build/generated/
@@ -9,18 +9,6 @@ src/main/generated/
 !**/src/main/**/build/
 !**/src/test/**/build/
 
-### STS ###
-.apt_generated
-.classpath
-.factorypath
-.project
-.settings
-.springBeans
-.sts4-cache
-bin/
-!**/src/main/**/bin/
-!**/src/test/**/bin/
-
 ### IntelliJ IDEA ###
 .idea
 *.iws
@@ -30,13 +18,6 @@ out/
 !**/src/main/**/out/
 !**/src/test/**/out/
 
-### NetBeans ###
-/nbproject/private/
-/nbbuild/
-/dist/
-/nbdist/
-/.nb-gradle/
-
 ### VS Code ###
 .vscode/
 
@@ -44,51 +25,38 @@ out/
 .env
 *.env.local
 *.env.production
-
-### Firebase ###
-src/main/resources/firebase/service-account.json
+.my.cnf
 
 ### Application configs (sensitive) ###
-application.yml
 src/main/resources/application.yml
 src/main/resources/application-prod.yml
 src/main/resources/application-test.yml
+src/main/resources/application-stage.yml
+src/main/resources/ValidationMessages.properties
 src/main/resources/firebase/
 
-.DS_Store
-CLAUDE.md
-.claude/
-spy.log
+### Test resources ###
 src/test/resources/application-test.yml
 src/test/resources/data.sql
-src/main/resources/ValidationMessages.properties
 
-### ngrinder ###
-ngrinder-controller
-
-### monitoring ###
-grafana-data
-prometheus-data
-prometheus.yml
-datasource.yml
-k6/
-smoke_dummy.js
-influxdb-data
-k6-test
-redis-data/dump.rdb
-.my.cnf
-src/main/resources/application-stage.yml
-k6/k6_result.json
-k6/settlement_test.js
+### Claude ###
+CLAUDE.md
+.claude/
 
 ### Logs ###
 logs/
 *.log
-boot.log
 **/logs/
 **/*.log
+app-logs.txt
 
-### Backup ###
-src-backup/
-build.gradle.backup
+### k6 test results ###
+k6-results/
+
+### OS ###
+.DS_Store
 nul
+
+### Generated/Backup ###
+*.backup
+src-backup/

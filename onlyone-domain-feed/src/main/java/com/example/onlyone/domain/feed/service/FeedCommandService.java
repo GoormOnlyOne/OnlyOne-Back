@@ -9,8 +9,9 @@ import com.example.onlyone.domain.feed.entity.Feed;
 import com.example.onlyone.domain.feed.repository.FeedRepository;
 import com.example.onlyone.domain.user.entity.User;
 import com.example.onlyone.domain.user.service.UserService;
+import com.example.onlyone.domain.club.exception.ClubErrorCode;
+import com.example.onlyone.domain.feed.exception.FeedErrorCode;
 import com.example.onlyone.global.exception.CustomException;
-import com.example.onlyone.global.exception.ErrorCode;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -62,7 +63,7 @@ public class FeedCommandService {
 
         int affected = feedRepository.softDeleteById(target.getFeedId());
         if (affected == 0) {
-            throw new CustomException(ErrorCode.FEED_NOT_FOUND);
+            throw new CustomException(FeedErrorCode.FEED_NOT_FOUND);
         }
         log.info("피드 삭제: feedId={}, clubId={}", feedId, clubId);
     }
@@ -70,9 +71,9 @@ public class FeedCommandService {
     public void createRefeed(Long parentFeedId, Long targetClubId, RefeedRequestDto requestDto) {
         User user = userService.getCurrentUser();
         Feed parent = feedRepository.findById(parentFeedId)
-                .orElseThrow(() -> new CustomException(ErrorCode.FEED_NOT_FOUND));
+                .orElseThrow(() -> new CustomException(FeedErrorCode.FEED_NOT_FOUND));
         if (!userClubRepository.existsByUser_UserIdAndClub_ClubId(user.getUserId(), parent.getClub().getClubId())) {
-            throw new CustomException(ErrorCode.UNAUTHORIZED_FEED_ACCESS);
+            throw new CustomException(FeedErrorCode.UNAUTHORIZED_FEED_ACCESS);
         }
 
         Club targetClub = findClubOrThrow(targetClubId);
@@ -81,7 +82,7 @@ public class FeedCommandService {
         try {
             feedRepository.save(parent.createRefeed(requestDto.content(), targetClub, user));
         } catch (DataIntegrityViolationException e) {
-            throw new CustomException(ErrorCode.DUPLICATE_REFEED);
+            throw new CustomException(FeedErrorCode.DUPLICATE_REFEED);
         }
     }
 
@@ -89,23 +90,23 @@ public class FeedCommandService {
 
     private Club findClubOrThrow(Long clubId) {
         return clubRepository.findById(clubId)
-                .orElseThrow(() -> new CustomException(ErrorCode.CLUB_NOT_FOUND));
+                .orElseThrow(() -> new CustomException(ClubErrorCode.CLUB_NOT_FOUND));
     }
 
     private Feed findFeedByClubOrThrow(Long feedId, Club club) {
         return feedRepository.findByFeedIdAndClub(feedId, club)
-                .orElseThrow(() -> new CustomException(ErrorCode.FEED_NOT_FOUND));
+                .orElseThrow(() -> new CustomException(FeedErrorCode.FEED_NOT_FOUND));
     }
 
     private void validateClubMembership(Long userId, Long clubId) {
         if (!userClubRepository.existsByUser_UserIdAndClub_ClubId(userId, clubId)) {
-            throw new CustomException(ErrorCode.CLUB_NOT_JOIN);
+            throw new CustomException(ClubErrorCode.CLUB_NOT_JOIN);
         }
     }
 
     private void validateFeedOwnership(Feed feed, Long userId) {
         if (!Objects.equals(feed.getUser().getUserId(), userId)) {
-            throw new CustomException(ErrorCode.UNAUTHORIZED_FEED_ACCESS);
+            throw new CustomException(FeedErrorCode.UNAUTHORIZED_FEED_ACCESS);
         }
     }
 }

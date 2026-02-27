@@ -11,8 +11,9 @@ import com.example.onlyone.domain.schedule.repository.ScheduleRepository;
 import com.example.onlyone.domain.schedule.repository.UserScheduleRepository;
 import com.example.onlyone.domain.user.entity.User;
 import com.example.onlyone.domain.user.service.UserService;
+import com.example.onlyone.domain.club.exception.ClubErrorCode;
+import com.example.onlyone.domain.schedule.exception.ScheduleErrorCode;
 import com.example.onlyone.global.exception.CustomException;
-import com.example.onlyone.global.exception.ErrorCode;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -56,13 +57,13 @@ public class ScheduleQueryService {
     /** 스케줄 정보 상세 조회 */
     public ScheduleDetailResponseDto getScheduleDetails(Long clubId, Long scheduleId) {
         Schedule schedule = scheduleRepository.findByIdAndClubId(scheduleId, clubId)
-                .orElseThrow(() -> new CustomException(ErrorCode.SCHEDULE_NOT_FOUND));
+                .orElseThrow(() -> new CustomException(ScheduleErrorCode.SCHEDULE_NOT_FOUND));
 
         return ScheduleDetailResponseDto.from(schedule);
     }
 
     private Club findClubOrThrow(Long clubId) {
         return clubRepository.findById(clubId)
-                .orElseThrow(() -> new CustomException(ErrorCode.CLUB_NOT_FOUND));
+                .orElseThrow(() -> new CustomException(ClubErrorCode.CLUB_NOT_FOUND));
     }
 }

@@ -1,6 +1,6 @@
 package com.example.onlyone.domain.notification.service;
 
-import com.example.onlyone.domain.notification.dto.event.NotificationCreatedEvent;
+import com.example.onlyone.domain.notification.event.NotificationCreatedEvent;
 import com.example.onlyone.domain.notification.dto.request.NotificationCreateDto;
 import com.example.onlyone.domain.notification.dto.request.NotificationQueryDto;
 import com.example.onlyone.domain.notification.dto.response.NotificationItemDto;

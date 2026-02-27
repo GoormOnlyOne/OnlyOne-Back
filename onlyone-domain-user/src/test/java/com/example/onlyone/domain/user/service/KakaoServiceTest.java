@@ -1,7 +1,8 @@
 package com.example.onlyone.domain.user.service;
 
+import com.example.onlyone.domain.user.exception.UserErrorCode;
 import com.example.onlyone.global.exception.CustomException;
-import com.example.onlyone.global.exception.ErrorCode;
+import com.example.onlyone.global.exception.GlobalErrorCode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -78,7 +79,7 @@ class KakaoServiceTest {
             assertThatThrownBy(() -> kakaoService.getAccessToken("bad-code"))
                     .isInstanceOf(CustomException.class)
                     .extracting("errorCode")
-                    .isEqualTo(ErrorCode.KAKAO_AUTH_FAILED);
+                    .isEqualTo(UserErrorCode.KAKAO_AUTH_FAILED);
         }
 
         @Test
@@ -92,7 +93,7 @@ class KakaoServiceTest {
             assertThatThrownBy(() -> kakaoService.getAccessToken("code"))
                     .isInstanceOf(CustomException.class)
                     .extracting("errorCode")
-                    .isEqualTo(ErrorCode.EXTERNAL_API_ERROR);
+                    .isEqualTo(GlobalErrorCode.EXTERNAL_API_ERROR);
         }
     }
 
@@ -132,7 +133,7 @@ class KakaoServiceTest {
             assertThatThrownBy(() -> kakaoService.getUserInfo("bad-token"))
                     .isInstanceOf(CustomException.class)
                     .extracting("errorCode")
-                    .isEqualTo(ErrorCode.KAKAO_AUTH_FAILED);
+                    .isEqualTo(UserErrorCode.KAKAO_AUTH_FAILED);
         }
 
         @Test
@@ -146,7 +147,7 @@ class KakaoServiceTest {
             assertThatThrownBy(() -> kakaoService.getUserInfo("token"))
                     .isInstanceOf(CustomException.class)
                     .extracting("errorCode")
-                    .isEqualTo(ErrorCode.EXTERNAL_API_ERROR);
+                    .isEqualTo(GlobalErrorCode.EXTERNAL_API_ERROR);
         }
     }
 

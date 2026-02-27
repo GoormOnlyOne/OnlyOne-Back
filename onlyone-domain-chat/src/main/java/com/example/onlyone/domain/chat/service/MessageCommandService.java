@@ -7,9 +7,10 @@ import com.example.onlyone.domain.chat.repository.MessageRepository;
 import com.example.onlyone.domain.chat.repository.UserChatRoomRepository;
 import com.example.onlyone.domain.user.entity.User;
 import com.example.onlyone.domain.user.repository.UserRepository;
-import com.example.onlyone.global.common.util.MessageUtils;
+import com.example.onlyone.domain.chat.util.MessageUtils;
+import com.example.onlyone.domain.chat.exception.ChatErrorCode;
+import com.example.onlyone.domain.user.exception.UserErrorCode;
 import com.example.onlyone.global.exception.CustomException;
-import com.example.onlyone.global.exception.ErrorCode;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
@@ -59,13 +60,13 @@ public class MessageCommandService {
      */
     @Transactional
     public ChatMessageResponse saveMessage(Long chatRoomId, Long userId, String text) {
-        if (text == null || text.isBlank()) throw new CustomException(ErrorCode.MESSAGE_BAD_REQUEST);
+        if (text == null || text.isBlank()) throw new CustomException(ChatErrorCode.MESSAGE_BAD_REQUEST);
         if (!userChatRoomRepository.existsByUserUserIdAndChatRoomChatRoomId(userId, chatRoomId)) {
-            throw new CustomException(ErrorCode.FORBIDDEN_CHAT_ROOM);
+            throw new CustomException(ChatErrorCode.FORBIDDEN_CHAT_ROOM);
         }
 
         User user = userRepository.findById(userId)
-                .orElseThrow(() -> new CustomException(ErrorCode.USER_NOT_FOUND));
+                .orElseThrow(() -> new CustomException(UserErrorCode.USER_NOT_FOUND));
 
         Message saved = messageRepository.save(Message.builder()
                 .chatRoom(chatRoomRepository.getReferenceById(chatRoomId))
@@ -81,9 +82,9 @@ public class MessageCommandService {
     @Transactional
     public void deleteMessage(Long messageId, Long userId) {
         Message m = messageRepository.findById(messageId)
-                .orElseThrow(() -> new CustomException(ErrorCode.MESSAGE_NOT_FOUND));
-        if (m.isDeleted()) throw new CustomException(ErrorCode.MESSAGE_CONFLICT);
-        if (!m.isOwnedBy(userId)) throw new CustomException(ErrorCode.MESSAGE_FORBIDDEN);
+                .orElseThrow(() -> new CustomException(ChatErrorCode.MESSAGE_NOT_FOUND));
+        if (m.isDeleted()) throw new CustomException(ChatErrorCode.MESSAGE_CONFLICT);
+        if (!m.isOwnedBy(userId)) throw new CustomException(ChatErrorCode.MESSAGE_FORBIDDEN);
         m.markAsDeleted();
     }
 
@@ -95,7 +96,7 @@ public class MessageCommandService {
             chatPublisher.publish(chatRoomId, payload);
         } catch (JsonProcessingException e) {
             log.error("메시지 JSON 직렬화 실패: chatRoomId={}", chatRoomId, e);
-            throw new CustomException(ErrorCode.MESSAGE_SERVER_ERROR);
+            throw new CustomException(ChatErrorCode.MESSAGE_SERVER_ERROR);
         }
     }
 
@@ -105,10 +106,10 @@ public class MessageCommandService {
         }
         String url = MessageUtils.extractImageUrl(text);
         if (!MessageUtils.isValidImageUrlFormat(url)) {
-            throw new CustomException(ErrorCode.MESSAGE_BAD_REQUEST);
+            throw new CustomException(ChatErrorCode.MESSAGE_BAD_REQUEST);
         }
         if (!MessageUtils.hasValidImageExtension(url)) {
-            throw new CustomException(ErrorCode.INVALID_IMAGE_CONTENT_TYPE);
+            throw new CustomException(ChatErrorCode.INVALID_IMAGE_CONTENT_TYPE);
         }
         return MessageUtils.IMAGE_PREFIX + url;
     }

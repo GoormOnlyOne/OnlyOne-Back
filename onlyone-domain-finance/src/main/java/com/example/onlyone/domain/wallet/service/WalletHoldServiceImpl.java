@@ -1,8 +1,8 @@
 package com.example.onlyone.domain.wallet.service;
 
 import com.example.onlyone.domain.wallet.repository.WalletRepository;
+import com.example.onlyone.domain.finance.exception.FinanceErrorCode;
 import com.example.onlyone.global.exception.CustomException;
-import com.example.onlyone.global.exception.ErrorCode;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
@@ -18,7 +18,7 @@ public class WalletHoldServiceImpl implements WalletHoldService {
     public void holdOrThrow(Long userId, long amount) {
         int updated = walletRepository.holdBalanceIfEnough(userId, amount);
         if (updated == 0) {
-            throw new CustomException(ErrorCode.WALLET_BALANCE_NOT_ENOUGH);
+            throw new CustomException(FinanceErrorCode.WALLET_BALANCE_NOT_ENOUGH);
         }
     }
 
@@ -26,7 +26,7 @@ public class WalletHoldServiceImpl implements WalletHoldService {
     public void releaseOrThrow(Long userId, long amount) {
         int updated = walletRepository.releaseHoldBalance(userId, amount);
         if (updated == 0) {
-            throw new CustomException(ErrorCode.WALLET_HOLD_STATE_CONFLICT);
+            throw new CustomException(FinanceErrorCode.WALLET_HOLD_STATE_CONFLICT);
         }
     }
 

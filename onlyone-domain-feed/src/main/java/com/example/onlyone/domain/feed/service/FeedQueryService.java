@@ -14,8 +14,9 @@ import com.example.onlyone.domain.feed.repository.FeedRepository;
 import com.example.onlyone.domain.feed.repository.FeedRepositoryCustom.FeedIdWithCounts;
 import com.example.onlyone.domain.feed.service.FeedCacheService.DetailCacheEntry;
 import com.example.onlyone.domain.user.service.UserService;
+import com.example.onlyone.domain.club.exception.ClubErrorCode;
+import com.example.onlyone.domain.feed.exception.FeedErrorCode;
 import com.example.onlyone.global.exception.CustomException;
-import com.example.onlyone.global.exception.ErrorCode;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -49,7 +50,7 @@ public class FeedQueryService {
 
     public Page<FeedSummaryResponseDto> getFeedList(Long clubId, Pageable pageable) {
         if (!clubRepository.existsById(clubId)) {
-            throw new CustomException(ErrorCode.CLUB_NOT_FOUND);
+            throw new CustomException(ClubErrorCode.CLUB_NOT_FOUND);
         }
         return feedRepository.findFeedSummaries(clubId, pageable);
     }
@@ -65,7 +66,7 @@ public class FeedQueryService {
         }
 
         Feed feed = feedRepository.findByIdAndClubIdWithRelations(feedId, clubId)
-                .orElseThrow(() -> new CustomException(ErrorCode.FEED_NOT_FOUND));
+                .orElseThrow(() -> new CustomException(FeedErrorCode.FEED_NOT_FOUND));
 
         List<String> imageUrls = feed.getFeedImages().stream()
                 .map(FeedImage::getFeedImage).toList();

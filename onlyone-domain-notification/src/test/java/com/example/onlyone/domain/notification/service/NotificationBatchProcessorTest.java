@@ -1,10 +1,9 @@
 package com.example.onlyone.domain.notification.service;
 
-import com.example.onlyone.domain.notification.dto.event.NotificationCreatedEvent;
 import com.example.onlyone.domain.notification.dto.response.NotificationSseDto;
 import com.example.onlyone.domain.notification.entity.Notification;
+import com.example.onlyone.domain.notification.event.NotificationCreatedEvent;
 import com.example.onlyone.domain.notification.repository.NotificationRepository;
-import com.example.onlyone.domain.user.entity.User;
 import com.example.onlyone.sse.service.SseEventSender;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -48,16 +47,21 @@ class NotificationBatchProcessorTest {
     }
 
     @SuppressWarnings("unchecked")
-    private Map<Long, BlockingQueue<Notification>> getPendingQueues() {
-        return (Map<Long, BlockingQueue<Notification>>)
+    private Map<Long, BlockingQueue<NotificationCreatedEvent>> getPendingQueues() {
+        return (Map<Long, BlockingQueue<NotificationCreatedEvent>>)
                 ReflectionTestUtils.getField(batchProcessor, "pendingQueues");
     }
 
+    private NotificationCreatedEvent toEvent(Notification notification) {
+        return NotificationCreatedEvent.from(notification);
+    }
+
     private void enqueue(Notification notification) {
-        Long userId = notification.getUser().getUserId();
-        Map<Long, BlockingQueue<Notification>> queues = getPendingQueues();
-        BlockingQueue<Notification> queue = new LinkedBlockingQueue<>(100);
-        queue.offer(notification);
+        NotificationCreatedEvent event = toEvent(notification);
+        Long userId = event.userId();
+        Map<Long, BlockingQueue<NotificationCreatedEvent>> queues = getPendingQueues();
+        BlockingQueue<NotificationCreatedEvent> queue = new LinkedBlockingQueue<>(100);
+        queue.offer(event);
         queues.put(userId, queue);
     }
 
@@ -71,9 +75,9 @@ class NotificationBatchProcessorTest {
             Notification notification = likeNotification(1L, user());
             given(sseEventSender.isUserConnected(DEFAULT_USER_ID)).willReturn(true);
 
-            batchProcessor.onNotificationCreated(new NotificationCreatedEvent(notification));
+            batchProcessor.onNotificationCreated(toEvent(notification));
 
-            Map<Long, BlockingQueue<Notification>> queues = getPendingQueues();
+            Map<Long, BlockingQueue<NotificationCreatedEvent>> queues = getPendingQueues();
             assertThat(queues).containsKey(DEFAULT_USER_ID);
             assertThat(queues.get(DEFAULT_USER_ID)).hasSize(1);
         }
@@ -84,7 +88,7 @@ class NotificationBatchProcessorTest {
             Notification notification = likeNotification(1L, user());
             given(sseEventSender.isUserConnected(DEFAULT_USER_ID)).willReturn(false);
 
-            batchProcessor.onNotificationCreated(new NotificationCreatedEvent(notification));
+            batchProcessor.onNotificationCreated(toEvent(notification));
 
             assertThat(getPendingQueues()).doesNotContainKey(DEFAULT_USER_ID);
         }
@@ -95,7 +99,7 @@ class NotificationBatchProcessorTest {
             ReflectionTestUtils.setField(batchProcessor, "shuttingDown", true);
             Notification notification = likeNotification(1L, user());
 
-            batchProcessor.onNotificationCreated(new NotificationCreatedEvent(notification));
+            batchProcessor.onNotificationCreated(toEvent(notification));
 
             assertThat(getPendingQueues()).doesNotContainKey(DEFAULT_USER_ID);
 

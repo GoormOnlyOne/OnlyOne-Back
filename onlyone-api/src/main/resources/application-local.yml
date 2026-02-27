@@ -64,15 +64,15 @@ spring:
 # --- 로깅: WARN/ERROR만 (부하테스트용) ---
 logging:
   level:
-    root: WARN
-    com.example.onlyone: WARN
-    org.hibernate.SQL: ERROR
-    org.springframework.web: WARN
-    org.springframework.security: WARN
+    root: error
+    com.example.onlyone: error
+    org.hibernate.SQL: error
+    org.springframework.web: error
+    org.springframework.security: error
 
 # --- Tomcat (확장 스레드) ---
 server:
-  port: 8888
+  port: 8080
   tomcat:
     threads:
       max: 800

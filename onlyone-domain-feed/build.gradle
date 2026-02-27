@@ -29,7 +29,6 @@ dependencies {
     // 다른 도메인 의존성
     api project(':onlyone-domain-user')
     api project(':onlyone-domain-club')
-    api project(':onlyone-domain-notification')
 
     // Spring Boot Starters
     api 'org.springframework.boot:spring-boot-starter-data-jpa'

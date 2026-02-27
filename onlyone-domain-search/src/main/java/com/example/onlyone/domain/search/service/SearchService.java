@@ -14,7 +14,7 @@ import com.example.onlyone.domain.user.entity.User;
 import com.example.onlyone.domain.user.repository.UserInterestRepository;
 import com.example.onlyone.domain.user.service.UserService;
 import com.example.onlyone.global.exception.CustomException;
-import com.example.onlyone.global.exception.ErrorCode;
+import com.example.onlyone.domain.search.exception.SearchErrorCode;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -80,7 +80,7 @@ public class SearchService {
     // 모임 검색 (관심사)
     public List<ClubResponseDto> searchClubByInterest(Long interestId, int page) {
         if (interestId == null) {
-            throw new CustomException(ErrorCode.INVALID_INTEREST_ID);
+            throw new CustomException(SearchErrorCode.INVALID_INTEREST_ID);
         }
 
         PageRequest pageRequest = PageRequest.of(page, DEFAULT_PAGE_SIZE);
@@ -93,7 +93,7 @@ public class SearchService {
     // 모임 검색 (지역)
     public List<ClubResponseDto> searchClubByLocation(String city, String district, int page) {
         if (city == null || district == null || city.trim().isEmpty() || district.trim().isEmpty()) {
-            throw new CustomException(ErrorCode.INVALID_LOCATION);
+            throw new CustomException(SearchErrorCode.INVALID_LOCATION);
         }
 
         PageRequest pageRequest = PageRequest.of(page, DEFAULT_PAGE_SIZE);
@@ -111,11 +111,11 @@ public class SearchService {
                 filter.keyword(), filter.interestId(), filter.city(), filter.district());
         // 지역 필터 유효성 검증
         if (!filter.isLocationValid()) {
-            throw new CustomException(ErrorCode.INVALID_SEARCH_FILTER);
+            throw new CustomException(SearchErrorCode.INVALID_SEARCH_FILTER);
         }
         // 키워드 유효성 검증
         if (!filter.isKeywordValid()) {
-            throw new CustomException(ErrorCode.SEARCH_KEYWORD_TOO_SHORT);
+            throw new CustomException(SearchErrorCode.SEARCH_KEYWORD_TOO_SHORT);
         }
 
         Long userId = userService.getCurrentUserId();
@@ -160,9 +160,9 @@ public class SearchService {
     // 내 모임 목록 조회
     public MyMeetingListResponseDto getMyClubs() {
         User user = userService.getCurrentUser();
-        List<ClubWithMemberCount> rows = userClubRepository.findMyClubsWithMemberCount(user.getUserId());
-        List<ClubResponseDto> clubResponseDtoList = rows.stream()
-                .map(row -> ClubResponseDto.from(row.club(), row.memberCount(), true))
+        List<ClubResponseDto> clubResponseDtoList = userClubRepository.findMyClubsWithInterest(user.getUserId())
+                .stream()
+                .map(uc -> ClubResponseDto.from(uc.getClub(), uc.getClub().getMemberCount(), true))
                 .toList();
 
         boolean isUnsettledScheduleExist =

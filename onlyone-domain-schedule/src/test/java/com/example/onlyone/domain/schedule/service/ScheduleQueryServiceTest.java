@@ -11,8 +11,9 @@ import com.example.onlyone.domain.schedule.repository.ScheduleRepository;
 import com.example.onlyone.domain.schedule.repository.UserScheduleRepository;
 import com.example.onlyone.domain.user.entity.User;
 import com.example.onlyone.domain.user.service.UserService;
+import com.example.onlyone.domain.club.exception.ClubErrorCode;
+import com.example.onlyone.domain.schedule.exception.ScheduleErrorCode;
 import com.example.onlyone.global.exception.CustomException;
-import com.example.onlyone.global.exception.ErrorCode;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -91,7 +92,7 @@ class ScheduleQueryServiceTest {
 
             assertThatThrownBy(() -> scheduleQueryService.getScheduleList(999L))
                     .isInstanceOf(CustomException.class)
-                    .extracting("errorCode").isEqualTo(ErrorCode.CLUB_NOT_FOUND);
+                    .extracting("errorCode").isEqualTo(ClubErrorCode.CLUB_NOT_FOUND);
         }
     }
 
@@ -156,7 +157,7 @@ class ScheduleQueryServiceTest {
 
             assertThatThrownBy(() -> scheduleQueryService.getScheduleDetails(1L, 999L))
                     .isInstanceOf(CustomException.class)
-                    .extracting("errorCode").isEqualTo(ErrorCode.SCHEDULE_NOT_FOUND);
+                    .extracting("errorCode").isEqualTo(ScheduleErrorCode.SCHEDULE_NOT_FOUND);
         }
     }
 }

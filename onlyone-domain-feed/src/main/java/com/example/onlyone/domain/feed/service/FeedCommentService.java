@@ -9,8 +9,9 @@ import com.example.onlyone.domain.feed.repository.FeedCommentRepository;
 import com.example.onlyone.domain.feed.repository.FeedRepository;
 import com.example.onlyone.domain.user.entity.User;
 import com.example.onlyone.domain.user.service.UserService;
+import com.example.onlyone.domain.club.exception.ClubErrorCode;
+import com.example.onlyone.domain.feed.exception.FeedErrorCode;
 import com.example.onlyone.global.exception.CustomException;
-import com.example.onlyone.global.exception.ErrorCode;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Pageable;
@@ -46,14 +47,14 @@ public class FeedCommentService {
     public void deleteComment(Long clubId, Long feedId, Long commentId) {
         Feed feed = findFeedInClub(feedId, clubId);
         FeedComment feedComment = feedCommentRepository.findById(commentId)
-                .orElseThrow(() -> new CustomException(ErrorCode.COMMENT_NOT_FOUND));
+                .orElseThrow(() -> new CustomException(FeedErrorCode.COMMENT_NOT_FOUND));
         if (!feedComment.getFeed().getFeedId().equals(feedId)) {
-            throw new CustomException(ErrorCode.FEED_NOT_FOUND);
+            throw new CustomException(FeedErrorCode.FEED_NOT_FOUND);
         }
 
         Long userId = userService.getCurrentUserId();
         if (!userId.equals(feedComment.getUser().getUserId()) && !userId.equals(feed.getUser().getUserId())) {
-            throw new CustomException(ErrorCode.UNAUTHORIZED_COMMENT_ACCESS);
+            throw new CustomException(FeedErrorCode.UNAUTHORIZED_COMMENT_ACCESS);
         }
 
         runInTx(() -> feedCommentRepository.delete(feedComment));
@@ -65,7 +66,7 @@ public class FeedCommentService {
     @Transactional(readOnly = true)
     public List<FeedCommentResponseDto> getCommentList(Long feedId, Pageable pageable) {
         if (!feedRepository.existsById(feedId)) {
-            throw new CustomException(ErrorCode.FEED_NOT_FOUND);
+            throw new CustomException(FeedErrorCode.FEED_NOT_FOUND);
         }
         Long userId = userService.getCurrentUserId();
         return feedCommentRepository.findByFeedIdWithUser(feedId, pageable).stream()
@@ -78,12 +79,12 @@ public class FeedCommentService {
     private Feed findFeedInClub(Long feedId, Long clubId) {
         return feedRepository.findById(feedId)
                 .filter(f -> f.getClub() != null && f.getClub().getClubId().equals(clubId))
-                .orElseThrow(() -> new CustomException(ErrorCode.FEED_NOT_FOUND));
+                .orElseThrow(() -> new CustomException(FeedErrorCode.FEED_NOT_FOUND));
     }
 
     private void validateMembership(Long userId, Long clubId) {
         if (!userClubRepository.existsByUser_UserIdAndClub_ClubId(userId, clubId)) {
-            throw new CustomException(ErrorCode.CLUB_NOT_JOIN);
+            throw new CustomException(ClubErrorCode.CLUB_NOT_JOIN);
         }
     }
 
