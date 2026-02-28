@@ -42,6 +42,9 @@ dependencies {
     // OpenAPI/Swagger
     api 'org.springdoc:springdoc-openapi-starter-webmvc-ui:2.7.0'
 
+    // Spring Data Redis (DistributedConnectionRegistry용 - optional)
+    compileOnly 'org.springframework.data:spring-data-redis:3.4.2'
+
     // Logging
     api 'org.slf4j:slf4j-api:2.0.16'
 

@@ -3,8 +3,8 @@ package com.example.onlyone.domain.notification.service;
 import com.example.onlyone.domain.notification.dto.response.NotificationSseDto;
 import com.example.onlyone.domain.notification.entity.Notification;
 import com.example.onlyone.domain.notification.event.NotificationCreatedEvent;
-import com.example.onlyone.domain.notification.repository.NotificationRepository;
-import com.example.onlyone.sse.service.SseEventSender;
+import com.example.onlyone.domain.notification.port.NotificationDeliveryPort;
+import com.example.onlyone.domain.notification.port.NotificationStoragePort;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -35,8 +35,8 @@ import static org.mockito.BDDMockito.*;
 class NotificationBatchProcessorTest {
 
     @InjectMocks private NotificationBatchProcessor batchProcessor;
-    @Mock private NotificationRepository notificationRepository;
-    @Mock private SseEventSender sseEventSender;
+    @Mock private NotificationStoragePort storagePort;
+    @Mock private NotificationDeliveryPort deliveryPort;
     @Mock private TransactionTemplate transactionTemplate;
 
     @BeforeEach
@@ -73,7 +73,7 @@ class NotificationBatchProcessorTest {
         @DisplayName("성공: 온라인 사용자면 큐에 추가된다")
         void success_addedToQueueForOnlineUser() {
             Notification notification = likeNotification(1L, user());
-            given(sseEventSender.isUserConnected(DEFAULT_USER_ID)).willReturn(true);
+            given(deliveryPort.isUserReachable(DEFAULT_USER_ID)).willReturn(true);
 
             batchProcessor.onNotificationCreated(toEvent(notification));
 
@@ -86,7 +86,7 @@ class NotificationBatchProcessorTest {
         @DisplayName("성공: 오프라인 사용자면 스킵된다")
         void success_skippedForOfflineUser() {
             Notification notification = likeNotification(1L, user());
-            given(sseEventSender.isUserConnected(DEFAULT_USER_ID)).willReturn(false);
+            given(deliveryPort.isUserReachable(DEFAULT_USER_ID)).willReturn(false);
 
             batchProcessor.onNotificationCreated(toEvent(notification));
 
@@ -112,13 +112,13 @@ class NotificationBatchProcessorTest {
     class ProcessBatch {
 
         @Test
-        @DisplayName("성공: 큐의 알림이 SSE로 전송된다")
-        void success_notificationsSentViaSse() {
+        @DisplayName("성공: 큐의 알림이 전송된다")
+        void success_notificationsSentViaDeliveryPort() {
             Notification notification = likeNotification(1L, user());
             enqueue(notification);
 
-            given(sseEventSender.isUserConnected(DEFAULT_USER_ID)).willReturn(true);
-            given(sseEventSender.sendEvent(eq(DEFAULT_USER_ID), eq("notification"), any(NotificationSseDto.class)))
+            given(deliveryPort.isUserReachable(DEFAULT_USER_ID)).willReturn(true);
+            given(deliveryPort.deliver(eq(DEFAULT_USER_ID), eq("notification"), any(NotificationSseDto.class)))
                     .willReturn(CompletableFuture.completedFuture(true));
             willAnswer(invocation -> {
                 Consumer<TransactionStatus> action = invocation.getArgument(0);
@@ -128,23 +128,23 @@ class NotificationBatchProcessorTest {
 
             batchProcessor.processBatch();
 
-            then(sseEventSender).should().sendEvent(eq(DEFAULT_USER_ID), eq("notification"), any(NotificationSseDto.class));
-            then(notificationRepository).should().markSseSentByIds(List.of(1L));
+            then(deliveryPort).should().deliver(eq(DEFAULT_USER_ID), eq("notification"), any(NotificationSseDto.class));
+            then(storagePort).should().markDeliveredByIds(List.of(1L));
         }
 
         @Test
-        @DisplayName("성공: SSE 전송 실패 시 sse_sent 갱신하지 않는다")
-        void success_noMarkWhenSseFails() {
+        @DisplayName("성공: 전송 실패 시 delivered 갱신하지 않는다")
+        void success_noMarkWhenDeliveryFails() {
             Notification notification = likeNotification(1L, user());
             enqueue(notification);
 
-            given(sseEventSender.isUserConnected(DEFAULT_USER_ID)).willReturn(true);
-            given(sseEventSender.sendEvent(eq(DEFAULT_USER_ID), eq("notification"), any(NotificationSseDto.class)))
+            given(deliveryPort.isUserReachable(DEFAULT_USER_ID)).willReturn(true);
+            given(deliveryPort.deliver(eq(DEFAULT_USER_ID), eq("notification"), any(NotificationSseDto.class)))
                     .willReturn(CompletableFuture.completedFuture(false));
 
             batchProcessor.processBatch();
 
-            then(sseEventSender).should().sendEvent(eq(DEFAULT_USER_ID), eq("notification"), any(NotificationSseDto.class));
+            then(deliveryPort).should().deliver(eq(DEFAULT_USER_ID), eq("notification"), any(NotificationSseDto.class));
             then(transactionTemplate).shouldHaveNoInteractions();
         }
 
@@ -153,7 +153,7 @@ class NotificationBatchProcessorTest {
         void success_nothingWhenEmpty() {
             batchProcessor.processBatch();
 
-            then(sseEventSender).should(never()).sendEvent(anyLong(), anyString(), any());
+            then(deliveryPort).should(never()).deliver(anyLong(), anyString(), any());
         }
 
         @Test
@@ -162,12 +162,12 @@ class NotificationBatchProcessorTest {
             Notification notification = likeNotification(1L, user());
             enqueue(notification);
 
-            given(sseEventSender.isUserConnected(DEFAULT_USER_ID)).willReturn(false);
+            given(deliveryPort.isUserReachable(DEFAULT_USER_ID)).willReturn(false);
 
             batchProcessor.processBatch();
 
             assertThat(getPendingQueues()).doesNotContainKey(DEFAULT_USER_ID);
-            then(sseEventSender).should(never()).sendEvent(anyLong(), anyString(), any());
+            then(deliveryPort).should(never()).deliver(anyLong(), anyString(), any());
         }
     }
 }

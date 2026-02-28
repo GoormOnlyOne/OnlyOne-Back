@@ -2,8 +2,8 @@ package com.example.onlyone.domain.notification.service;
 
 import com.example.onlyone.domain.notification.dto.response.NotificationSseDto;
 import com.example.onlyone.domain.notification.event.NotificationCreatedEvent;
-import com.example.onlyone.domain.notification.repository.NotificationRepository;
-import com.example.onlyone.sse.service.SseEventSender;
+import com.example.onlyone.domain.notification.port.NotificationDeliveryPort;
+import com.example.onlyone.domain.notification.port.NotificationStoragePort;
 import jakarta.annotation.PreDestroy;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -25,18 +25,18 @@ import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 
 /**
- * 알림 SSE 배치 전송 처리기
+ * 알림 배치 전송 처리기
  *
  * 알림 생성 후 커밋 시점에 큐에 적재하고,
- * 주기적으로 큐를 비워 SSE로 전송한 뒤 sse_sent 플래그를 갱신한다.
+ * 주기적으로 큐를 비워 전송 채널로 전송한 뒤 delivered 플래그를 갱신한다.
  */
 @Slf4j
 @Component
 @RequiredArgsConstructor
 public class NotificationBatchProcessor {
 
-    private final NotificationRepository notificationRepository;
-    private final SseEventSender sseEventSender;
+    private final NotificationStoragePort storagePort;
+    private final NotificationDeliveryPort deliveryPort;
     private final TransactionTemplate transactionTemplate;
 
     @Value("${app.notification.batch-size:10}")
@@ -60,7 +60,7 @@ public class NotificationBatchProcessor {
 
         Long userId = event.userId();
 
-        if (!sseEventSender.isUserConnected(userId)) {
+        if (!deliveryPort.isUserReachable(userId)) {
             log.debug("오프라인 사용자 스킵: userId={}", userId);
             return;
         }
@@ -84,7 +84,7 @@ public class NotificationBatchProcessor {
             Long userId = entry.getKey();
             BlockingQueue<NotificationCreatedEvent> queue = entry.getValue();
 
-            if (!sseEventSender.isUserConnected(userId)) {
+            if (!deliveryPort.isUserReachable(userId)) {
                 pendingQueues.remove(userId);
                 continue;
             }
@@ -162,10 +162,10 @@ public class NotificationBatchProcessor {
 
     private CompletableFuture<Long> sendSingleNotification(Long userId, NotificationCreatedEvent event) {
         NotificationSseDto dto = NotificationSseDto.from(event);
-        return sseEventSender.sendEvent(userId, "notification", dto)
+        return deliveryPort.deliver(userId, "notification", dto)
                 .thenApply(success -> success ? event.notificationId() : null)
                 .exceptionally(ex -> {
-                    log.debug("SSE 전송 실패: notificationId={}", event.notificationId());
+                    log.debug("알림 전송 실패: notificationId={}", event.notificationId());
                     return null;
                 });
     }
@@ -180,10 +180,10 @@ public class NotificationBatchProcessor {
 
         try {
             transactionTemplate.executeWithoutResult(status ->
-                    notificationRepository.markSseSentByIds(sentIds));
-            log.debug("SSE 전송 완료: userId={}, count={}", userId, sentIds.size());
+                    storagePort.markDeliveredByIds(sentIds));
+            log.debug("알림 전송 완료: userId={}, count={}", userId, sentIds.size());
         } catch (Exception e) {
-            log.warn("SSE 전송 후 DB 반영 실패: userId={}, count={}", userId, sentIds.size(), e);
+            log.warn("알림 전송 후 DB 반영 실패: userId={}, count={}", userId, sentIds.size(), e);
         }
     }
 }

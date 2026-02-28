@@ -41,6 +41,7 @@ public class SecurityConfig {
             "/api/v1/kakao/**",
             "/api/v1/auth/kakao/callback",
             "/api/v1/auth/refresh",
+            "/test/**",
     };
 
     private static final String[] SWAGGER_PATHS = {

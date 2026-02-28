@@ -1,6 +1,6 @@
 package com.example.onlyone.domain.notification.service;
 
-import com.example.onlyone.domain.notification.repository.NotificationRepository;
+import com.example.onlyone.domain.notification.port.NotificationStoragePort;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.StringRedisTemplate;
@@ -18,10 +18,10 @@ import java.time.Duration;
 public class NotificationUnreadCounter {
 
     private static final String KEY_PREFIX = "notification:unread:";
-    private static final Duration CACHE_TTL = Duration.ofMinutes(10);
+    private static final Duration CACHE_TTL = Duration.ofHours(1);
 
     private final StringRedisTemplate redis;
-    private final NotificationRepository notificationRepository;
+    private final NotificationStoragePort storagePort;
 
     /** Redis 캐시 우선 조회, 미스 시 DB fallback + 캐싱 */
     public Long getCount(Long userId) {
@@ -35,7 +35,7 @@ public class NotificationUnreadCounter {
             log.warn("Redis 읽기 실패, DB fallback: userId={}", userId, e);
         }
 
-        Long count = notificationRepository.countUnreadByUserId(userId);
+        Long count = storagePort.countUnreadByUserId(userId);
         setQuietly(key, String.valueOf(count));
         return count;
     }

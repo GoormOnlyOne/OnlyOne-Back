@@ -14,7 +14,7 @@ spring:
     hikari:
       maximum-pool-size: 400
       minimum-idle: 150
-      connection-timeout: 8000
+      connection-timeout: 15000
       idle-timeout: 300000
       max-lifetime: 600000
       validation-timeout: 3000
@@ -35,7 +35,7 @@ spring:
         order_updates: true
         connection:
           provider_disables_autocommit: true
-      jakarta.persistence.query.timeout: 5000
+      jakarta.persistence.query.timeout: 30000
 
   # Redis (Docker: 6379 → 6379)
   data:
@@ -48,6 +48,10 @@ spring:
           max-active: 256
           max-idle: 128
           min-idle: 32
+
+  # MongoDB (app.notification.storage=mongodb 시 활성화)
+  data.mongodb:
+    uri: mongodb://root:root@localhost:27017/onlyone?authSource=admin
 
   # Elasticsearch
   elasticsearch:
@@ -115,6 +119,8 @@ app:
     requests-per-minute: 60
     auth-requests-per-30s: 10
   notification:
+    storage: mongodb
+    delivery: sse
     sse-timeout-millis: 30000
     sse-executor-permits: 500
     max-connections: 10000

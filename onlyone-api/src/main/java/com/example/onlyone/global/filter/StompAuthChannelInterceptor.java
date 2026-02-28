@@ -55,8 +55,16 @@ public class StompAuthChannelInterceptor implements ChannelInterceptor {
                 throw new MessageDeliveryException("User account is inactive");
             }
 
+            // getName()이 userId를 반환하도록 오버라이드.
+            // SimpUserRegistry가 userId로 사용자를 조회할 수 있게 한다.
+            // (기본 동작: UserPrincipal.getUsername() → kakaoId 반환 → 키 불일치)
             Authentication auth = new UsernamePasswordAuthenticationToken(
-                    principal, null, principal.getAuthorities());
+                    principal, null, principal.getAuthorities()) {
+                @Override
+                public String getName() {
+                    return String.valueOf(principal.getUserId());
+                }
+            };
             accessor.setUser(auth);
 
             log.debug("[STOMP.Auth] CONNECT authenticated: {}", principal);

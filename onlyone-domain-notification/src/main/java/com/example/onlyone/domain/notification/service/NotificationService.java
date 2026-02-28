@@ -6,14 +6,15 @@ import com.example.onlyone.domain.notification.dto.request.NotificationQueryDto;
 import com.example.onlyone.domain.notification.dto.response.NotificationItemDto;
 import com.example.onlyone.domain.notification.dto.response.NotificationListResponseDto;
 import com.example.onlyone.domain.notification.entity.Notification;
-import com.example.onlyone.domain.notification.repository.NotificationRepository;
+import com.example.onlyone.domain.notification.port.NotificationEventPublisher;
+import com.example.onlyone.domain.notification.port.NotificationStoragePort;
 import com.example.onlyone.domain.user.service.AuthService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 @Service
@@ -24,8 +25,8 @@ public class NotificationService {
 
     private static final int MAX_PAGE_SIZE = 30;
 
-    private final NotificationRepository notificationRepository;
-    private final ApplicationEventPublisher eventPublisher;
+    private final NotificationStoragePort storagePort;
+    private final NotificationEventPublisher eventPublisher;
     private final AuthService authService;
     private final NotificationUnreadCounter unreadCounter;
 
@@ -36,7 +37,7 @@ public class NotificationService {
         int size = Math.min(dto.size(), MAX_PAGE_SIZE);
 
         List<NotificationItemDto> notifications =
-                notificationRepository.findNotificationsByUserId(userId, dto.cursor(), size + 1);
+                storagePort.findByUserId(userId, dto.cursor(), size + 1);
 
         log.debug("알림 조회: userId={}, count={}", userId, notifications.size());
         return buildPagedResponse(notifications, size);
@@ -52,7 +53,7 @@ public class NotificationService {
     @Transactional
     public void markAsRead(Long notificationId) {
         Long userId = authService.getCurrentUserId();
-        int updated = notificationRepository.markAsReadByIdAndUserId(notificationId, userId);
+        int updated = storagePort.markAsReadByIdAndUserId(notificationId, userId);
         if (updated > 0) {
             unreadCounter.decrement(userId);
         }
@@ -62,7 +63,7 @@ public class NotificationService {
     @Transactional
     public void markAllAsRead() {
         Long userId = authService.getCurrentUserId();
-        long markedCount = notificationRepository.markAllAsReadByUserId(userId);
+        long markedCount = storagePort.markAllAsReadByUserId(userId);
         if (markedCount > 0) {
             unreadCounter.reset(userId);
             log.debug("모든 알림 읽음: userId={}, count={}", userId, markedCount);
@@ -72,7 +73,7 @@ public class NotificationService {
     @Transactional
     public void deleteNotification(Long notificationId) {
         Long userId = authService.getCurrentUserId();
-        boolean wasUnread = notificationRepository.deleteByIdAndUserId(notificationId, userId);
+        boolean wasUnread = storagePort.deleteByIdAndUserId(notificationId, userId);
         if (wasUnread) {
             unreadCounter.decrement(userId);
         }
@@ -84,13 +85,22 @@ public class NotificationService {
     @Transactional
     public void createNotification(NotificationCreateDto dto) {
         Notification notification = Notification.create(dto.user(), dto.type(), dto.args());
-        notificationRepository.save(notification);
+        String content = notification.getContent();
+
+        Long notificationId = storagePort.save(dto.user().getUserId(), dto.type(), content);
 
         unreadCounter.increment(dto.user().getUserId());
 
-        eventPublisher.publishEvent(NotificationCreatedEvent.from(notification));
+        eventPublisher.publish(new NotificationCreatedEvent(
+                notificationId,
+                dto.user().getUserId(),
+                content,
+                dto.type(),
+                false,
+                LocalDateTime.now()
+        ));
         log.debug("알림 생성: userId={}, type={}, id={}",
-                dto.user().getUserId(), dto.type(), notification.getId());
+                dto.user().getUserId(), dto.type(), notificationId);
     }
 
     // ========== private ==========

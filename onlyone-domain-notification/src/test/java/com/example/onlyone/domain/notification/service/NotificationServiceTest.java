@@ -5,9 +5,9 @@ import com.example.onlyone.domain.notification.dto.request.NotificationCreateDto
 import com.example.onlyone.domain.notification.dto.request.NotificationQueryDto;
 import com.example.onlyone.domain.notification.dto.response.NotificationItemDto;
 import com.example.onlyone.domain.notification.dto.response.NotificationListResponseDto;
-import com.example.onlyone.domain.notification.entity.Notification;
 import com.example.onlyone.domain.notification.entity.NotificationType;
-import com.example.onlyone.domain.notification.repository.NotificationRepository;
+import com.example.onlyone.domain.notification.port.NotificationEventPublisher;
+import com.example.onlyone.domain.notification.port.NotificationStoragePort;
 import com.example.onlyone.domain.user.entity.User;
 import com.example.onlyone.domain.user.service.AuthService;
 import org.junit.jupiter.api.DisplayName;
@@ -17,7 +17,6 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.context.ApplicationEventPublisher;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -25,6 +24,7 @@ import java.util.List;
 import static com.example.onlyone.domain.notification.fixture.NotificationFixtures.*;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.*;
 
 @ExtendWith(MockitoExtension.class)
@@ -32,8 +32,8 @@ import static org.mockito.BDDMockito.*;
 class NotificationServiceTest {
 
     @InjectMocks private NotificationService notificationService;
-    @Mock private NotificationRepository notificationRepository;
-    @Mock private ApplicationEventPublisher eventPublisher;
+    @Mock private NotificationStoragePort storagePort;
+    @Mock private NotificationEventPublisher eventPublisher;
     @Mock private AuthService authService;
     @Mock private NotificationUnreadCounter unreadCounter;
 
@@ -47,7 +47,7 @@ class NotificationServiceTest {
             given(authService.getCurrentUserId()).willReturn(DEFAULT_USER_ID);
             List<NotificationItemDto> items = List.of(
                     notificationItem(3L), notificationItem(2L), notificationItem(1L));
-            given(notificationRepository.findNotificationsByUserId(DEFAULT_USER_ID, null, 11))
+            given(storagePort.findByUserId(DEFAULT_USER_ID, null, 11))
                     .willReturn(items);
 
             NotificationListResponseDto result =
@@ -62,12 +62,12 @@ class NotificationServiceTest {
         @DisplayName("성공: size가 30을 초과하면 30으로 제한된다")
         void success_sizeIsCappedAt30() {
             given(authService.getCurrentUserId()).willReturn(DEFAULT_USER_ID);
-            given(notificationRepository.findNotificationsByUserId(DEFAULT_USER_ID, null, 31))
+            given(storagePort.findByUserId(DEFAULT_USER_ID, null, 31))
                     .willReturn(new ArrayList<>());
 
             notificationService.getNotifications(new NotificationQueryDto(null, 50));
 
-            then(notificationRepository).should().findNotificationsByUserId(DEFAULT_USER_ID, null, 31);
+            then(storagePort).should().findByUserId(DEFAULT_USER_ID, null, 31);
         }
 
         @Test
@@ -76,7 +76,7 @@ class NotificationServiceTest {
             given(authService.getCurrentUserId()).willReturn(DEFAULT_USER_ID);
             List<NotificationItemDto> items = List.of(
                     notificationItem(3L), notificationItem(2L), notificationItem(1L));
-            given(notificationRepository.findNotificationsByUserId(DEFAULT_USER_ID, null, 3))
+            given(storagePort.findByUserId(DEFAULT_USER_ID, null, 3))
                     .willReturn(items);
 
             NotificationListResponseDto result =
@@ -112,11 +112,11 @@ class NotificationServiceTest {
         @DisplayName("성공: 알림이 읽음으로 변경되고 카운터 감소")
         void success_notificationIsMarkedAsRead() {
             given(authService.getCurrentUserId()).willReturn(DEFAULT_USER_ID);
-            given(notificationRepository.markAsReadByIdAndUserId(1L, DEFAULT_USER_ID)).willReturn(1);
+            given(storagePort.markAsReadByIdAndUserId(1L, DEFAULT_USER_ID)).willReturn(1);
 
             notificationService.markAsRead(1L);
 
-            then(notificationRepository).should().markAsReadByIdAndUserId(1L, DEFAULT_USER_ID);
+            then(storagePort).should().markAsReadByIdAndUserId(1L, DEFAULT_USER_ID);
             then(unreadCounter).should().decrement(DEFAULT_USER_ID);
         }
 
@@ -124,7 +124,7 @@ class NotificationServiceTest {
         @DisplayName("성공: 이미 읽은 알림이면 카운터 변경 없음")
         void success_alreadyReadDoesNotDecrementCounter() {
             given(authService.getCurrentUserId()).willReturn(DEFAULT_USER_ID);
-            given(notificationRepository.markAsReadByIdAndUserId(1L, DEFAULT_USER_ID)).willReturn(0);
+            given(storagePort.markAsReadByIdAndUserId(1L, DEFAULT_USER_ID)).willReturn(0);
 
             notificationService.markAsRead(1L);
 
@@ -140,11 +140,11 @@ class NotificationServiceTest {
         @DisplayName("성공: 모든 알림이 읽음으로 변경되고 카운터 리셋")
         void success_allNotificationsMarkedAsRead() {
             given(authService.getCurrentUserId()).willReturn(DEFAULT_USER_ID);
-            given(notificationRepository.markAllAsReadByUserId(DEFAULT_USER_ID)).willReturn(3L);
+            given(storagePort.markAllAsReadByUserId(DEFAULT_USER_ID)).willReturn(3L);
 
             notificationService.markAllAsRead();
 
-            then(notificationRepository).should().markAllAsReadByUserId(DEFAULT_USER_ID);
+            then(storagePort).should().markAllAsReadByUserId(DEFAULT_USER_ID);
             then(unreadCounter).should().reset(DEFAULT_USER_ID);
         }
     }
@@ -157,11 +157,11 @@ class NotificationServiceTest {
         @DisplayName("성공: 읽지 않은 알림 삭제 시 카운터 감소")
         void success_unreadNotificationDeletedDecrementsCounter() {
             given(authService.getCurrentUserId()).willReturn(DEFAULT_USER_ID);
-            given(notificationRepository.deleteByIdAndUserId(1L, DEFAULT_USER_ID)).willReturn(true);
+            given(storagePort.deleteByIdAndUserId(1L, DEFAULT_USER_ID)).willReturn(true);
 
             notificationService.deleteNotification(1L);
 
-            then(notificationRepository).should().deleteByIdAndUserId(1L, DEFAULT_USER_ID);
+            then(storagePort).should().deleteByIdAndUserId(1L, DEFAULT_USER_ID);
             then(unreadCounter).should().decrement(DEFAULT_USER_ID);
         }
 
@@ -169,7 +169,7 @@ class NotificationServiceTest {
         @DisplayName("성공: 이미 읽은 알림 삭제 시 카운터 변경 없음")
         void success_readNotificationDeletedNoCounterChange() {
             given(authService.getCurrentUserId()).willReturn(DEFAULT_USER_ID);
-            given(notificationRepository.deleteByIdAndUserId(1L, DEFAULT_USER_ID)).willReturn(false);
+            given(storagePort.deleteByIdAndUserId(1L, DEFAULT_USER_ID)).willReturn(false);
 
             notificationService.deleteNotification(1L);
 
@@ -187,13 +187,13 @@ class NotificationServiceTest {
             User user = user();
             NotificationCreateDto createDto =
                     new NotificationCreateDto(user, NotificationType.LIKE, new String[]{"홍길동"});
-            given(notificationRepository.save(any(Notification.class)))
-                    .willAnswer(invocation -> invocation.getArgument(0));
+            given(storagePort.save(eq(DEFAULT_USER_ID), eq(NotificationType.LIKE), any(String.class)))
+                    .willReturn(1L);
 
             notificationService.createNotification(createDto);
 
-            then(notificationRepository).should().save(any(Notification.class));
-            then(eventPublisher).should().publishEvent(any(NotificationCreatedEvent.class));
+            then(storagePort).should().save(eq(DEFAULT_USER_ID), eq(NotificationType.LIKE), any(String.class));
+            then(eventPublisher).should().publish(any(NotificationCreatedEvent.class));
             then(unreadCounter).should().increment(DEFAULT_USER_ID);
         }
     }

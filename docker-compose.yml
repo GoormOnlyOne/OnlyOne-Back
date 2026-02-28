@@ -113,6 +113,69 @@ services:
           cpus: '0.5'
           memory: 512M
 
+  # MongoDB (알림 저장소 비교용 — app.notification.storage=mongodb)
+  mongodb:
+    image: mongo:7.0
+    container_name: onlyone-mongodb
+    restart: unless-stopped
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: root
+      MONGO_INITDB_ROOT_PASSWORD: root
+      MONGO_INITDB_DATABASE: onlyone
+    ports:
+      - "127.0.0.1:27017:27017"
+    volumes:
+      - mongodb_data:/data/db
+    command: ["mongod", "--wiredTigerCacheSizeGB", "2.5", "--auth"]
+    networks:
+      - onlyone-network
+    healthcheck:
+      test: ["CMD", "mongosh", "-u", "root", "-p", "root", "--authenticationDatabase", "admin", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    profiles:
+      - mongodb
+    deploy:
+      resources:
+        limits:
+          cpus: '4'
+          memory: 4G
+        reservations:
+          cpus: '1'
+          memory: 1G
+
+  # RabbitMQ (알림 이벤트 버스 비교용 — app.notification.event-bus=rabbitmq)
+  rabbitmq:
+    image: rabbitmq:3.13-management-alpine
+    container_name: onlyone-rabbitmq
+    restart: unless-stopped
+    environment:
+      RABBITMQ_DEFAULT_USER: guest
+      RABBITMQ_DEFAULT_PASS: guest
+    ports:
+      - "127.0.0.1:5672:5672"
+      - "127.0.0.1:15672:15672"
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    networks:
+      - onlyone-network
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    profiles:
+      - rabbitmq
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 512M
+        reservations:
+          cpus: '0.25'
+          memory: 256M
+
   # ========== Monitoring (--profile monitoring) ==========
 
   # Prometheus - Metrics Collection
@@ -262,5 +325,7 @@ volumes:
   mysql_data:
   redis_data:
   elasticsearch_data:
+  mongodb_data:
+  rabbitmq_data:
   prometheus_data:
   grafana_data:

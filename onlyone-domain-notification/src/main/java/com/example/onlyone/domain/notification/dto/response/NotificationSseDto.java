@@ -11,7 +11,8 @@ public record NotificationSseDto(
     String content,
     NotificationType type,
     boolean isRead,
-    LocalDateTime createdAt
+    LocalDateTime createdAt,
+    long sentAtEpochMs
 ) {
     public static NotificationSseDto from(Notification notification) {
         return new NotificationSseDto(
@@ -19,7 +20,8 @@ public record NotificationSseDto(
             notification.getContent(),
             notification.getType(),
             notification.isRead(),
-            notification.getCreatedAt()
+            notification.getCreatedAt(),
+            System.currentTimeMillis()
         );
     }
 
@@ -29,7 +31,8 @@ public record NotificationSseDto(
             event.content(),
             event.type(),
             event.isRead(),
-            event.createdAt()
+            event.createdAt(),
+            System.currentTimeMillis()
         );
     }
 }

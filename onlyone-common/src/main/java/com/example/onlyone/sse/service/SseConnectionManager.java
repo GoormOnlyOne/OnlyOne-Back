@@ -5,6 +5,7 @@ import com.example.onlyone.global.exception.GlobalErrorCode;
 import com.example.onlyone.sse.exception.SseErrorCode;
 import com.example.onlyone.sse.SseConnection;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
@@ -26,6 +27,10 @@ public class SseConnectionManager {
     private int maxConnections;
 
     private final ConcurrentHashMap<Long, SseConnection> activeConnections = new ConcurrentHashMap<>();
+
+    /** 분산 환경에서만 주입됨 (app.notification.multi-instance=true) */
+    @Autowired(required = false)
+    private DistributedConnectionRegistry distributedRegistry;
 
     public SseEmitter createConnection(Long userId) {
         if (userId == null) {
@@ -60,11 +65,21 @@ public class SseConnectionManager {
             throw new CustomException(SseErrorCode.SSE_CONNECTION_FAILED);
         }
 
+        // 분산 레지스트리에 등록
+        if (distributedRegistry != null) {
+            distributedRegistry.register(userId);
+        }
+
         return newConnection.getEmitter();
     }
 
     public void cleanupConnection(Long userId) {
         activeConnections.remove(userId);
+
+        // 분산 레지스트리에서 해제
+        if (distributedRegistry != null) {
+            distributedRegistry.unregister(userId);
+        }
     }
 
     public SseConnection getConnection(Long userId) {
@@ -93,6 +108,9 @@ public class SseConnectionManager {
                 SseConnection connection = activeConnections.remove(userId);
                 if (connection != null) {
                     completeEmitterQuietly(connection.getEmitter());
+                    if (distributedRegistry != null) {
+                        distributedRegistry.unregister(userId);
+                    }
                 }
             });
         } catch (Exception e) {
@@ -120,10 +138,18 @@ public class SseConnectionManager {
                     SseConnection removed = activeConnections.remove(userId);
                     if (removed != null) {
                         completeEmitterQuietly(removed.getEmitter());
+                        if (distributedRegistry != null) {
+                            distributedRegistry.unregister(userId);
+                        }
                         cleaned.incrementAndGet();
                     }
                 }
             });
+
+            // 분산 레지스트리 TTL 갱신
+            if (distributedRegistry != null && !activeConnections.isEmpty()) {
+                distributedRegistry.refreshTtl();
+            }
 
             if (cleaned.get() > 0) {
                 log.info("좀비 SSE 커넥션 정리: cleaned={}, remaining={}", cleaned.get(), activeConnections.size());

@@ -114,6 +114,58 @@ export function connectSSE(user, timeout) {
 }
 
 // ============================================
+// STOMP 프레임 유틸리티
+// ============================================
+const NULL_CHAR = '\u0000';
+
+export function stompConnect(token) {
+    return `CONNECT\nAuthorization:Bearer ${token}\naccept-version:1.2\nheart-beat:10000,10000\n\n${NULL_CHAR}`;
+}
+
+export function stompSubscribe(id, destination) {
+    return `SUBSCRIBE\nid:${id}\ndestination:${destination}\n\n${NULL_CHAR}`;
+}
+
+export function stompDisconnect(receiptId) {
+    return `DISCONNECT\nreceipt:${receiptId || 'disc-1'}\n\n${NULL_CHAR}`;
+}
+
+export function parseStompFrames(data) {
+    const frames = [];
+    if (!data) return frames;
+
+    const rawFrames = data.split(NULL_CHAR);
+    for (const raw of rawFrames) {
+        const trimmed = raw.replace(/^\n+/, '');
+        if (!trimmed) continue;
+
+        const firstNewline = trimmed.indexOf('\n');
+        if (firstNewline === -1) continue;
+
+        const command = trimmed.substring(0, firstNewline);
+        const rest = trimmed.substring(firstNewline + 1);
+
+        const headerBodySep = rest.indexOf('\n\n');
+        let headers = {};
+        let body = '';
+
+        if (headerBodySep !== -1) {
+            const headerSection = rest.substring(0, headerBodySep);
+            body = rest.substring(headerBodySep + 2);
+            for (const line of headerSection.split('\n')) {
+                const colonIdx = line.indexOf(':');
+                if (colonIdx > 0) {
+                    headers[line.substring(0, colonIdx)] = line.substring(colonIdx + 1);
+                }
+            }
+        }
+
+        frames.push({ command, headers, body });
+    }
+    return frames;
+}
+
+// ============================================
 // 알림 목록에서 ID 배열 추출
 // ============================================
 export function fetchNotificationIds(token, size) {

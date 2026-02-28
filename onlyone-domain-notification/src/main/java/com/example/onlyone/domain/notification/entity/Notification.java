@@ -58,6 +58,10 @@ public class Notification extends BaseTimeEntity {
         return new Notification(user, type, renderedContent);
     }
 
+    public static Notification createWithContent(User user, NotificationType type, String content) {
+        return new Notification(user, type, content);
+    }
+
     public void markAsRead() {
         this.isRead = true;
     }

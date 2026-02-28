@@ -66,39 +66,49 @@ public class NotificationRepositoryImpl implements NotificationRepositoryCustom 
     @Override
     @Transactional
     public boolean deleteByIdAndUserId(Long notificationId, Long userId) {
-        // 읽음 여부 조회 후 삭제 — 엔티티 로딩 없이 네이티브 쿼리 2회
-        @SuppressWarnings("unchecked")
-        List<Object> results = entityManager
-                .createNativeQuery("SELECT is_read FROM notification WHERE notification_id = :id AND user_id = :userId")
+        // 단일 쿼리: 미읽음 알림 삭제 시도 → 성공하면 wasUnread=true
+        int deletedUnread = entityManager
+                .createNativeQuery("DELETE FROM notification WHERE notification_id = :id AND user_id = :userId AND is_read = false")
                 .setParameter("id", notificationId)
                 .setParameter("userId", userId)
-                .getResultList();
+                .executeUpdate();
 
-        if (results.isEmpty()) return false;
+        if (deletedUnread > 0) return true;
 
-        boolean wasUnread = !toBoolean(results.get(0));
-
-        entityManager
+        // 미읽음이 아니었으면 읽음 상태 알림 삭제 (wasUnread=false)
+        int deletedRead = entityManager
                 .createNativeQuery("DELETE FROM notification WHERE notification_id = :id AND user_id = :userId")
                 .setParameter("id", notificationId)
                 .setParameter("userId", userId)
                 .executeUpdate();
 
-        return wasUnread;
+        // deletedRead == 0이면 알림 자체가 없음 — 기존 동작과 동일하게 false 반환
+        return false;
     }
 
     @Override
     @Transactional
     public long markAllAsReadByUserId(Long userId) {
-        int updated = entityManager
-                .createNativeQuery("UPDATE notification SET is_read = true WHERE user_id = :userId AND is_read = false")
-                .setParameter("userId", userId)
-                .executeUpdate();
+        // LIMIT 배치 분할: 1,000건씩 UPDATE → row lock 점유 시간 최소화
+        long totalUpdated = 0;
+        int batchSize = 1000;
+        int updated;
 
-        if (updated > 0) {
-            entityManager.clear();
-        }
-        return updated;
+        do {
+            updated = entityManager
+                    .createNativeQuery("UPDATE notification SET is_read = true WHERE user_id = :userId AND is_read = false LIMIT :batchSize")
+                    .setParameter("userId", userId)
+                    .setParameter("batchSize", batchSize)
+                    .executeUpdate();
+            totalUpdated += updated;
+
+            if (updated > 0) {
+                entityManager.flush();
+                entityManager.clear();
+            }
+        } while (updated == batchSize);
+
+        return totalUpdated;
     }
 
     @Override
