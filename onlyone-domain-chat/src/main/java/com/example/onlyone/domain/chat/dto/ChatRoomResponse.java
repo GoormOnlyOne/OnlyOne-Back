@@ -7,6 +7,7 @@ import com.fasterxml.jackson.annotation.JsonFormat;
 import io.swagger.v3.oas.annotations.media.Schema;
 import java.time.LocalDateTime;
 import com.example.onlyone.domain.chat.util.MessageUtils;
+import com.example.onlyone.domain.chat.dto.ChatMessageItemDto;
 
 @Schema(description = "채팅방 응답 DTO")
 public record ChatRoomResponse(
@@ -36,6 +37,26 @@ public record ChatRoomResponse(
                 chatRoom.getType(),
                 messageText,
                 lastMessage != null ? lastMessage.getSentAt() : null
+        );
+    }
+
+    public static ChatRoomResponse from(ChatRoom chatRoom, ChatMessageItemDto lastMessage) {
+        String messageText = null;
+        if (lastMessage != null && !lastMessage.deleted()) {
+            messageText = MessageUtils.getDisplayText(lastMessage.text());
+        }
+
+        Long scheduleId = (chatRoom.getType() == ChatRoomType.SCHEDULE && chatRoom.getSchedule() != null)
+                ? chatRoom.getSchedule().getScheduleId() : null;
+
+        return new ChatRoomResponse(
+                chatRoom.getChatRoomId(),
+                chatRoom.resolveName(),
+                chatRoom.getClub().getClubId(),
+                scheduleId,
+                chatRoom.getType(),
+                messageText,
+                lastMessage != null ? lastMessage.sentAt() : null
         );
     }
 }

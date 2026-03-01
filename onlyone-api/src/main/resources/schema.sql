@@ -7,6 +7,7 @@
 -- 1) like_applied: Redis→DB 좋아요 동기화 멱등성 테이블
 --    FeedLikeStreamConsumer가 중복 적용 방지에 사용
 -- -----------------------------------------------
+
 CREATE TABLE IF NOT EXISTS like_applied (
     req_id   VARCHAR(64) PRIMARY KEY,
     feed_id  BIGINT NOT NULL,

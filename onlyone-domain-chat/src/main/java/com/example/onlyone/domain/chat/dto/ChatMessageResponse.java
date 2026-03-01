@@ -52,4 +52,25 @@ public record ChatMessageResponse(
                 message.isDeleted()
         );
     }
+
+    /**
+     * Storage 무관 중간 DTO → 응답 DTO (IMAGE:: 프리픽스로 이미지 판별)
+     */
+    public static ChatMessageResponse from(ChatMessageItemDto item) {
+        String rawText = item.text();
+        String imageUrl = MessageUtils.extractImageUrl(rawText);
+        String text = (imageUrl != null) ? null : rawText;
+
+        return new ChatMessageResponse(
+                item.messageId(),
+                item.chatRoomId(),
+                item.senderId(),
+                item.senderNickname(),
+                item.senderProfileImage(),
+                text,
+                imageUrl,
+                item.sentAt(),
+                item.deleted()
+        );
+    }
 }

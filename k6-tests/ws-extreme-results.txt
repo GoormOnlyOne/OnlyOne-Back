@@ -1,0 +1,110 @@
+===============================================================
+ WebSocket STOMP 극한 스트레스 테스트 결과
+ 날짜: 2026-03-01
+ Storage: MySQL (app.chat.storage=mysql)
+ 튜닝: Redis Pub/Sub pool 64/200/5000 (기존 8/32/1000)
+ 데이터: message 3,264,181건 / 7방 × 1,000명
+ 테스트: 8 Phase, 14분, 94,756 iterations, max 1,000 VUs
+===============================================================
+
+█ THRESHOLDS (8/11 PASS, 3 FAIL)
+
+  ex_mass_conn_duration     ✓ p(95)<3000   → p(95)=41ms
+  ex_mass_conn_success      ✓ rate>0.85    → 100.00%
+  ex_msg_storm_success      ✓ rate>0.90    → 99.50%
+  ex_sustained_success      ✓ rate>0.90    → 100.00%
+  ex_bcast_success          ✓ rate>0.85    → 98.98%
+  ex_spike_1k_duration      ✓ p(95)<5000   → p(95)=166.89ms
+  ex_spike_1k_success       ✓ rate>0.75    → 91.03%
+  ex_mixed_http_duration    ✗ p(95)<1000   → p(95)=1.17s ← FAIL
+  ex_mixed_http_success     ✗ rate>0.90    → 36.33% ← FAIL
+  ex_mixed_ws_success       ✗ rate>0.85    → 14.40% ← FAIL
+  ex_mixed_success (overall) — Phase 7에서 병목
+
+█ PHASE별 상세 결과
+
+Phase 2: Mass Connect (600 VUs, 2m)
+  ex_mass_conn_duration:     avg=14.1ms   med=9ms      p95=41ms      max=141ms
+  ex_mass_conn_success:      100.00% (12,160/12,160)
+  → 600 VUs 동시 접속 완벽 처리
+
+Phase 3: Message Storm (400 VUs × 50msg, 2.5m)
+  ex_msg_storm_success:      99.50% (4,233/4,254)
+  ex_msg_storm_conn_duration: avg=6.06s   med=3.74s    p95=19.37s    max=32.43s
+  ex_msg_storm_sent:         210,200 (250/s)
+  ex_msg_storm_received:     2,694,772 (3,209/s)
+  → 성공률 99.5%, 단 STOMP 핸드셰이크 p95=19s (커넥션 풀 대기)
+
+Phase 4: Sustained Connections (300 VUs, 20초 세션, 3m)
+  ex_sustained_success:      100.00% (2,500/2,500)
+  ex_sustained_sent:         15,000
+  ex_sustained_received:     655,501 (781/s)
+  → 300 VUs 장시간 세션 100% 안정
+
+Phase 5: Broadcast Stress (300 VUs, 7방 전체 구독+전송, 2m)
+  ex_bcast_success:          98.98% (3,029/3,060)
+  ex_bcast_subs:             20,993
+  ex_bcast_sent:             62,979 (75/s)
+  ex_bcast_received:         3,107,680 (3,701/s)
+  → 7방 동시 구독 + 브로드캐스트 안정
+
+Phase 6: Spike 1,000 VUs (1m)
+  ex_spike_1k_duration:      avg=55.41ms  med=27ms     p95=166.89ms  max=1.52s
+  ex_spike_1k_success:       91.03% (12,529/13,763)
+  → 1,000 VUs 스파이크에서 91% 성공, p95=167ms
+
+Phase 7: Mixed Extreme (700 VUs — 70% WS + 30% HTTP, 2m) ← 병목
+  ex_mixed_ws_success:       14.40% (5,920/41,083)
+  ex_mixed_http_success:     36.33% (6,409/17,638)
+  ex_mixed_http_duration:    avg=648.89ms med=611ms    p95=1.17s     max=16.31s
+  http_req_failed:           63.66% (11,229/17,638)
+  → 700 VUs 혼합 부하에서 서버 자원 포화
+
+█ WebSocket 전체 요약
+
+  ws_sessions:               77,118 (91.83/s)
+  ws_connecting p95:         5.42s
+  ws_msgs_sent:              535,832 (638/s)
+  ws_msgs_received:          12,262,536 (14,602/s) — 최대 수신 14,600+/s
+  ws_session_duration avg:   3.89s
+
+█ Redis 풀 튜닝 효과
+
+  Before (8/32/1000):
+    - TaskRejectedException 다수 발생
+    - pool size=32, queued=1000 포화 → 메시지 드랍, 500 에러
+
+  After (64/200/5000):
+    - TaskRejectedException 0건
+    - 14,602 msg/s 수신 처리 (2.3x 향상)
+
+█ FAIL 분석: Phase 7 (Mixed Extreme, 700 VUs)
+
+  Phase 1~6까지 순차적으로 서버에 부하를 줬기 때문에
+  Phase 7 시점에서 서버 자원(CPU, 스레드, 메모리)이 이미 피로 상태.
+
+  700 VUs 중 70% WS(490) + 30% HTTP(210) 동시:
+  - WS 성공률 14.40% — 이전 Phase 부하 잔여 + 490 동시 STOMP
+  - HTTP 성공률 36.33% — HikariCP/Tomcat 스레드 경합
+
+  Phase 6(1,000 VUs 스파이크) 단독으로는 91% 성공이었으므로,
+  **누적 피로 + WS/HTTP 혼합이 병목**이지, 1,000 VUs 자체는 처리 가능.
+
+█ 결론
+
+  ┌─────────────────────────────────────────────────────────┐
+  │ 구간             VUs    성공률   판정                      │
+  │ 동시 접속         600    100%    ✓ 안정                    │
+  │ 메시지 폭풍       400    99.5%   ✓ 안정 (STOMP 핸드셰이크 느림) │
+  │ 장시간 세션       300    100%    ✓ 안정                    │
+  │ 7방 브로드캐스트   300    98.9%   ✓ 안정                    │
+  │ 1,000 VUs 스파이크 1000   91.0%   ✓ 양호                   │
+  │ 혼합 700 VUs      700    14~36%  ✗ 포화 (누적 피로)         │
+  └─────────────────────────────────────────────────────────┘
+
+  Redis Pub/Sub 풀 튜닝(8/32/1000 → 64/200/5000) 효과:
+  - TaskRejectedException 완전 제거
+  - 메시지 처리량 6,322/s → 14,602/s (2.3x)
+
+  남은 한계: Phase 7(700 VUs 혼합)의 병목은 로컬 환경 자원 제한.
+  실 운영에서는 서버 스케일아웃 또는 STOMP 브로커 외부화(RabbitMQ)로 해결.

@@ -60,6 +60,10 @@ app:
   cors:
     allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:8080,http://localhost:5173,https://only-one-front-delta.vercel.app}
 
+  # 채팅 메시지 저장소 설정
+  chat:
+    storage: mysql                                               # mysql | mongodb
+
   # 알림 시스템 설정
   notification:
     storage: mysql                                               # mysql | mongodb

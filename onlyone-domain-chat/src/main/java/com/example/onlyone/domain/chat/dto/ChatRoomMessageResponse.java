@@ -28,4 +28,16 @@ public record ChatRoomMessageResponse(
                 oldest != null ? oldest.getMessageId() : null,
                 oldest != null ? oldest.getSentAt() : null);
     }
+
+    public static ChatRoomMessageResponse ofItems(
+            Long chatRoomId, String chatRoomName,
+            List<ChatMessageItemDto> items, boolean hasMore) {
+        ChatMessageItemDto oldest = items.isEmpty() ? null : items.get(0);
+        return new ChatRoomMessageResponse(
+                chatRoomId, chatRoomName,
+                items.stream().map(ChatMessageResponse::from).toList(),
+                hasMore,
+                oldest != null ? oldest.messageId() : null,
+                oldest != null ? oldest.sentAt() : null);
+    }
 }

@@ -1,10 +1,8 @@
 package com.example.onlyone.domain.chat.service;
 
+import com.example.onlyone.domain.chat.dto.ChatMessageItemDto;
 import com.example.onlyone.domain.chat.dto.ChatMessageResponse;
-import com.example.onlyone.domain.chat.entity.ChatRoom;
-import com.example.onlyone.domain.chat.entity.Message;
-import com.example.onlyone.domain.chat.repository.ChatRoomRepository;
-import com.example.onlyone.domain.chat.repository.MessageRepository;
+import com.example.onlyone.domain.chat.port.ChatMessageStoragePort;
 import com.example.onlyone.domain.chat.repository.UserChatRoomRepository;
 import com.example.onlyone.domain.user.entity.User;
 import com.example.onlyone.domain.user.repository.UserRepository;
@@ -22,6 +20,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 
+import java.time.LocalDateTime;
 import java.util.Optional;
 
 import static com.example.onlyone.domain.chat.fixture.ChatFixtures.*;
@@ -35,32 +34,32 @@ import static org.mockito.BDDMockito.*;
 class MessageCommandServiceTest {
 
     @InjectMocks private MessageCommandService messageCommandService;
-    @Mock private MessageRepository messageRepository;
-    @Mock private ChatRoomRepository chatRoomRepository;
+    @Mock private ChatMessageStoragePort chatMessageStoragePort;
     @Mock private UserRepository userRepository;
     @Mock private UserChatRoomRepository userChatRoomRepository;
     @Mock private ChatPublisher chatPublisher;
     @Mock private ObjectMapper objectMapper;
 
-    private void stubSaveReturningWithId(Long savedMessageId) {
-        given(messageRepository.save(any(Message.class))).willAnswer(invocation -> {
-            Message msg = invocation.getArgument(0);
-            return Message.builder()
-                    .messageId(savedMessageId)
-                    .chatRoom(msg.getChatRoom())
-                    .user(msg.getUser())
-                    .text(msg.getText())
-                    .sentAt(msg.getSentAt())
-                    .deleted(false)
-                    .build();
-        });
+    private ChatMessageItemDto stubItem(Long messageId, Long chatRoomId, String text) {
+        return new ChatMessageItemDto(messageId, chatRoomId, DEFAULT_USER_ID,
+                "테스트유저", "https://example.com/profile.jpg", text,
+                DEFAULT_SENT_AT, false);
     }
 
-    private void stubCommonSaveMessageDependencies(ChatRoom chatRoom, User user) {
+    private void stubSaveReturningItem(Long savedMessageId, Long chatRoomId) {
+        given(chatMessageStoragePort.save(eq(chatRoomId), eq(DEFAULT_USER_ID),
+                anyString(), any(), anyString(), any(LocalDateTime.class)))
+                .willAnswer(invocation -> new ChatMessageItemDto(
+                        savedMessageId, chatRoomId, DEFAULT_USER_ID,
+                        invocation.getArgument(2), invocation.getArgument(3),
+                        invocation.getArgument(4),
+                        invocation.getArgument(5), false));
+    }
+
+    private void stubCommonSaveMessageDependencies(User user) {
         given(userChatRoomRepository.existsByUserUserIdAndChatRoomChatRoomId(
-                user.getUserId(), chatRoom.getChatRoomId())).willReturn(true);
+                eq(user.getUserId()), anyLong())).willReturn(true);
         given(userRepository.findById(user.getUserId())).willReturn(Optional.of(user));
-        given(chatRoomRepository.getReferenceById(chatRoom.getChatRoomId())).willReturn(chatRoom);
     }
 
     // ========== sendAndPublish 테스트 ==========
@@ -72,11 +71,9 @@ class MessageCommandServiceTest {
         @Test
         @DisplayName("성공: 메시지 저장 후 Redis 발행된다")
         void success() throws Exception {
-            ChatRoom chatRoom = clubChatRoom(1L, club());
             User user = user();
-
-            stubCommonSaveMessageDependencies(chatRoom, user);
-            stubSaveReturningWithId(10L);
+            stubCommonSaveMessageDependencies(user);
+            stubSaveReturningItem(10L, 1L);
             given(objectMapper.writeValueAsString(any())).willReturn("{\"messageId\":10}");
 
             ChatMessageResponse response =
@@ -89,11 +86,9 @@ class MessageCommandServiceTest {
         @Test
         @DisplayName("실패: JSON 직렬화 실패시 MESSAGE_SERVER_ERROR")
         void failJsonSerialization() throws Exception {
-            ChatRoom chatRoom = clubChatRoom(1L, club());
             User user = user();
-
-            stubCommonSaveMessageDependencies(chatRoom, user);
-            stubSaveReturningWithId(10L);
+            stubCommonSaveMessageDependencies(user);
+            stubSaveReturningItem(10L, 1L);
             given(objectMapper.writeValueAsString(any()))
                     .willThrow(new JsonProcessingException("fail") {});
 
@@ -120,7 +115,7 @@ class MessageCommandServiceTest {
                     1L, DEFAULT_USER_ID, "테스트유저", null, "hello");
 
             then(chatPublisher).should().publish(eq(1L), eq("{\"text\":\"hello\"}"));
-            then(messageRepository).shouldHaveNoInteractions();
+            then(chatMessageStoragePort).shouldHaveNoInteractions();
         }
 
         @Test
@@ -132,7 +127,7 @@ class MessageCommandServiceTest {
                     1L, DEFAULT_USER_ID, "테스트유저", null, "IMAGE::https://cdn.example.com/img.jpg");
 
             then(chatPublisher).should().publish(eq(1L), eq("{\"imageUrl\":\"url\"}"));
-            then(messageRepository).shouldHaveNoInteractions();
+            then(chatMessageStoragePort).shouldHaveNoInteractions();
         }
     }
 
@@ -145,14 +140,11 @@ class MessageCommandServiceTest {
         @Test
         @DisplayName("성공: 텍스트 메시지가 저장된다")
         void saveTextMessage_success() {
-            ChatRoom chatRoom = clubChatRoom(1L, club());
             User user = user();
-            String text = "안녕하세요!";
+            stubCommonSaveMessageDependencies(user);
+            stubSaveReturningItem(10L, 1L);
 
-            stubCommonSaveMessageDependencies(chatRoom, user);
-            stubSaveReturningWithId(10L);
-
-            ChatMessageResponse response = messageCommandService.saveMessage(1L, DEFAULT_USER_ID, text);
+            ChatMessageResponse response = messageCommandService.saveMessage(1L, DEFAULT_USER_ID, "안녕하세요!");
 
             assertThat(response.messageId()).isEqualTo(10L);
             assertThat(response.chatRoomId()).isEqualTo(1L);
@@ -161,37 +153,47 @@ class MessageCommandServiceTest {
             assertThat(response.text()).isEqualTo("안녕하세요!");
             assertThat(response.imageUrl()).isNull();
             assertThat(response.deleted()).isFalse();
-            verify(messageRepository).save(any(Message.class));
+            verify(chatMessageStoragePort).save(eq(1L), eq(DEFAULT_USER_ID),
+                    anyString(), any(), eq("안녕하세요!"), any(LocalDateTime.class));
         }
 
         @Test
         @DisplayName("성공: 이미지 메시지가 저장된다")
         void saveImageMessage_success() {
-            ChatRoom chatRoom = clubChatRoom(1L, club());
             User user = user();
-            String text = "IMAGE::https://example.com/img.png";
+            stubCommonSaveMessageDependencies(user);
+            // For image messages, the stored text is "IMAGE::https://example.com/img.png"
+            given(chatMessageStoragePort.save(eq(1L), eq(DEFAULT_USER_ID),
+                    anyString(), any(), eq("IMAGE::https://example.com/img.png"), any(LocalDateTime.class)))
+                    .willReturn(new ChatMessageItemDto(
+                            11L, 1L, DEFAULT_USER_ID, "테스트유저",
+                            "https://example.com/profile.jpg",
+                            "IMAGE::https://example.com/img.png",
+                            DEFAULT_SENT_AT, false));
 
-            stubCommonSaveMessageDependencies(chatRoom, user);
-            stubSaveReturningWithId(11L);
-
-            ChatMessageResponse response = messageCommandService.saveMessage(1L, DEFAULT_USER_ID, text);
+            ChatMessageResponse response = messageCommandService.saveMessage(1L, DEFAULT_USER_ID,
+                    "IMAGE::https://example.com/img.png");
 
             assertThat(response.messageId()).isEqualTo(11L);
             assertThat(response.text()).isNull();
             assertThat(response.imageUrl()).isEqualTo("https://example.com/img.png");
             assertThat(response.deleted()).isFalse();
-            verify(messageRepository).save(any(Message.class));
         }
 
         @Test
         @DisplayName("성공: 2000자 초과 텍스트가 잘린다")
         void saveMessage_truncatesAt2000() {
-            ChatRoom chatRoom = clubChatRoom(1L, club());
             User user = user();
+            stubCommonSaveMessageDependencies(user);
             String longText = "a".repeat(2500);
+            String truncated = "a".repeat(2000);
 
-            stubCommonSaveMessageDependencies(chatRoom, user);
-            stubSaveReturningWithId(12L);
+            given(chatMessageStoragePort.save(eq(1L), eq(DEFAULT_USER_ID),
+                    anyString(), any(), eq(truncated), any(LocalDateTime.class)))
+                    .willReturn(new ChatMessageItemDto(
+                            12L, 1L, DEFAULT_USER_ID, "테스트유저",
+                            "https://example.com/profile.jpg",
+                            truncated, DEFAULT_SENT_AT, false));
 
             ChatMessageResponse response = messageCommandService.saveMessage(1L, DEFAULT_USER_ID, longText);
 
@@ -256,9 +258,8 @@ class MessageCommandServiceTest {
         @Test
         @DisplayName("실패: 이미지 확장자 유효하지 않으면 INVALID_IMAGE_CONTENT_TYPE")
         void saveMessage_invalidImageExtension_throwsException() {
-            ChatRoom chatRoom = clubChatRoom(1L, club());
             User user = user();
-            stubCommonSaveMessageDependencies(chatRoom, user);
+            stubCommonSaveMessageDependencies(user);
 
             assertThatThrownBy(() -> messageCommandService.saveMessage(1L, DEFAULT_USER_ID, "IMAGE::https://example.com/file.gif"))
                     .isInstanceOf(CustomException.class)
@@ -269,9 +270,8 @@ class MessageCommandServiceTest {
         @Test
         @DisplayName("실패: 이미지 URL에 쉼표가 있으면 MESSAGE_BAD_REQUEST")
         void saveMessage_imageUrlWithComma_throwsException() {
-            ChatRoom chatRoom = clubChatRoom(1L, club());
             User user = user();
-            stubCommonSaveMessageDependencies(chatRoom, user);
+            stubCommonSaveMessageDependencies(user);
 
             assertThatThrownBy(() -> messageCommandService.saveMessage(1L, DEFAULT_USER_ID, "IMAGE::https://example.com/a,b.png"))
                     .isInstanceOf(CustomException.class)
@@ -289,22 +289,19 @@ class MessageCommandServiceTest {
         @Test
         @DisplayName("성공: 메시지가 논리 삭제된다")
         void deleteMessage_success() {
-            ChatRoom chatRoom = clubChatRoom(1L, club());
-            User user = user();
-            Message msg = message(1L, chatRoom, user, "삭제할 메시지");
-
-            given(messageRepository.findById(1L)).willReturn(Optional.of(msg));
+            ChatMessageItemDto item = stubItem(1L, 1L, "삭제할 메시지");
+            given(chatMessageStoragePort.findById(1L)).willReturn(Optional.of(item));
+            given(chatMessageStoragePort.markAsDeleted(1L)).willReturn(true);
 
             messageCommandService.deleteMessage(1L, DEFAULT_USER_ID);
 
-            assertThat(msg.isDeleted()).isTrue();
-            assertThat(msg.getText()).isEqualTo("삭제된 메시지입니다.");
+            verify(chatMessageStoragePort).markAsDeleted(1L);
         }
 
         @Test
         @DisplayName("실패: 메시지가 없으면 MESSAGE_NOT_FOUND")
         void deleteMessage_notFound_throwsException() {
-            given(messageRepository.findById(999L)).willReturn(Optional.empty());
+            given(chatMessageStoragePort.findById(999L)).willReturn(Optional.empty());
 
             assertThatThrownBy(() -> messageCommandService.deleteMessage(999L, DEFAULT_USER_ID))
                     .isInstanceOf(CustomException.class)
@@ -315,11 +312,9 @@ class MessageCommandServiceTest {
         @Test
         @DisplayName("실패: 이미 삭제된 메시지면 MESSAGE_CONFLICT")
         void deleteMessage_alreadyDeleted_throwsException() {
-            ChatRoom chatRoom = clubChatRoom(1L, club());
-            User user = user();
-            Message deleted = deletedMessage(1L, chatRoom, user);
-
-            given(messageRepository.findById(1L)).willReturn(Optional.of(deleted));
+            ChatMessageItemDto deleted = new ChatMessageItemDto(1L, 1L, DEFAULT_USER_ID,
+                    "테스트유저", null, "삭제된 메시지입니다.", DEFAULT_SENT_AT, true);
+            given(chatMessageStoragePort.findById(1L)).willReturn(Optional.of(deleted));
 
             assertThatThrownBy(() -> messageCommandService.deleteMessage(1L, DEFAULT_USER_ID))
                     .isInstanceOf(CustomException.class)
@@ -330,11 +325,8 @@ class MessageCommandServiceTest {
         @Test
         @DisplayName("실패: 본인 메시지가 아니면 MESSAGE_FORBIDDEN")
         void deleteMessage_notOwner_throwsException() {
-            ChatRoom chatRoom = clubChatRoom(1L, club());
-            User user = user();
-            Message msg = message(1L, chatRoom, user, "다른 사람 메시지");
-
-            given(messageRepository.findById(1L)).willReturn(Optional.of(msg));
+            ChatMessageItemDto item = stubItem(1L, 1L, "다른 사람 메시지");
+            given(chatMessageStoragePort.findById(1L)).willReturn(Optional.of(item));
 
             assertThatThrownBy(() -> messageCommandService.deleteMessage(1L, 999L))
                     .isInstanceOf(CustomException.class)

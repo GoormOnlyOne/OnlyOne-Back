@@ -1,10 +1,10 @@
 package com.example.onlyone.domain.chat.service;
 
+import com.example.onlyone.domain.chat.dto.ChatMessageItemDto;
 import com.example.onlyone.domain.chat.dto.ChatRoomResponse;
 import com.example.onlyone.domain.chat.entity.ChatRoom;
-import com.example.onlyone.domain.chat.entity.Message;
+import com.example.onlyone.domain.chat.port.ChatMessageStoragePort;
 import com.example.onlyone.domain.chat.repository.ChatRoomRepository;
-import com.example.onlyone.domain.chat.repository.MessageRepository;
 import com.example.onlyone.domain.club.entity.Club;
 import com.example.onlyone.domain.club.repository.ClubRepository;
 import com.example.onlyone.domain.club.repository.UserClubRepository;
@@ -35,7 +35,7 @@ class ChatRoomQueryServiceTest {
 
     @InjectMocks private ChatRoomQueryService chatRoomQueryService;
     @Mock private ChatRoomRepository chatRoomRepository;
-    @Mock private MessageRepository messageRepository;
+    @Mock private ChatMessageStoragePort chatMessageStoragePort;
     @Mock private ClubRepository clubRepository;
     @Mock private UserClubRepository userClubRepository;
     @Mock private UserService userService;
@@ -61,8 +61,11 @@ class ChatRoomQueryServiceTest {
             given(chatRoomRepository.findChatRoomsByUserIdAndClubId(userId, clubId))
                     .willReturn(List.of(clubRoom, scheduleRoom));
 
-            Message lastMsg = message(5001L, clubRoom, u, "마지막 메시지", LocalDateTime.now(), false);
-            given(messageRepository.findLastMessagesByChatRoomIds(List.of(101L, 102L)))
+            ChatMessageItemDto lastMsg = new ChatMessageItemDto(
+                    5001L, 101L, userId, "유저A",
+                    "https://example.com/profile.jpg", "마지막 메시지",
+                    LocalDateTime.now(), false);
+            given(chatMessageStoragePort.findLastMessagesByChatRoomIds(List.of(101L, 102L)))
                     .willReturn(List.of(lastMsg));
 
             List<ChatRoomResponse> result = chatRoomQueryService.getChatRoomsUserJoinedInClub(clubId);
@@ -76,7 +79,6 @@ class ChatRoomQueryServiceTest {
         @DisplayName("실패: 모임이 없으면 CLUB_NOT_FOUND")
         void failClubNotFound() {
             Long clubId = 10L, userId = 1L;
-            User u = user(userId, 1001L, "유저A");
 
             given(userService.getCurrentUserId()).willReturn(userId);
             given(clubRepository.existsById(clubId)).willReturn(false);
@@ -91,7 +93,6 @@ class ChatRoomQueryServiceTest {
         @DisplayName("실패: 모임 미가입이면 CLUB_NOT_JOIN")
         void failClubNotJoin() {
             Long clubId = 10L, userId = 1L;
-            User u = user(userId, 1001L, "유저A");
 
             given(userService.getCurrentUserId()).willReturn(userId);
             given(clubRepository.existsById(clubId)).willReturn(true);

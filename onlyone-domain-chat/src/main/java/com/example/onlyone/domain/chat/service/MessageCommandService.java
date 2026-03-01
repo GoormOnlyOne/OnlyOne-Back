@@ -1,9 +1,8 @@
 package com.example.onlyone.domain.chat.service;
 
+import com.example.onlyone.domain.chat.dto.ChatMessageItemDto;
 import com.example.onlyone.domain.chat.dto.ChatMessageResponse;
-import com.example.onlyone.domain.chat.entity.Message;
-import com.example.onlyone.domain.chat.repository.ChatRoomRepository;
-import com.example.onlyone.domain.chat.repository.MessageRepository;
+import com.example.onlyone.domain.chat.port.ChatMessageStoragePort;
 import com.example.onlyone.domain.chat.repository.UserChatRoomRepository;
 import com.example.onlyone.domain.user.entity.User;
 import com.example.onlyone.domain.user.repository.UserRepository;
@@ -26,8 +25,7 @@ import java.time.LocalDateTime;
 @Transactional(readOnly = true)
 public class MessageCommandService {
 
-    private final MessageRepository messageRepository;
-    private final ChatRoomRepository chatRoomRepository;
+    private final ChatMessageStoragePort chatMessageStoragePort;
     private final UserRepository userRepository;
     private final UserChatRoomRepository userChatRoomRepository;
     private final ChatPublisher chatPublisher;
@@ -68,24 +66,22 @@ public class MessageCommandService {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new CustomException(UserErrorCode.USER_NOT_FOUND));
 
-        Message saved = messageRepository.save(Message.builder()
-                .chatRoom(chatRoomRepository.getReferenceById(chatRoomId))
-                .user(user)
-                .text(resolveStoredText(text))
-                .sentAt(LocalDateTime.now())
-                .deleted(false)
-                .build());
+        String storedText = resolveStoredText(text);
 
-        return ChatMessageResponse.from(saved);
+        ChatMessageItemDto item = chatMessageStoragePort.save(
+                chatRoomId, userId, user.getNickname(), user.getProfileImage(),
+                storedText, LocalDateTime.now());
+
+        return ChatMessageResponse.from(item);
     }
 
     @Transactional
     public void deleteMessage(Long messageId, Long userId) {
-        Message m = messageRepository.findById(messageId)
+        ChatMessageItemDto item = chatMessageStoragePort.findById(messageId)
                 .orElseThrow(() -> new CustomException(ChatErrorCode.MESSAGE_NOT_FOUND));
-        if (m.isDeleted()) throw new CustomException(ChatErrorCode.MESSAGE_CONFLICT);
-        if (!m.isOwnedBy(userId)) throw new CustomException(ChatErrorCode.MESSAGE_FORBIDDEN);
-        m.markAsDeleted();
+        if (item.deleted()) throw new CustomException(ChatErrorCode.MESSAGE_CONFLICT);
+        if (!item.senderId().equals(userId)) throw new CustomException(ChatErrorCode.MESSAGE_FORBIDDEN);
+        chatMessageStoragePort.markAsDeleted(messageId);
     }
 
     // ── private ──

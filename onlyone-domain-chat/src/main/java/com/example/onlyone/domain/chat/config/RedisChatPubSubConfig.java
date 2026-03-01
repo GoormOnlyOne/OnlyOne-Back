@@ -8,6 +8,8 @@ import org.springframework.data.redis.listener.PatternTopic;
 import org.springframework.data.redis.listener.RedisMessageListenerContainer;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 
+import java.util.concurrent.ThreadPoolExecutor;
+
 @Configuration
 public class RedisChatPubSubConfig {
 
@@ -17,10 +19,11 @@ public class RedisChatPubSubConfig {
             ChatSubscriber chatSubscriber) {
 
         ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
-        executor.setCorePoolSize(8);
-        executor.setMaxPoolSize(32);
-        executor.setQueueCapacity(1000);
+        executor.setCorePoolSize(128);
+        executor.setMaxPoolSize(400);
+        executor.setQueueCapacity(10000);
         executor.setThreadNamePrefix("redis-sub-");
+        executor.setRejectedExecutionHandler(new ThreadPoolExecutor.CallerRunsPolicy());
         executor.initialize();
 
         RedisMessageListenerContainer container = new RedisMessageListenerContainer();

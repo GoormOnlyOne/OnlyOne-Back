@@ -1,0 +1,111 @@
+===============================================================
+ Chat Storage MySQL 고부하 테스트 결과 (병목 수정 후)
+ 날짜: 2026-03-01
+ Storage: MySQL (app.chat.storage=mysql)
+ 데이터: message 3,264,181건 / chat_room 1,000개 / user 1,000,093명
+ 테스트: 11 Phase, 19분 45초, 577,886 iterations
+ 수정: findLastMessagesByChatRoomIds() WHERE IN → derived JOIN
+===============================================================
+
+█ THRESHOLDS (25/26 PASS, 1 FAIL)
+
+  hl_contention_read      ✓ p(95)<1000   → p(95)=16.72ms
+  hl_contention_write     ✓ p(95)<1000   → p(95)=17.61ms
+  hl_contention_success   ✓ rate>0.95    → 99.98%
+  hl_dbl_spike_duration   ✓ rate>0.85    → 99.99%
+  hl_delete_duration      ✓ p(95)<500    → p(95)=57.88ms
+  hl_read_cursor_duration ✓ p(95)<500    → p(95)=39.12ms  p(99)=51.83ms
+  hl_read_list_duration   ✓ p(95)<500    → p(95)=44.28ms  p(99)=59.29ms
+  hl_read_storm_success   ✓ rate>0.98    → 99.97%
+  hl_room_list_duration   ✗ p(95)<1000   → p(95)=1.00s ← FAIL (경계)
+                          ✓ p(99)<3000   → p(99)=1.39s
+  hl_room_list_success    ✓ rate>0.98    → 99.97%
+  hl_send_storm_duration  ✓ p(95)<1000   → p(95)=57.83ms  p(99)=74.44ms
+  hl_send_storm_success   ✓ rate>0.98    → 99.99%
+  hl_soak_duration        ✓ p(95)<500    → p(95)=29.6ms   p(99)=58.63ms
+  hl_soak_success         ✓ rate>0.98    → 99.98%
+  hl_spike_duration       ✓ p(95)<3000   → p(95)=1.22s
+  hl_spike_success        ✓ rate>0.85    → 99.98%
+  hl_sustained_duration   ✓ p(95)<1000   → p(95)=227.64ms p(99)=322.62ms
+  hl_sustained_success    ✓ rate>0.95    → 99.98%
+  hl_ws_connect_duration  ✓ p(95)<3000   → p(95)=24ms
+  hl_ws_connect_success   ✓ rate>0.90    → 99.54%
+
+█ PHASE별 상세 결과
+
+Phase 2: Send Storm (150 VUs)
+  hl_send_storm_duration:  avg=26.01ms  med=20.53ms  p95=57.83ms  max=567.7ms
+  hl_send_storm_success:   99.99% (113,266/113,275)
+  hl_delete_duration:      avg=26.10ms  med=20.73ms  p95=57.88ms  max=123.5ms
+  hl_delete_success:       99.98% (16,938/16,941)
+
+Phase 3: Read Storm (150 VUs)
+  hl_read_list_duration:   avg=21.94ms  med=18.62ms  p95=44.28ms  max=138.47ms
+  hl_read_cursor_duration: avg=19.13ms  med=16.10ms  p95=39.12ms  max=138.67ms
+  hl_read_storm_success:   99.97% (152,150/152,181)
+
+Phase 4: Room List Stress (100 VUs) ← 병목 대폭 개선
+  hl_room_list_duration:   avg=411.96ms med=392.16ms p95=1.00s    max=2.68s
+  hl_room_list_success:    99.97% (11,906/11,909)
+
+Phase 5: WebSocket Flood (100 VUs)
+  hl_ws_connect_duration:  avg=187.84ms med=9ms      p95=24ms     max=29.04s
+  hl_ws_connect_success:   99.54% (2,395/2,406)
+  hl_ws_msg_sent:          11,975
+  hl_ws_msg_received:      161,632
+
+Phase 6: Read-Write Contention (100 VUs)
+  hl_contention_read:      avg=12.13ms  med=11.32ms  p95=16.72ms  max=167.1ms
+  hl_contention_write:     avg=12.46ms  med=11.47ms  p95=17.61ms  max=169.48ms
+  hl_contention_success:   99.98% (87,102/87,111)
+
+Phase 7: Sustained High Load (200 VUs, 3min)
+  hl_sustained_duration:   avg=98.14ms  med=88.53ms  p95=227.64ms max=628.97ms
+  hl_sustained_success:    99.98% (129,201/129,217)
+
+Phase 8: Spike 300 VUs
+  hl_spike_duration:       avg=522.68ms med=536.88ms p95=1.22s    max=3.82s
+  hl_spike_success:        99.98% (28,131/28,135)
+
+Phase 9: Double Spike (250 VUs)
+  hl_dbl_spike_duration:   avg=404.10ms med=310.41ms p95=1.23s    max=7.24s
+  hl_dbl_spike_success:    99.99% (30,782/30,783)
+
+Phase 10: Soak Test (80 VUs, 3min)
+  hl_soak_duration:        avg=14.26ms  med=11.76ms  p95=29.60ms  max=130.16ms
+  hl_soak_success:         99.98% (65,491/65,499)
+
+█ HTTP 전체 요약
+  http_req_duration:   avg=83.96ms  med=19.45ms  p95=446.83ms max=7.24s
+  http_req_failed:     0.01% (86/642,271)
+  http_reqs:           642,271 (541.96 req/s)
+  iterations:          577,886 (487.63 iter/s)
+  data_received:       2.7 GB (2.3 MB/s)
+  data_sent:           327 MB (276 kB/s)
+
+█ 수정 전후 비교: chat_rooms (채팅방 목록 + 마지막 메시지)
+
+  지표              수정 전              수정 후              개선
+  ─────────────────────────────────────────────────────────────
+  p95              6,870ms (30.94s*)    1,000ms              6.9x (30.9x*)
+  avg              2,780ms (29.43s*)    411.96ms             6.7x (71.4x*)
+  max              12,830ms (31.47s*)   2,680ms              4.8x (11.7x*)
+  성공률            100% (21.62%*)      99.97%               -
+  처리량            2,049건              11,909건             5.8x
+  ─────────────────────────────────────────────────────────────
+  * 괄호 안은 고부하 테스트(11Phase) 기준
+
+█ 근본 원인 및 해결
+
+  원인: WHERE m.message_id IN (SELECT MAX(...) ...) 구문에서
+        MySQL 옵티마이저가 서브쿼리 결과를 materialized temp table로
+        만든 뒤 외부 message 테이블을 풀 스캔 (type=ALL, 3.1M rows)
+
+  해결: derived table JOIN 방식으로 변경
+        FROM (SELECT MAX(m2.message_id) AS max_id ... GROUP BY ...) sub
+        JOIN message m ON m.message_id = sub.max_id
+        → 외부 message 접근이 type=eq_ref (PK lookup, 결과 수만큼만)
+
+  EXPLAIN 비교:
+  - Before: m type=ALL, rows=3,157,362
+  - After:  m type=eq_ref, rows=1 (per sub row)

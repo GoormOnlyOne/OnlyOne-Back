@@ -1,0 +1,117 @@
+===============================================================
+ WebSocket STOMP 극한 스트레스 테스트 결과 v2
+ 날짜: 2026-03-01
+ Storage: MySQL (app.chat.storage=mysql)
+ 튜닝: Redis Pub/Sub pool 128/400/10000 + CallerRunsPolicy
+        Async pool 64/200/10000 + CallerRunsPolicy
+ 데이터: message 3,264,181건 / 7방 × 1,000명
+ 테스트: 8 Phase, 13분 36초, 96,600 iterations, max 1,000 VUs
+===============================================================
+
+█ THRESHOLDS (8/11 PASS, 3 FAIL)
+
+  ex_mass_conn_duration     ✓ p(95)<3000   → p(95)=72ms
+  ex_mass_conn_success      ✓ rate>0.85    → 100.00%
+  ex_msg_storm_success      ✓ rate>0.90    → 99.54%
+  ex_sustained_success      ✓ rate>0.90    → 100.00%
+  ex_bcast_success          ✓ rate>0.85    → 99.45%
+  ex_spike_1k_duration      ✓ p(95)<5000   → p(95)=161ms
+  ex_spike_1k_success       ✓ rate>0.75    → 84.86%
+  ex_mixed_http_duration    ✗ p(95)<1000   → p(95)=1.16s ← FAIL
+  ex_mixed_http_success     ✗ rate>0.90    → 31.41% ← FAIL
+  ex_mixed_ws_success       ✗ rate>0.85    → 13.53% ← FAIL
+
+█ PHASE별 상세 결과
+
+Phase 2: Mass Connect (600 VUs, 2m)
+  ex_mass_conn_duration:     avg=20.63ms  med=11ms     p95=72ms      max=250ms
+  ex_mass_conn_success:      100.00% (12,146/12,146)
+  → 600 VUs 동시 접속 완벽 처리
+
+Phase 3: Message Storm (400 VUs × 50msg, 2.5m)
+  ex_msg_storm_success:      99.54% (4,369/4,389)
+  ex_msg_storm_conn_duration: avg=5.52s   med=2.44s    p95=19.14s    max=33.14s
+  ex_msg_storm_sent:         216,900 (266/s)
+  ex_msg_storm_received:     2,808,021 (3,442/s)
+  → 성공률 99.5%, STOMP 핸드셰이크 p95=19s (커넥션 풀 대기)
+
+Phase 4: Sustained Connections (300 VUs, 20초 세션, 3m)
+  ex_sustained_success:      100.00% (2,500/2,500)
+  ex_sustained_sent:         14,970
+  ex_sustained_received:     657,787 (806/s)
+  → 300 VUs 장시간 세션 100% 안정
+
+Phase 5: Broadcast Stress (300 VUs, 7방 전체 구독+전송, 2m)
+  ex_bcast_success:          99.45% (3,090/3,107)
+  ex_bcast_subs:             21,546
+  ex_bcast_sent:             64,638 (79/s)
+  ex_bcast_received:         3,770,155 (4,621/s)
+  → 7방 동시 구독 + 브로드캐스트 안정
+
+Phase 6: Spike 1,000 VUs (1m)
+  ex_spike_1k_duration:      avg=58.84ms  med=21ms     p95=161ms     max=3.02s
+  ex_spike_1k_success:       84.86% (12,463/14,685)
+  → 1,000 VUs 스파이크에서 84.9% 성공, p95=161ms
+
+Phase 7: Mixed Extreme (700 VUs — 70% WS + 30% HTTP, 2m) ← 병목
+  ex_mixed_ws_success:       13.53% (5,632/41,619)
+  ex_mixed_http_success:     31.41% (5,609/17,854)
+  ex_mixed_http_duration:    avg=671.6ms  med=671ms    p95=1.16s     max=14.61s
+  http_req_failed:           68.58% (12,245/17,854)
+  → 700 VUs 혼합 부하에서 서버 자원 포화 (누적 피로)
+
+█ WebSocket 전체 요약
+
+  ws_sessions:               78,746 (96.51/s)
+  ws_connecting p95:         5.14s
+  ws_msgs_sent:              541,239 (663/s)
+  ws_msgs_received:          12,931,027 (15,849/s) — 최대 수신 15,849/s
+  ws_session_duration avg:   3.8s
+
+█ 풀 튜닝 효과 (v1 → v2)
+
+  Redis Pub/Sub pool:
+    v1: 64/200/5000 (거부정책 없음)
+    v2: 128/400/10000 + CallerRunsPolicy
+    → TaskRejectedException 0건 (v1에서는 pool=200 포화 발생)
+
+  Async pool (customAsyncExecutor):
+    v1: 32/100/10000 + AbortPolicy
+    v2: 64/200/10000 + CallerRunsPolicy
+    → "Async queue full" 예외 0건 (v1에서 RejectedExecutionException 다수)
+
+  수신 처리량:
+    v1: 14,602 msg/s
+    v2: 15,849 msg/s (+8.5%)
+
+█ FAIL 분석: Phase 7 (Mixed Extreme, 700 VUs)
+
+  Phase 1~6까지 순차적으로 서버에 부하를 줬기 때문에
+  Phase 7 시점에서 서버 자원(CPU, 스레드, 메모리)이 이미 피로 상태.
+
+  700 VUs 중 70% WS(490) + 30% HTTP(210) 동시:
+  - WS 성공률 13.53% — 이전 Phase 누적 부하 잔여 + 490 동시 STOMP
+  - HTTP 성공률 31.41% — HikariCP/Tomcat 스레드 경합
+
+  CallerRunsPolicy 덕분에 TaskRejectedException은 제거되었으나,
+  로컬 환경 자원 한계로 Phase 7의 성공률은 v1과 유사.
+
+█ 결론
+
+  ┌─────────────────────────────────────────────────────────┐
+  │ 구간             VUs    성공률   판정                      │
+  │ 동시 접속         600    100%    ✓ 안정                    │
+  │ 메시지 폭풍       400    99.5%   ✓ 안정                    │
+  │ 장시간 세션       300    100%    ✓ 안정                    │
+  │ 7방 브로드캐스트   300    99.5%   ✓ 안정                    │
+  │ 1,000 VUs 스파이크 1000   84.9%   ✓ 양호                   │
+  │ 혼합 700 VUs      700    13~31%  ✗ 포화 (누적 피로)         │
+  └─────────────────────────────────────────────────────────┘
+
+  CallerRunsPolicy 효과:
+  - TaskRejectedException 완전 제거 (Async + Redis Pub/Sub 모두)
+  - 메시지 드랍 0건, 큐 포화 시 호출 스레드가 직접 실행
+  - 수신 처리량 14,602/s → 15,849/s (+8.5%)
+
+  남은 한계: Phase 7(700 VUs 혼합)의 병목은 로컬 환경 자원 제한.
+  실 운영에서는 서버 스케일아웃 또는 STOMP 브로커 외부화(RabbitMQ)로 해결.

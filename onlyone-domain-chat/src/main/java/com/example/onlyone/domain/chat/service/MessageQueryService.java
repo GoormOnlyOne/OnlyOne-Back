@@ -1,19 +1,18 @@
 package com.example.onlyone.domain.chat.service;
 
+import com.example.onlyone.domain.chat.dto.ChatMessageItemDto;
 import com.example.onlyone.domain.chat.dto.ChatRoomMessageResponse;
 import com.example.onlyone.domain.chat.entity.ChatRoom;
-import com.example.onlyone.domain.chat.entity.Message;
+import com.example.onlyone.domain.chat.port.ChatMessageStoragePort;
 import com.example.onlyone.domain.chat.repository.ChatRoomRepository;
-import com.example.onlyone.domain.chat.repository.MessageRepository;
 import com.example.onlyone.domain.chat.exception.ChatErrorCode;
 import com.example.onlyone.global.exception.CustomException;
 import lombok.RequiredArgsConstructor;
-import org.springframework.data.domain.PageRequest;
-import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
@@ -22,7 +21,7 @@ import java.util.List;
 @Transactional(readOnly = true)
 public class MessageQueryService {
 
-    private final MessageRepository messageRepository;
+    private final ChatMessageStoragePort chatMessageStoragePort;
     private final ChatRoomRepository chatRoomRepository;
 
     private static final int DEFAULT_PAGE_SIZE = 50;
@@ -35,20 +34,20 @@ public class MessageQueryService {
                 .orElseThrow(() -> new CustomException(ChatErrorCode.CHAT_ROOM_NOT_FOUND));
 
         int pageSize = clampPageSize(size);
-        List<Message> slice = fetchSlice(chatRoomId, pageSize, cursorId, cursorAt);
+        List<ChatMessageItemDto> slice = new ArrayList<>(fetchSlice(chatRoomId, pageSize, cursorId, cursorAt));
         boolean hasMore = slice.size() > pageSize;
-        if (hasMore) slice = slice.subList(0, pageSize);
+        if (hasMore) slice = new ArrayList<>(slice.subList(0, pageSize));
         Collections.reverse(slice);
 
-        return ChatRoomMessageResponse.of(chatRoomId, chatRoom.resolveName(), slice, hasMore);
+        return ChatRoomMessageResponse.ofItems(chatRoomId, chatRoom.resolveName(), slice, hasMore);
     }
 
-    private List<Message> fetchSlice(Long chatRoomId, int pageSize, Long cursorId, LocalDateTime cursorAt) {
-        Pageable limit = PageRequest.of(0, pageSize + 1);
+    private List<ChatMessageItemDto> fetchSlice(Long chatRoomId, int pageSize,
+                                                Long cursorId, LocalDateTime cursorAt) {
         if (cursorId == null || cursorAt == null) {
-            return messageRepository.findLatest(chatRoomId, limit);
+            return chatMessageStoragePort.findLatest(chatRoomId, pageSize + 1);
         }
-        return messageRepository.findOlderThan(chatRoomId, cursorAt, cursorId, limit);
+        return chatMessageStoragePort.findOlderThan(chatRoomId, cursorAt, cursorId, pageSize + 1);
     }
 
     private int clampPageSize(Integer size) {

@@ -1,10 +1,10 @@
 package com.example.onlyone.domain.chat.service;
 
+import com.example.onlyone.domain.chat.dto.ChatMessageItemDto;
 import com.example.onlyone.domain.chat.dto.ChatRoomResponse;
 import com.example.onlyone.domain.chat.entity.ChatRoom;
-import com.example.onlyone.domain.chat.entity.Message;
+import com.example.onlyone.domain.chat.port.ChatMessageStoragePort;
 import com.example.onlyone.domain.chat.repository.ChatRoomRepository;
-import com.example.onlyone.domain.chat.repository.MessageRepository;
 import com.example.onlyone.domain.club.repository.ClubRepository;
 import com.example.onlyone.domain.club.repository.UserClubRepository;
 import com.example.onlyone.domain.user.service.UserService;
@@ -26,7 +26,7 @@ import java.util.stream.Collectors;
 public class ChatRoomQueryService {
 
     private final ChatRoomRepository chatRoomRepository;
-    private final MessageRepository messageRepository;
+    private final ChatMessageStoragePort chatMessageStoragePort;
     private final ClubRepository clubRepository;
     private final UserClubRepository userClubRepository;
     private final UserService userService;
@@ -42,14 +42,14 @@ public class ChatRoomQueryService {
         }
 
         List<ChatRoom> chatRooms = chatRoomRepository.findChatRoomsByUserIdAndClubId(userId, clubId);
-        Map<Long, Message> lastMessageMap = findLastMessages(chatRooms);
+        Map<Long, ChatMessageItemDto> lastMessageMap = findLastMessages(chatRooms);
 
         return chatRooms.stream()
                 .map(room -> ChatRoomResponse.from(room, lastMessageMap.get(room.getChatRoomId())))
                 .toList();
     }
 
-    private Map<Long, Message> findLastMessages(List<ChatRoom> chatRooms) {
+    private Map<Long, ChatMessageItemDto> findLastMessages(List<ChatRoom> chatRooms) {
         List<Long> chatRoomIds = chatRooms.stream()
                 .map(ChatRoom::getChatRoomId)
                 .toList();
@@ -58,9 +58,9 @@ public class ChatRoomQueryService {
             return Collections.emptyMap();
         }
 
-        return messageRepository.findLastMessagesByChatRoomIds(chatRoomIds).stream()
+        return chatMessageStoragePort.findLastMessagesByChatRoomIds(chatRoomIds).stream()
                 .collect(Collectors.toMap(
-                        m -> m.getChatRoom().getChatRoomId(),
+                        ChatMessageItemDto::chatRoomId,
                         Function.identity()));
     }
 }

@@ -41,7 +41,7 @@ spring:
   data:
     redis:
       host: localhost
-      port: 6379
+      port: 6479
       password:
       lettuce:
         pool:
@@ -118,6 +118,8 @@ app:
     enabled: false
     requests-per-minute: 60
     auth-requests-per-30s: 10
+  chat:
+    storage: mysql
   notification:
     storage: mongodb
     delivery: sse
