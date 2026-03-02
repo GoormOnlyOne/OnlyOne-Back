@@ -1,5 +1,6 @@
 package com.example.onlyone.domain.settlement.config.kafka;
 
+import com.example.onlyone.global.exception.CustomException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -20,7 +21,9 @@ public class KafkaErrorConfig {
     public DefaultErrorHandler defaultErrorHandler() {
         DeadLetterPublishingRecoverer recoverer =
                 new DeadLetterPublishingRecoverer(kafkaTemplate);
-        var backoff = new FixedBackOff(5_000L, 3L); // 5s x 3회
-        return new DefaultErrorHandler(recoverer, backoff);
+        var backoff = new FixedBackOff(1_000L, 2L); // 1s x 2회 (트랜지언트 에러만 재시도)
+        var handler = new DefaultErrorHandler(recoverer, backoff);
+        handler.addNotRetryableExceptions(CustomException.class); // 비즈니스 예외 즉시 DLT
+        return handler;
     }
 }

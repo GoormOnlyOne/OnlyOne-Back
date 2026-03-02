@@ -4,13 +4,13 @@ import com.example.onlyone.common.event.SettlementCompletedEvent;
 import com.example.onlyone.domain.settlement.event.SettlementProcessEvent;
 import com.example.onlyone.domain.settlement.repository.SettlementRepository;
 import com.example.onlyone.domain.settlement.repository.UserSettlementRepository;
+import com.example.onlyone.domain.wallet.repository.WalletRepository;
 import com.example.onlyone.domain.finance.exception.FinanceErrorCode;
 import com.example.onlyone.global.exception.CustomException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.kafka.annotation.KafkaListener;
@@ -21,10 +21,13 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionTemplate;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.concurrent.Semaphore;
-import java.util.concurrent.StructuredTaskScope;
+import java.util.Map;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 
 @Component
 @Slf4j
@@ -32,38 +35,37 @@ import java.util.concurrent.StructuredTaskScope;
 public class SettlementKafkaEventListener {
     private final ObjectMapper objectMapper;
 
-    // 백프레셔 제어를 위한 세마포어
-    private final Semaphore concurrencyLimit;
-
     private final UserSettlementRepository userSettlementRepository;
     private final UserSettlementService userSettlementService;
     private final SettlementRepository settlementRepository;
+    private final WalletRepository walletRepository;
     private final ApplicationEventPublisher eventPublisher;
     private final TransactionTemplate txTemplate;
+    private final OutboxAppender outboxAppender;
 
-    // 생성자에서 세마포어 초기화
     public SettlementKafkaEventListener(
             ObjectMapper objectMapper,
             UserSettlementRepository userSettlementRepository,
             UserSettlementService userSettlementService,
             SettlementRepository settlementRepository,
+            WalletRepository walletRepository,
             ApplicationEventPublisher eventPublisher,
             PlatformTransactionManager transactionManager,
-            @Value("${app.settlement.concurrency:32}") int concurrencyLimit
+            OutboxAppender outboxAppender
     ) {
         this.objectMapper = objectMapper;
         this.userSettlementRepository = userSettlementRepository;
         this.userSettlementService = userSettlementService;
         this.settlementRepository = settlementRepository;
+        this.walletRepository = walletRepository;
         this.eventPublisher = eventPublisher;
-        this.concurrencyLimit = new Semaphore(concurrencyLimit);
+        this.outboxAppender = outboxAppender;
 
         this.txTemplate = new TransactionTemplate(transactionManager);
         this.txTemplate.setPropagationBehavior(
                 org.springframework.transaction.TransactionDefinition.PROPAGATION_REQUIRES_NEW);
     }
 
-    // settlement.process.v1 토픽 구독
     @KafkaListener(
             groupId = "settlement-orchestrator",
             containerFactory = "settlementProcessKafkaListenerContainerFactory",
@@ -73,9 +75,9 @@ public class SettlementKafkaEventListener {
     public void onSettlementProcess(List<ConsumerRecord<String, String>> records, Acknowledgment ack) {
         for (ConsumerRecord<String, String> rec : records) {
             SettlementProcessEvent event = parse(rec.value());
-            processSettlementWithStructuredScope(event);
+            processSettlementBatch(event);
         }
-        ack.acknowledge(); // 성공 시 배치 커밋
+        ack.acknowledge();
     }
 
     private SettlementProcessEvent parse(String json) {
@@ -88,114 +90,141 @@ public class SettlementKafkaEventListener {
         }
     }
 
-    // StructuredTaskScope + Semaphore(백프레셔 제어용)
-    // Fix 3: catch에서 revertToFailed 호출
-    // Fix 6: ShutdownOnFailure 제거 → 모든 참가자 완료까지 대기, 부분 실패 수집
-    private void processSettlementWithStructuredScope(SettlementProcessEvent event) {
-        try (var scope = new StructuredTaskScope<Long>("settlement-parallel", Thread.ofVirtual().factory())) {
+    /**
+     * 배치 정산 처리 — 참가자별 개별 트랜잭션 대신 정산 단위로 배치 처리
+     *
+     * 기존: 참가자 N명 × (Redis gate + SELECT 3 + UPDATE 2 + INSERT 1) = N개 REQUIRES_NEW 트랜잭션
+     * 개선: 1개 트랜잭션에서 batchCaptureHold(IN절) + batchMarkCompleted(IN절) + 배치 Outbox
+     *
+     * 100건 정산 × 10명 기준: 1,000 tx → 100 tx (10배 감소)
+     */
+    private void processSettlementBatch(SettlementProcessEvent event) {
+        try {
+            txTemplate.executeWithoutResult(status -> {
+                List<Long> targetUserIds = event.targetUserIds();
+                long amount = event.costPerUser();
+                Long settlementId = event.settlementId();
 
-            List<Long> targetUserIds = event.targetUserIds();
-            CopyOnWriteArrayList<Long> failedParticipants = new CopyOnWriteArrayList<>();
+                // 1) 배치 captureHold — 한 번의 UPDATE로 전 참가자 지갑 차감
+                int captured = walletRepository.batchCaptureHold(targetUserIds, amount);
 
-            // 각 참가자별로 가상 스레드 생성 + 세마포어 백프레셔 제어
-            for (Long participantId : targetUserIds) {
-                scope.fork(() -> {
-                    // 세마포어로 동시 실행 수 제한
-                    try {
-                        concurrencyLimit.acquire();
-                    } catch (InterruptedException ie) {
-                        Thread.currentThread().interrupt();
-                        failedParticipants.add(participantId);
-                        return null;
-                    }
+                if (captured != targetUserIds.size()) {
+                    log.error("배치 captureHold 부분 실패: settlementId={}, expected={}, captured={}",
+                            settlementId, targetUserIds.size(), captured);
+                    // 성공한 건의 captureHold 롤백 (트랜잭션 롤백으로 자동 처리)
+                    status.setRollbackOnly();
+                    return;
+                }
 
-                    try {
-                        processParticipantWithRetry(
-                                event.settlementId(),
-                                event.leaderId(),
-                                event.leaderWalletId(),
-                                participantId,
-                                event.costPerUser()
-                        );
-                        return participantId;
-                    } catch (Exception e) {
-                        log.error("Participant settlement failed after retries. settlementId={}, participantId={}",
-                                event.settlementId(), participantId, e);
-                        failedParticipants.add(participantId);
-                        return null;
-                    } finally {
-                        concurrencyLimit.release();
-                    }
-                });
-            }
-            scope.join();
+                // 2) 배치 상태 변경 — 한 번의 UPDATE로 전 참가자 COMPLETED
+                int marked = userSettlementRepository.batchMarkCompleted(
+                        settlementId, targetUserIds, LocalDateTime.now());
 
-            // 전원 성공 → 리더 크레딧 + COMPLETED / 실패 있음 → FAILED 복원
-            if (failedParticipants.isEmpty()) {
-                completeSettlement(event);
-            } else {
-                log.error("Settlement partially failed. settlementId={}, failedParticipants={}",
-                        event.settlementId(), failedParticipants);
-                revertSettlementToFailed(event.settlementId());
-            }
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            revertSettlementToFailed(event.settlementId());
-            throw new CustomException(FinanceErrorCode.SETTLEMENT_PROCESS_FAILED);
+                if (marked != targetUserIds.size()) {
+                    log.warn("배치 markCompleted 부분 실패: settlementId={}, expected={}, marked={}",
+                            settlementId, targetUserIds.size(), marked);
+                }
+
+                // 3) 배치 Outbox 기록 — 참가자별 성공 이벤트
+                for (Long participantId : targetUserIds) {
+                    appendSuccessOutbox(event, participantId);
+                }
+            });
+
+            // 트랜잭션 성공 시 정산 완료 처리
+            completeSettlement(event);
         } catch (Exception e) {
-            revertSettlementToFailed(event.settlementId());
-            throw new CustomException(FinanceErrorCode.SETTLEMENT_PROCESS_FAILED);
+            log.error("배치 정산 처리 실패, 개별 재시도: settlementId={}", event.settlementId(), e);
+            // 폴백: 배치 실패 시 개별 병렬 처리로 재시도
+            processSettlementParallel(event);
         }
     }
 
-    private void processParticipantWithRetry(Long settlementId, Long leaderId, Long leaderWalletId,
-                                             Long participantId, Long costPerUser) {
-        int maxRetries = 3;
-        int retryDelay = 1000;
+    /**
+     * 폴백: 배치 실패 시 참가자별 병렬 처리 (Virtual Threads)
+     * 부분 실패 허용 — 실패한 참가자만 기록하고 전체를 FAILED로 복원
+     *
+     * 기존 순차 처리: 10명 × 2~3s = 20~30s
+     * 병렬 처리: max(각 참가자 처리 시간) = 2~3s
+     */
+    private void processSettlementParallel(SettlementProcessEvent event) {
+        List<Long> targetUserIds = event.targetUserIds();
+        List<Long> failedParticipants = new ArrayList<>();
 
-        for (int attempt = 1; attempt <= maxRetries; attempt++) {
-            try {
-                // 참가자별 개별 트랜잭션 처리
-                userSettlementService.processParticipantSettlement(
-                        settlementId,
-                        leaderId,
-                        leaderWalletId,
-                        participantId,
-                        costPerUser
-                );
-                return;
-            } catch (Exception e) {
-                if (attempt == maxRetries) {
-                    throw new CustomException(FinanceErrorCode.SETTLEMENT_PROCESS_FAILED);
-                }
+        try (ExecutorService executor = Executors.newVirtualThreadPerTaskExecutor()) {
+            List<Future<Long>> futures = new ArrayList<>(targetUserIds.size());
+
+            for (Long participantId : targetUserIds) {
+                futures.add(executor.submit(() -> {
+                    txTemplate.executeWithoutResult(status -> {
+                        int captured = walletRepository.captureHold(participantId, event.costPerUser());
+                        if (captured != 1) {
+                            throw new CustomException(FinanceErrorCode.WALLET_HOLD_CAPTURE_FAILED);
+                        }
+                        userSettlementRepository.batchMarkCompleted(
+                                event.settlementId(), List.of(participantId), LocalDateTime.now());
+                        appendSuccessOutbox(event, participantId);
+                    });
+                    return participantId;
+                }));
+            }
+
+            for (int i = 0; i < futures.size(); i++) {
                 try {
-                    Thread.sleep(retryDelay * attempt);
-                } catch (InterruptedException ie) {
-                    Thread.currentThread().interrupt();
-                    throw new CustomException(FinanceErrorCode.SETTLEMENT_PROCESS_FAILED);
+                    futures.get(i).get(10, TimeUnit.SECONDS);
+                } catch (Exception e) {
+                    Long failedId = targetUserIds.get(i);
+                    log.error("개별 정산 실패: settlementId={}, participantId={}",
+                            event.settlementId(), failedId, e);
+                    failedParticipants.add(failedId);
                 }
             }
         }
+
+        if (failedParticipants.isEmpty()) {
+            completeSettlement(event);
+        } else {
+            log.error("정산 부분 실패: settlementId={}, failedParticipants={}",
+                    event.settlementId(), failedParticipants);
+            revertSettlementToFailed(event.settlementId());
+        }
     }
 
-    // Fix 4: CAS 기반 markCompleted — IN_PROGRESS에서만 COMPLETED로 전이 (멱등)
+    private void appendSuccessOutbox(SettlementProcessEvent event, Long participantId) {
+        Long settlementId = event.settlementId();
+        String operationId = ("stl:%d:usr:%d:v1").formatted(settlementId, participantId);
+        outboxAppender.append(
+                "UserSettlement",
+                settlementId * 10000 + participantId,
+                "ParticipantSettlementResult",
+                String.valueOf(participantId),
+                Map.of(
+                        "type", "SUCCESS",
+                        "operationId", operationId,
+                        "occurredAt", java.time.Instant.now().toString(),
+                        "settlementId", settlementId,
+                        "participantId", participantId,
+                        "leaderId", event.leaderId(),
+                        "leaderWalletId", event.leaderWalletId(),
+                        "amount", event.costPerUser()
+                )
+        );
+    }
+
     @Transactional
     public void completeSettlement(SettlementProcessEvent event) {
         int updated = settlementRepository.markCompleted(event.settlementId(), LocalDateTime.now());
         if (updated == 0) {
             log.info("Settlement already completed, skipping. id={}", event.settlementId());
-            return;  // 멱등 스킵
+            return;
         }
 
-        // 리더에게 전체 금액 크레딧 (markCompleted CAS 성공 시에만 실행 → 이중 지급 방지)
         userSettlementService.creditToLeader(event.leaderId(), event.totalAmount());
 
-        // 스케줄 상태 업데이트 (이벤트 기반)
         eventPublisher.publishEvent(new SettlementCompletedEvent(
                 event.settlementId(), event.scheduleId(), event.clubId(), LocalDateTime.now()));
     }
 
-    // Fix 3: Settlement IN_PROGRESS → FAILED 복원 (독립 트랜잭션)
     private void revertSettlementToFailed(Long settlementId) {
         try {
             txTemplate.executeWithoutResult(status ->
