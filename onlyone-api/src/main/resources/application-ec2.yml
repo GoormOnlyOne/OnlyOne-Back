@@ -1,0 +1,170 @@
+# =============================================================
+# EC2 부하 테스트 환경 설정 (profile: ec2)
+# loadtest와 함께 사용: SPRING_PROFILES_ACTIVE=ec2,loadtest
+#
+# 앱 서버(c5.xlarge: 4 vCPU, 8GB)에서 실행
+# 인프라 서버(c5.2xlarge)에 INFRA_HOST 환경변수로 연결
+# =============================================================
+
+spring:
+  # --- 데이터소스 (EC2 원격 인프라) ---
+  datasource:
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    url: jdbc:mysql://${INFRA_HOST}:3306/onlyone?useSSL=false&serverTimezone=Asia/Seoul&characterEncoding=UTF-8&allowPublicKeyRetrieval=true&cachePrepStmts=true&prepStmtCacheSize=250&prepStmtCacheSqlLimit=2048&useServerPrepStmts=true&rewriteBatchedStatements=true
+    username: ${DB_USERNAME:root}
+    password: ${DB_PASSWORD:root}
+    hikari:
+      maximum-pool-size: 200
+      minimum-idle: 50
+      connection-timeout: 15000
+      idle-timeout: 300000
+      max-lifetime: 600000
+      validation-timeout: 3000
+      auto-commit: false
+
+  # JPA
+  jpa:
+    hibernate:
+      ddl-auto: update
+    properties:
+      hibernate:
+        format_sql: false
+        use_sql_comments: false
+        show_sql: false
+        jdbc:
+          batch_size: 30
+        order_inserts: true
+        order_updates: true
+        connection:
+          provider_disables_autocommit: true
+        generate_statistics: true
+      jakarta.persistence.query.timeout: 30000
+
+  # Redis (원격 인프라)
+  data:
+    redis:
+      host: ${INFRA_HOST}
+      port: 6379
+      password: ${REDIS_PASSWORD:}
+      timeout: 5000
+      lettuce:
+        pool:
+          max-active: 128
+          max-idle: 64
+          min-idle: 16
+          max-wait: 3000
+        shutdown-timeout: 2000ms
+
+  # Kafka (원격 인프라)
+  kafka:
+    enabled: true
+    default-bootstrap-servers: ${INFRA_HOST}:29092
+    producer:
+      common-config:
+        client-id: onlyone-producer
+        bootstrap-servers:
+          - ${INFRA_HOST}:29092
+        transactional-id-prefix: onlyone-tx-
+        acks: all
+        linger-ms: 5
+        batch-size: 16384
+      settlement-process-producer-config:
+        topic: settlement.process.v1
+    consumer:
+      common-config:
+        group-id: onlyone-settlement
+        client-id: onlyone-consumer
+        bootstrap-servers:
+          - ${INFRA_HOST}:29092
+        timeout-ms: "30000"
+        fetch-min-bytes: 1
+        fetch-max-wait-ms: 500
+      user-settlement-ledger-consumer-config:
+        topic: user-settlement.result.v1
+    security:
+      enabled: false
+
+  # MongoDB (원격 인프라)
+  data.mongodb:
+    uri: mongodb://root:root@${INFRA_HOST}:27017/onlyone?authSource=admin
+
+  # Elasticsearch (원격 인프라)
+  elasticsearch:
+    uris: http://${INFRA_HOST}:9200
+    username: ${ELASTICSEARCH_USERNAME:elastic}
+    password: ${ELASTICSEARCH_PASSWORD:changeme}
+
+  # 캐시
+  cache:
+    type: redis
+    redis:
+      time-to-live: 600000
+
+# --- 로깅: 최소화 ---
+logging:
+  level:
+    root: error
+    com.example.onlyone: warn
+    com.zaxxer.hikari: warn
+    org.hibernate.SQL: error
+    org.springframework: error
+    org.apache.kafka: warn
+
+# --- Tomcat (c5.xlarge 튜닝) ---
+server:
+  port: 8080
+  tomcat:
+    threads:
+      max: 400
+      min-spare: 25
+    max-connections: 10000
+    accept-count: 500
+
+# --- AWS ---
+aws:
+  s3:
+    region: ap-northeast-2
+    bucket: ${AWS_S3_BUCKET:buddkit-image}
+  cloudfront:
+    domain: ${AWS_CLOUDFRONT_DOMAIN:d1c3fg3ti7m8cn.cloudfront.net}
+
+# --- 카카오 OAuth ---
+Kakao:
+  client:
+    id: ${KAKAO_CLIENT_ID:cb62270f81c3942b697f94401978d95b}
+  redirect:
+    uri: ${KAKAO_REDIRECT_URI:http://localhost:5173/kakao-callback}
+
+# --- JWT ---
+jwt:
+  secret: ${JWT_SECRET:7e9eeb12d176a2d72f554c6b096522b4e1a34d799727e45a96f192bbff2a2a851ede29ed24b10b6e6b1835ac94380e2469df99ff9713477bf4d43eeaa9cd16a3}
+  access-expiration: 3600000
+  refresh-expiration: 604800000
+
+# --- 토스 결제 (loadtest 프로필에서 MockClient 사용) ---
+payment:
+  toss:
+    client_key: ${TOSS_CLIENT_KEY:test_ck_yL0qZ4G1VOlG77j1njbProWb2MQY}
+    test_secret_api_key: ${TOSS_SECRET_API_KEY:test_sk_kYG57Eba3GbjeWJXBvjk8pWDOxmA}
+    security_key: ${TOSS_SECURITY_KEY:705394c7b81f84e2777acd2935f376d566fdf68ec38392bbab607771a5147bb0}
+
+# --- 앱 커스텀 설정 ---
+app:
+  kafka:
+    topic:
+      replicas: 1
+      min-insync-replicas: 1
+  search:
+    engine: elasticsearch
+  rate-limit:
+    enabled: false
+  feed:
+    storage: mongodb
+  chat:
+    storage: mysql
+  notification:
+    storage: mongodb
+    delivery: webflux
+    sse-timeout-millis: 30000
+    sse-executor-permits: 500
+    max-connections: 10000

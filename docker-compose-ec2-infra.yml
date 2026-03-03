@@ -1,0 +1,377 @@
+# =============================================================
+# EC2 인프라 서버 전용 Docker Compose (c5.2xlarge: 8 vCPU, 16GB)
+# 총 메모리 할당 ~12.5GB, 나머지 OS/swap용
+# =============================================================
+# 사용법:
+#   INFRA_PRIVATE_IP=10.0.1.x docker compose -f docker-compose-ec2-infra.yml up -d
+# =============================================================
+
+services:
+  # ── MySQL 8.0 (4.5GB) ──
+  mysql:
+    image: mysql:8.0
+    container_name: onlyone-mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${DB_PASSWORD:-root}
+      MYSQL_DATABASE: onlyone
+      TZ: Asia/Seoul
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./onlyone-api/src/main/resources/schema.sql:/docker-entrypoint-initdb.d/schema.sql
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+      - --max_connections=400
+      - --innodb_buffer_pool_size=3G
+      - --innodb_buffer_pool_instances=4
+      - --innodb_flush_log_at_trx_commit=2
+      - --innodb_lock_wait_timeout=5
+      - --innodb_thread_concurrency=0
+      - --innodb_io_capacity=4000
+      - --innodb_io_capacity_max=20000
+      - --innodb_read_io_threads=8
+      - --innodb_write_io_threads=8
+      - --innodb_redo_log_capacity=512M
+      - --innodb_log_buffer_size=64M
+      - --sync_binlog=0
+      - --thread_cache_size=200
+      - --sort_buffer_size=4M
+      - --join_buffer_size=4M
+      - --tmp_table_size=64M
+      - --max_heap_table_size=64M
+      - --table_open_cache=2000
+      - --innodb_adaptive_hash_index=ON
+    networks:
+      - onlyone-network
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${DB_PASSWORD:-root}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    deploy:
+      resources:
+        limits:
+          cpus: '4'
+          memory: 4608M
+        reservations:
+          cpus: '1'
+          memory: 2G
+
+  # ── Redis 7 (768MB) ──
+  redis:
+    image: redis:7-alpine
+    container_name: onlyone-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    command: redis-server --appendonly yes --maxmemory 512mb --maxmemory-policy allkeys-lru --io-threads 2 --save ""
+    networks:
+      - onlyone-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 768M
+        reservations:
+          cpus: '0.25'
+          memory: 256M
+
+  # ── Elasticsearch 8.18.1 (2GB) ──
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.18.1
+    container_name: onlyone-elasticsearch
+    restart: unless-stopped
+    environment:
+      - discovery.type=single-node
+      - "ES_JAVA_OPTS=-Xms768m -Xmx768m"
+      - xpack.security.enabled=true
+      - xpack.security.http.ssl.enabled=false
+      - ELASTIC_PASSWORD=${ELASTICSEARCH_PASSWORD:-changeme}
+      - cluster.name=onlyone-cluster
+    ports:
+      - "9200:9200"
+      - "9300:9300"
+    volumes:
+      - elasticsearch_data:/usr/share/elasticsearch/data
+      - ./onlyone-api/src/main/resources/elasticsearch:/usr/share/elasticsearch/config/analysis
+    networks:
+      - onlyone-network
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f -u elastic:${ELASTICSEARCH_PASSWORD:-changeme} http://localhost:9200/_cluster/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 2G
+        reservations:
+          cpus: '0.5'
+          memory: 768M
+
+  # ── MongoDB 7.0 (3GB) ──
+  mongodb:
+    image: mongo:7.0
+    container_name: onlyone-mongodb
+    restart: unless-stopped
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: root
+      MONGO_INITDB_ROOT_PASSWORD: root
+      MONGO_INITDB_DATABASE: onlyone
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongodb_data:/data/db
+    command: ["mongod", "--wiredTigerCacheSizeGB", "1.5", "--auth"]
+    networks:
+      - onlyone-network
+    healthcheck:
+      test: ["CMD", "mongosh", "-u", "root", "-p", "root", "--authenticationDatabase", "admin", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 3G
+        reservations:
+          cpus: '0.5'
+          memory: 1G
+
+  # ── Kafka 3.8 KRaft (1GB) ──
+  kafka:
+    image: apache/kafka:3.8.0
+    container_name: onlyone-kafka
+    restart: unless-stopped
+    environment:
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092,CONTROLLER://0.0.0.0:9093,EXTERNAL://0.0.0.0:29092
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092,EXTERNAL://${INFRA_PRIVATE_IP:-localhost}:29092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,CONTROLLER:PLAINTEXT,EXTERNAL:PLAINTEXT
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_LOG_RETENTION_HOURS: 168
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+      CLUSTER_ID: "onlyone-kafka-cluster-001"
+      KAFKA_HEAP_OPTS: "-Xms256m -Xmx512m"
+    ports:
+      - "29092:29092"
+    volumes:
+      - kafka_data:/var/lib/kafka/data
+    networks:
+      - onlyone-network
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/kafka/bin/kafka-broker-api-versions.sh --bootstrap-server localhost:9092 > /dev/null 2>&1"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 1G
+        reservations:
+          cpus: '0.25'
+          memory: 256M
+
+  # ── RabbitMQ (384MB) ──
+  rabbitmq:
+    image: rabbitmq:3.13-management-alpine
+    container_name: onlyone-rabbitmq
+    restart: unless-stopped
+    environment:
+      RABBITMQ_DEFAULT_USER: guest
+      RABBITMQ_DEFAULT_PASS: guest
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    networks:
+      - onlyone-network
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 384M
+        reservations:
+          cpus: '0.1'
+          memory: 128M
+
+  # ========== Monitoring (~768MB total) ==========
+
+  # Prometheus
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: onlyone-prometheus
+    restart: unless-stopped
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./monitoring/prometheus/prometheus-ec2.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.retention.time=15d'
+      - '--web.enable-remote-write-receiver'
+    networks:
+      - onlyone-network
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 256M
+        reservations:
+          cpus: '0.1'
+          memory: 128M
+
+  # Grafana + Image Renderer
+  grafana:
+    image: grafana/grafana:latest
+    container_name: onlyone-grafana
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_RENDERING_SERVER_URL: http://grafana-renderer:8081/render
+      GF_RENDERING_CALLBACK_URL: http://grafana:3000/
+      GF_LOG_FILTERS: rendering:debug
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+    depends_on:
+      - prometheus
+    networks:
+      - onlyone-network
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 256M
+        reservations:
+          cpus: '0.1'
+          memory: 128M
+
+  grafana-renderer:
+    image: grafana/grafana-image-renderer:latest
+    container_name: onlyone-grafana-renderer
+    restart: unless-stopped
+    environment:
+      ENABLE_METRICS: 'true'
+    networks:
+      - onlyone-network
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 256M
+        reservations:
+          cpus: '0.1'
+          memory: 128M
+
+  # MySQL Exporter
+  mysql-exporter:
+    image: prom/mysqld-exporter:latest
+    container_name: onlyone-mysql-exporter
+    restart: unless-stopped
+    ports:
+      - "9104:9104"
+    environment:
+      MYSQLD_EXPORTER_PASSWORD: ${DB_PASSWORD:-root}
+    command:
+      - '--mysqld.address=mysql:3306'
+      - '--mysqld.username=root'
+    depends_on:
+      mysql:
+        condition: service_healthy
+    networks:
+      - onlyone-network
+    deploy:
+      resources:
+        limits:
+          cpus: '0.25'
+          memory: 64M
+
+  # Elasticsearch Exporter
+  elasticsearch-exporter:
+    image: quay.io/prometheuscommunity/elasticsearch-exporter:latest
+    container_name: onlyone-es-exporter
+    restart: unless-stopped
+    ports:
+      - "9114:9114"
+    command:
+      - '--es.uri=http://elasticsearch:9200'
+      - '--es.all'
+      - '--es.indices'
+      - '--es.shards'
+    environment:
+      ES_USERNAME: ${ELASTICSEARCH_USERNAME:-elastic}
+      ES_PASSWORD: ${ELASTICSEARCH_PASSWORD:-changeme}
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+    networks:
+      - onlyone-network
+    deploy:
+      resources:
+        limits:
+          cpus: '0.25'
+          memory: 64M
+
+  # Redis Exporter
+  redis-exporter:
+    image: oliver006/redis_exporter:latest
+    container_name: onlyone-redis-exporter
+    restart: unless-stopped
+    ports:
+      - "9121:9121"
+    environment:
+      REDIS_ADDR: redis://redis:6379
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks:
+      - onlyone-network
+    deploy:
+      resources:
+        limits:
+          cpus: '0.25'
+          memory: 64M
+
+networks:
+  onlyone-network:
+    driver: bridge
+
+volumes:
+  mysql_data:
+  redis_data:
+  elasticsearch_data:
+  mongodb_data:
+  kafka_data:
+  rabbitmq_data:
+  prometheus_data:
+  grafana_data:
