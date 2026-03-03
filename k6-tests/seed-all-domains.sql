@@ -52,7 +52,7 @@ CREATE TABLE _digits (d INT NOT NULL) ENGINE=MEMORY;
 INSERT INTO _digits VALUES (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
 
 DROP TABLE IF EXISTS _seq100k;
-CREATE TABLE _seq100k (n INT NOT NULL, PRIMARY KEY(n)) ENGINE=MEMORY;
+CREATE TABLE _seq100k (n INT NOT NULL, PRIMARY KEY(n)) ENGINE=InnoDB;
 INSERT INTO _seq100k
 SELECT d5.d*10000 + d4.d*1000 + d3.d*100 + d2.d*10 + d1.d
 FROM _digits d1, _digits d2, _digits d3, _digits d4, _digits d5;
