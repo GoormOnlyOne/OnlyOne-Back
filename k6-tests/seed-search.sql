@@ -181,7 +181,7 @@ SELECT CONCAT('user_club: ', COUNT(*)) AS result FROM user_club WHERE user_id BE
 SELECT CONCAT('interest distribution:') AS '';
 SELECT i.category, COUNT(c.club_id) AS club_count
 FROM interest i LEFT JOIN club c ON c.interest_id = i.interest_id
-GROUP BY i.category ORDER BY i.interest_id;
+GROUP BY i.category ORDER BY club_count DESC;
 SELECT CONCAT('location distribution:') AS '';
 SELECT city, district, COUNT(*) AS cnt
 FROM club GROUP BY city, district ORDER BY cnt DESC LIMIT 10;
