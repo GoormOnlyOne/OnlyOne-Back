@@ -3,8 +3,8 @@
 build/
 build/generated/
 src/main/generated/
-**/Q*.java
-**/Q*.class
+**/generated/**/Q*.java
+**/generated/**/Q*.class
 !gradle/wrapper/gradle-wrapper.jar
 !**/src/main/**/build/
 !**/src/test/**/build/
