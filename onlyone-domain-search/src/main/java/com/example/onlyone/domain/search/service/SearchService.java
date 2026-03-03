@@ -1,13 +1,13 @@
 package com.example.onlyone.domain.search.service;
 
-import com.example.onlyone.domain.club.document.ClubDocument;
-import com.example.onlyone.domain.club.repository.ClubElasticsearchRepository;
 import com.example.onlyone.domain.club.repository.ClubRepository;
 import com.example.onlyone.domain.club.repository.ClubWithMemberCount;
 import com.example.onlyone.domain.club.repository.UserClubRepository;
 import com.example.onlyone.domain.search.dto.request.SearchFilterDto;
 import com.example.onlyone.domain.search.dto.response.ClubResponseDto;
 import com.example.onlyone.domain.search.dto.response.MyMeetingListResponseDto;
+import com.example.onlyone.domain.search.port.ClubSearchResult;
+import com.example.onlyone.domain.search.port.SearchPort;
 import com.example.onlyone.domain.settlement.entity.SettlementStatus;
 import com.example.onlyone.domain.settlement.repository.UserSettlementRepository;
 import com.example.onlyone.domain.user.entity.User;
@@ -17,7 +17,6 @@ import com.example.onlyone.global.exception.CustomException;
 import com.example.onlyone.domain.search.exception.SearchErrorCode;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -25,16 +24,16 @@ import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import org.springframework.beans.factory.annotation.Qualifier;
+
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Executor;
 
 @Service
-@RequiredArgsConstructor
 @Slf4j
-@Transactional(readOnly = true)
-@ConditionalOnProperty(name = "spring.elasticsearch.uris")
 public class SearchService {
     private static final int HOME_SAMPLE_SIZE = 5;
     private static final int DEFAULT_PAGE_SIZE = 20;
@@ -44,12 +43,31 @@ public class SearchService {
     private final UserService userService;
     private final UserInterestRepository userInterestRepository;
     private final UserSettlementRepository userSettlementRepository;
-    private final ClubElasticsearchRepository clubElasticsearchRepository;
+    private final SearchPort searchPort;
+    private final Executor searchAsyncExecutor;
+
+    public SearchService(ClubRepository clubRepository,
+                         UserClubRepository userClubRepository,
+                         UserService userService,
+                         UserInterestRepository userInterestRepository,
+                         UserSettlementRepository userSettlementRepository,
+                         SearchPort searchPort,
+                         @Qualifier("customAsyncExecutor") Executor searchAsyncExecutor) {
+        this.clubRepository = clubRepository;
+        this.userClubRepository = userClubRepository;
+        this.userService = userService;
+        this.userInterestRepository = userInterestRepository;
+        this.userSettlementRepository = userSettlementRepository;
+        this.searchPort = searchPort;
+        this.searchAsyncExecutor = searchAsyncExecutor;
+    }
 
     // 사용자 맞춤 추천
+    // size: 홈 화면 노출용 랜덤 샘플 수 (DB 조회 크기 아님)
+    @Transactional(readOnly = true)
     @Cacheable(value = "recommendations",
-            key = "T(org.springframework.security.core.context.SecurityContextHolder).context.authentication.principal.userId + '_' + #page + '_' + #size")
-    public List<ClubResponseDto> recommendedClubs(int page, int size) {
+            key = "T(org.springframework.security.core.context.SecurityContextHolder).context.authentication.principal.userId + '_' + #page + '_' + #sampleSize")
+    public List<ClubResponseDto> recommendedClubs(int page, int sampleSize) {
         PageRequest pageRequest = PageRequest.of(page, DEFAULT_PAGE_SIZE);
         User user = userService.getCurrentUser();
 
@@ -67,17 +85,18 @@ public class SearchService {
                     interestIds, user.getCity(), user.getDistrict(), user.getUserId(), pageRequest);
 
             if (!resultList.isEmpty()) {
-                return convertToClubResponseDto(sampleForHome(resultList, size));
+                return convertToClubResponseDto(sampleForHome(resultList, sampleSize));
             }
         }
 
         // 2단계: 관심사 일치
         List<ClubWithMemberCount> resultList = clubRepository.searchByUserInterests(interestIds, user.getUserId(), pageRequest);
 
-        return convertToClubResponseDto(sampleForHome(resultList, size));
+        return convertToClubResponseDto(sampleForHome(resultList, sampleSize));
     }
 
     // 모임 검색 (관심사)
+    @Transactional(readOnly = true)
     public List<ClubResponseDto> searchClubByInterest(Long interestId, int page) {
         if (interestId == null) {
             throw new CustomException(SearchErrorCode.INVALID_INTEREST_ID);
@@ -91,6 +110,7 @@ public class SearchService {
     }
 
     // 모임 검색 (지역)
+    @Transactional(readOnly = true)
     public List<ClubResponseDto> searchClubByLocation(String city, String district, int page) {
         if (city == null || district == null || city.trim().isEmpty() || district.trim().isEmpty()) {
             throw new CustomException(SearchErrorCode.INVALID_LOCATION);
@@ -122,12 +142,13 @@ public class SearchService {
 
         // DB 조회를 비동기로 시작 (ES/MySQL 검색과 병렬 실행)
         CompletableFuture<List<Long>> joinedFuture = CompletableFuture.supplyAsync(
-                () -> userClubRepository.findByClubIdsByUserId(userId));
+                () -> userClubRepository.findByClubIdsByUserId(userId), searchAsyncExecutor)
+                .orTimeout(5, java.util.concurrent.TimeUnit.SECONDS);
 
         if (filter.hasKeyword()) {
-            List<ClubDocument> esResults = searchWithElasticsearch(filter);
+            List<ClubSearchResult> searchResults = searchWithKeyword(filter);
             List<Long> joinedClubIds = joinedFuture.join();
-            return convertElasticsearchResultsWithJoinStatus(esResults, joinedClubIds);
+            return convertSearchResultsWithJoinStatus(searchResults, joinedClubIds);
         } else {
             List<ClubWithMemberCount> resultList = searchWithMysql(filter);
             List<Long> joinedClubIds = joinedFuture.join();
@@ -136,14 +157,16 @@ public class SearchService {
     }
 
     // 함께하는 멤버들의 다른 모임 조회
+    // sampleSize: 홈 화면 노출용 랜덤 샘플 수 (DB 조회 크기 아님)
+    @Transactional(readOnly = true)
     @Cacheable(value = "teammatesClubs",
-            key = "T(org.springframework.security.core.context.SecurityContextHolder).context.authentication.principal.userId + '_' + #page + '_' + #size")
-    public List<ClubResponseDto> getClubsByTeammates(int page, int size) {
+            key = "T(org.springframework.security.core.context.SecurityContextHolder).context.authentication.principal.userId + '_' + #page + '_' + #sampleSize")
+    public List<ClubResponseDto> getClubsByTeammates(int page, int sampleSize) {
         PageRequest pageRequest = PageRequest.of(page, DEFAULT_PAGE_SIZE);
         Long userId = userService.getCurrentUserId();
         List<ClubWithMemberCount> resultList = clubRepository.findClubsByTeammates(userId, pageRequest);
 
-        return convertToClubResponseDto(sampleForHome(resultList, size));
+        return convertToClubResponseDto(sampleForHome(resultList, sampleSize));
     }
 
     private List<ClubResponseDto> convertToClubResponseDto(List<ClubWithMemberCount> results) {
@@ -158,6 +181,7 @@ public class SearchService {
     }
 
     // 내 모임 목록 조회
+    @Transactional(readOnly = true)
     public MyMeetingListResponseDto getMyClubs() {
         User user = userService.getCurrentUser();
         List<ClubResponseDto> clubResponseDtoList = userClubRepository.findMyClubsWithInterest(user.getUserId())
@@ -170,15 +194,15 @@ public class SearchService {
         return new MyMeetingListResponseDto(isUnsettledScheduleExist, clubResponseDtoList);
     }
 
-    // ES 검색 메서드 — 통합 dynamic query 사용
-    private List<ClubDocument> searchWithElasticsearch(SearchFilterDto filter) {
+    // 키워드 검색 — SearchPort 위임 (ES 또는 MySQL FULLTEXT)
+    private List<ClubSearchResult> searchWithKeyword(SearchFilterDto filter) {
         String keyword = filter.keyword().trim();
         Pageable pageable = createPageable(filter);
 
         String city = filter.hasLocation() ? filter.city().trim() : null;
         String district = filter.hasLocation() ? filter.district().trim() : null;
 
-        return clubElasticsearchRepository.search(keyword, city, district, filter.interestId(), pageable);
+        return searchPort.search(keyword, city, district, filter.interestId(), pageable);
     }
 
     // MySQL 검색 메서드 (키워드 없는 필터 검색)
@@ -205,18 +229,18 @@ public class SearchService {
         }
     }
 
-    // ES 결과를 ClubResponseDto로 변환 (가입 상태 포함)
-    private List<ClubResponseDto> convertElasticsearchResultsWithJoinStatus(List<ClubDocument> results, List<Long> joinedClubIds) {
-        return results.stream().map(document -> {
-            boolean isJoined = joinedClubIds.contains(document.getClubId());
+    // 검색 결과를 ClubResponseDto로 변환 (가입 상태 포함)
+    private List<ClubResponseDto> convertSearchResultsWithJoinStatus(List<ClubSearchResult> results, List<Long> joinedClubIds) {
+        return results.stream().map(result -> {
+            boolean isJoined = joinedClubIds.contains(result.clubId());
             return new ClubResponseDto(
-                    document.getClubId(),
-                    document.getName(),
-                    document.getDescription(),
-                    document.getInterestKoreanName(),
-                    document.getDistrict(),
-                    document.getMemberCount(),
-                    document.getClubImage(),
+                    result.clubId(),
+                    result.name(),
+                    result.description(),
+                    result.interest(),
+                    result.district(),
+                    result.memberCount(),
+                    result.image(),
                     isJoined
             );
         }).toList();

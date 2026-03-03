@@ -2,7 +2,7 @@ package com.example.onlyone.domain.feed.service;
 
 import com.example.onlyone.domain.feed.dto.response.FeedCommentResponseDto;
 import com.example.onlyone.domain.feed.dto.response.FeedOverviewDto;
-import com.example.onlyone.domain.feed.entity.Feed;
+import com.example.onlyone.domain.feed.port.FeedStoragePort.FeedDetailItem;
 import com.example.onlyone.domain.feed.repository.FeedRepositoryCustom.FeedIdWithCounts;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -43,6 +43,7 @@ public class FeedCacheService {
                     })
                     .toList();
         } catch (Exception e) {
+            log.debug("pass1 캐시 조회 실패: {}", e.getMessage());
             return null;
         }
     }
@@ -82,7 +83,7 @@ public class FeedCacheService {
     // ── Detail (in-memory) ──
 
     record DetailCacheEntry(
-            Feed feed, List<String> imageUrls,
+            FeedDetailItem detail, List<String> imageUrls,
             List<FeedCommentResponseDto> comments, long repostCount,
             long expiresAt
     ) {
@@ -95,10 +96,10 @@ public class FeedCacheService {
         return (entry != null && !entry.isExpired()) ? entry : null;
     }
 
-    public void putDetail(Long feedId, Feed feed, List<String> imageUrls,
+    public void putDetail(Long feedId, FeedDetailItem detail, List<String> imageUrls,
                           List<FeedCommentResponseDto> comments, long repostCount) {
         evictIfFull(detailCache);
-        detailCache.put(feedId, new DetailCacheEntry(feed, imageUrls, comments, repostCount,
+        detailCache.put(feedId, new DetailCacheEntry(detail, imageUrls, comments, repostCount,
                 System.currentTimeMillis() + DETAIL_CACHE_TTL_MS));
     }
 

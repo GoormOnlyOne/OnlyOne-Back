@@ -112,7 +112,7 @@ public class NotificationRepositoryImpl implements NotificationRepositoryCustom 
     }
 
     @Override
-    public List<NotificationItemDto> findUnsentNotificationsByUserId(Long userId, int limit) {
+    public List<NotificationItemDto> findUndeliveredByUserId(Long userId, int limit) {
         // 네이티브 쿼리 — User JOIN 제거, idx_notification_user_sse_sent 인덱스 직접 활용
         @SuppressWarnings("unchecked")
         List<Object[]> rows = entityManager
@@ -126,7 +126,7 @@ public class NotificationRepositoryImpl implements NotificationRepositoryCustom 
 
     @Override
     @Transactional
-    public void markSseSentByIds(List<Long> notificationIds) {
+    public void markDeliveredByIds(List<Long> notificationIds) {
         if (notificationIds.isEmpty()) {
             return;
         }

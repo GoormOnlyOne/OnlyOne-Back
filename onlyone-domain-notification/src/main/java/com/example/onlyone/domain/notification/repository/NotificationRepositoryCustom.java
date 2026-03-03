@@ -17,7 +17,7 @@ public interface NotificationRepositoryCustom {
 
     long markAllAsReadByUserId(Long userId);
 
-    void markSseSentByIds(List<Long> notificationIds);
+    void markDeliveredByIds(List<Long> notificationIds);
 
-    List<NotificationItemDto> findUnsentNotificationsByUserId(Long userId, int limit);
+    List<NotificationItemDto> findUndeliveredByUserId(Long userId, int limit);
 }

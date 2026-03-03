@@ -1,12 +1,9 @@
 package com.example.onlyone.domain.feed.service;
 
 import com.example.onlyone.domain.feed.dto.response.FeedOverviewDto;
-import com.example.onlyone.domain.feed.entity.Feed;
-import com.example.onlyone.domain.feed.entity.FeedImage;
-import com.example.onlyone.domain.feed.repository.FeedLikeRepository;
-import com.example.onlyone.domain.feed.repository.FeedRepository;
+import com.example.onlyone.domain.feed.port.FeedStoragePort;
+import com.example.onlyone.domain.feed.port.FeedStoragePort.FeedDetailItem;
 import com.example.onlyone.domain.feed.repository.FeedRepositoryCustom.FeedIdWithCounts;
-import com.example.onlyone.domain.feed.repository.FeedRepositoryCustom.ParentRepostCount;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
@@ -18,14 +15,13 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class FeedRenderService {
 
-    private final FeedRepository feedRepository;
-    private final FeedLikeRepository feedLikeRepository;
+    private final FeedStoragePort feedStoragePort;
 
     private record RenderContext(
             Long userId,
             Set<Long> likedFeedIds,
-            Map<Long, Feed> parentMap,
-            Map<Long, Feed> rootMap,
+            Map<Long, FeedDetailItem> parentMap,
+            Map<Long, FeedDetailItem> rootMap,
             Map<Long, Long> repostCntMap,
             Map<Long, Long> likeCountMap,
             Map<Long, Long> commentCountMap
@@ -42,18 +38,18 @@ public class FeedRenderService {
             commentCountMap.put(row.feedId(), row.commentCount());
         }
 
-        Map<Long, Feed> feedMap = feedRepository.findByIdsWithRelations(feedIds).stream()
-                .collect(Collectors.toMap(Feed::getFeedId, Function.identity()));
-        List<Feed> feeds = feedIds.stream()
+        Map<Long, FeedDetailItem> feedMap = feedStoragePort.findFeedsByIdsWithRelations(feedIds).stream()
+                .collect(Collectors.toMap(FeedDetailItem::feedId, Function.identity()));
+        List<FeedDetailItem> feeds = feedIds.stream()
                 .map(feedMap::get)
                 .filter(Objects::nonNull)
                 .toList();
 
         RenderContext ctx = new RenderContext(
                 userId,
-                feedLikeRepository.findLikedFeedIdsByUser(feedIds, userId),
-                bulkLoadByIds(feeds, Feed::getParentFeedId),
-                bulkLoadByIds(feeds, Feed::getRootFeedId),
+                feedStoragePort.findLikedFeedIdsByUser(feedIds, userId),
+                bulkLoadByIds(feeds, FeedDetailItem::parentFeedId),
+                bulkLoadByIds(feeds, FeedDetailItem::rootFeedId),
                 countDirectReposts(feeds),
                 likeCountMap,
                 commentCountMap
@@ -66,40 +62,39 @@ public class FeedRenderService {
 
     // ── private ──
 
-    private Map<Long, Feed> bulkLoadByIds(List<Feed> feeds, Function<Feed, Long> idExtractor) {
+    private Map<Long, FeedDetailItem> bulkLoadByIds(List<FeedDetailItem> feeds, Function<FeedDetailItem, Long> idExtractor) {
         Set<Long> ids = feeds.stream()
                 .map(idExtractor).filter(Objects::nonNull).collect(Collectors.toSet());
         if (ids.isEmpty()) return Collections.emptyMap();
-        return feedRepository.findByIdsWithRelations(new ArrayList<>(ids)).stream()
-                .collect(Collectors.toMap(Feed::getFeedId, Function.identity()));
+        return feedStoragePort.findFeedsByIdsWithRelations(new ArrayList<>(ids)).stream()
+                .collect(Collectors.toMap(FeedDetailItem::feedId, Function.identity()));
     }
 
-    private Map<Long, Long> countDirectReposts(List<Feed> feeds) {
+    private Map<Long, Long> countDirectReposts(List<FeedDetailItem> feeds) {
         Set<Long> targetIds = new HashSet<>();
-        for (Feed f : feeds) {
-            targetIds.add(f.getFeedId());
-            if (f.getRootFeedId() != null) targetIds.add(f.getRootFeedId());
+        for (FeedDetailItem f : feeds) {
+            targetIds.add(f.feedId());
+            if (f.rootFeedId() != null) targetIds.add(f.rootFeedId());
         }
         if (targetIds.isEmpty()) return Collections.emptyMap();
-        return feedRepository.countDirectRepostsIn(new ArrayList<>(targetIds)).stream()
-                .collect(Collectors.toMap(ParentRepostCount::parentId, ParentRepostCount::cnt));
+        return feedStoragePort.countDirectRepostsInBatch(new ArrayList<>(targetIds));
     }
 
-    private FeedOverviewDto toOverviewDto(Feed f, RenderContext ctx) {
-        long selfRepostCount = ctx.repostCntMap().getOrDefault(f.getFeedId(), 0L);
+    private FeedOverviewDto toOverviewDto(FeedDetailItem f, RenderContext ctx) {
+        long selfRepostCount = ctx.repostCntMap().getOrDefault(f.feedId(), 0L);
         FeedOverviewDto.FeedOverviewDtoBuilder b = buildBaseDto(f, ctx, selfRepostCount);
 
-        Long parentId = f.getParentFeedId();
+        Long parentId = f.parentFeedId();
         if (parentId != null) {
-            Feed p = ctx.parentMap().get(parentId);
+            FeedDetailItem p = ctx.parentMap().get(parentId);
             if (p != null) {
                 b.parentFeed(buildBaseDto(p, ctx, ctx.repostCntMap().getOrDefault(parentId, 0L)).build());
             }
         }
 
-        Long rootId = f.getRootFeedId();
+        Long rootId = f.rootFeedId();
         if (rootId != null) {
-            Feed r = ctx.rootMap().get(rootId);
+            FeedDetailItem r = ctx.rootMap().get(rootId);
             if (r != null) {
                 b.rootFeed(buildBaseDto(r, ctx, ctx.repostCntMap().getOrDefault(rootId, 0L)).build());
             }
@@ -108,25 +103,19 @@ public class FeedRenderService {
         return b.build();
     }
 
-    private FeedOverviewDto.FeedOverviewDtoBuilder buildBaseDto(Feed f, RenderContext ctx, long repostCount) {
+    private FeedOverviewDto.FeedOverviewDtoBuilder buildBaseDto(FeedDetailItem f, RenderContext ctx, long repostCount) {
         return FeedOverviewDto.builder()
-                .clubId(f.getClub() != null ? f.getClub().getClubId() : null)
-                .feedId(f.getFeedId())
-                .imageUrls(resolveImages(f))
-                .likeCount(ctx.likeCountMap().getOrDefault(f.getFeedId(), f.getLikeCount()).intValue())
-                .commentCount(ctx.commentCountMap().getOrDefault(f.getFeedId(), f.getCommentCount()).intValue())
-                .profileImage(f.getUser() != null ? f.getUser().getProfileImage() : null)
-                .nickname(f.getUser() != null ? f.getUser().getNickname() : null)
-                .content(f.getContent())
-                .isLiked(ctx.likedFeedIds().contains(f.getFeedId()))
-                .isFeedMine(f.getUser() != null && Objects.equals(f.getUser().getUserId(), ctx.userId()))
-                .created(f.getCreatedAt())
+                .clubId(f.clubId())
+                .feedId(f.feedId())
+                .imageUrls(f.imageUrls() != null ? f.imageUrls() : Collections.emptyList())
+                .likeCount(ctx.likeCountMap().getOrDefault(f.feedId(), f.likeCount()).intValue())
+                .commentCount(ctx.commentCountMap().getOrDefault(f.feedId(), f.commentCount()).intValue())
+                .profileImage(f.profileImage())
+                .nickname(f.nickname())
+                .content(f.content())
+                .isLiked(ctx.likedFeedIds().contains(f.feedId()))
+                .isFeedMine(f.userId() != null && Objects.equals(f.userId(), ctx.userId()))
+                .created(f.createdAt())
                 .repostCount(repostCount);
-    }
-
-    private List<String> resolveImages(Feed f) {
-        List<FeedImage> imgs = f.getFeedImages();
-        if (imgs == null || imgs.isEmpty()) return Collections.emptyList();
-        return imgs.stream().map(FeedImage::getFeedImage).filter(Objects::nonNull).toList();
     }
 }

@@ -7,12 +7,14 @@ import com.example.onlyone.common.event.ScheduleLeftEvent;
 import com.example.onlyone.domain.chat.entity.ChatRole;
 import com.example.onlyone.domain.chat.entity.ChatRoom;
 import com.example.onlyone.domain.chat.entity.ChatRoomType;
+import com.example.onlyone.domain.chat.exception.ChatErrorCode;
 import com.example.onlyone.domain.chat.repository.ChatRoomRepository;
 import com.example.onlyone.domain.chat.service.ChatRoomCommandService;
 import com.example.onlyone.domain.club.entity.Club;
 import com.example.onlyone.domain.club.repository.ClubRepository;
 import com.example.onlyone.domain.user.entity.User;
 import com.example.onlyone.domain.user.repository.UserRepository;
+import com.example.onlyone.global.exception.CustomException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
@@ -50,8 +52,7 @@ public class ChatScheduleEventListener {
     public void handleScheduleJoinedEvent(ScheduleJoinedEvent event) {
         ChatRoom chatRoom = chatRoomRepository
                 .findByTypeAndScheduleId(ChatRoomType.SCHEDULE, event.scheduleId())
-                .orElseThrow(() -> new IllegalStateException(
-                        "ChatRoom not found for scheduleId: " + event.scheduleId()));
+                .orElseThrow(() -> new CustomException(ChatErrorCode.CHAT_ROOM_NOT_FOUND));
 
         User user = userRepository.getReferenceById(event.userId());
         chatRoomCommandService.addMember(chatRoom, user, ChatRole.MEMBER);
@@ -65,8 +66,7 @@ public class ChatScheduleEventListener {
     public void handleScheduleLeftEvent(ScheduleLeftEvent event) {
         ChatRoom chatRoom = chatRoomRepository
                 .findByTypeAndScheduleId(ChatRoomType.SCHEDULE, event.scheduleId())
-                .orElseThrow(() -> new IllegalStateException(
-                        "ChatRoom not found for scheduleId: " + event.scheduleId()));
+                .orElseThrow(() -> new CustomException(ChatErrorCode.CHAT_ROOM_NOT_FOUND));
 
         chatRoomCommandService.removeMember(event.userId(), chatRoom.getChatRoomId());
 

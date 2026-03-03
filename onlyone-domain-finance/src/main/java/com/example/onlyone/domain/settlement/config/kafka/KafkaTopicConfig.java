@@ -16,7 +16,7 @@ import java.util.Map;
 
 @Configuration
 @RequiredArgsConstructor
-@ConditionalOnProperty(name = "spring.kafka.enabled", havingValue = "true", matchIfMissing = false)
+@ConditionalOnProperty(name = "app.settlement.message-broker", havingValue = "kafka", matchIfMissing = true)
 public class KafkaTopicConfig {
 
     private final KafkaProperties props;

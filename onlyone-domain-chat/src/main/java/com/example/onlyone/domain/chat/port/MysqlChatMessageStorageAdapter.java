@@ -93,7 +93,7 @@ public class MysqlChatMessageStorageAdapter implements ChatMessageStoragePort {
         }
         return messageRepository.findLastMessagesByChatRoomIdsNative(chatRoomIds)
                 .stream()
-                .map(this::fromProjection)
+                .map(this::toDto)
                 .toList();
     }
 
@@ -125,7 +125,7 @@ public class MysqlChatMessageStorageAdapter implements ChatMessageStoragePort {
         );
     }
 
-    private ChatMessageItemDto fromProjection(MessageRepository.LastMessageProjection p) {
+    private ChatMessageItemDto toDto(MessageRepository.LastMessageProjection p) {
         return new ChatMessageItemDto(
                 p.getMessageId(),
                 p.getChatRoomId(),

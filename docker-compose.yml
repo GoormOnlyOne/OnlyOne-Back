@@ -86,7 +86,7 @@ services:
     restart: unless-stopped
     environment:
       - discovery.type=single-node
-      - "ES_JAVA_OPTS=-Xms384m -Xmx384m"
+      - "ES_JAVA_OPTS=-Xms1g -Xmx1g"
       - xpack.security.enabled=true
       - xpack.security.http.ssl.enabled=false
       - ELASTIC_PASSWORD=${ELASTICSEARCH_PASSWORD:-changeme}
@@ -107,11 +107,11 @@ services:
     deploy:
       resources:
         limits:
-          cpus: '1'
-          memory: 1200M
+          cpus: '3'
+          memory: 3G
         reservations:
-          cpus: '0.5'
-          memory: 512M
+          cpus: '1'
+          memory: 1G
 
   # MongoDB (알림 저장소 비교용 — app.notification.storage=mongodb)
   mongodb:
@@ -136,6 +136,95 @@ services:
       retries: 5
     profiles:
       - mongodb
+    deploy:
+      resources:
+        limits:
+          cpus: '4'
+          memory: 4G
+        reservations:
+          cpus: '1'
+          memory: 1G
+
+  # Kafka + KRaft (정산 Outbox 이벤트 처리)
+  kafka:
+    image: apache/kafka:3.8.0
+    container_name: onlyone-kafka
+    restart: unless-stopped
+    environment:
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092,CONTROLLER://0.0.0.0:9093,EXTERNAL://0.0.0.0:29092
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092,EXTERNAL://localhost:29092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,CONTROLLER:PLAINTEXT,EXTERNAL:PLAINTEXT
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_LOG_RETENTION_HOURS: 168
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+      CLUSTER_ID: "onlyone-kafka-cluster-001"
+    ports:
+      - "127.0.0.1:29092:29092"
+    volumes:
+      - kafka_data:/var/lib/kafka/data
+    networks:
+      - onlyone-network
+    profiles:
+      - kafka
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/kafka/bin/kafka-broker-api-versions.sh --bootstrap-server localhost:9092 > /dev/null 2>&1"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 2G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+
+  # PostgreSQL (RDBMS 비교용 — --profile postgresql)
+  postgres:
+    image: postgres:16-alpine
+    container_name: onlyone-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: onlyone
+      POSTGRES_USER: onlyone
+      POSTGRES_PASSWORD: onlyone
+    ports:
+      - "127.0.0.1:5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    command:
+      - "postgres"
+      - "-c"
+      - "max_connections=800"
+      - "-c"
+      - "shared_buffers=2GB"
+      - "-c"
+      - "effective_cache_size=4GB"
+      - "-c"
+      - "work_mem=4MB"
+      - "-c"
+      - "deadlock_timeout=1s"
+      - "-c"
+      - "lock_timeout=5000"
+      - "-c"
+      - "log_lock_waits=on"
+    networks:
+      - onlyone-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U onlyone -d onlyone"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    profiles:
+      - postgresql
     deploy:
       resources:
         limits:
@@ -327,5 +416,7 @@ volumes:
   elasticsearch_data:
   mongodb_data:
   rabbitmq_data:
+  postgres_data:
+  kafka_data:
   prometheus_data:
   grafana_data:

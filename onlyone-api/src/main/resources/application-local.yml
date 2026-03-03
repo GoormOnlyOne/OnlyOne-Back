@@ -1,29 +1,29 @@
 # =============================================================
 # 로컬 개발 & 성능 테스트 환경 설정 (profile: local)
 # Docker 인프라(MySQL, Redis, ES) + 로컬 앱 실행
-# 환경변수 의존 없이 하드코딩 — 이 파일 하나로 즉시 실행
+# 모든 인프라 접속 정보는 환경변수로 관리 (기본값은 로컬 Docker)
 # =============================================================
 
 spring:
   # --- 데이터소스 (HikariCP 확장 풀) ---
   datasource:
-    driver-class-name: com.mysql.cj.jdbc.Driver
-    url: jdbc:mysql://localhost:3340/onlyone?useSSL=false&serverTimezone=Asia/Seoul&characterEncoding=UTF-8&allowPublicKeyRetrieval=true&cachePrepStmts=true&prepStmtCacheSize=250&prepStmtCacheSqlLimit=2048&useServerPrepStmts=true&rewriteBatchedStatements=true
-    username: root
-    password: root
+    driver-class-name: ${DB_DRIVER:com.mysql.cj.jdbc.Driver}
+    url: jdbc:mysql://${DB_HOST:localhost}:${DB_PORT:3340}/${DB_NAME:onlyone}?useSSL=false&serverTimezone=Asia/Seoul&characterEncoding=UTF-8&allowPublicKeyRetrieval=true&cachePrepStmts=true&prepStmtCacheSize=250&prepStmtCacheSqlLimit=2048&useServerPrepStmts=true&rewriteBatchedStatements=true
+    username: ${DB_USERNAME:root}
+    password: ${DB_PASSWORD:root}
     hikari:
-      maximum-pool-size: 400
-      minimum-idle: 150
-      connection-timeout: 15000
-      idle-timeout: 300000
-      max-lifetime: 600000
-      validation-timeout: 3000
+      maximum-pool-size: ${HIKARI_MAX_POOL:400}
+      minimum-idle: ${HIKARI_MIN_IDLE:150}
+      connection-timeout: ${HIKARI_CONN_TIMEOUT:15000}
+      idle-timeout: ${HIKARI_IDLE_TIMEOUT:300000}
+      max-lifetime: ${HIKARI_MAX_LIFETIME:600000}
+      validation-timeout: ${HIKARI_VALIDATION_TIMEOUT:3000}
       auto-commit: false
 
   # JPA: 스키마 자동 업데이트, 배치 INSERT/UPDATE
   jpa:
     hibernate:
-      ddl-auto: update
+      ddl-auto: ${JPA_DDL_AUTO:update}
     properties:
       hibernate:
         format_sql: false
@@ -35,29 +35,61 @@ spring:
         order_updates: true
         connection:
           provider_disables_autocommit: true
+        generate_statistics: true
       jakarta.persistence.query.timeout: 30000
 
-  # Redis (Docker: 6379 → 6379)
+  # Redis
   data:
     redis:
-      host: localhost
-      port: 6479
-      password:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6479}
+      password: ${REDIS_PASSWORD:}
+      timeout: ${REDIS_TIMEOUT:5000}
       lettuce:
         pool:
-          max-active: 256
-          max-idle: 128
-          min-idle: 32
+          max-active: ${REDIS_POOL_MAX_ACTIVE:256}
+          max-idle: ${REDIS_POOL_MAX_IDLE:128}
+          min-idle: ${REDIS_POOL_MIN_IDLE:32}
+          max-wait: ${REDIS_POOL_MAX_WAIT:3000}
+        shutdown-timeout: 2000ms
 
-  # MongoDB (app.notification.storage=mongodb 시 활성화)
+  # Kafka (정산 MQ 기본 브로커)
+  kafka:
+    default-bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:29092}
+    producer:
+      common-config:
+        client-id: onlyone-producer
+        bootstrap-servers:
+          - ${KAFKA_BOOTSTRAP_SERVERS:localhost:29092}
+        transactional-id-prefix: onlyone-tx-
+        acks: all
+        linger-ms: 5
+        batch-size: 16384
+      settlement-process-producer-config:
+        topic: settlement.process.v1
+    consumer:
+      common-config:
+        group-id: onlyone-settlement
+        client-id: onlyone-consumer
+        bootstrap-servers:
+          - ${KAFKA_BOOTSTRAP_SERVERS:localhost:29092}
+        timeout-ms: "30000"
+        fetch-min-bytes: 1
+        fetch-max-wait-ms: 500
+      user-settlement-ledger-consumer-config:
+        topic: user-settlement.result.v1
+    security:
+      enabled: false
+
+  # MongoDB
   data.mongodb:
-    uri: mongodb://root:root@localhost:27017/onlyone?authSource=admin
+    uri: mongodb://${MONGO_USERNAME:root}:${MONGO_PASSWORD:root}@${MONGO_HOST:localhost}:${MONGO_PORT:27017}/${MONGO_DATABASE:onlyone}?authSource=admin
 
   # Elasticsearch
   elasticsearch:
-    uris: http://localhost:9200
-    username: elastic
-    password: changeme
+    uris: ${ELASTICSEARCH_URIS:http://localhost:9200}
+    username: ${ELASTICSEARCH_USERNAME:elastic}
+    password: ${ELASTICSEARCH_PASSWORD:changeme}
 
   # 캐시: Redis 기반, TTL 10분
   cache:
@@ -65,64 +97,92 @@ spring:
     redis:
       time-to-live: 600000
 
-# --- 로깅: WARN/ERROR만 (부하테스트용) ---
+# --- 로깅: 병목 감지 + 디버깅 ---
 logging:
   level:
-    root: error
-    com.example.onlyone: error
-    org.hibernate.SQL: error
-    org.springframework.web: error
-    org.springframework.security: error
+    root: warn
+    # ── 앱 코드 ──
+    com.example.onlyone: warn
+    com.example.onlyone.domain.notification: debug        # 알림 서비스 흐름
+    com.example.onlyone.global.sse: debug                 # Servlet SSE 연결/해제
+    com.example.onlyone.global.reactive: debug            # WebFlux SSE 연결/해제
+    # ── HikariCP (커넥션풀 고갈/대기 감지) ──
+    com.zaxxer.hikari: info
+    com.zaxxer.hikari.pool.HikariPool: debug              # 풀 상태, leak detection
+    # ── Hibernate (슬로우 쿼리 감지) ──
+    org.hibernate.SQL: debug                              # 실행 SQL
+    org.hibernate.orm.jdbc.bind: off                      # 바인드 파라미터 끔 (노이즈)
+    org.hibernate.stat: info                              # 세션 통계 (쿼리 수, 시간)
+    org.hibernate.engine.internal.StatisticalLoggingSessionEventListener: info
+    # ── Spring 트랜잭션/웹 ──
+    org.springframework.orm.jpa.JpaTransactionManager: debug  # TX 시작/커밋/롤백
+    org.springframework.web.servlet.mvc.method.annotation: warn
+    org.springframework.security: warn
+    # ── Tomcat (스레드풀 포화 감지) ──
+    org.apache.coyote.http11: info
+    org.apache.catalina.connector: info
+    # ── Redis (커넥션 풀/타임아웃) ──
+    io.lettuce.core: warn
+    io.lettuce.core.protocol: warn
+    org.springframework.data.redis: info                  # Redis 명령 실패 시
+    # ── MongoDB ──
+    org.springframework.data.mongodb: warn
+    org.mongodb.driver.protocol.command: warn
 
 # --- Tomcat (확장 스레드) ---
 server:
-  port: 8080
+  port: ${SERVER_PORT:8080}
   tomcat:
     threads:
-      max: 800
-      min-spare: 50
-    max-connections: 20000
-    accept-count: 1000
+      max: ${TOMCAT_MAX_THREADS:800}
+      min-spare: ${TOMCAT_MIN_SPARE:50}
+    max-connections: ${TOMCAT_MAX_CONNECTIONS:20000}
+    accept-count: ${TOMCAT_ACCEPT_COUNT:1000}
 
 # --- AWS ---
 aws:
   s3:
-    region: ap-northeast-2
-    bucket: buddkit-image
+    region: ${AWS_S3_REGION:ap-northeast-2}
+    bucket: ${AWS_S3_BUCKET:buddkit-image}
   cloudfront:
-    domain: d1c3fg3ti7m8cn.cloudfront.net
+    domain: ${AWS_CLOUDFRONT_DOMAIN:d1c3fg3ti7m8cn.cloudfront.net}
 
 # --- 카카오 OAuth ---
 Kakao:
   client:
-    id: cb62270f81c3942b697f94401978d95b
+    id: ${KAKAO_CLIENT_ID:cb62270f81c3942b697f94401978d95b}
   redirect:
-    uri: http://localhost:5173/kakao-callback
+    uri: ${KAKAO_REDIRECT_URI:http://localhost:5173/kakao-callback}
 
 # --- JWT ---
 jwt:
-  secret: 7e9eeb12d176a2d72f554c6b096522b4e1a34d799727e45a96f192bbff2a2a851ede29ed24b10b6e6b1835ac94380e2469df99ff9713477bf4d43eeaa9cd16a3
-  access-expiration: 3600000
-  refresh-expiration: 604800000
+  secret: ${JWT_SECRET:7e9eeb12d176a2d72f554c6b096522b4e1a34d799727e45a96f192bbff2a2a851ede29ed24b10b6e6b1835ac94380e2469df99ff9713477bf4d43eeaa9cd16a3}
+  access-expiration: ${JWT_ACCESS_EXPIRATION:3600000}
+  refresh-expiration: ${JWT_REFRESH_EXPIRATION:604800000}
 
 # --- 토스 결제 ---
 payment:
   toss:
-    client_key: test_ck_yL0qZ4G1VOlG77j1njbProWb2MQY
-    test_secret_api_key: test_sk_kYG57Eba3GbjeWJXBvjk8pWDOxmA
-    security_key: 705394c7b81f84e2777acd2935f376d566fdf68ec38392bbab607771a5147bb0
+    client_key: ${TOSS_CLIENT_KEY:test_ck_yL0qZ4G1VOlG77j1njbProWb2MQY}
+    test_secret_api_key: ${TOSS_SECRET_API_KEY:test_sk_kYG57Eba3GbjeWJXBvjk8pWDOxmA}
+    security_key: ${TOSS_SECURITY_KEY:705394c7b81f84e2777acd2935f376d566fdf68ec38392bbab607771a5147bb0}
 
-# --- Rate Limit 비활성화 (로컬) ---
+# --- 앱 커스텀 설정 ---
 app:
+  search:
+    engine: ${SEARCH_ENGINE:elasticsearch}                # elasticsearch | mysql
   rate-limit:
-    enabled: false
-    requests-per-minute: 60
-    auth-requests-per-30s: 10
+    enabled: ${RATE_LIMIT_ENABLED:false}
+    requests-per-minute: ${RATE_LIMIT_RPM:60}
+    auth-requests-per-30s: ${RATE_LIMIT_AUTH:10}
+  feed:
+    storage: ${FEED_STORAGE:mongodb}                      # mysql | mongodb
   chat:
-    storage: mysql
+    storage: ${CHAT_STORAGE:mysql}                        # mysql | mongodb
+    websocket: ${CHAT_WEBSOCKET:stomp}                    # stomp | reactive
   notification:
-    storage: mongodb
-    delivery: sse
-    sse-timeout-millis: 30000
-    sse-executor-permits: 500
-    max-connections: 10000
+    storage: ${NOTIFICATION_STORAGE:mysql}                 # mysql | mongodb | dynamodb
+    delivery: ${NOTIFICATION_DELIVERY:webflux}             # sse | websocket | fcm | webflux
+    sse-timeout-millis: ${NOTIFICATION_SSE_TIMEOUT:30000}
+    sse-executor-permits: ${SSE_EXECUTOR_PERMITS:500}
+    max-connections: ${NOTIFICATION_MAX_CONNECTIONS:10000}

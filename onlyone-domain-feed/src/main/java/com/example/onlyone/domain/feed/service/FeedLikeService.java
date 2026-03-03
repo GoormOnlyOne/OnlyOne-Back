@@ -13,6 +13,7 @@ import org.springframework.data.redis.core.script.DefaultRedisScript;
 import org.springframework.stereotype.Service;
 
 import java.time.Clock;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
@@ -30,13 +31,11 @@ public class FeedLikeService {
     private final StringRedisTemplate redis;
     private final Clock clock;
 
+    private static final Duration EXISTS_CACHE_TTL = Duration.ofMinutes(10);
+
     public boolean toggleLike(long clubId, long feedId) {
-        if (!clubRepository.existsById(clubId)) {
-            throw new CustomException(ClubErrorCode.CLUB_NOT_FOUND);
-        }
-        if (!feedRepository.existsById(feedId)) {
-            throw new CustomException(FeedErrorCode.FEED_NOT_FOUND);
-        }
+        validateClubExists(clubId);
+        validateFeedExists(feedId);
         long userId = userService.getCurrentUserId();
 
         warmupService.triggerAsync(feedId);
@@ -65,5 +64,23 @@ public class FeedLikeService {
         boolean liked = toggleResult.get(0) == 1L;
         log.debug("좋아요 토글: feedId={}, userId={}, liked={}", feedId, userId, liked);
         return liked;
+    }
+
+    private void validateClubExists(long clubId) {
+        String key = "club:exists:" + clubId;
+        if (Boolean.TRUE.equals(redis.hasKey(key))) return;
+        if (!clubRepository.existsById(clubId)) {
+            throw new CustomException(ClubErrorCode.CLUB_NOT_FOUND);
+        }
+        redis.opsForValue().set(key, "1", EXISTS_CACHE_TTL);
+    }
+
+    private void validateFeedExists(long feedId) {
+        String key = "feed:exists:" + feedId;
+        if (Boolean.TRUE.equals(redis.hasKey(key))) return;
+        if (!feedRepository.existsById(feedId)) {
+            throw new CustomException(FeedErrorCode.FEED_NOT_FOUND);
+        }
+        redis.opsForValue().set(key, "1", EXISTS_CACHE_TTL);
     }
 }

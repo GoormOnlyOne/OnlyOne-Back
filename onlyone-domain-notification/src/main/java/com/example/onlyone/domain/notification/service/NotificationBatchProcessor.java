@@ -80,7 +80,7 @@ public class NotificationBatchProcessor {
 
         List<CompletableFuture<Void>> sendFutures = new ArrayList<>();
 
-        for (var entry : new ArrayList<>(pendingQueues.entrySet())) {
+        for (Map.Entry<Long, BlockingQueue<NotificationCreatedEvent>> entry : new ArrayList<>(pendingQueues.entrySet())) {
             Long userId = entry.getKey();
             BlockingQueue<NotificationCreatedEvent> queue = entry.getValue();
 

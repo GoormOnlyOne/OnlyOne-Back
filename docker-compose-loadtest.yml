@@ -1,0 +1,74 @@
+# =============================================================
+# 부하 테스트 전용 Docker Compose 오버라이드
+# =============================================================
+# 사용법:
+#   # 1) 기본 인프라 + MongoDB + Kafka 부팅
+#   docker compose -f docker-compose.yml --profile mongodb --profile kafka up -d
+#
+#   # 2) 부하 테스트 추가 인프라 (RabbitMQ 이미 기본 compose에 포함)
+#   docker compose -f docker-compose.yml --profile rabbitmq up -d
+#
+#   # 3) 시드 데이터 투입
+#   docker exec -i onlyone-mysql mysql -uroot -proot onlyone < k6-tests/seed-all-domains.sql
+#   docker cp k6-tests/seed-mongo-feed.js onlyone-mongodb:/scripts/seed-mongo-feed.js
+#   docker exec onlyone-mongodb mongosh -u root -p root --authenticationDatabase admin onlyone /scripts/seed-mongo-feed.js
+#   docker cp k6-tests/seed-mongo-notifications.js onlyone-mongodb:/scripts/seed-mongo-notifications.js
+#   docker exec onlyone-mongodb mongosh -u root -p root --authenticationDatabase admin onlyone /scripts/seed-mongo-notifications.js
+#   docker cp k6-tests/seed-mongo-chat.js onlyone-mongodb:/scripts/seed-mongo-chat.js
+#   docker exec onlyone-mongodb mongosh -u root -p root --authenticationDatabase admin onlyone /scripts/seed-mongo-chat.js
+#
+#   # 4) ES reindex (앱이 부팅된 후)
+#   curl -X POST http://localhost:8080/api/v1/admin/search/reindex
+#
+#   # 5) 앱 실행 (loadtest 프로필)
+#   SPRING_PROFILES_ACTIVE=local,loadtest ./gradlew :onlyone-api:bootRun
+#
+#   # 6) k6 테스트 실행
+#   ./k6-tests/run-loadtest.sh all       # 전체 도메인
+#   ./k6-tests/run-loadtest.sh feed      # 피드만
+#   ./k6-tests/run-loadtest.sh search    # 검색만
+# =============================================================
+
+# 이 파일은 참조 문서용이며, 실제 서비스는 docker-compose.yml에 정의됨.
+# 아래는 부하 테스트 시 유용한 추가 서비스들입니다.
+
+services:
+  # DynamoDB Local (알림 DynamoDB 어댑터 테스트용)
+  dynamodb-local:
+    image: amazon/dynamodb-local:latest
+    container_name: onlyone-dynamodb-local
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8000:8000"
+    command: ["-jar", "DynamoDBLocal.jar", "-sharedDb", "-inMemory"]
+    networks:
+      - onlyone-network
+    profiles:
+      - dynamodb
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 512M
+
+  # k6 runner (선택사항 — 로컬 설치 대비 Docker)
+  k6:
+    image: grafana/k6:latest
+    container_name: onlyone-k6
+    network_mode: host
+    volumes:
+      - ./k6-tests:/scripts:ro
+    environment:
+      - BASE_URL=http://localhost:8080
+      - K6_OUT=json=/scripts/results/output.json
+    profiles:
+      - k6
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 1G
+
+networks:
+  onlyone-network:
+    driver: bridge

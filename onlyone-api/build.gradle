@@ -52,6 +52,7 @@ dependencies {
 
     // Spring Boot Starters
     implementation 'org.springframework.boot:spring-boot-starter-web'
+    implementation 'org.springframework.boot:spring-boot-starter-webflux'
     implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
     implementation 'org.springframework.boot:spring-boot-starter-data-redis'
     implementation 'org.springframework.boot:spring-boot-starter-data-elasticsearch'
@@ -107,6 +108,7 @@ dependencies {
     testImplementation 'org.testcontainers:kafka'
     testImplementation 'org.testcontainers:elasticsearch'
     testImplementation 'org.springframework.kafka:spring-kafka-test'
+
 }
 
 tasks.withType(JavaCompile).configureEach {

@@ -19,7 +19,10 @@ public class ChatPublisher {
      * @param message 발행할 메시지 (JSON or Text)
      */
     public void publish(Long roomId, String message) {
-        if (roomId == null || message == null || message.isBlank()) return;
+        if (roomId == null || message == null || message.isBlank()) {
+            log.debug("ChatPublisher 무시: roomId={}, message blank={}", roomId, message == null || message.isBlank());
+            return;
+        }
         String channel = "chat.room." + roomId;
         redisTemplate.convertAndSend(channel, message);
         log.debug("채팅 메시지 발행: channel={}", channel);

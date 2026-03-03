@@ -45,6 +45,9 @@ dependencies {
     // Kafka
     api 'org.springframework.kafka:spring-kafka'
 
+    // RabbitMQ (선택적 MQ)
+    implementation 'org.springframework.boot:spring-boot-starter-amqp'
+
     // OpenFeign
     api 'org.springframework.cloud:spring-cloud-starter-openfeign:4.2.1'
     api 'io.github.openfeign:feign-jackson:13.5'
@@ -73,6 +76,15 @@ dependencies {
     testImplementation 'org.springframework.boot:spring-boot-starter-test'
     testImplementation 'com.h2database:h2'
     testImplementation project(':onlyone-domain-club')
+
+    // Testcontainers (벤더 비교 테스트)
+    testImplementation 'org.testcontainers:testcontainers'
+    testImplementation 'org.testcontainers:junit-jupiter'
+    testImplementation 'org.testcontainers:mysql'
+    testImplementation 'org.testcontainers:postgresql'
+    testImplementation 'org.testcontainers:rabbitmq'
+    testImplementation 'org.testcontainers:kafka'
+    testRuntimeOnly 'org.postgresql:postgresql'
 }
 
 // QueryDSL 설정

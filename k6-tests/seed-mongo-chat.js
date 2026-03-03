@@ -1,107 +1,107 @@
-// MongoDB 채팅 메시지 시드 데이터 생성
+// =============================================================
+// MongoDB 채팅 메시지 시드 데이터 생성 — 100x 스케일
+// =============================================================
 // 실행: docker exec onlyone-mongodb mongosh -u root -p root --authenticationDatabase admin onlyone /scripts/seed-mongo-chat.js
+//
+// 규모: 25,000 채팅방 × 방당 1,000개 메시지 = 25,000,000 메시지
+// =============================================================
 
-const BATCH_SIZE = 5000;
-const TOTAL_USERS = 1000;
+const BATCH_SIZE = 10000;
+const TOTAL_ROOMS = 25000;
+const MESSAGES_PER_ROOM = 1000;
+const TOTAL = TOTAL_ROOMS * MESSAGES_PER_ROOM;
+const TOTAL_USERS = 100000;
 
-// 대형 방 메시지 수 (MySQL 실제 데이터 기준)
-const BIG_ROOMS = {64:29978, 159:16193, 381:16083, 501:15682, 747:15495, 864:14513, 959:14534};
-const TOTAL_ROOMS = 1000;
-const TOTAL_MESSAGES = 3235398;
-const BIG_ROOM_IDS = Object.keys(BIG_ROOMS).map(Number);
-const BIG_ROOM_TOTAL = Object.values(BIG_ROOMS).reduce((a,b) => a+b, 0);
-const REMAINING = TOTAL_MESSAGES - BIG_ROOM_TOTAL;
-const SMALL_ROOM_COUNT = TOTAL_ROOMS - BIG_ROOM_IDS.length;
-const AVG_PER_SMALL = Math.floor(REMAINING / SMALL_ROOM_COUNT);
-
-// 컬렉션 초기화
 db.messages.drop();
-db.counters.drop();
 
-print(`=== 채팅 메시지 시드 데이터 생성 시작 ===`);
-print(`총 메시지: ${TOTAL_MESSAGES}, 대형방: ${BIG_ROOM_TOTAL}, 소형방: ${REMAINING}`);
+print("=== 채팅 MongoDB 시드 데이터 생성 시작 (100x) ===");
+print(`목표: ${TOTAL.toLocaleString()} 메시지 (${TOTAL_ROOMS.toLocaleString()} 방 × ${MESSAGES_PER_ROOM.toLocaleString()})`);
 
-let numericId = 0;
-let totalInserted = 0;
 const startTime = Date.now();
+let totalInserted = 0;
+let batch = [];
+let numericId = 1;
 
-function generateBatch(chatRoomId, count) {
-    const batch = [];
-    const baseDate = new Date('2026-01-01T00:00:00Z');
+const chatTemplates = [
+    "안녕하세요! 오늘 모임 기대됩니다.",
+    "혹시 장소 확인 되셨나요?",
+    "네, 저도 참석합니다!",
+    "오늘 정말 즐거웠어요 ㅎㅎ",
+    "다음 모임은 언제인가요?",
+    "사진 올려주세요~",
+    "좋은 시간이었습니다 감사합니다",
+    "저는 조금 늦을 것 같아요",
+    "맛집 추천해주세요!",
+    "다들 수고하셨습니다~"
+];
 
-    for (let i = 0; i < count; i++) {
-        numericId++;
-        const userId = (numericId % TOTAL_USERS) + 1;
-        const sentAt = new Date(baseDate.getTime() + numericId * 1000); // 1초 간격
+function flushBatch() {
+    if (batch.length === 0) return;
+    db.messages.insertMany(batch, { ordered: false });
+    totalInserted += batch.length;
+    batch = [];
+
+    if (totalInserted % 500000 === 0) {
+        const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
+        const pct = ((totalInserted / TOTAL) * 100).toFixed(1);
+        print(`  [${elapsed}s] ${totalInserted.toLocaleString()} / ${TOTAL.toLocaleString()} (${pct}%)`);
+    }
+}
+
+for (let roomId = 1; roomId <= TOTAL_ROOMS; roomId++) {
+    // 방당 5명 고정 참여자
+    const participants = [];
+    for (let p = 0; p < 5; p++) {
+        participants.push(((roomId * 5 + p) % TOTAL_USERS) + 1);
+    }
+
+    for (let m = 0; m < MESSAGES_PER_ROOM; m++) {
+        const senderId = participants[m % participants.length];
+        const baseDate = new Date('2026-01-01T00:00:00Z');
+        const sentAt = new Date(baseDate.getTime() + numericId * 100);
 
         batch.push({
             numericId: numericId,
-            chatRoomId: chatRoomId,
-            senderId: userId,
-            senderNickname: `테스트유저${userId}`,
+            chatRoomId: roomId,
+            senderId: senderId,
+            senderNickname: `테스트유저${senderId}`,
             senderProfileImage: null,
-            text: `시드 메시지 #${numericId} in room ${chatRoomId}`,
+            text: `${chatTemplates[m % chatTemplates.length]} #${numericId}`,
             sentAt: sentAt,
-            deleted: false
+            deleted: false,
+            createdAt: sentAt
         });
 
-        if (batch.length >= BATCH_SIZE) {
-            db.messages.insertMany(batch);
-            totalInserted += batch.length;
-            batch.length = 0;
-
-            if (totalInserted % 100000 === 0) {
-                const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
-                const pct = ((totalInserted / TOTAL_MESSAGES) * 100).toFixed(1);
-                print(`  [${elapsed}s] ${totalInserted.toLocaleString()} / ${TOTAL_MESSAGES.toLocaleString()} (${pct}%)`);
-            }
-        }
-    }
-
-    // 남은 배치 삽입
-    if (batch.length > 0) {
-        db.messages.insertMany(batch);
-        totalInserted += batch.length;
+        numericId++;
+        if (batch.length >= BATCH_SIZE) flushBatch();
     }
 }
+flushBatch();
 
-// 1. 대형 방 데이터 생성
-print(`\n--- 대형 방 (${BIG_ROOM_IDS.length}개) ---`);
-for (const [roomId, count] of Object.entries(BIG_ROOMS)) {
-    print(`  Room ${roomId}: ${count} messages...`);
-    generateBatch(Number(roomId), count);
-}
+const elapsed1 = ((Date.now() - startTime) / 1000).toFixed(1);
+print(`\n삽입 완료: ${totalInserted.toLocaleString()} in ${elapsed1}s`);
 
-// 2. 소형 방 데이터 생성
-print(`\n--- 소형 방 (${SMALL_ROOM_COUNT}개, 각 ~${AVG_PER_SMALL}) ---`);
-let smallRoomIdx = 0;
-for (let roomId = 1; roomId <= TOTAL_ROOMS; roomId++) {
-    if (BIG_ROOM_IDS.includes(roomId)) continue;
-
-    // 마지막 방에 나머지 할당
-    smallRoomIdx++;
-    const count = (smallRoomIdx === SMALL_ROOM_COUNT)
-        ? (TOTAL_MESSAGES - totalInserted)
-        : AVG_PER_SMALL;
-
-    generateBatch(roomId, count);
-}
-
-const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
-print(`\n=== 삽입 완료: ${totalInserted.toLocaleString()} messages in ${elapsed}s ===`);
-
-// 3. 인덱스 생성
+// 인덱스 생성
 print('\n--- 인덱스 생성 ---');
-db.messages.createIndex({ numericId: 1 }, { unique: true });
-db.messages.createIndex({ chatRoomId: 1, sentAt: -1, numericId: -1 });
-db.messages.createIndex({ chatRoomId: 1, deleted: 1, numericId: -1 });
+db.messages.createIndex({ numericId: 1 }, { unique: true, name: "idx_numericId" });
+db.messages.createIndex({ chatRoomId: 1, sentAt: -1, numericId: -1 }, { name: "idx_room_sentat_numid_desc" });
+db.messages.createIndex({ chatRoomId: 1, deleted: 1, numericId: -1 }, { name: "idx_room_deleted_numid_desc" });
 print('인덱스 3개 생성 완료');
 
-// 4. counters 컬렉션 설정 (Segment allocation용)
-db.counters.insertOne({ _id: 'message_seq', seq: NumberLong(numericId + 1000) });
-print(`counters.message_seq = ${numericId + 1000}`);
+// 카운터 초기화
+db.counters.updateOne(
+    { _id: "message_seq" },
+    { $set: { seq: numericId } },
+    { upsert: true }
+);
+print(`카운터 초기화: message_seq = ${numericId}`);
 
-// 5. 확인
+// 검증
 print('\n--- 확인 ---');
-print(`messages count: ${db.messages.countDocuments()}`);
-print(`sample: ${JSON.stringify(db.messages.findOne())}`);
+print(`총 메시지: ${db.messages.countDocuments()}`);
+print(`방 1 메시지 수: ${db.messages.countDocuments({ chatRoomId: 1 })}`);
+print(`방 100 메시지 수: ${db.messages.countDocuments({ chatRoomId: 100 })}`);
+print(`삭제된 메시지: ${db.messages.countDocuments({ deleted: true })}`);
+
+const totalElapsed = ((Date.now() - startTime) / 1000).toFixed(1);
+print(`\n=== 전체 완료: ${totalElapsed}s ===`);

@@ -49,6 +49,9 @@ dependencies {
     implementation 'org.springframework.kafka:spring-kafka'
     implementation 'org.springframework.boot:spring-boot-starter-amqp'
 
+    // DynamoDB (선택적 스토리지)
+    implementation 'software.amazon.awssdk:dynamodb-enhanced:2.29.51'
+
     // Database
     runtimeOnly 'com.mysql:mysql-connector-j'
     runtimeOnly 'com.h2database:h2'
@@ -62,6 +65,16 @@ dependencies {
     // Test
     testImplementation 'org.springframework.boot:spring-boot-starter-test'
     testImplementation 'com.h2database:h2'
+
+    // Testcontainers (벤더 비교 테스트)
+    testImplementation 'org.testcontainers:testcontainers'
+    testImplementation 'org.testcontainers:junit-jupiter'
+    testImplementation 'org.testcontainers:mysql'
+    testImplementation 'org.testcontainers:postgresql'
+    testImplementation 'org.testcontainers:mongodb'
+    testRuntimeOnly 'org.postgresql:postgresql'
+    testImplementation 'org.testcontainers:localstack'
+    testImplementation 'software.amazon.awssdk:url-connection-client:2.29.51'
 }
 
 // QueryDSL 설정

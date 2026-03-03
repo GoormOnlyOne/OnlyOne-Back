@@ -32,6 +32,7 @@ dependencies {
 
     // Spring Boot Starters
     api 'org.springframework.boot:spring-boot-starter-data-jpa'
+    api 'org.springframework.boot:spring-boot-starter-data-mongodb'
     api 'org.springframework.boot:spring-boot-starter-validation'
     api 'org.springframework.boot:spring-boot-starter-web'
 
@@ -54,6 +55,19 @@ dependencies {
     // Test
     testImplementation 'org.springframework.boot:spring-boot-starter-test'
     testImplementation 'com.h2database:h2'
+
+    // Testcontainers (벤더 비교 테스트)
+    testImplementation 'org.testcontainers:testcontainers'
+    testImplementation 'org.testcontainers:junit-jupiter'
+    testImplementation 'org.testcontainers:mysql'
+    testImplementation 'org.testcontainers:postgresql'
+    testRuntimeOnly 'org.postgresql:postgresql'
+
+    // Redis 클라이언트 (캐시 비교 테스트)
+    testImplementation 'redis.clients:jedis:5.1.0'
+
+    // Caffeine (캐시 비교 테스트)
+    testImplementation 'com.github.ben-manes.caffeine:caffeine:3.1.8'
 }
 
 // QueryDSL 설정

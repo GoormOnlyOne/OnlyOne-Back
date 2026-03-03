@@ -15,7 +15,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
 
-import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -35,15 +34,6 @@ public class PaymentService {
     private static final String REDIS_PAYMENT_GATE_PREFIX = "payment:gate:";
     private static final long PAYMENT_INFO_TTL_SECONDS = 30 * 60;
     private static final long PAYMENT_GATE_TTL_SECONDS = 5 * 60;
-
-    /**
-     * Admission Control: 동시 DB 접근 제한.
-     * 60개 이상의 동시 INSERT가 InnoDB에 진입하면 gap/row lock 경합이 기하급수적으로 증가.
-     * 60개로 제한하여 경합 최소화 → 빠른 처리 또는 빠른 실패(1.5초 내).
-     */
-    private static final int MAX_CONCURRENT_CLAIMS = 50;
-    private static final long CLAIM_ACQUIRE_TIMEOUT_MS = 1000;
-    private final Semaphore claimSemaphore = new Semaphore(MAX_CONCURRENT_CLAIMS, true);
 
     /* Redis에 결제 정보 임시 저장 (DB 트랜잭션 불필요) */
     public void savePaymentInfo(SavePaymentRequestDto dto) {
@@ -86,24 +76,8 @@ public class PaymentService {
         }
 
         try {
-            // Admission Control: 동시 DB 접근 제한 (Phase 1만 제한)
-            boolean permitAcquired;
-            try {
-                permitAcquired = claimSemaphore.tryAcquire(CLAIM_ACQUIRE_TIMEOUT_MS, TimeUnit.MILLISECONDS);
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-                throw new CustomException(FinanceErrorCode.PAYMENT_IN_PROGRESS);
-            }
-            if (!permitAcquired) {
-                throw new CustomException(FinanceErrorCode.PAYMENT_IN_PROGRESS);
-            }
-
             // Phase 1: CAS 기반 Payment 선점 (독립 트랜잭션, 즉시 커밋)
-            try {
-                txService.claimPayment(req.orderId(), req.amount());
-            } finally {
-                claimSemaphore.release();
-            }
+            txService.claimPayment(req.orderId(), req.amount());
 
             // Phase 2: 토스페이먼츠 결제 호출 (트랜잭션 밖, Payment lock 없음)
             final ConfirmTossPayResponse response;

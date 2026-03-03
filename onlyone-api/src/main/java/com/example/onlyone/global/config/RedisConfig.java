@@ -64,6 +64,17 @@ public class RedisConfig {
         return mapper;
     }
 
+    @Value("${spring.data.redis.lettuce.pool.max-active:64}")
+    private int poolMaxActive;
+    @Value("${spring.data.redis.lettuce.pool.max-idle:32}")
+    private int poolMaxIdle;
+    @Value("${spring.data.redis.lettuce.pool.min-idle:8}")
+    private int poolMinIdle;
+    @Value("${spring.data.redis.lettuce.pool.max-wait:3000}")
+    private long poolMaxWaitMs;
+    @Value("${spring.data.redis.timeout:5000}")
+    private long commandTimeoutMs;
+
     @Bean
     public RedisConnectionFactory redisConnectionFactory() {
         if (password == null || password.isBlank()) {
@@ -73,17 +84,23 @@ public class RedisConfig {
             log.warn("Redis password is not set. This is acceptable for local development only.");
         }
 
-        // 풀 설정 (Pub/Sub + Cache 병행을 위해 확장)
-        GenericObjectPoolConfig<?> pool = new GenericObjectPoolConfig<>();
-        pool.setMaxTotal(128);  // 64 → 128 (Pub/Sub 별도 연결)
-        pool.setMaxIdle(64);    // 32 → 64
-        pool.setMinIdle(32);    // 16 → 32
+        // 풀 설정 — yml(spring.data.redis.lettuce.pool.*) 값 사용
+        GenericObjectPoolConfig<StatefulConnection<?, ?>> pool = new GenericObjectPoolConfig<>();
+        pool.setMaxTotal(poolMaxActive);
+        pool.setMaxIdle(poolMaxIdle);
+        pool.setMinIdle(poolMinIdle);
+        pool.setMaxWait(Duration.ofMillis(poolMaxWaitMs));
+        pool.setTestOnBorrow(true);           // 빌릴 때 연결 상태 검증
+        pool.setTestWhileIdle(true);          // 유휴 연결 정리
 
-        // Lettuce 클라이언트 옵션 (BLOCK 10s보다 크게)
+        log.info("Redis pool: maxActive={}, maxIdle={}, minIdle={}, maxWait={}ms, commandTimeout={}ms",
+                poolMaxActive, poolMaxIdle, poolMinIdle, poolMaxWaitMs, commandTimeoutMs);
+
+        // Lettuce 클라이언트 옵션 — commandTimeout yml 연동 (기본 5초, 빠른 실패)
         LettuceClientConfiguration clientCfg =
                 LettucePoolingClientConfiguration.builder()
-                        .poolConfig((GenericObjectPoolConfig<StatefulConnection<?, ?>>) pool)
-                        .commandTimeout(Duration.ofSeconds(15))
+                        .poolConfig(pool)
+                        .commandTimeout(Duration.ofMillis(commandTimeoutMs))
                         .clientOptions(ClientOptions.builder()
                                 .autoReconnect(true)
                                 .pingBeforeActivateConnection(true)

@@ -55,7 +55,7 @@ class SettlementCommandServiceTest {
 
         given(userService.getCurrentUser()).willReturn(leader);
         given(clubRepository.existsById(CLUB_ID)).willReturn(true);
-        given(settlementRepository.existsScheduleInClub(SCHEDULE_ID, CLUB_ID)).willReturn(true);
+        given(settlementRepository.existsScheduleInClub(SCHEDULE_ID, CLUB_ID)).willReturn(1L);
         given(settlementRepository.findByScheduleId(SCHEDULE_ID)).willReturn(Optional.of(settlement));
         given(settlementRepository.markProcessing(settlement.getSettlementId())).willReturn(1);
         given(userSettlementRepository.findUserIdsBySettlementIdAndStatus(
@@ -96,7 +96,7 @@ class SettlementCommandServiceTest {
 
         given(userService.getCurrentUser()).willReturn(leader);
         given(clubRepository.existsById(CLUB_ID)).willReturn(true);
-        given(settlementRepository.existsScheduleInClub(SCHEDULE_ID, CLUB_ID)).willReturn(true);
+        given(settlementRepository.existsScheduleInClub(SCHEDULE_ID, CLUB_ID)).willReturn(1L);
         given(settlementRepository.findByScheduleId(SCHEDULE_ID)).willReturn(Optional.of(completed));
 
         assertThatThrownBy(() -> settlementCommandService.automaticSettlement(CLUB_ID, SCHEDULE_ID, COST_PER_USER))
@@ -112,7 +112,7 @@ class SettlementCommandServiceTest {
 
         given(userService.getCurrentUser()).willReturn(leader);
         given(clubRepository.existsById(CLUB_ID)).willReturn(true);
-        given(settlementRepository.existsScheduleInClub(SCHEDULE_ID, CLUB_ID)).willReturn(true);
+        given(settlementRepository.existsScheduleInClub(SCHEDULE_ID, CLUB_ID)).willReturn(1L);
         given(settlementRepository.findByScheduleId(SCHEDULE_ID)).willReturn(Optional.of(settlement));
         given(settlementRepository.markProcessing(settlement.getSettlementId())).willReturn(0);
 
@@ -129,7 +129,7 @@ class SettlementCommandServiceTest {
 
         given(userService.getCurrentUser()).willReturn(leader);
         given(clubRepository.existsById(CLUB_ID)).willReturn(true);
-        given(settlementRepository.existsScheduleInClub(SCHEDULE_ID, CLUB_ID)).willReturn(true);
+        given(settlementRepository.existsScheduleInClub(SCHEDULE_ID, CLUB_ID)).willReturn(1L);
         given(settlementRepository.findByScheduleId(SCHEDULE_ID)).willReturn(Optional.of(settlement));
         given(settlementRepository.markProcessing(settlement.getSettlementId())).willReturn(1);
         given(userSettlementRepository.findUserIdsBySettlementIdAndStatus(
@@ -154,7 +154,7 @@ class SettlementCommandServiceTest {
 
         given(userService.getCurrentUser()).willReturn(leader);
         given(clubRepository.existsById(CLUB_ID)).willReturn(true);
-        given(settlementRepository.existsScheduleInClub(SCHEDULE_ID, CLUB_ID)).willReturn(true);
+        given(settlementRepository.existsScheduleInClub(SCHEDULE_ID, CLUB_ID)).willReturn(1L);
         given(settlementRepository.findByScheduleId(SCHEDULE_ID)).willReturn(Optional.of(settlement));
         given(settlementRepository.markProcessing(settlement.getSettlementId())).willReturn(1);
         given(userSettlementRepository.findUserIdsBySettlementIdAndStatus(
@@ -174,7 +174,7 @@ class SettlementCommandServiceTest {
     void scheduleNotInClub() {
         given(userService.getCurrentUser()).willReturn(leader());
         given(clubRepository.existsById(CLUB_ID)).willReturn(true);
-        given(settlementRepository.existsScheduleInClub(SCHEDULE_ID, CLUB_ID)).willReturn(false);
+        given(settlementRepository.existsScheduleInClub(SCHEDULE_ID, CLUB_ID)).willReturn(0L);
 
         assertThatThrownBy(() -> settlementCommandService.automaticSettlement(CLUB_ID, SCHEDULE_ID, COST_PER_USER))
                 .isInstanceOf(CustomException.class)
@@ -190,7 +190,7 @@ class SettlementCommandServiceTest {
 
         given(userService.getCurrentUser()).willReturn(nonLeader);
         given(clubRepository.existsById(CLUB_ID)).willReturn(true);
-        given(settlementRepository.existsScheduleInClub(SCHEDULE_ID, CLUB_ID)).willReturn(true);
+        given(settlementRepository.existsScheduleInClub(SCHEDULE_ID, CLUB_ID)).willReturn(1L);
         given(settlementRepository.findByScheduleId(SCHEDULE_ID)).willReturn(Optional.of(settlement));
 
         assertThatThrownBy(() -> settlementCommandService.automaticSettlement(CLUB_ID, SCHEDULE_ID, COST_PER_USER))
@@ -203,7 +203,7 @@ class SettlementCommandServiceTest {
     void settlementNotFound() {
         given(userService.getCurrentUser()).willReturn(leader());
         given(clubRepository.existsById(CLUB_ID)).willReturn(true);
-        given(settlementRepository.existsScheduleInClub(SCHEDULE_ID, CLUB_ID)).willReturn(true);
+        given(settlementRepository.existsScheduleInClub(SCHEDULE_ID, CLUB_ID)).willReturn(1L);
         given(settlementRepository.findByScheduleId(SCHEDULE_ID)).willReturn(Optional.empty());
 
         assertThatThrownBy(() -> settlementCommandService.automaticSettlement(CLUB_ID, SCHEDULE_ID, COST_PER_USER))

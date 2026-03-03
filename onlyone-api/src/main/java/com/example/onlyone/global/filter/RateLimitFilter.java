@@ -28,7 +28,7 @@ import java.util.concurrent.TimeUnit;
 public class RateLimitFilter extends OncePerRequestFilter {
 
     private static final String[] AUTH_PATHS = {"/api/v1/auth/", "/api/v1/kakao/", "/api/v1/login/"};
-    private static final String[] WS_PATHS = {"/ws", "/ws-native"};
+    private static final String[] WS_PATHS = {"/ws", "/ws-native", "/ws-reactive"};
     private static final long AUTH_WINDOW_MS = 30_000L;
     private static final long GENERAL_WINDOW_MS = 60_000L;
     private static final long CLEANUP_INTERVAL_MINUTES = 5L;
@@ -98,11 +98,12 @@ public class RateLimitFilter extends OncePerRequestFilter {
             timestamps.pollFirst();
         }
 
-        if (timestamps.size() >= maxRequests) {
+        // Atomically check-then-act: add first, then check if over limit
+        timestamps.addLast(now);
+        if (timestamps.size() > maxRequests) {
             return true;
         }
 
-        timestamps.addLast(now);
         return false;
     }
 

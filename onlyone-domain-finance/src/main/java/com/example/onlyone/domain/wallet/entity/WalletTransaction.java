@@ -22,7 +22,8 @@ public class WalletTransaction extends BaseTimeEntity {
     @Column(name = "wallet_transaction_id", updatable = false)
     private Long walletTransactionId;
 
-    @Column(name = "operation_id", unique = true)
+    @Column(name = "operation_id", unique = true, nullable = false)
+    @NotNull
     private String operationId;
 
     @Column(name = "type")

@@ -2,6 +2,7 @@ package com.example.onlyone.domain.notification.port;
 
 import com.example.onlyone.domain.notification.entity.FcmToken;
 import com.example.onlyone.domain.notification.repository.FcmTokenRepository;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.firebase.messaging.FirebaseMessaging;
 import com.google.firebase.messaging.Message;
@@ -80,14 +81,12 @@ public class FcmNotificationDeliveryAdapter implements NotificationDeliveryPort 
 
     private String extractContent(Object data) {
         try {
-            String json = objectMapper.writeValueAsString(data);
-            if (json.contains("\"content\"")) {
-                var node = objectMapper.readTree(json);
-                if (node.has("content")) {
-                    return node.get("content").asText();
-                }
+            JsonNode node = objectMapper.valueToTree(data);
+            if (node.has("content")) {
+                return node.get("content").asText();
             }
-        } catch (Exception ignored) {
+        } catch (Exception e) {
+            log.debug("FCM content 추출 실패", e);
         }
         return "새로운 알림이 있습니다";
     }

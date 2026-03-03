@@ -1,8 +1,5 @@
 package com.example.onlyone.domain.settlement.repository;
 
-// TODO: 순환 의존성 방지 - Schedule 엔티티 참조 제거
-// import com.example.onlyone.domain.schedule.entity.Schedule;
-// import com.example.onlyone.domain.user.dto.response.MySettlementDto;  // cross-domain DTO는 API 모듈로 이동
 import com.example.onlyone.domain.settlement.dto.response.UserSettlementDto;
 import com.example.onlyone.domain.settlement.entity.Settlement;
 import com.example.onlyone.domain.settlement.entity.SettlementStatus;
@@ -26,7 +23,6 @@ public interface UserSettlementRepository extends JpaRepository<UserSettlement, 
 
     long countBySettlementAndSettlementStatus(Settlement settlement, SettlementStatus settlementStatus);
     
-    // TODO: 정산 참여자 조회는 Settlement만으로 가능 (Schedule join 불필요)
     @Query(
             value = """
         select new com.example.onlyone.domain.settlement.dto.response.UserSettlementDto(
@@ -48,67 +44,6 @@ public interface UserSettlementRepository extends JpaRepository<UserSettlement, 
             Pageable pageable
     );
 
-    // TODO: cross-domain DTO 조회는 API 모듈의 Application Service에서 처리
-    // MySettlementDto는 Schedule, Club 정보를 조합하므로 API 모듈로 이동 필요
-    // @Query(
-    //         value = """
-    // select new com.example.onlyone.domain.user.dto.response.MySettlementDto(
-    //   c.clubId,
-    //       sch.scheduleId,
-    //   sch.cost,
-    //   c.clubImage,
-    //   us.settlementStatus,
-    //   concat(c.name, ': ', sch.name),
-    //   us.createdAt
-    // )
-    // from UserSettlement us
-    // join us.settlement st
-    // join st.schedule sch
-    // join sch.club c
-    // where us.user = :user
-    //   and (
-    //     us.settlementStatus = com.example.onlyone.domain.settlement.entity.SettlementStatus.REQUESTED
-    //     or
-    //     us.settlementStatus = com.example.onlyone.domain.settlement.entity.SettlementStatus.FAILED
-    //     or (
-    //       us.settlementStatus = com.example.onlyone.domain.settlement.entity.SettlementStatus.COMPLETED
-    //       and us.completedTime >= :cutoff
-    //     )
-    //   )
-    // order by us.createdAt desc
-    // """,
-    //         countQuery = """
-    // select count(us)
-    // from UserSettlement us
-    // where us.user = :user
-    //   and (
-    //     us.settlementStatus = com.example.onlyone.domain.settlement.entity.SettlementStatus.REQUESTED
-    //     or
-    //     us.settlementStatus = com.example.onlyone.domain.settlement.entity.SettlementStatus.FAILED
-    //     or (
-    //       us.settlementStatus = com.example.onlyone.domain.settlement.entity.SettlementStatus.COMPLETED
-    //       and us.completedTime >= :cutoff
-    //     )
-    //   )
-    // """
-    // )
-    // Page<MySettlementDto> findMyRecentOrRequested(
-    //         @Param("user") User user,
-    //         @Param("cutoff") java.time.LocalDateTime cutoff,
-    //         Pageable pageable
-    // );
-
-    // TODO: scheduleId로 조회하도록 변경
-    // @Query("""
-    // select us
-    // from UserSettlement us
-    // join us.settlement s
-    // where us.user = :user and s.schedule = :schedule
-    // """)
-    // Optional<UserSettlement> findByUserAndSchedule(
-    //         @Param("user") User user,
-    //         @Param("schedule") Schedule schedule
-    // );
     boolean existsByUserAndSettlementStatusNot(User user, SettlementStatus settlementStatus);
 
     @Modifying
@@ -133,6 +68,21 @@ public interface UserSettlementRepository extends JpaRepository<UserSettlement, 
     @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Query("delete from UserSettlement us where us.settlement.settlementId = :settlementId")
     void deleteAllBySettlementId(@Param("settlementId") Long settlementId);
+
+    /**
+     * 배치 완료 처리 — 한 번의 UPDATE로 여러 참가자의 정산 상태를 COMPLETED로 전이
+     */
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query(value = """
+        UPDATE user_settlement
+           SET status = 'COMPLETED', completed_time = :now
+         WHERE settlement_id = :settlementId
+           AND user_id IN (:userIds)
+           AND status = 'HOLD_ACTIVE'
+    """, nativeQuery = true)
+    int batchMarkCompleted(@Param("settlementId") Long settlementId,
+                           @Param("userIds") List<Long> userIds,
+                           @Param("now") java.time.LocalDateTime now);
 
    Optional<UserSettlement> findBySettlement_SettlementIdAndUser_UserId(Long settlementId, Long participantId);
 }

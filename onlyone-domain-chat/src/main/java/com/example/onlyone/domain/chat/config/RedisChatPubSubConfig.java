@@ -1,8 +1,9 @@
 package com.example.onlyone.domain.chat.config;
 
-import com.example.onlyone.domain.chat.service.ChatSubscriber;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.data.redis.connection.MessageListener;
 import org.springframework.data.redis.connection.RedisConnectionFactory;
 import org.springframework.data.redis.listener.PatternTopic;
 import org.springframework.data.redis.listener.RedisMessageListenerContainer;
@@ -16,7 +17,7 @@ public class RedisChatPubSubConfig {
     @Bean
     public RedisMessageListenerContainer chatListenerContainer(
             RedisConnectionFactory connectionFactory,
-            ChatSubscriber chatSubscriber) {
+            @Qualifier("chatMessageSubscriber") MessageListener chatSubscriber) {
 
         ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
         executor.setCorePoolSize(128);

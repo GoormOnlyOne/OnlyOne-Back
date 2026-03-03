@@ -15,6 +15,10 @@ import java.util.function.Supplier;
 @Component
 @RequiredArgsConstructor
 public class RedisLuaService implements WalletGateService {
+    private static final int MAX_RETRY_ATTEMPTS = 5;
+    private static final int RETRY_MIN_DELAY_MS = 5;
+    private static final int RETRY_MAX_DELAY_MS = 20;
+
     private final StringRedisTemplate redis;
     private final DefaultRedisScript<Long> walletGateAcquireScript;
     private final DefaultRedisScript<Long> walletGateReleaseScript;
@@ -43,8 +47,7 @@ public class RedisLuaService implements WalletGateService {
     /** 게이트 잡고 함수 실행 (+재시도) */
     @Override
     public <T> T withWalletGate(long userId, String op, int ttlSec, Supplier<T> body) {
-        final int maxAttempts = 5;
-        for (int attempt = 1; attempt <= maxAttempts; attempt++) {
+        for (int attempt = 1; attempt <= MAX_RETRY_ATTEMPTS; attempt++) {
             String owner = acquireWalletGate(userId, op, ttlSec);
             if (owner != null) {
                 try {
@@ -54,9 +57,9 @@ public class RedisLuaService implements WalletGateService {
                 }
             }
             // acquire 실패한 경우
-            if (attempt < maxAttempts) {
+            if (attempt < MAX_RETRY_ATTEMPTS) {
                 try {
-                    Thread.sleep(ThreadLocalRandom.current().nextInt(5, 20));
+                    Thread.sleep(ThreadLocalRandom.current().nextInt(RETRY_MIN_DELAY_MS, RETRY_MAX_DELAY_MS));
                 } catch (InterruptedException ie) {
                     Thread.currentThread().interrupt();
                     throw new CustomException(FinanceErrorCode.WALLET_OPERATION_IN_PROGRESS);

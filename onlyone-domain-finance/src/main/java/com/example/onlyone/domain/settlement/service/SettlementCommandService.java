@@ -50,7 +50,7 @@ public class SettlementCommandService {
             throw new CustomException(ClubErrorCode.CLUB_NOT_FOUND);
         }
 
-        if (!settlementRepository.existsScheduleInClub(scheduleId, clubId)) {
+        if (settlementRepository.existsScheduleInClub(scheduleId, clubId) == 0) {
             throw new CustomException(FinanceErrorCode.SCHEDULE_NOT_FOUND);
         }
 

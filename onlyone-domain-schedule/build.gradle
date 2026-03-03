@@ -62,6 +62,13 @@ dependencies {
     testImplementation 'com.h2database:h2'
     testImplementation(testFixtures(project(':onlyone-domain-user')))
     testImplementation(testFixtures(project(':onlyone-domain-club')))
+
+    // Testcontainers (벤더 비교 테스트)
+    testImplementation 'org.testcontainers:testcontainers'
+    testImplementation 'org.testcontainers:junit-jupiter'
+    testImplementation 'org.testcontainers:mysql'
+    testImplementation 'org.testcontainers:postgresql'
+    testRuntimeOnly 'org.postgresql:postgresql'
 }
 
 // QueryDSL 설정

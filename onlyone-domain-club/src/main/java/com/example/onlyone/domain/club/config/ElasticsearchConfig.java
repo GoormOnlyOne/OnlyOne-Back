@@ -6,7 +6,9 @@ import co.elastic.clients.transport.rest_client.RestClientTransport;
 import org.apache.http.HttpHost;
 import org.apache.http.auth.AuthScope;
 import org.apache.http.auth.UsernamePasswordCredentials;
+import org.apache.http.client.config.RequestConfig;
 import org.apache.http.impl.client.BasicCredentialsProvider;
+import org.apache.http.impl.nio.reactor.IOReactorConfig;
 import org.elasticsearch.client.RestClient;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
@@ -38,7 +40,18 @@ public class ElasticsearchConfig {
 
         return RestClient.builder(HttpHost.create(esUri))
                 .setHttpClientConfigCallback(httpClientBuilder ->
-                        httpClientBuilder.setDefaultCredentialsProvider(credentialsProvider))
+                        httpClientBuilder
+                                .setDefaultCredentialsProvider(credentialsProvider)
+                                .setMaxConnTotal(200)
+                                .setMaxConnPerRoute(200)
+                                .setDefaultIOReactorConfig(IOReactorConfig.custom()
+                                        .setIoThreadCount(4)
+                                        .build()))
+                .setRequestConfigCallback(requestConfigBuilder ->
+                        requestConfigBuilder
+                                .setConnectTimeout(3000)
+                                .setSocketTimeout(10000)
+                                .setConnectionRequestTimeout(5000))
                 .build();
     }
 

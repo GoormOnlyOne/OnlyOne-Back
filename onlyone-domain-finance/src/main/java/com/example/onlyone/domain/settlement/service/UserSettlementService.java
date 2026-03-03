@@ -26,6 +26,8 @@ import java.util.Map;
 @Transactional
 @RequiredArgsConstructor
 public class UserSettlementService {
+    private static final int WALLET_GATE_TTL_SECONDS = 10;
+
     private final UserSettlementRepository userSettlementRepository;
     private final WalletRepository walletRepository;
     private final UserRepository userRepository;
@@ -46,7 +48,7 @@ public class UserSettlementService {
                                              Long participantId,
                                              Long amount) {
         log.info("참여자 정산 처리 시작: settlementId={}, participantId={}, amount={}", settlementId, participantId, amount);
-        walletGateService.withWalletGate(participantId, "capture", 10, () -> {
+        walletGateService.withWalletGate(participantId, "capture", WALLET_GATE_TTL_SECONDS, () -> {
             // 조회
             UserSettlement us = userSettlementRepository
                     .findBySettlement_SettlementIdAndUser_UserId(settlementId, participantId)
@@ -109,7 +111,7 @@ public class UserSettlementService {
     @Transactional(propagation = Propagation.REQUIRES_NEW, rollbackFor = Exception.class)
     public void creditToLeader(Long leaderId, long totalAmount) {
         log.info("리더 정산 가산: leaderId={}, totalAmount={}", leaderId, totalAmount);
-        walletGateService.withWalletGate(leaderId, "credit", 10, () -> {
+        walletGateService.withWalletGate(leaderId, "credit", WALLET_GATE_TTL_SECONDS, () -> {
             int credited = walletRepository.creditByUserId(leaderId, totalAmount);
             if (credited != 1) {
                 throw new CustomException(FinanceErrorCode.WALLET_CREDIT_APPLY_FAILED);

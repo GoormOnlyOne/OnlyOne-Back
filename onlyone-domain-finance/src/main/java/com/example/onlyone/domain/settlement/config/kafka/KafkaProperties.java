@@ -11,7 +11,7 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 @Data
 @Component
 @ConfigurationProperties(prefix = "spring.kafka")
-@ConditionalOnProperty(name = "spring.kafka.enabled", havingValue = "true", matchIfMissing = false)
+@ConditionalOnProperty(name = "app.settlement.message-broker", havingValue = "kafka", matchIfMissing = true)
 public class KafkaProperties {
 
     private String defaultBootstrapServers;

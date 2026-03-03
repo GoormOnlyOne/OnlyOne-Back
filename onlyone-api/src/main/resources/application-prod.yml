@@ -7,16 +7,16 @@
 # --- 데이터소스 (보수적 커넥션 풀) ---
 spring:
   datasource:
-    driver-class-name: com.mysql.cj.jdbc.Driver
+    driver-class-name: ${DB_DRIVER:com.mysql.cj.jdbc.Driver}
     url: ${DB_URL}
     username: ${DB_USERNAME}
     password: ${DB_PASSWORD}
     hikari:
-      maximum-pool-size: 50
-      minimum-idle: 10
-      connection-timeout: 30000
-      idle-timeout: 600000
-      max-lifetime: 1800000
+      maximum-pool-size: ${HIKARI_MAX_POOL:50}
+      minimum-idle: ${HIKARI_MIN_IDLE:10}
+      connection-timeout: ${HIKARI_CONN_TIMEOUT:30000}
+      idle-timeout: ${HIKARI_IDLE_TIMEOUT:600000}
+      max-lifetime: ${HIKARI_MAX_LIFETIME:1800000}
 
   # JPA: DDL 완전 비활성화, 배치 처리
   jpa:
@@ -38,11 +38,46 @@ spring:
       host: ${REDIS_HOST}
       port: ${REDIS_PORT:6379}
       password: ${REDIS_PASSWORD:}
+      timeout: ${REDIS_TIMEOUT:5000}
       lettuce:
         pool:
-          max-active: 30
-          max-idle: 20
-          min-idle: 5
+          max-active: ${REDIS_POOL_MAX_ACTIVE:64}
+          max-idle: ${REDIS_POOL_MAX_IDLE:32}
+          min-idle: ${REDIS_POOL_MIN_IDLE:8}
+          max-wait: ${REDIS_POOL_MAX_WAIT:3000}
+        shutdown-timeout: 2000ms
+
+  # Kafka (정산 MQ)
+  kafka:
+    default-bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+    producer:
+      common-config:
+        client-id: onlyone-producer
+        bootstrap-servers:
+          - ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+        transactional-id-prefix: onlyone-tx-
+        acks: all
+        linger-ms: 5
+        batch-size: 16384
+      settlement-process-producer-config:
+        topic: settlement.process.v1
+    consumer:
+      common-config:
+        group-id: onlyone-settlement
+        client-id: onlyone-consumer
+        bootstrap-servers:
+          - ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+        timeout-ms: "30000"
+        fetch-min-bytes: 1
+        fetch-max-wait-ms: 500
+      user-settlement-ledger-consumer-config:
+        topic: user-settlement.result.v1
+    security:
+      enabled: ${KAFKA_SECURITY_ENABLED:false}
+
+  # MongoDB
+  data.mongodb:
+    uri: ${MONGO_URI:}
 
   # Elasticsearch
   elasticsearch:
@@ -69,8 +104,10 @@ server:
   port: ${SERVER_PORT:8080}
   tomcat:
     threads:
-      max: 200
-      min-spare: 10
+      max: ${TOMCAT_MAX_THREADS:200}
+      min-spare: ${TOMCAT_MIN_SPARE:10}
+    max-connections: ${TOMCAT_MAX_CONNECTIONS:8192}
+    accept-count: ${TOMCAT_ACCEPT_COUNT:100}
 
 # --- AWS ---
 aws:
@@ -86,7 +123,9 @@ Kakao:
 
 # --- Rate Limit 활성화 ---
 app:
+  search:
+    engine: ${SEARCH_ENGINE:elasticsearch}   # elasticsearch | mysql
   rate-limit:
-    enabled: true
-    requests-per-minute: 60
-    auth-requests-per-30s: 10
+    enabled: ${RATE_LIMIT_ENABLED:true}
+    requests-per-minute: ${RATE_LIMIT_RPM:60}
+    auth-requests-per-30s: ${RATE_LIMIT_AUTH:10}

@@ -59,11 +59,11 @@ public class MysqlNotificationStorageAdapter implements NotificationStoragePort 
 
     @Override
     public void markDeliveredByIds(List<Long> notificationIds) {
-        notificationRepository.markSseSentByIds(notificationIds);
+        notificationRepository.markDeliveredByIds(notificationIds);
     }
 
     @Override
     public List<NotificationItemDto> findUndeliveredByUserId(Long userId, int limit) {
-        return notificationRepository.findUnsentNotificationsByUserId(userId, limit);
+        return notificationRepository.findUndeliveredByUserId(userId, limit);
     }
 }

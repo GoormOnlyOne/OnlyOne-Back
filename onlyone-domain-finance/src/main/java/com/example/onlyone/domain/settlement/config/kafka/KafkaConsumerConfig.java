@@ -22,7 +22,7 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 @RequiredArgsConstructor
 @Configuration
 @EnableKafka // @KafkaListener를 사용하기 위한 조건
-@ConditionalOnProperty(name = "spring.kafka.enabled", havingValue = "true", matchIfMissing = false)
+@ConditionalOnProperty(name = "app.settlement.message-broker", havingValue = "kafka", matchIfMissing = true)
 public class KafkaConsumerConfig {
 
     private final KafkaProperties props;

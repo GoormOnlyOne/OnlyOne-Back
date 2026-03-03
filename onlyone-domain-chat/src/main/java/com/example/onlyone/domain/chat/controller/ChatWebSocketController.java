@@ -10,6 +10,7 @@ import com.example.onlyone.domain.chat.exception.ChatErrorCode;
 import com.example.onlyone.global.exception.CustomException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.messaging.handler.annotation.DestinationVariable;
 import org.springframework.messaging.handler.annotation.MessageExceptionHandler;
 import org.springframework.messaging.handler.annotation.MessageMapping;
@@ -21,6 +22,7 @@ import org.springframework.stereotype.Controller;
 
 @Slf4j
 @Controller
+@ConditionalOnProperty(name = "app.chat.websocket", havingValue = "stomp", matchIfMissing = true)
 @RequiredArgsConstructor
 public class ChatWebSocketController {
 
@@ -59,6 +61,9 @@ public class ChatWebSocketController {
     }
 
     private UserPrincipal extractPrincipal(SimpMessageHeaderAccessor accessor) {
+        if (accessor.getUser() == null) {
+            throw new CustomException(ChatErrorCode.UNAUTHORIZED_CHAT_ACCESS);
+        }
         return (UserPrincipal)
                 ((UsernamePasswordAuthenticationToken) accessor.getUser()).getPrincipal();
     }

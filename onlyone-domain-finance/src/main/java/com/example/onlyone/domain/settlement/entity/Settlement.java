@@ -1,8 +1,5 @@
 package com.example.onlyone.domain.settlement.entity;
 
-// TODO: 순환 의존성 방지 - Schedule 도메인과의 관계를 ID로 변경
-// import com.example.onlyone.domain.schedule.entity.Schedule;
-// import com.example.onlyone.domain.schedule.entity.UserSchedule;
 import com.example.onlyone.domain.user.entity.User;
 import com.example.onlyone.common.BaseTimeEntity;
 import jakarta.persistence.*;
@@ -26,12 +23,6 @@ public class Settlement extends BaseTimeEntity {
     @Column(name = "settlement_id", updatable = false)
     private Long settlementId;
 
-    // TODO: 순환 의존성 방지 - Schedule 엔티티 대신 ID만 저장
-    // @OneToOne(fetch = FetchType.LAZY)
-    // @JoinColumn(name = "schedule_id")
-    // @NotNull
-    // private Schedule schedule;
-
     @Column(name = "schedule_id", updatable = false)
     @NotNull
     private Long scheduleId;  // ID만 보관하여 순환 의존성 방지
@@ -44,6 +35,9 @@ public class Settlement extends BaseTimeEntity {
     @NotNull
     @Enumerated(EnumType.STRING)
     private TotalStatus totalStatus;
+
+    @Version
+    private Long version;
 
     @Column(name = "completed_time")
     private LocalDateTime completedTime;

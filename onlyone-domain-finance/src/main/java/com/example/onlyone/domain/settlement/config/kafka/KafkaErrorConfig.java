@@ -13,7 +13,7 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 
 @Configuration
 @RequiredArgsConstructor
-@ConditionalOnProperty(name = "spring.kafka.enabled", havingValue = "true", matchIfMissing = false)
+@ConditionalOnProperty(name = "app.settlement.message-broker", havingValue = "kafka", matchIfMissing = true)
 public class KafkaErrorConfig {
     private final KafkaTemplate<String, String> kafkaTemplate;
 

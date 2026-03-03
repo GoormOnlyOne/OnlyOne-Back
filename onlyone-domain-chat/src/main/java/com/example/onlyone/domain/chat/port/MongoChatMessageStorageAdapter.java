@@ -40,7 +40,7 @@ public class MongoChatMessageStorageAdapter implements ChatMessageStoragePort {
         this.mongoTemplate = mongoTemplate;
     }
 
-    // ========== CRUD ==========
+    // ── CRUD ──
 
     @Override
     public ChatMessageItemDto save(Long chatRoomId, Long userId, String nickname,
@@ -139,7 +139,7 @@ public class MongoChatMessageStorageAdapter implements ChatMessageStoragePort {
                 .toList();
     }
 
-    // ========== sequence (segment allocation) ==========
+    // ── sequence (segment allocation) ──
 
     private Long nextSequence() {
         long id = currentId.incrementAndGet();
@@ -173,7 +173,7 @@ public class MongoChatMessageStorageAdapter implements ChatMessageStoragePort {
         return seq instanceof Number n ? n.longValue() : segmentSize;
     }
 
-    // ========== mapping ==========
+    // ── mapping ──
 
     private ChatMessageItemDto toDto(MessageDocument doc, Long numericId) {
         return new ChatMessageItemDto(

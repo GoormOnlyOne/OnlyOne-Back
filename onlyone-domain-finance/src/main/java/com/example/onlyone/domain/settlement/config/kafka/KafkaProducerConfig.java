@@ -17,15 +17,15 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 
 @RequiredArgsConstructor
 @Configuration
-@ConditionalOnProperty(name = "spring.kafka.enabled", havingValue = "true", matchIfMissing = false)
+@ConditionalOnProperty(name = "app.settlement.message-broker", havingValue = "kafka", matchIfMissing = true)
 public class KafkaProducerConfig {
 
     private final KafkaProperties props;
 
     @Bean
     public ProducerFactory<String, String> ledgerProducerFactory() {
-        var producer = props.getProducer().getCommonConfig();
-        var security  = props.getSecurity();
+        KafkaProperties.ProducerCommonConfig producer = props.getProducer().getCommonConfig();
+        KafkaProperties.Security security = props.getSecurity();
 
         Map<String, Object> config = new HashMap<>();
         config.put(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, producer.getBootstrapServers());
@@ -48,7 +48,7 @@ public class KafkaProducerConfig {
                 config.put("ssl.truststore.password", security.getSslTruststorePassword());
             }
         }
-        var pf = new DefaultKafkaProducerFactory<String, String>(config);
+        DefaultKafkaProducerFactory<String, String> pf = new DefaultKafkaProducerFactory<>(config);
         pf.setTransactionIdPrefix(props.getProducer().getCommonConfig().getTransactionalIdPrefix());
         return pf;
     }

@@ -6,7 +6,6 @@ import com.example.onlyone.global.common.CommonResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -14,7 +13,6 @@ import org.springframework.web.bind.annotation.*;
 @Tag(name = "Search")
 @RequiredArgsConstructor
 @RequestMapping("/api/v1/search")
-@ConditionalOnProperty(name = "spring.elasticsearch.uris")
 public class SearchController {
     private final SearchService searchService;
 

@@ -4,6 +4,7 @@ import com.example.onlyone.domain.chat.dto.ChatMessageResponse;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.data.redis.connection.Message;
 import org.springframework.data.redis.connection.MessageListener;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
@@ -12,7 +13,8 @@ import org.springframework.stereotype.Service;
 import java.nio.charset.StandardCharsets;
 
 @Slf4j
-@Service
+@Service("chatMessageSubscriber")
+@ConditionalOnProperty(name = "app.chat.websocket", havingValue = "stomp", matchIfMissing = true)
 @RequiredArgsConstructor
 public class ChatSubscriber implements MessageListener {
 

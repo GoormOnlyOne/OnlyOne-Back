@@ -60,19 +60,28 @@ app:
   cors:
     allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:8080,http://localhost:5173,https://only-one-front-delta.vercel.app}
 
+  # 검색 엔진 설정
+  search:
+    engine: ${SEARCH_ENGINE:elasticsearch}                       # elasticsearch | mysql
+
+  # 피드 저장소 설정
+  feed:
+    storage: ${FEED_STORAGE:mysql}                               # mysql | mongodb
+
   # 채팅 메시지 저장소 설정
   chat:
-    storage: mysql                                               # mysql | mongodb
+    storage: ${CHAT_STORAGE:mysql}                               # mysql | mongodb
+    websocket: ${CHAT_WEBSOCKET:stomp}                           # stomp | reactive
 
   # 알림 시스템 설정
   notification:
-    storage: mysql                                               # mysql | mongodb
-    delivery: sse                                                # sse | websocket | fcm
-    event-bus: spring                                            # spring | kafka | rabbitmq | redis-pubsub
-    multi-instance: false                                        # true 시 분산 환경 지원
-    sse-timeout-millis: 60000                                    # SSE 연결 타임아웃 (60초)
-    max-connections: 7000                                        # 최대 동시 SSE 연결 수
-    cleanup-interval-minutes: 2                                  # 만료 연결 정리 주기
+    storage: ${NOTIFICATION_STORAGE:mysql}                       # mysql | mongodb | dynamodb
+    delivery: ${NOTIFICATION_DELIVERY:sse}                       # sse | fcm | webflux
+    event-bus: ${NOTIFICATION_EVENT_BUS:spring}                  # spring | kafka | rabbitmq | redis-pubsub
+    multi-instance: ${NOTIFICATION_MULTI_INSTANCE:false}         # true 시 분산 환경 지원
+    sse-timeout-millis: ${NOTIFICATION_SSE_TIMEOUT:60000}        # SSE 연결 타임아웃 (60초)
+    max-connections: ${NOTIFICATION_MAX_CONNECTIONS:7000}         # 최대 동시 SSE 연결 수
+    cleanup-interval-minutes: ${NOTIFICATION_CLEANUP_INTERVAL:2} # 만료 연결 정리 주기
     batch-size: ${NOTIFICATION_BATCH_SIZE:20}                    # 배치 처리 단위 크기
     max-queue-size-per-user: ${NOTIFICATION_MAX_QUEUE:100}       # 사용자별 최대 큐 크기
     batch-processing-interval: ${NOTIFICATION_BATCH_INTERVAL:100}  # 배치 처리 간격 (ms)
@@ -82,9 +91,9 @@ app:
 
   # 정산 처리 설정
   settlement:
-    concurrency: 32
+    concurrency: ${SETTLEMENT_CONCURRENCY:32}
     shutdown:
-      await-seconds: 60
+      await-seconds: ${SETTLEMENT_SHUTDOWN_AWAIT:60}
 
 # --- Actuator 모니터링 (Prometheus + Grafana) ---
 management:

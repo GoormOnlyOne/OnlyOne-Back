@@ -1,6 +1,7 @@
 #!/bin/bash
 # =============================================================
-# EC2 앱+k6 서버 부트스트랩 (c5.xlarge: 4 vCPU, 8GB)
+# EC2 앱 전용 서버 부트스트랩 (c5.xlarge: 4 vCPU, 8GB)
+# k6는 별도 서버에서 실행 (ec2-setup-k6.sh)
 # =============================================================
 # 사용법:
 #   scp -i ~/.ssh/onlyone-loadtest.pem scripts/ec2-setup-app.sh ubuntu@<APP_PUBLIC_IP>:~/
@@ -38,44 +39,6 @@ if ! java -version 2>&1 | grep -q "21"; then
     log_ok "JDK 21 설치 완료"
 else
     log_ok "JDK 21 이미 설치됨"
-fi
-
-# MySQL client
-if ! command -v mysql &>/dev/null; then
-    log_info "MySQL client 설치..."
-    sudo apt-get install -y mysql-client
-    log_ok "MySQL client 설치 완료"
-else
-    log_ok "MySQL client 이미 설치됨"
-fi
-
-# mongosh
-if ! command -v mongosh &>/dev/null; then
-    log_info "mongosh 설치..."
-    curl -fsSL https://www.mongodb.org/static/pgp/server-7.0.asc | \
-        sudo gpg --dearmor -o /usr/share/keyrings/mongodb-server-7.0.gpg
-    echo "deb [ signed-by=/usr/share/keyrings/mongodb-server-7.0.gpg ] https://repo.mongodb.org/apt/ubuntu jammy/mongodb-org/7.0 multiverse" | \
-        sudo tee /etc/apt/sources.list.d/mongodb-org-7.0.list
-    sudo apt-get update -y
-    sudo apt-get install -y mongodb-mongosh
-    log_ok "mongosh 설치 완료"
-else
-    log_ok "mongosh 이미 설치됨"
-fi
-
-# k6 (네이티브)
-if ! command -v k6 &>/dev/null; then
-    log_info "k6 설치..."
-    sudo gpg -k
-    sudo gpg --no-default-keyring --keyring /usr/share/keyrings/k6-archive-keyring.gpg \
-        --keyserver hkp://keyserver.ubuntu.com:80 --recv-keys C5AD17C747E3415A3642D57D77C6C491D6AC1D69
-    echo "deb [signed-by=/usr/share/keyrings/k6-archive-keyring.gpg] https://dl.k6.io/deb stable main" | \
-        sudo tee /etc/apt/sources.list.d/k6.list
-    sudo apt-get update -y
-    sudo apt-get install -y k6
-    log_ok "k6 설치 완료"
-else
-    log_ok "k6 이미 설치됨: $(k6 version)"
 fi
 
 # Swap (2GB)
@@ -195,11 +158,6 @@ echo ""
 echo "  tail -f app.log"
 echo "  curl http://localhost:8080/actuator/health"
 echo ""
-echo "  === 시드 데이터 투입 ==="
-echo ""
-echo "  INFRA_HOST=$INFRA_HOST ./scripts/ec2-seed-data.sh"
-echo ""
-echo "  === 부하 테스트 실행 ==="
-echo ""
-echo "  INFRA_HOST=$INFRA_HOST ./scripts/ec2-loadtest.sh each"
+echo "  === 시딩 & 테스트는 k6 서버에서 실행 ==="
+echo "  ec2-setup-k6.sh 참고"
 echo ""

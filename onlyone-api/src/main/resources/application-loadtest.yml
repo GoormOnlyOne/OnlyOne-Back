@@ -1,0 +1,59 @@
+# =============================================================
+# 부하 테스트 프로필 (profile: loadtest)
+# local과 함께 사용: SPRING_PROFILES_ACTIVE=local,loadtest
+#
+# 활성화 효과:
+#   - MockTossPaymentClient (@Profile("loadtest")) → 실제 토스 API 미호출
+#   - TossFeignConfig (@Profile("!loadtest")) 비활성화
+#   - Kafka 활성화 → 정산 Outbox → Kafka 플로우 테스트 가능
+#   - 로깅 최소화 (부하 테스트 시 I/O 병목 제거)
+# =============================================================
+
+# --- Kafka 활성화 ---
+spring:
+  kafka:
+    enabled: true
+    default-bootstrap-servers: localhost:29092
+    producer:
+      common-config:
+        client-id: onlyone-producer
+        bootstrap-servers:
+          - localhost:29092
+        transactional-id-prefix: onlyone-tx-
+        acks: all
+        linger-ms: 5
+        batch-size: 16384
+      settlement-process-producer-config:
+        topic: settlement.process.v1
+    consumer:
+      common-config:
+        group-id: onlyone-settlement
+        client-id: onlyone-consumer
+        bootstrap-servers:
+          - localhost:29092
+        timeout-ms: "30000"
+        fetch-min-bytes: 1
+        fetch-max-wait-ms: 500
+      user-settlement-ledger-consumer-config:
+        topic: user-settlement.result.v1
+    security:
+      enabled: false
+
+# --- Kafka 토픽 설정 ---
+app:
+  kafka:
+    topic:
+      replicas: 1
+      min-insync-replicas: 1
+
+# --- 로깅: 최소화 ---
+logging:
+  level:
+    root: error
+    com.example.onlyone: warn
+    com.example.onlyone.domain.payment: info
+    com.example.onlyone.domain.settlement: info
+    com.example.onlyone.domain.wallet: info
+    org.hibernate.SQL: error
+    org.springframework: error
+    org.apache.kafka: warn

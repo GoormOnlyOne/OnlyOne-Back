@@ -60,3 +60,5 @@ nul
 ### Generated/Backup ###
 *.backup
 src-backup/
+scripts/onlyone-loadtest.pem
+scripts/.ec2-provision-state

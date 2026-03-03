@@ -6,11 +6,8 @@ import com.example.onlyone.domain.feed.dto.response.FeedCommentResponseDto;
 import com.example.onlyone.domain.feed.dto.response.FeedDetailResponseDto;
 import com.example.onlyone.domain.feed.dto.response.FeedOverviewDto;
 import com.example.onlyone.domain.feed.dto.response.FeedSummaryResponseDto;
-import com.example.onlyone.domain.feed.entity.Feed;
-import com.example.onlyone.domain.feed.entity.FeedImage;
-import com.example.onlyone.domain.feed.repository.FeedCommentRepository;
-import com.example.onlyone.domain.feed.repository.FeedLikeRepository;
-import com.example.onlyone.domain.feed.repository.FeedRepository;
+import com.example.onlyone.domain.feed.port.FeedStoragePort;
+import com.example.onlyone.domain.feed.port.FeedStoragePort.FeedDetailItem;
 import com.example.onlyone.domain.feed.repository.FeedRepositoryCustom.FeedIdWithCounts;
 import com.example.onlyone.domain.feed.service.FeedCacheService.DetailCacheEntry;
 import com.example.onlyone.domain.user.service.UserService;
@@ -34,17 +31,18 @@ import java.util.List;
 public class FeedQueryService {
 
     private final ClubRepository clubRepository;
-    private final FeedRepository feedRepository;
-    private final FeedCommentRepository feedCommentRepository;
-    private final FeedLikeRepository feedLikeRepository;
+    private final FeedStoragePort feedStoragePort;
     private final UserService userService;
     private final UserClubRepository userClubRepository;
     private final FeedCacheService cache;
     private final FeedRenderService renderService;
 
-    private static final int CLUB_CHUNK_SIZE = 5;
     private static final int MAX_CACHEABLE_PAGE = 5;
     private static final int DEFAULT_COMMENT_PAGE_SIZE = 20;
+    // pf:{userId}:{page}:{size} — 개인 피드 캐시 키
+    private static final String PERSONAL_FEED_KEY_PREFIX = "pf:";
+    // ppf:{userId}:{page}:{size} — 인기 피드 캐시 키
+    private static final String POPULAR_FEED_KEY_PREFIX = "ppf:";
 
     // ── 모임 피드 ──
 
@@ -52,7 +50,7 @@ public class FeedQueryService {
         if (!clubRepository.existsById(clubId)) {
             throw new CustomException(ClubErrorCode.CLUB_NOT_FOUND);
         }
-        return feedRepository.findFeedSummaries(clubId, pageable);
+        return feedStoragePort.findClubFeedSummaries(clubId, pageable);
     }
 
     // ── 피드 상세 ──
@@ -65,31 +63,30 @@ public class FeedQueryService {
             return buildDetailFromCache(cached, feedId, currentUserId);
         }
 
-        Feed feed = feedRepository.findByIdAndClubIdWithRelations(feedId, clubId)
+        FeedDetailItem detail = feedStoragePort.findFeedDetailWithRelations(feedId, clubId)
                 .orElseThrow(() -> new CustomException(FeedErrorCode.FEED_NOT_FOUND));
 
-        List<String> imageUrls = feed.getFeedImages().stream()
-                .map(FeedImage::getFeedImage).toList();
-        boolean isLiked = feedLikeRepository.existsByFeed_FeedIdAndUser_UserId(feedId, currentUserId);
-        boolean isMine = feed.getUser().getUserId().equals(currentUserId);
+        List<String> imageUrls = detail.imageUrls();
+        boolean isLiked = feedStoragePort.isLikedByUser(feedId, currentUserId);
+        boolean isMine = detail.userId().equals(currentUserId);
 
         Pageable commentPage = PageRequest.of(0, DEFAULT_COMMENT_PAGE_SIZE, Sort.by(Sort.Direction.ASC, "createdAt"));
-        List<FeedCommentResponseDto> comments = feedCommentRepository.findByFeedIdWithUser(feedId, commentPage).stream()
-                .map(c -> FeedCommentResponseDto.from(c, currentUserId)).toList();
-        long repostCount = feedRepository.countByParentFeedId(feedId);
+        List<FeedCommentResponseDto> comments = feedStoragePort.findCommentsByFeedId(feedId, commentPage).stream()
+                .map(c -> c.toDto(currentUserId)).toList();
+        long repostCount = feedStoragePort.countRepostsByParentId(feedId);
 
-        cache.putDetail(feedId, feed, imageUrls, comments, repostCount);
-        return FeedDetailResponseDto.from(feed, imageUrls, isLiked, isMine, comments, repostCount);
+        cache.putDetail(feedId, detail, imageUrls, comments, repostCount);
+        return FeedDetailResponseDto.from(detail, imageUrls, isLiked, isMine, comments, repostCount);
     }
 
     // ── 전체 피드 ──
 
     public List<FeedOverviewDto> getPersonalFeed(Pageable pageable) {
-        return loadFeed(pageable, "pf:", true);
+        return loadFeed(pageable, PERSONAL_FEED_KEY_PREFIX, true);
     }
 
     public List<FeedOverviewDto> getPopularFeed(Pageable pageable) {
-        return loadFeed(pageable, "ppf:", false);
+        return loadFeed(pageable, POPULAR_FEED_KEY_PREFIX, false);
     }
 
     // ── private ──
@@ -109,7 +106,9 @@ public class FeedQueryService {
         List<FeedIdWithCounts> pass1 = cacheable ? cache.getPass1(pass1Key) : null;
 
         if (pass1 == null) {
-            pass1 = chronological ? loadChronological(clubIds, pageable) : feedRepository.findPopularFeedIdsByClubIds(clubIds, pageable);
+            pass1 = chronological
+                    ? feedStoragePort.findPersonalFeedIds(clubIds, pageable)
+                    : feedStoragePort.findPopularFeedIds(clubIds, pageable);
             if (cacheable) cache.putPass1(pass1Key, pass1);
         }
 
@@ -118,19 +117,13 @@ public class FeedQueryService {
         return result;
     }
 
-    private List<FeedIdWithCounts> loadChronological(List<Long> clubIds, Pageable pageable) {
-        return (clubIds.size() <= CLUB_CHUNK_SIZE)
-                ? feedRepository.findFeedIdsByClubIds(clubIds, pageable)
-                : feedRepository.findFeedIdsByClubIdsChunked(clubIds, pageable, CLUB_CHUNK_SIZE);
-    }
-
     private FeedDetailResponseDto buildDetailFromCache(DetailCacheEntry cached, Long feedId, Long currentUserId) {
-        boolean isLiked = feedLikeRepository.existsByFeed_FeedIdAndUser_UserId(feedId, currentUserId);
-        boolean isMine = cached.feed().getUser().getUserId().equals(currentUserId);
+        boolean isLiked = feedStoragePort.isLikedByUser(feedId, currentUserId);
+        boolean isMine = cached.detail().userId().equals(currentUserId);
         List<FeedCommentResponseDto> comments = cached.comments().stream()
                 .map(c -> new FeedCommentResponseDto(c.commentId(), c.userId(), c.nickname(), c.profileImage(),
                         c.content(), c.createdAt(), c.userId().equals(currentUserId)))
                 .toList();
-        return FeedDetailResponseDto.from(cached.feed(), cached.imageUrls(), isLiked, isMine, comments, cached.repostCount());
+        return FeedDetailResponseDto.from(cached.detail(), cached.imageUrls(), isLiked, isMine, comments, cached.repostCount());
     }
 }

@@ -38,6 +38,7 @@ public class SecurityConfig {
             "/api/v1/email/**",
             "/ws/**",
             "/ws-native",
+            "/ws-reactive",
             "/api/v1/kakao/**",
             "/api/v1/auth/kakao/callback",
             "/api/v1/auth/refresh",
@@ -93,7 +94,7 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                         .requestMatchers(AUTH_WHITELIST).permitAll()
-                        .requestMatchers("/ws-native/**").permitAll()
+                        .requestMatchers("/ws-native/**", "/ws-reactive/**").permitAll()
                         .requestMatchers("/actuator/prometheus", "/actuator/health", "/actuator/info", "/actuator/metrics/**").permitAll()
                         .requestMatchers("/error", "/favicon.ico").permitAll()
                         .requestMatchers(SWAGGER_PATHS).permitAll()

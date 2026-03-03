@@ -5,6 +5,7 @@ import com.example.onlyone.domain.feed.dto.request.FeedCommentRequestDto;
 import com.example.onlyone.domain.feed.dto.response.FeedCommentResponseDto;
 import com.example.onlyone.domain.feed.entity.Feed;
 import com.example.onlyone.domain.feed.entity.FeedComment;
+import com.example.onlyone.domain.feed.port.FeedStoragePort;
 import com.example.onlyone.domain.feed.repository.FeedCommentRepository;
 import com.example.onlyone.domain.feed.repository.FeedRepository;
 import com.example.onlyone.domain.user.entity.User;
@@ -28,6 +29,7 @@ public class FeedCommentService {
 
     private final FeedRepository feedRepository;
     private final FeedCommentRepository feedCommentRepository;
+    private final FeedStoragePort feedStoragePort;
     private final UserClubRepository userClubRepository;
     private final UserService userService;
     private final TransactionTemplate transactionTemplate;
@@ -65,12 +67,9 @@ public class FeedCommentService {
 
     @Transactional(readOnly = true)
     public List<FeedCommentResponseDto> getCommentList(Long feedId, Pageable pageable) {
-        if (!feedRepository.existsById(feedId)) {
-            throw new CustomException(FeedErrorCode.FEED_NOT_FOUND);
-        }
         Long userId = userService.getCurrentUserId();
-        return feedCommentRepository.findByFeedIdWithUser(feedId, pageable).stream()
-                .map(c -> FeedCommentResponseDto.from(c, userId))
+        return feedStoragePort.findCommentsByFeedId(feedId, pageable).stream()
+                .map(c -> c.toDto(userId))
                 .toList();
     }
 
@@ -92,11 +91,12 @@ public class FeedCommentService {
         transactionTemplate.executeWithoutResult(status -> action.run());
     }
 
+    // best-effort: 댓글 수 업데이트 실패 시 메인 작업에 영향 없도록 예외 흡수
     private void updateCountSafely(Runnable action, String failMsg, Long feedId) {
         try {
             runInTx(action);
         } catch (Exception e) {
-            log.warn("{}: feedId={}, err={}", failMsg, feedId, e.getMessage());
+            log.warn("{}: feedId={}", failMsg, feedId, e);
         }
     }
 }
