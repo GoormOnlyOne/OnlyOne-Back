@@ -84,6 +84,13 @@ spring:
     security:
       enabled: false
 
+  # RabbitMQ (원격 인프라)
+  rabbitmq:
+    host: ${INFRA_HOST}
+    port: 5672
+    username: guest
+    password: guest
+
   # MongoDB (원격 인프라)
   data.mongodb:
     uri: mongodb://root:root@${INFRA_HOST}:27017/onlyone?authSource=admin
