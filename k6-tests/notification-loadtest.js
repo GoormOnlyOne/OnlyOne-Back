@@ -44,7 +44,7 @@
 import http from 'k6/http';
 import { check, sleep, group } from 'k6';
 import { Counter, Rate, Trend } from 'k6/metrics';
-import { generateJWT, headers, sseHeaders, BASE_URL, fetchNotificationIds, connectSSE } from './lib/common.js';
+import { generateJWT, headers, sseHeaders, BASE_URL, fetchNotificationIds, connectSSE, makeUser } from './lib/common.js';
 import { THRESHOLDS } from './lib/bottleneck.js';
 
 // ============================================
@@ -259,17 +259,17 @@ export const options = {
 // ============================================
 function randomUser() {
     const userId = Math.floor(Math.random() * USER_COUNT) + 1;
-    return { userId, kakaoId: 1000000 + userId, status: 'ACTIVE', role: 'ROLE_USER' };
+    return makeUser(userId);
 }
 
 function vuUser(vuId) {
     const userId = ((vuId - 1) % USER_COUNT) + 1;
-    return { userId, kakaoId: 1000000 + userId, status: 'ACTIVE', role: 'ROLE_USER' };
+    return makeUser(userId);
 }
 
 function hotUser() {
     const userId = Math.floor(Math.random() * HOT_USER_MAX) + 1;
-    return { userId, kakaoId: 1000000 + userId, status: 'ACTIVE', role: 'ROLE_USER' };
+    return makeUser(userId);
 }
 
 // ============================================
@@ -326,7 +326,7 @@ export function baseline() {
     // 단건 읽음 (50%)
     if (notificationIds.length > 0 && Math.random() < 0.5) {
         const id = notificationIds[Math.floor(Math.random() * notificationIds.length)];
-        const markRes = http.patch(`${BASE_URL}/api/v1/notifications/${id}/read`, null, {
+        const markRes = http.put(`${BASE_URL}/api/v1/notifications/${id}/read`, null, {
             headers: hdrs, tags: { name: 'bl_mark' },
         });
         notiMarkDur.add(markRes.timings.duration);
@@ -336,7 +336,7 @@ export function baseline() {
 
     // 전체 읽음 (10%)
     if (Math.random() < 0.1) {
-        const markAllRes = http.patch(`${BASE_URL}/api/v1/notifications/read-all`, null, {
+        const markAllRes = http.put(`${BASE_URL}/api/v1/notifications/read-all`, null, {
             headers: hdrs, tags: { name: 'bl_markall' },
         });
         notiMarkAllDur.add(markAllRes.timings.duration);
@@ -421,7 +421,7 @@ export function writeStorm() {
         const ids = fetchNotificationIds(token, 10);
         if (ids.length > 0) {
             const id = ids[Math.floor(Math.random() * ids.length)];
-            const res = http.patch(`${BASE_URL}/api/v1/notifications/${id}/read`, null, {
+            const res = http.put(`${BASE_URL}/api/v1/notifications/${id}/read`, null, {
                 headers: hdrs, tags: { name: 'ws_mark' },
             });
             notiMarkDur.add(res.timings.duration);
@@ -442,7 +442,7 @@ export function writeStorm() {
         }
     } else {
         // 20%: 전체 읽음
-        const res = http.patch(`${BASE_URL}/api/v1/notifications/read-all`, null, {
+        const res = http.put(`${BASE_URL}/api/v1/notifications/read-all`, null, {
             headers: hdrs, tags: { name: 'ws_markall' },
         });
         notiMarkAllDur.add(res.timings.duration);
@@ -546,7 +546,7 @@ export function extremeMix() {
         // 20%: 단건 읽음
         const ids = fetchNotificationIds(token, 5);
         if (ids.length > 0) {
-            const res = http.patch(`${BASE_URL}/api/v1/notifications/${ids[0]}/read`, null, {
+            const res = http.put(`${BASE_URL}/api/v1/notifications/${ids[0]}/read`, null, {
                 headers: hdrs, tags: { name: 'ex_mark' },
             });
             dur = res.timings.duration;
@@ -555,7 +555,7 @@ export function extremeMix() {
         } else { ok = true; }
     } else if (roll < 0.92) {
         // 12%: 전체 읽음
-        const res = http.patch(`${BASE_URL}/api/v1/notifications/read-all`, null, {
+        const res = http.put(`${BASE_URL}/api/v1/notifications/read-all`, null, {
             headers: hdrs, tags: { name: 'ex_markall' },
         });
         dur = res.timings.duration;
@@ -608,7 +608,7 @@ export function spikeTest() {
     } else if (op === 'read') {
         const ids = fetchNotificationIds(token, 3);
         if (ids.length > 0) {
-            const res = http.patch(`${BASE_URL}/api/v1/notifications/${ids[0]}/read`, null, {
+            const res = http.put(`${BASE_URL}/api/v1/notifications/${ids[0]}/read`, null, {
                 headers: hdrs, tags: { name: 'sp_mark' },
             });
             dur = res.timings.duration;
@@ -616,7 +616,7 @@ export function spikeTest() {
             notiMarkDur.add(dur);
         } else { ok = true; }
     } else {
-        const res = http.patch(`${BASE_URL}/api/v1/notifications/read-all`, null, {
+        const res = http.put(`${BASE_URL}/api/v1/notifications/read-all`, null, {
             headers: hdrs, tags: { name: 'sp_markall' },
         });
         dur = res.timings.duration;
@@ -657,7 +657,7 @@ export function doubleSpikeTest() {
     } else {
         const ids = fetchNotificationIds(token, 5);
         if (ids.length > 0) {
-            const res = http.patch(`${BASE_URL}/api/v1/notifications/${ids[0]}/read`, null, {
+            const res = http.put(`${BASE_URL}/api/v1/notifications/${ids[0]}/read`, null, {
                 headers: hdrs, tags: { name: 'ds_mark' },
             });
             dur = res.timings.duration;
@@ -699,7 +699,7 @@ export function soakTest() {
     } else if (roll < 0.90) {
         const ids = fetchNotificationIds(token, 5);
         if (ids.length > 0) {
-            const res = http.patch(`${BASE_URL}/api/v1/notifications/${ids[0]}/read`, null, {
+            const res = http.put(`${BASE_URL}/api/v1/notifications/${ids[0]}/read`, null, {
                 headers: hdrs, tags: { name: 'soak_mark' },
             });
             dur = res.timings.duration;

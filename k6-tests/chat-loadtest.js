@@ -44,18 +44,18 @@ import http from 'k6/http';
 import ws from 'k6/ws';
 import { check, sleep, group } from 'k6';
 import { Counter, Rate, Trend } from 'k6/metrics';
-import { generateJWT, headers, BASE_URL, stompConnect, stompSubscribe, stompDisconnect, parseStompFrames } from './lib/common.js';
+import {
+    generateJWT, headers, BASE_URL,
+    stompConnect, stompSubscribe, stompDisconnect, parseStompFrames,
+    makeUser, getUserChatRooms, getRandomUserChatRoom, getUserClubs, getRandomUserClub,
+    getChatRoomClub, MIN_CHATROOM, MIN_CLUB, TOTAL_CHATROOMS,
+} from './lib/common.js';
 import { THRESHOLDS } from './lib/bottleneck.js';
 
 // ============================================
 // 테스트 데이터
 // ============================================
 const USER_COUNT    = parseInt(__ENV.USER_COUNT || '100000');
-const TOTAL_ROOMS   = 25000;
-const MIN_CHATROOM  = parseInt(__ENV.MIN_CHATROOM_ID || '1');
-const MIN_CLUB      = parseInt(__ENV.MIN_CLUB_ID || '1');
-const TOP_ROOM_IDS  = [64, 159, 233, 381, 7, 421, 499];
-const CLUB_IDS      = [64, 159, 381, 501, 747];
 
 const WS_MODE = (__ENV.WS_MODE || 'stomp');  // 'stomp' | 'reactive'
 const WS_URL = (BASE_URL.replace('http://', 'ws://').replace('https://', 'wss://')) + '/ws-native';
@@ -267,24 +267,16 @@ export const options = {
 // ============================================
 function randomUser() {
     const userId = Math.floor(Math.random() * USER_COUNT) + 1;
-    return { userId, kakaoId: 1000000 + userId, status: 'ACTIVE', role: 'ROLE_USER' };
+    return makeUser(userId);
 }
 
 function vuUser(vuId) {
     const userId = ((vuId - 1) % USER_COUNT) + 1;
-    return { userId, kakaoId: 1000000 + userId, status: 'ACTIVE', role: 'ROLE_USER' };
-}
-
-function randomRoomId() {
-    return TOP_ROOM_IDS[Math.floor(Math.random() * TOP_ROOM_IDS.length)];
-}
-
-function randomClubId() {
-    return CLUB_IDS[Math.floor(Math.random() * CLUB_IDS.length)];
+    return makeUser(userId);
 }
 
 function randomRoomFromPool() {
-    return MIN_CHATROOM + Math.floor(Math.random() * TOTAL_ROOMS);
+    return MIN_CHATROOM + Math.floor(Math.random() * TOTAL_CHATROOMS);
 }
 
 // ============================================
@@ -293,12 +285,13 @@ function randomRoomFromPool() {
 export function warmup() {
     const user = randomUser();
     const token = generateJWT(user);
-    const roomId = randomRoomId();
+    const roomId = getRandomUserChatRoom(user.userId);
+    const clubId = getChatRoomClub(roomId);
 
     http.get(`${BASE_URL}/api/v1/chat/${roomId}/messages?size=5`, {
         headers: headers(token), tags: { name: 'warmup_messages' },
     });
-    http.get(`${BASE_URL}/api/v1/clubs/${randomClubId()}/chat`, {
+    http.get(`${BASE_URL}/api/v1/clubs/${clubId}/chat`, {
         headers: headers(token), tags: { name: 'warmup_rooms' },
     });
     sleep(0.3);
@@ -311,9 +304,11 @@ export function baseline() {
     const user = randomUser();
     const token = generateJWT(user);
     const hdrs = headers(token);
-    const roomId = randomRoomId();
-    const clubId = randomClubId();
-    let messageIds = [];
+    const roomId = getRandomUserChatRoom(user.userId);
+    const clubId = getChatRoomClub(roomId);
+    let nextCursorId = null;
+    let nextCursorAt = null;
+    let hasMore = false;
 
     // 채팅방 목록
     const roomRes = http.get(`${BASE_URL}/api/v1/clubs/${clubId}/chat`, {
@@ -336,20 +331,19 @@ export function baseline() {
         try {
             const body = JSON.parse(listRes.body);
             const data = body.data;
-            if (data && data.messages) {
-                messageIds = data.messages.map(m => m.messageId);
-            } else if (Array.isArray(data)) {
-                messageIds = data.map(m => m.messageId);
+            if (data && data.nextCursorId && data.nextCursorAt) {
+                nextCursorId = data.nextCursorId;
+                nextCursorAt = data.nextCursorAt;
+                hasMore = !!data.hasMore;
             }
         } catch (e) { /* ignore */ }
     }
     sleep(0.2);
 
-    // 커서 페이지네이션 (2페이지) — 메시지 30개 이상 시
-    if (messageIds.length >= 30) {
-        const lastId = messageIds[messageIds.length - 1];
+    // 커서 페이지네이션 (2페이지) — hasMore일 때
+    if (hasMore && nextCursorId && nextCursorAt) {
         const cursorRes = http.get(
-            `${BASE_URL}/api/v1/chat/${roomId}/messages?size=30&cursor=${lastId}`, {
+            `${BASE_URL}/api/v1/chat/${roomId}/messages?size=30&cursorId=${nextCursorId}&cursorAt=${nextCursorAt}`, {
                 headers: hdrs, tags: { name: 'bl_messages_page2' },
             });
         chatCursorDur.add(cursorRes.timings.duration);
@@ -357,7 +351,7 @@ export function baseline() {
     }
     sleep(0.2);
 
-    // 메시지 전송 (30%)
+    // 메시지 전송 (30%) + 삭제 (5%: 자신이 보낸 메시지만)
     if (Math.random() < 0.3) {
         const sendRes = http.post(
             `${BASE_URL}/api/v1/chat/${roomId}/messages`,
@@ -366,17 +360,21 @@ export function baseline() {
         );
         chatSendDur.add(sendRes.timings.duration);
         phase2Success.add(sendRes.status === 200);
-    }
-    sleep(0.2);
 
-    // 메시지 삭제 (5%)
-    if (Math.random() < 0.05 && messageIds.length > 0) {
-        const msgId = messageIds[messageIds.length - 1];
-        const delRes = http.del(`${BASE_URL}/api/v1/chat/messages/${msgId}`, null, {
-            headers: hdrs, tags: { name: 'bl_delete' },
-        });
-        chatDeleteDur.add(delRes.timings.duration);
-        phase2Success.add(delRes.status === 204 || delRes.status === 200);
+        // 삭제 — 자신이 보낸 메시지만 삭제 가능
+        if (sendRes.status === 200 && Math.random() < 0.17) {
+            try {
+                const sendBody = JSON.parse(sendRes.body);
+                const msgId = sendBody.data.messageId;
+                if (msgId) {
+                    const delRes = http.del(`${BASE_URL}/api/v1/chat/messages/${msgId}`, null, {
+                        headers: hdrs, tags: { name: 'bl_delete' },
+                    });
+                    chatDeleteDur.add(delRes.timings.duration);
+                    phase2Success.add(delRes.status === 204 || delRes.status === 200);
+                }
+            } catch (e) { /* ignore */ }
+        }
     }
 
     sleep(0.3);
@@ -389,7 +387,7 @@ export function sendStorm() {
     const user = vuUser(__VU);
     const token = generateJWT(user);
     const hdrs = headers(token);
-    const roomId = randomRoomId();
+    const roomId = getRandomUserChatRoom(user.userId);
 
     // 메시지 전송
     const payload = JSON.stringify({
@@ -428,7 +426,7 @@ export function readStorm() {
     const user = vuUser(__VU);
     const token = generateJWT(user);
     const hdrs = headers(token);
-    const roomId = randomRoomId();
+    const roomId = getRandomUserChatRoom(user.userId);
     const roll = Math.random();
 
     if (roll < 0.6) {
@@ -472,7 +470,7 @@ export function readStorm() {
 export function roomListStress() {
     const user = vuUser(__VU);
     const token = generateJWT(user);
-    const clubId = randomClubId();
+    const clubId = getRandomUserClub(user.userId);
 
     const res = http.get(`${BASE_URL}/api/v1/clubs/${clubId}/chat`, {
         headers: headers(token), tags: { name: 'rls_rooms' },
@@ -492,7 +490,7 @@ export function readWriteContention() {
     const user = vuUser(__VU);
     const token = generateJWT(user);
     const hdrs = headers(token);
-    const roomId = TOP_ROOM_IDS[0]; // 집중 경합: 방 64
+    const roomId = getUserChatRooms(user.userId)[0] || MIN_CHATROOM; // 집중 경합: 유저의 첫 번째 방
 
     if (Math.random() < 0.5) {
         // 읽기
@@ -523,7 +521,7 @@ export function readWriteContention() {
 export function wsStompStress() {
     const user = vuUser(__VU);
     const token = generateJWT(user);
-    const roomId = randomRoomId();
+    const roomId = getRandomUserChatRoom(user.userId);
     const connectStart = Date.now();
 
     const res = ws.connect(`${WS_URL}`, null, function (socket) {
@@ -588,7 +586,7 @@ export function wsStompStress() {
 export function wsReactiveStress() {
     const user = vuUser(__VU);
     const token = generateJWT(user);
-    const roomId = randomRoomId();
+    const roomId = getRandomUserChatRoom(user.userId);
     const connectStart = Date.now();
 
     const res = ws.connect(`${WS_REACTIVE_URL}?token=${token}`, null, function (socket) {
@@ -657,7 +655,7 @@ export function spikeTest() {
     const user = randomUser();
     const token = generateJWT(user);
     const hdrs = headers(token);
-    const roomId = randomRoomId();
+    const roomId = getRandomUserChatRoom(user.userId);
     const ops = ['list', 'send', 'cursor', 'rooms'];
     const op = ops[Math.floor(Math.random() * ops.length)];
     let ok = false;
@@ -682,7 +680,7 @@ export function spikeTest() {
         chatCursorDur.add(res.timings.duration);
         ok = res.status === 200;
     } else {
-        const clubId = randomClubId();
+        const clubId = getChatRoomClub(roomId);
         const res = http.get(`${BASE_URL}/api/v1/clubs/${clubId}/chat`, {
             headers: hdrs, tags: { name: 'sp_rooms' },
         });
@@ -702,7 +700,7 @@ export function doubleSpikeTest() {
     const user = randomUser();
     const token = generateJWT(user);
     const hdrs = headers(token);
-    const roomId = randomRoomId();
+    const roomId = getRandomUserChatRoom(user.userId);
     const roll = Math.random();
     let ok = false;
 
@@ -720,7 +718,7 @@ export function doubleSpikeTest() {
         chatSendDur.add(res.timings.duration);
         ok = res.status === 200;
     } else {
-        const clubId = randomClubId();
+        const clubId = getChatRoomClub(roomId);
         const res = http.get(`${BASE_URL}/api/v1/clubs/${clubId}/chat`, {
             headers: hdrs, tags: { name: 'ds_rooms' },
         });
@@ -741,7 +739,7 @@ export function soakTest() {
     const user = vuUser(__VU);
     const token = generateJWT(user);
     const hdrs = headers(token);
-    const roomId = randomRoomId();
+    const roomId = getRandomUserChatRoom(user.userId);
     const roll = Math.random();
     let ok = false;
 
@@ -769,7 +767,7 @@ export function soakTest() {
         ok = res.status === 200;
     } else if (roll < 0.95) {
         // 10%: 채팅방 목록
-        const clubId = randomClubId();
+        const clubId = getChatRoomClub(roomId);
         const res = http.get(`${BASE_URL}/api/v1/clubs/${clubId}/chat`, {
             headers: hdrs, tags: { name: 'soak_rooms' },
         });

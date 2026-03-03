@@ -15,7 +15,7 @@
 // Phase 11 최종 검증         (1 VU, 30s)  — 전 API 정상 확인
 //
 // 전제 조건:
-//   - 서버: SPRING_PROFILES_ACTIVE=local (loadtest 선택적)
+//   - 서버: SPRING_PROFILES_ACTIVE=local (loadtest 필수)
 //   - MySQL: userId 1~100000 지갑 존재
 //   - schedule 5000000~5024999 (club_id=1, ENDED)
 //   - settlement 25,000건 (HOLDING, receiver=userId 1)
@@ -29,7 +29,7 @@
 import http from 'k6/http';
 import { check, sleep } from 'k6';
 import { Counter, Rate, Trend } from 'k6/metrics';
-import { generateJWT, headers, BASE_URL } from './lib/common.js';
+import { generateJWT, headers, makeUser, BASE_URL, MIN_CLUB } from './lib/common.js';
 
 // ── 상수 ──
 const VALID_USER_COUNT = 100000;
@@ -250,15 +250,6 @@ export const options = {
 };
 
 // ── 유틸 ──
-function makeUser(userId) {
-    return {
-        userId,
-        kakaoId: 1000000 + userId,
-        status: 'ACTIVE',
-        role: 'ROLE_USER',
-    };
-}
-
 function uniqueOrderId(prefix) {
     return `loadtest-${prefix}-${Date.now()}-${Math.random().toString(36).substring(2, 8)}`;
 }
@@ -268,7 +259,7 @@ function randomUserId() {
 }
 
 function randomScheduleId() {
-    return SCHEDULE_ID_BASE + 1 + Math.floor(Math.random() * SETTLEMENT_COUNT);
+    return SCHEDULE_ID_BASE + Math.floor(Math.random() * SETTLEMENT_COUNT);
 }
 
 // ── Setup: 멱등성 테스트용 사전 save+verify ──
@@ -347,7 +338,7 @@ function doMixedOp(userId, ratios) {
     } else if (ops < sqThresh) {
         const scheduleId = randomScheduleId();
         res = http.get(
-            `${BASE_URL}/api/v1/clubs/1/schedules/${scheduleId}/settlements?page=0&size=20`,
+            `${BASE_URL}/api/v1/clubs/${MIN_CLUB}/schedules/${scheduleId}/settlements?page=0&size=20`,
             { headers: hdrs, tags: { name: 'mx_settle_query' } }
         );
     } else if (ops < wqThresh) {
@@ -366,7 +357,7 @@ function doMixedOp(userId, ratios) {
         const leaderHdrs = headers(leaderToken);
         const scheduleId = randomScheduleId();
         res = http.post(
-            `${BASE_URL}/api/v1/clubs/1/schedules/${scheduleId}/settlements?costPerUser=10`,
+            `${BASE_URL}/api/v1/clubs/${MIN_CLUB}/schedules/${scheduleId}/settlements?costPerUser=10`,
             null,
             { headers: leaderHdrs, tags: { name: 'mx_settle_req' } }
         );
@@ -454,7 +445,7 @@ export function settlementMass() {
 
     const start = Date.now();
     const res = http.post(
-        `${BASE_URL}/api/v1/clubs/1/schedules/${scheduleId}/settlements?costPerUser=${costPerUser}`,
+        `${BASE_URL}/api/v1/clubs/${MIN_CLUB}/schedules/${scheduleId}/settlements?costPerUser=${costPerUser}`,
         null,
         { headers: hdrs, tags: { name: 'settle_request' } }
     );
@@ -474,16 +465,17 @@ export function settlementMass() {
         for (let i = 0; i < 15; i++) {
             sleep(2);
             const queryRes = http.get(
-                `${BASE_URL}/api/v1/clubs/1/schedules/${scheduleId}/settlements?page=0&size=20`,
+                `${BASE_URL}/api/v1/clubs/${MIN_CLUB}/schedules/${scheduleId}/settlements?page=0&size=20`,
                 { headers: hdrs, tags: { name: 'settle_poll' } }
             );
             if (queryRes.status === 200) {
                 try {
                     const data = JSON.parse(queryRes.body);
-                    const status = data.data?.totalStatus || '';
-                    if (status === 'COMPLETED' || status === 'FAILED') {
-                        break;
-                    }
+                    const userSettlements = data.data?.userSettlementList || [];
+                    const allDone = userSettlements.length > 0 && userSettlements.every(
+                        us => us.status === 'COMPLETED' || us.status === 'FAILED'
+                    );
+                    if (allDone) break;
                 } catch (e) { /* ignore */ }
             }
         }
@@ -505,7 +497,7 @@ export function settlementQueryStorm() {
 
     const start = Date.now();
     const res = http.get(
-        `${BASE_URL}/api/v1/clubs/1/schedules/${scheduleId}/settlements?page=${page}&size=20`,
+        `${BASE_URL}/api/v1/clubs/${MIN_CLUB}/schedules/${scheduleId}/settlements?page=${page}&size=20`,
         { headers: hdrs, tags: { name: 'settle_query_storm' } }
     );
     settleQueryDur.add(Date.now() - start);
@@ -609,7 +601,7 @@ export function finalVerify() {
 
     // 3. 정산 조회 정상
     const settleRes = http.get(
-        `${BASE_URL}/api/v1/clubs/1/schedules/5000000/settlements?page=0&size=20`,
+        `${BASE_URL}/api/v1/clubs/${MIN_CLUB}/schedules/5000000/settlements?page=0&size=20`,
         { headers: hdrs, tags: { name: 'verify_settle' } }
     );
     ok = check(settleRes, { 'verify: settlement 200': (r) => r.status === 200 });

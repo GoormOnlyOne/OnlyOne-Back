@@ -38,23 +38,25 @@
 import http from 'k6/http';
 import { check, sleep, group } from 'k6';
 import { Counter, Rate, Trend } from 'k6/metrics';
-import { generateJWT, headers, BASE_URL } from './lib/common.js';
+import {
+    generateJWT, headers, BASE_URL, makeUser,
+    getUserClubs, getRandomUserClub,
+    getUserSchedules, getScheduleClub,
+    MIN_CLUB, MIN_SCHEDULE, TOTAL_CLUBS, TOTAL_SCHEDULES,
+} from './lib/common.js';
 import { THRESHOLDS } from './lib/bottleneck.js';
 
 // ============================================
 // 테스트 데이터
 // ============================================
 const USER_COUNT   = parseInt(__ENV.USER_COUNT || '100000');
-const MIN_CLUB     = parseInt(__ENV.MIN_CLUB_ID || '1');
 const MAX_CLUB     = parseInt(__ENV.MAX_CLUB_ID || '50000');
-const MIN_SCHEDULE = parseInt(__ENV.MIN_SCHEDULE_ID || '1');
 const MAX_SCHEDULE = parseInt(__ENV.MAX_SCHEDULE_ID || '100000');
 
 // ============================================
 // 커스텀 메트릭 — 엔드포인트별
 // ============================================
 const clubDetailDur       = new Trend('club_detail_duration', true);
-const clubMembersDur      = new Trend('club_members_duration', true);
 const clubJoinDur         = new Trend('club_join_duration', true);
 const clubLeaveDur        = new Trend('club_leave_duration', true);
 const scheduleListDur     = new Trend('schedule_list_duration', true);
@@ -233,7 +235,6 @@ export const options = {
 
         // ── 엔드포인트별 (bottleneck 임계값) ──
         'club_detail_duration':           [`p(95)<${THRESHOLDS.NORMAL}`],    // 500ms
-        'club_members_duration':          [`p(95)<${THRESHOLDS.NORMAL}`],    // 500ms
         'club_join_duration':             [`p(95)<${THRESHOLDS.NORMAL}`],    // 500ms
         'club_leave_duration':            [`p(95)<${THRESHOLDS.NORMAL}`],    // 500ms
         'schedule_list_duration':         [`p(95)<${THRESHOLDS.NORMAL}`],    // 500ms
@@ -260,24 +261,25 @@ export const options = {
 // ============================================
 function randomUser() {
     const userId = Math.floor(Math.random() * USER_COUNT) + 1;
-    return { userId, kakaoId: 1000000 + userId, status: 'ACTIVE', role: 'ROLE_USER' };
+    return makeUser(userId);
 }
 
 function vuUser(vuId) {
     const userId = ((vuId - 1) % USER_COUNT) + 1;
-    return { userId, kakaoId: 1000000 + userId, status: 'ACTIVE', role: 'ROLE_USER' };
+    return makeUser(userId);
 }
 
 function randomClubId() {
-    return MIN_CLUB + Math.floor(Math.random() * (MAX_CLUB - MIN_CLUB + 1));
+    return MIN_CLUB + Math.floor(Math.random() * TOTAL_CLUBS);
 }
 
 function randomScheduleId() {
-    return MIN_SCHEDULE + Math.floor(Math.random() * (MAX_SCHEDULE - MIN_SCHEDULE + 1));
+    return MIN_SCHEDULE + Math.floor(Math.random() * TOTAL_SCHEDULES);
 }
 
 function futureDate() {
-    return new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
+    const d = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+    return d.toISOString().replace('Z', '').split('.')[0]; // "2026-03-11T12:00:00"
 }
 
 function isSuccess(status) {
@@ -296,7 +298,7 @@ export function warmup() {
     http.get(`${BASE_URL}/api/v1/clubs/${clubId}`, {
         headers: hdrs, tags: { name: 'warmup_club_detail' },
     });
-    http.get(`${BASE_URL}/api/v1/schedules/club/${clubId}?page=0&size=5`, {
+    http.get(`${BASE_URL}/api/v1/clubs/${clubId}/schedules`, {
         headers: hdrs, tags: { name: 'warmup_schedule_list' },
     });
     sleep(0.3);
@@ -309,8 +311,9 @@ export function baseline() {
     const user = randomUser();
     const token = generateJWT(user);
     const hdrs = headers(token);
-    const clubId = randomClubId();
+    const clubId = getRandomUserClub(user.userId);
     const scheduleId = randomScheduleId();
+    const scheduleClubId = getScheduleClub(scheduleId);
 
     // ── 클럽 상세 ──
     const clubDetailRes = http.get(`${BASE_URL}/api/v1/clubs/${clubId}`, {
@@ -321,17 +324,8 @@ export function baseline() {
     if (!isSuccess(clubDetailRes.status)) totalErrors.add(1);
     sleep(0.2);
 
-    // ── 클럽 멤버 목록 ──
-    const membersRes = http.get(`${BASE_URL}/api/v1/clubs/${clubId}/members?page=0&size=20`, {
-        headers: hdrs, tags: { name: 'bl_club_members' },
-    });
-    clubMembersDur.add(membersRes.timings.duration);
-    phase2Success.add(isSuccess(membersRes.status));
-    if (!isSuccess(membersRes.status)) totalErrors.add(1);
-    sleep(0.2);
-
     // ── 일정 목록 ──
-    const schedListRes = http.get(`${BASE_URL}/api/v1/schedules/club/${clubId}?page=0&size=20`, {
+    const schedListRes = http.get(`${BASE_URL}/api/v1/clubs/${clubId}/schedules`, {
         headers: hdrs, tags: { name: 'bl_schedule_list' },
     });
     scheduleListDur.add(schedListRes.timings.duration);
@@ -340,7 +334,7 @@ export function baseline() {
     sleep(0.2);
 
     // ── 일정 상세 ──
-    const schedDetailRes = http.get(`${BASE_URL}/api/v1/schedules/${scheduleId}`, {
+    const schedDetailRes = http.get(`${BASE_URL}/api/v1/clubs/${scheduleClubId}/schedules/${scheduleId}`, {
         headers: hdrs, tags: { name: 'bl_schedule_detail' },
     });
     scheduleDetailDur.add(schedDetailRes.timings.duration);
@@ -348,9 +342,9 @@ export function baseline() {
     if (!isSuccess(schedDetailRes.status)) totalErrors.add(1);
     sleep(0.2);
 
-    // ── 일정 참가 (20%) ──
+    // ── 일정 참가 (20%) — PATCH .../users ──
     if (Math.random() < 0.2) {
-        const partRes = http.post(`${BASE_URL}/api/v1/schedules/${scheduleId}/participate`, null, {
+        const partRes = http.patch(`${BASE_URL}/api/v1/clubs/${scheduleClubId}/schedules/${scheduleId}/users`, null, {
             headers: hdrs, tags: { name: 'bl_schedule_participate' },
         });
         schedulePartDur.add(partRes.timings.duration);
@@ -378,13 +372,12 @@ export function baseline() {
         }
     }
 
-    // ── 일정 생성 (3%) ──
+    // ── 일정 생성 (3%) — clubId in path, no clubId in body ──
     if (Math.random() < 0.03) {
         const createRes = http.post(
-            `${BASE_URL}/api/v1/schedules`,
+            `${BASE_URL}/api/v1/clubs/${clubId}/schedules`,
             JSON.stringify({
-                clubId: clubId,
-                name: `k6 baseline 스케줄 ${Date.now()}`,
+                name: `k6bl${Date.now() % 100000}`,
                 location: '테스트 장소',
                 cost: 5000,
                 userLimit: 10,
@@ -406,16 +399,15 @@ export function scheduleConcurrency() {
     const user = vuUser(__VU);
     const token = generateJWT(user);
     const hdrs = headers(token);
-    const clubId = randomClubId();
+    const clubId = getRandomUserClub(user.userId);
     const roll = Math.random();
 
     if (roll < 0.35) {
-        // 35%: 일정 생성
+        // 35%: 일정 생성 (user must be LEADER; non-leaders get 403 — realistic)
         const createRes = http.post(
-            `${BASE_URL}/api/v1/schedules`,
+            `${BASE_URL}/api/v1/clubs/${clubId}/schedules`,
             JSON.stringify({
-                clubId: clubId,
-                name: `k6 동시성 스케줄 ${Date.now()}_${__VU}`,
+                name: `k6cc${__VU}_${__ITER}`,
                 location: '동시성 테스트 장소',
                 cost: 3000,
                 userLimit: 20,
@@ -435,7 +427,7 @@ export function scheduleConcurrency() {
                 const newScheduleId = data.scheduleId || data.id;
                 if (newScheduleId) {
                     sleep(0.05);
-                    const partRes = http.post(`${BASE_URL}/api/v1/schedules/${newScheduleId}/participate`, null, {
+                    const partRes = http.patch(`${BASE_URL}/api/v1/clubs/${clubId}/schedules/${newScheduleId}/users`, null, {
                         headers: hdrs, tags: { name: 'p3_schedule_participate_new' },
                     });
                     schedulePartDur.add(partRes.timings.duration);
@@ -444,9 +436,10 @@ export function scheduleConcurrency() {
             } catch (e) { /* ignore */ }
         }
     } else {
-        // 65%: 기존 일정에 참가
+        // 65%: 기존 일정에 참가 — use user's own club schedule
         const scheduleId = randomScheduleId();
-        const partRes = http.post(`${BASE_URL}/api/v1/schedules/${scheduleId}/participate`, null, {
+        const scheduleClubId = getScheduleClub(scheduleId);
+        const partRes = http.patch(`${BASE_URL}/api/v1/clubs/${scheduleClubId}/schedules/${scheduleId}/users`, null, {
             headers: hdrs, tags: { name: 'p3_schedule_participate' },
         });
         schedulePartDur.add(partRes.timings.duration);
@@ -520,7 +513,7 @@ export function scheduleRead() {
 
     if (roll < 0.40) {
         // 40%: 일정 목록
-        const listRes = http.get(`${BASE_URL}/api/v1/schedules/club/${clubId}?page=0&size=20`, {
+        const listRes = http.get(`${BASE_URL}/api/v1/clubs/${clubId}/schedules`, {
             headers: hdrs, tags: { name: 'p5_schedule_list' },
         });
         scheduleListDur.add(listRes.timings.duration);
@@ -531,13 +524,12 @@ export function scheduleRead() {
         if (listRes.status === 200) {
             try {
                 const body = JSON.parse(listRes.body);
-                const data = body.data || body;
-                const schedules = data.schedules || data.content || [];
-                if (schedules.length > 0) {
+                const schedules = body.data; // direct array from CommonResponse.success(List<>)
+                if (schedules && schedules.length > 0) {
                     const picked = schedules[Math.floor(Math.random() * schedules.length)];
                     const sid = picked.scheduleId || picked.id;
                     if (sid) {
-                        const detailRes = http.get(`${BASE_URL}/api/v1/schedules/${sid}`, {
+                        const detailRes = http.get(`${BASE_URL}/api/v1/clubs/${clubId}/schedules/${sid}`, {
                             headers: hdrs, tags: { name: 'p5_schedule_detail_chain' },
                         });
                         scheduleDetailDur.add(detailRes.timings.duration);
@@ -549,7 +541,8 @@ export function scheduleRead() {
     } else if (roll < 0.70) {
         // 30%: 일정 상세 직접 조회
         const scheduleId = randomScheduleId();
-        const detailRes = http.get(`${BASE_URL}/api/v1/schedules/${scheduleId}`, {
+        const scheduleClubId = getScheduleClub(scheduleId);
+        const detailRes = http.get(`${BASE_URL}/api/v1/clubs/${scheduleClubId}/schedules/${scheduleId}`, {
             headers: hdrs, tags: { name: 'p5_schedule_detail' },
         });
         scheduleDetailDur.add(detailRes.timings.duration);
@@ -566,7 +559,7 @@ export function scheduleRead() {
 
         sleep(0.05);
 
-        const listRes = http.get(`${BASE_URL}/api/v1/schedules/club/${clubId}?page=0&size=20`, {
+        const listRes = http.get(`${BASE_URL}/api/v1/clubs/${clubId}/schedules`, {
             headers: hdrs, tags: { name: 'p5_schedule_list_chain' },
         });
         scheduleListDur.add(listRes.timings.duration);
@@ -583,10 +576,22 @@ export function scheduleRejoin() {
     const user = vuUser(__VU);
     const token = generateJWT(user);
     const hdrs = headers(token);
-    const scheduleId = randomScheduleId();
+
+    // Use a schedule the user is already participating in (from seed data)
+    const userSchedules = getUserSchedules(user.userId);
+    let scheduleId, clubId;
+    if (userSchedules.length > 0) {
+        scheduleId = userSchedules[Math.floor(Math.random() * userSchedules.length)];
+        clubId = getScheduleClub(scheduleId);
+    } else {
+        // Fallback: random schedule (may get 4xx — acceptable for load test)
+        scheduleId = randomScheduleId();
+        clubId = getScheduleClub(scheduleId);
+    }
 
     // 참가 → 취소 → 재참가 패턴 (동일 일정에 경합)
-    const partRes = http.post(`${BASE_URL}/api/v1/schedules/${scheduleId}/participate`, null, {
+    // PATCH /api/v1/clubs/{clubId}/schedules/{scheduleId}/users
+    const partRes = http.patch(`${BASE_URL}/api/v1/clubs/${clubId}/schedules/${scheduleId}/users`, null, {
         headers: hdrs, tags: { name: 'p6_schedule_participate' },
     });
     schedulePartDur.add(partRes.timings.duration);
@@ -596,8 +601,8 @@ export function scheduleRejoin() {
     if (isSuccess(partRes.status)) {
         sleep(0.05 + Math.random() * 0.1);
 
-        // 참가 취소
-        const cancelRes = http.del(`${BASE_URL}/api/v1/schedules/${scheduleId}/participate`, null, {
+        // 참가 취소 — DELETE /api/v1/clubs/{clubId}/schedules/{scheduleId}/users
+        const cancelRes = http.del(`${BASE_URL}/api/v1/clubs/${clubId}/schedules/${scheduleId}/users`, null, {
             headers: hdrs, tags: { name: 'p6_schedule_cancel' },
         });
         scheduleCancelDur.add(cancelRes.timings.duration);
@@ -607,8 +612,8 @@ export function scheduleRejoin() {
         if (isSuccess(cancelRes.status)) {
             sleep(0.05 + Math.random() * 0.1);
 
-            // 재참가
-            const rejoinRes = http.post(`${BASE_URL}/api/v1/schedules/${scheduleId}/participate`, null, {
+            // 재참가 — PATCH
+            const rejoinRes = http.patch(`${BASE_URL}/api/v1/clubs/${clubId}/schedules/${scheduleId}/users`, null, {
                 headers: hdrs, tags: { name: 'p6_schedule_rejoin' },
             });
             schedulePartDur.add(rejoinRes.timings.duration);
@@ -620,7 +625,7 @@ export function scheduleRejoin() {
 }
 
 // ============================================
-// Phase 7: 클럽 목록 + 멤버 조회 — 350 VUs
+// Phase 7: 클럽 목록 + 상세 조회 — 350 VUs
 // ============================================
 export function clubRead() {
     const user = vuUser(__VU);
@@ -629,7 +634,7 @@ export function clubRead() {
     const roll = Math.random();
 
     if (roll < 0.40) {
-        // 40%: 클럽 상세 → 멤버 목록 연쇄
+        // 40%: 클럽 상세 → 일정 목록 연쇄
         const clubId = randomClubId();
         const detailRes = http.get(`${BASE_URL}/api/v1/clubs/${clubId}`, {
             headers: hdrs, tags: { name: 'p7_club_detail' },
@@ -640,20 +645,21 @@ export function clubRead() {
 
         sleep(0.05);
 
-        const membersRes = http.get(`${BASE_URL}/api/v1/clubs/${clubId}/members?page=0&size=20`, {
-            headers: hdrs, tags: { name: 'p7_club_members' },
+        const schedListRes = http.get(`${BASE_URL}/api/v1/clubs/${clubId}/schedules`, {
+            headers: hdrs, tags: { name: 'p7_schedule_list' },
         });
-        clubMembersDur.add(membersRes.timings.duration);
-        phase7Success.add(isSuccess(membersRes.status));
-        if (!isSuccess(membersRes.status)) totalErrors.add(1);
+        scheduleListDur.add(schedListRes.timings.duration);
+        phase7Success.add(isSuccess(schedListRes.status));
+        if (!isSuccess(schedListRes.status)) totalErrors.add(1);
     } else if (roll < 0.70) {
-        // 30%: 클럽 멤버 페이징 (page 0, 1, 2)
+        // 30%: 여러 클럽 상세 조회 (순차) + 각 클럽의 일정 목록
         const clubId = randomClubId();
         for (let page = 0; page < 3; page++) {
-            const res = http.get(`${BASE_URL}/api/v1/clubs/${clubId}/members?page=${page}&size=20`, {
-                headers: hdrs, tags: { name: `p7_club_members_page${page}` },
+            const cid = MIN_CLUB + ((clubId - MIN_CLUB + page) % TOTAL_CLUBS);
+            const res = http.get(`${BASE_URL}/api/v1/clubs/${cid}`, {
+                headers: hdrs, tags: { name: `p7_club_detail_page${page}` },
             });
-            clubMembersDur.add(res.timings.duration);
+            clubDetailDur.add(res.timings.duration);
             phase7Success.add(isSuccess(res.status));
             if (!isSuccess(res.status)) { totalErrors.add(1); break; }
             sleep(0.02);
@@ -683,7 +689,7 @@ export function spikeTest() {
     const token = generateJWT(user);
     const hdrs = headers(token);
     const ops = [
-        'club_detail', 'club_members', 'club_join',
+        'club_detail', 'schedule_list_detail', 'club_join',
         'schedule_list', 'schedule_detail', 'schedule_create',
         'schedule_participate', 'schedule_cancel',
     ];
@@ -696,12 +702,21 @@ export function spikeTest() {
         });
         clubDetailDur.add(res.timings.duration);
         ok = isSuccess(res.status);
-    } else if (op === 'club_members') {
-        const res = http.get(`${BASE_URL}/api/v1/clubs/${randomClubId()}/members?page=0&size=20`, {
-            headers: hdrs, tags: { name: 'sp_club_members' },
+    } else if (op === 'schedule_list_detail') {
+        // Club detail + schedule list (replaces old club_members)
+        const cid = randomClubId();
+        const res = http.get(`${BASE_URL}/api/v1/clubs/${cid}`, {
+            headers: hdrs, tags: { name: 'sp_club_detail_chain' },
         });
-        clubMembersDur.add(res.timings.duration);
+        clubDetailDur.add(res.timings.duration);
         ok = isSuccess(res.status);
+        if (ok) {
+            const listRes = http.get(`${BASE_URL}/api/v1/clubs/${cid}/schedules`, {
+                headers: hdrs, tags: { name: 'sp_schedule_list_chain' },
+            });
+            scheduleListDur.add(listRes.timings.duration);
+            ok = isSuccess(listRes.status);
+        }
     } else if (op === 'club_join') {
         const clubId = randomClubId();
         const res = http.post(`${BASE_URL}/api/v1/clubs/${clubId}/join`, null, {
@@ -717,23 +732,25 @@ export function spikeTest() {
             clubLeaveDur.add(leaveRes.timings.duration);
         }
     } else if (op === 'schedule_list') {
-        const res = http.get(`${BASE_URL}/api/v1/schedules/club/${randomClubId()}?page=0&size=20`, {
+        const res = http.get(`${BASE_URL}/api/v1/clubs/${randomClubId()}/schedules`, {
             headers: hdrs, tags: { name: 'sp_schedule_list' },
         });
         scheduleListDur.add(res.timings.duration);
         ok = isSuccess(res.status);
     } else if (op === 'schedule_detail') {
-        const res = http.get(`${BASE_URL}/api/v1/schedules/${randomScheduleId()}`, {
+        const sid = randomScheduleId();
+        const scid = getScheduleClub(sid);
+        const res = http.get(`${BASE_URL}/api/v1/clubs/${scid}/schedules/${sid}`, {
             headers: hdrs, tags: { name: 'sp_schedule_detail' },
         });
         scheduleDetailDur.add(res.timings.duration);
         ok = isSuccess(res.status);
     } else if (op === 'schedule_create') {
+        const cid = getRandomUserClub(user.userId);
         const res = http.post(
-            `${BASE_URL}/api/v1/schedules`,
+            `${BASE_URL}/api/v1/clubs/${cid}/schedules`,
             JSON.stringify({
-                clubId: randomClubId(),
-                name: `k6 spike 스케줄 ${Date.now()}`,
+                name: `k6sp${Date.now() % 100000}`,
                 location: 'spike 테스트',
                 cost: 5000,
                 userLimit: 15,
@@ -744,13 +761,25 @@ export function spikeTest() {
         scheduleCreateDur.add(res.timings.duration);
         ok = isSuccess(res.status);
     } else if (op === 'schedule_participate') {
-        const res = http.post(`${BASE_URL}/api/v1/schedules/${randomScheduleId()}/participate`, null, {
+        const sid = randomScheduleId();
+        const scid = getScheduleClub(sid);
+        const res = http.patch(`${BASE_URL}/api/v1/clubs/${scid}/schedules/${sid}/users`, null, {
             headers: hdrs, tags: { name: 'sp_schedule_participate' },
         });
         schedulePartDur.add(res.timings.duration);
         ok = isSuccess(res.status);
     } else if (op === 'schedule_cancel') {
-        const res = http.del(`${BASE_URL}/api/v1/schedules/${randomScheduleId()}/participate`, null, {
+        // Use user's known schedules for cancel to have a higher chance of success
+        const userSchedules = getUserSchedules(user.userId);
+        let sid, scid;
+        if (userSchedules.length > 0) {
+            sid = userSchedules[Math.floor(Math.random() * userSchedules.length)];
+            scid = getScheduleClub(sid);
+        } else {
+            sid = randomScheduleId();
+            scid = getScheduleClub(sid);
+        }
+        const res = http.del(`${BASE_URL}/api/v1/clubs/${scid}/schedules/${sid}/users`, null, {
             headers: hdrs, tags: { name: 'sp_schedule_cancel' },
         });
         scheduleCancelDur.add(res.timings.duration);
@@ -781,28 +810,39 @@ export function doubleSpikeTest() {
         ok = isSuccess(res.status);
     } else if (roll < 0.45) {
         // 20%: 일정 목록
-        const res = http.get(`${BASE_URL}/api/v1/schedules/club/${randomClubId()}?page=0&size=20`, {
+        const res = http.get(`${BASE_URL}/api/v1/clubs/${randomClubId()}/schedules`, {
             headers: hdrs, tags: { name: 'ds_schedule_list' },
         });
         scheduleListDur.add(res.timings.duration);
         ok = isSuccess(res.status);
     } else if (roll < 0.60) {
         // 15%: 일정 상세
-        const res = http.get(`${BASE_URL}/api/v1/schedules/${randomScheduleId()}`, {
+        const sid = randomScheduleId();
+        const scid = getScheduleClub(sid);
+        const res = http.get(`${BASE_URL}/api/v1/clubs/${scid}/schedules/${sid}`, {
             headers: hdrs, tags: { name: 'ds_schedule_detail' },
         });
         scheduleDetailDur.add(res.timings.duration);
         ok = isSuccess(res.status);
     } else if (roll < 0.75) {
-        // 15%: 멤버 목록
-        const res = http.get(`${BASE_URL}/api/v1/clubs/${randomClubId()}/members?page=0&size=20`, {
-            headers: hdrs, tags: { name: 'ds_club_members' },
+        // 15%: 클럽 상세 + 일정 목록 (replaces old club_members)
+        const cid = randomClubId();
+        const res = http.get(`${BASE_URL}/api/v1/clubs/${cid}`, {
+            headers: hdrs, tags: { name: 'ds_club_detail_chain' },
         });
-        clubMembersDur.add(res.timings.duration);
+        clubDetailDur.add(res.timings.duration);
         ok = isSuccess(res.status);
+        if (ok) {
+            const listRes = http.get(`${BASE_URL}/api/v1/clubs/${cid}/schedules`, {
+                headers: hdrs, tags: { name: 'ds_schedule_list_chain' },
+            });
+            scheduleListDur.add(listRes.timings.duration);
+        }
     } else if (roll < 0.85) {
         // 10%: 일정 참가
-        const res = http.post(`${BASE_URL}/api/v1/schedules/${randomScheduleId()}/participate`, null, {
+        const sid = randomScheduleId();
+        const scid = getScheduleClub(sid);
+        const res = http.patch(`${BASE_URL}/api/v1/clubs/${scid}/schedules/${sid}/users`, null, {
             headers: hdrs, tags: { name: 'ds_schedule_participate' },
         });
         schedulePartDur.add(res.timings.duration);
@@ -823,11 +863,11 @@ export function doubleSpikeTest() {
         }
     } else {
         // 7%: 일정 생성
+        const cid = getRandomUserClub(user.userId);
         const res = http.post(
-            `${BASE_URL}/api/v1/schedules`,
+            `${BASE_URL}/api/v1/clubs/${cid}/schedules`,
             JSON.stringify({
-                clubId: randomClubId(),
-                name: `k6 ds 스케줄 ${Date.now()}`,
+                name: `k6ds${Date.now() % 100000}`,
                 location: 'double spike',
                 cost: 5000,
                 userLimit: 10,
@@ -863,35 +903,55 @@ export function soakTest() {
         ok = isSuccess(res.status);
     } else if (roll < 0.45) {
         // 20%: 일정 목록
-        const res = http.get(`${BASE_URL}/api/v1/schedules/club/${randomClubId()}?page=0&size=20`, {
+        const res = http.get(`${BASE_URL}/api/v1/clubs/${randomClubId()}/schedules`, {
             headers: hdrs, tags: { name: 'soak_schedule_list' },
         });
         scheduleListDur.add(res.timings.duration);
         ok = isSuccess(res.status);
     } else if (roll < 0.60) {
         // 15%: 일정 상세
-        const res = http.get(`${BASE_URL}/api/v1/schedules/${randomScheduleId()}`, {
+        const sid = randomScheduleId();
+        const scid = getScheduleClub(sid);
+        const res = http.get(`${BASE_URL}/api/v1/clubs/${scid}/schedules/${sid}`, {
             headers: hdrs, tags: { name: 'soak_schedule_detail' },
         });
         scheduleDetailDur.add(res.timings.duration);
         ok = isSuccess(res.status);
     } else if (roll < 0.75) {
-        // 15%: 멤버 목록
-        const res = http.get(`${BASE_URL}/api/v1/clubs/${randomClubId()}/members?page=0&size=20`, {
-            headers: hdrs, tags: { name: 'soak_club_members' },
+        // 15%: 클럽 상세 + 일정 목록 (replaces old club_members)
+        const cid = randomClubId();
+        const res = http.get(`${BASE_URL}/api/v1/clubs/${cid}`, {
+            headers: hdrs, tags: { name: 'soak_club_detail_chain' },
         });
-        clubMembersDur.add(res.timings.duration);
+        clubDetailDur.add(res.timings.duration);
         ok = isSuccess(res.status);
+        if (ok) {
+            const listRes = http.get(`${BASE_URL}/api/v1/clubs/${cid}/schedules`, {
+                headers: hdrs, tags: { name: 'soak_schedule_list_chain' },
+            });
+            scheduleListDur.add(listRes.timings.duration);
+        }
     } else if (roll < 0.85) {
         // 10%: 일정 참가
-        const res = http.post(`${BASE_URL}/api/v1/schedules/${randomScheduleId()}/participate`, null, {
+        const sid = randomScheduleId();
+        const scid = getScheduleClub(sid);
+        const res = http.patch(`${BASE_URL}/api/v1/clubs/${scid}/schedules/${sid}/users`, null, {
             headers: hdrs, tags: { name: 'soak_schedule_participate' },
         });
         schedulePartDur.add(res.timings.duration);
         ok = isSuccess(res.status);
     } else if (roll < 0.93) {
         // 8%: 참가 취소
-        const res = http.del(`${BASE_URL}/api/v1/schedules/${randomScheduleId()}/participate`, null, {
+        const userSchedules = getUserSchedules(user.userId);
+        let sid, scid;
+        if (userSchedules.length > 0) {
+            sid = userSchedules[Math.floor(Math.random() * userSchedules.length)];
+            scid = getScheduleClub(sid);
+        } else {
+            sid = randomScheduleId();
+            scid = getScheduleClub(sid);
+        }
+        const res = http.del(`${BASE_URL}/api/v1/clubs/${scid}/schedules/${sid}/users`, null, {
             headers: hdrs, tags: { name: 'soak_schedule_cancel' },
         });
         scheduleCancelDur.add(res.timings.duration);

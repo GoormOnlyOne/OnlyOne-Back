@@ -59,7 +59,7 @@
 import http from 'k6/http';
 import { check, sleep } from 'k6';
 import { Counter, Rate, Trend } from 'k6/metrics';
-import { generateJWT, headers, BASE_URL } from './lib/common.js';
+import { generateJWT, headers, BASE_URL, makeUser } from './lib/common.js';
 
 // ============================================
 // 환경 설정
@@ -174,14 +174,6 @@ const sortMemberOk    = new Rate('search_sort_member_count_success');
 const pagingDur       = new Trend('search_paging_duration', true);
 const pagingOk        = new Rate('search_paging_success');
 
-// Bottleneck 흡수: 자동완성
-const suggestDur      = new Trend('search_suggest_duration', true);
-const suggestOk       = new Rate('search_suggest_success');
-
-// Bottleneck 흡수: 인기 검색어
-const popularDur      = new Trend('search_popular_duration', true);
-const popularOk       = new Rate('search_popular_success');
-
 // Phase 12: 스파이크
 const spikeDur        = new Trend('search_spike_duration', true);
 const spikeOk         = new Rate('search_spike_success');
@@ -192,7 +184,7 @@ const spike5xx        = new Rate('search_spike_5xx_rate');
 // ============================================
 function randomUser() {
     const userId = Math.floor(Math.random() * VALID_USER_COUNT) + 1;
-    return { userId, kakaoId: 1000000 + userId, status: 'ACTIVE', role: 'ROLE_USER' };
+    return makeUser(userId);
 }
 
 function pick(arr) {
@@ -388,12 +380,6 @@ export const options = {
         'search_paging_duration':          ['p(95)<1500'],
         'search_paging_success':           ['rate>0.95'],
 
-        // ────── 자동완성/인기 검색어 (bottleneck 흡수) ──────
-        'search_suggest_duration':         ['p(95)<200'],
-        'search_suggest_success':          ['rate>0.95'],
-        'search_popular_duration':         ['p(95)<200'],
-        'search_popular_success':          ['rate>0.95'],
-
         // ────── 스파이크 (완화된 임계값) ──────
         'search_spike_duration':           ['p(95)<3000'],
         'search_spike_success':            ['rate>0.90'],
@@ -425,21 +411,6 @@ export function warmup() {
     http.get(`${BASE_URL}/api/v1/search/locations?city=${encodeURIComponent(loc.city)}&district=${encodeURIComponent(loc.district)}`, {
         headers: hdrs, tags: { name: 'warmup_filter' },
     });
-    // 자동완성 (bottleneck 흡수)
-    const sugRes = http.get(`${BASE_URL}/api/v1/search/suggest?keyword=${encodeURIComponent(randomKeywordHigh().substring(0, 2))}`, {
-        headers: hdrs, tags: { name: 'warmup_suggest' },
-    });
-    suggestDur.add(sugRes.timings.duration);
-    suggestOk.add(sugRes.status === 200 ? 1 : 0);
-    recordGlobal(sugRes);
-    // 인기 검색어 (bottleneck 흡수)
-    const popRes = http.get(`${BASE_URL}/api/v1/search/popular`, {
-        headers: hdrs, tags: { name: 'warmup_popular' },
-    });
-    popularDur.add(popRes.timings.duration);
-    popularOk.add(popRes.status === 200 ? 1 : 0);
-    recordGlobal(popRes);
-
     sleep(0.5);
 }
 
@@ -785,21 +756,21 @@ export function spikeTest() {
 
     let res;
 
-    if (roll < 0.20) {
-        // 단일 키워드 (20%)
+    if (roll < 0.22) {
+        // 단일 키워드 (22%)
         const kw = randomKeywordHigh();
         res = http.get(
             `${BASE_URL}/api/v1/search?keyword=${encodeURIComponent(kw)}`,
             { headers: hdrs, tags: { name: 'spike_kw_single' } }
         );
-    } else if (roll < 0.40) {
+    } else if (roll < 0.42) {
         // 복합 키워드 (20%)
         const kw = randomKeywordCompound();
         res = http.get(
             `${BASE_URL}/api/v1/search?keyword=${encodeURIComponent(kw)}`,
             { headers: hdrs, tags: { name: 'spike_kw_compound' } }
         );
-    } else if (roll < 0.55) {
+    } else if (roll < 0.57) {
         // 키워드 + 지역 (15%)
         const kw = randomKeywordHigh();
         const loc = randomLocation();
@@ -807,7 +778,7 @@ export function spikeTest() {
             `${BASE_URL}/api/v1/search?keyword=${encodeURIComponent(kw)}&city=${encodeURIComponent(loc.city)}&district=${encodeURIComponent(loc.district)}`,
             { headers: hdrs, tags: { name: 'spike_kw_loc' } }
         );
-    } else if (roll < 0.60) {
+    } else if (roll < 0.62) {
         // 풀 필터 (5%)
         const kw = randomKeywordHigh();
         const loc = randomLocation();
@@ -815,42 +786,25 @@ export function spikeTest() {
             `${BASE_URL}/api/v1/search?keyword=${encodeURIComponent(kw)}&city=${encodeURIComponent(loc.city)}&district=${encodeURIComponent(loc.district)}&interestId=${randomInterestId()}`,
             { headers: hdrs, tags: { name: 'spike_kw_full' } }
         );
-    } else if (roll < 0.75) {
-        // 필터 전용 (15%)
+    } else if (roll < 0.78) {
+        // 필터 전용 (16%)
         const loc = randomLocation();
         res = http.get(
             `${BASE_URL}/api/v1/search/locations?city=${encodeURIComponent(loc.city)}&district=${encodeURIComponent(loc.district)}`,
             { headers: hdrs, tags: { name: 'spike_filter' } }
         );
-    } else if (roll < 0.85) {
+    } else if (roll < 0.88) {
         // 추천 (10%)
         res = http.get(
             `${BASE_URL}/api/v1/search/recommendations?page=0&size=20`,
             { headers: hdrs, tags: { name: 'spike_recommend' } }
         );
-    } else if (roll < 0.95) {
+    } else if (roll < 0.98) {
         // 팀메이트 (10%)
         res = http.get(
             `${BASE_URL}/api/v1/search/teammates-clubs?page=0&size=20`,
             { headers: hdrs, tags: { name: 'spike_teammate' } }
         );
-    } else if (roll < 0.96) {
-        // 자동완성 (3%)
-        const sugKw = randomKeywordHigh().substring(0, 2);
-        res = http.get(
-            `${BASE_URL}/api/v1/search/suggest?keyword=${encodeURIComponent(sugKw)}`,
-            { headers: hdrs, tags: { name: 'spike_suggest' } }
-        );
-        suggestDur.add(res.timings ? res.timings.duration : 0);
-        suggestOk.add(res.status === 200 ? 1 : 0);
-    } else if (roll < 0.98) {
-        // 인기 검색어 (2%)
-        res = http.get(
-            `${BASE_URL}/api/v1/search/popular`,
-            { headers: hdrs, tags: { name: 'spike_popular' } }
-        );
-        popularDur.add(res.timings ? res.timings.duration : 0);
-        popularOk.add(res.status === 200 ? 1 : 0);
     } else {
         // 내 모임 조회 (2%)
         res = http.get(
@@ -929,25 +883,7 @@ export function finalCheck() {
     );
     check(r7, { 'final my_clubs: 200': (r) => r.status === 200 });
 
-    // 8. 자동완성 (bottleneck 흡수)
-    const r8s = http.get(
-        `${BASE_URL}/api/v1/search/suggest?keyword=${encodeURIComponent('축')}`,
-        { headers: hdrs, tags: { name: 'final_suggest' } }
-    );
-    check(r8s, { 'final suggest: 200': (r) => r.status === 200 });
-    suggestDur.add(r8s.timings.duration);
-    suggestOk.add(r8s.status === 200 ? 1 : 0);
-
-    // 9. 인기 검색어 (bottleneck 흡수)
-    const r9p = http.get(
-        `${BASE_URL}/api/v1/search/popular`,
-        { headers: hdrs, tags: { name: 'final_popular' } }
-    );
-    check(r9p, { 'final popular: 200': (r) => r.status === 200 });
-    popularDur.add(r9p.timings.duration);
-    popularOk.add(r9p.status === 200 ? 1 : 0);
-
-    // 10. 정렬 검증 (LATEST)
+    // 8. 정렬 검증 (LATEST)
     const r8 = http.get(
         `${BASE_URL}/api/v1/search?keyword=${encodeURIComponent('요가')}&sortBy=LATEST`,
         { headers: hdrs, tags: { name: 'final_sort' } }
@@ -982,8 +918,6 @@ export function handleSummary(data) {
         ['정렬:LATEST',        'search_sort_latest_duration'],
         ['정렬:MEMBER_COUNT',  'search_sort_member_count_duration'],
         ['페이징 심층',        'search_paging_duration'],
-        ['자동완성(suggest)',  'search_suggest_duration'],
-        ['인기 검색어',        'search_popular_duration'],
         ['스파이크(600VU)',    'search_spike_duration'],
     ];
 
@@ -1054,5 +988,5 @@ export function handleSummary(data) {
 function fmt(ms) {
     if (ms === undefined || ms === null) return 'N/A'.padStart(8);
     if (ms < 1000) return (ms.toFixed(0) + 'ms').padStart(8);
-    return (ms / 1000).toFixed(2) + 's'.padStart(8);
+    return ((ms / 1000).toFixed(2) + 's').padStart(8);
 }

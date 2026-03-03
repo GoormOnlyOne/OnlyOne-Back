@@ -42,7 +42,7 @@
 import http from 'k6/http';
 import { check, sleep } from 'k6';
 import { Counter, Rate, Trend } from 'k6/metrics';
-import { generateJWT, headers, BASE_URL } from './lib/common.js';
+import { generateJWT, headers, BASE_URL, makeUser, getUserClubs, getRandomUserClub, MIN_CLUB } from './lib/common.js';
 import { THRESHOLDS } from './lib/bottleneck.js';
 
 // ============================================
@@ -54,28 +54,30 @@ const SUB_CLUB_IDS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
 const ALL_CLUB_IDS = [...MAIN_CLUB_IDS, ...SUB_CLUB_IDS];
 
 // 댓글 테스트용 피드 (시드 데이터 기준 피드당 평균 ~3건)
+// feedId = clubId + n * 50000 (n=0,1,2)
 const HIGH_COMMENT_FEEDS = [
     { feedId: 64, clubId: 64, comments: 3 },
-    { feedId: 10064, clubId: 64, comments: 3 },
-    { feedId: 20064, clubId: 64, comments: 3 },
+    { feedId: 50064, clubId: 64, comments: 3 },
+    { feedId: 100064, clubId: 64, comments: 3 },
     { feedId: 159, clubId: 159, comments: 3 },
-    { feedId: 20159, clubId: 159, comments: 3 },
-    { feedId: 10159, clubId: 159, comments: 3 },
+    { feedId: 100159, clubId: 159, comments: 3 },
+    { feedId: 50159, clubId: 159, comments: 3 },
 ];
 
 // 좋아요 핫스팟 피드 (경합 테스트용)
+// feedId = clubId + n * 50000 (n=0,1,2)
 const HOT_FEEDS = [
     { feedId: 64, clubId: 64 },
     { feedId: 159, clubId: 159 },
     { feedId: 381, clubId: 381 },
     { feedId: 501, clubId: 501 },
     { feedId: 747, clubId: 747 },
-    { feedId: 10064, clubId: 64 },
-    { feedId: 20064, clubId: 64 },
-    { feedId: 10159, clubId: 159 },
+    { feedId: 50064, clubId: 64 },
+    { feedId: 100064, clubId: 64 },
+    { feedId: 50159, clubId: 159 },
 ];
 
-// feedId = clubId + N * 10000 (N=0~4, 시드 데이터 50,000건 기준)
+// feedId = clubId + N * 50000 (N=0~19, 시드 데이터 기준)
 function getRandomFeedForClub(clubId) {
     const offset = Math.floor(Math.random() * 20);
     return clubId + offset * 50000;
@@ -281,16 +283,16 @@ export const options = {
 };
 
 // ============================================
-// 유저 유틸
+// 유저 유틸 (makeUser는 common.js에서 import)
 // ============================================
 function randomUser() {
     const userId = Math.floor(Math.random() * VALID_USER_COUNT) + 1;
-    return { userId, kakaoId: 1000000 + userId, status: 'ACTIVE', role: 'ROLE_USER' };
+    return makeUser(userId);
 }
 
 function vuUser(vuId) {
     const userId = ((vuId - 1) % VALID_USER_COUNT) + 1;
-    return { userId, kakaoId: 1000000 + userId, status: 'ACTIVE', role: 'ROLE_USER' };
+    return makeUser(userId);
 }
 
 function randomClub() {
@@ -337,8 +339,9 @@ export function baseline() {
     sleep(0.2);
 
     // 피드 상세 조회
-    const feedId = getRandomFeedForClub(randomMainClub());
-    const detailRes = http.get(`${BASE_URL}/api/v1/clubs/${clubId}/feeds/${feedId}`, {
+    const detailClub = randomMainClub();
+    const feedId = getRandomFeedForClub(detailClub);
+    const detailRes = http.get(`${BASE_URL}/api/v1/clubs/${detailClub}/feeds/${feedId}`, {
         headers: hdrs, tags: { name: 'bl_detail' },
     });
     feedDetailDur.add(detailRes.timings.duration);
@@ -363,8 +366,8 @@ export function baseline() {
 
     // 좋아요 토글 (50%)
     if (Math.random() < 0.5) {
-        const likeFeedId = getRandomFeedForClub(randomMainClub());
         const likeClubId = randomMainClub();
+        const likeFeedId = getRandomFeedForClub(likeClubId);
         const likeRes = http.put(`${BASE_URL}/api/v1/clubs/${likeClubId}/feeds/${likeFeedId}/likes`, null, {
             headers: hdrs, tags: { name: 'bl_like' },
         });
@@ -530,13 +533,13 @@ export function writeMix() {
     const user = randomUser();
     const token = generateJWT(user);
     const hdrs = headers(token);
-    const clubId = randomMainClub();
     const roll = Math.random();
     let ok = false;
     let dur = 0;
 
     if (roll < 0.40) {
-        // 40%: 피드 생성
+        // 40%: 피드 생성 — 유저가 속한 클럽에 작성
+        const clubId = getRandomUserClub(user.userId);
         const res = http.post(`${BASE_URL}/api/v1/clubs/${clubId}/feeds`,
             JSON.stringify({
                 feedUrls: ['https://example.com/test-image.jpg'],
@@ -548,10 +551,11 @@ export function writeMix() {
         ok = res.status >= 200 && res.status < 500;
         feedCreateDur.add(dur);
     } else if (roll < 0.80) {
-        // 40%: 댓글 생성
-        const hc = HIGH_COMMENT_FEEDS[Math.floor(Math.random() * HIGH_COMMENT_FEEDS.length)];
+        // 40%: 댓글 생성 — 유저가 속한 클럽의 피드에 작성
+        const clubId = getRandomUserClub(user.userId);
+        const commentFeedId = getRandomFeedForClub(clubId);
         const res = http.post(
-            `${BASE_URL}/api/v1/clubs/${hc.clubId}/feeds/${hc.feedId}/comments`,
+            `${BASE_URL}/api/v1/clubs/${clubId}/feeds/${commentFeedId}/comments`,
             JSON.stringify({ content: `k6 comment ${Date.now()}` }),
             { headers: hdrs, tags: { name: 'wm_create_comment' } }
         );
@@ -559,9 +563,9 @@ export function writeMix() {
         ok = res.status >= 200 && res.status < 500;
         feedCommentCreateDur.add(dur);
     } else {
-        // 20%: 리피드
+        // 20%: 리피드 — 유저가 속한 클럽으로 리피드
         const hc = HIGH_COMMENT_FEEDS[Math.floor(Math.random() * HIGH_COMMENT_FEEDS.length)];
-        const targetClub = MAIN_CLUB_IDS[Math.floor(Math.random() * MAIN_CLUB_IDS.length)];
+        const targetClub = getRandomUserClub(user.userId);
         const res = http.post(
             `${BASE_URL}/api/v1/feeds/${hc.feedId}/${targetClub}`,
             JSON.stringify({ content: `k6 refeed ${Date.now()}` }),
@@ -642,10 +646,11 @@ export function extremeMix() {
         ok = res.status === 200 || res.status === 404;
         feedLikeDur.add(dur);
     } else if (roll < 0.92) {
-        // 10%: 댓글 작성
-        const hc = HIGH_COMMENT_FEEDS[Math.floor(Math.random() * HIGH_COMMENT_FEEDS.length)];
+        // 10%: 댓글 작성 — 유저가 속한 클럽의 피드에 작성
+        const commentClub = getRandomUserClub(user.userId);
+        const commentFeedId = getRandomFeedForClub(commentClub);
         const res = http.post(
-            `${BASE_URL}/api/v1/clubs/${hc.clubId}/feeds/${hc.feedId}/comments`,
+            `${BASE_URL}/api/v1/clubs/${commentClub}/feeds/${commentFeedId}/comments`,
             JSON.stringify({ content: `extreme ${Date.now()}` }),
             { headers: hdrs, tags: { name: 'ex_write_comment' } }
         );
@@ -653,9 +658,9 @@ export function extremeMix() {
         ok = res.status >= 200 && res.status < 500;
         feedCommentCreateDur.add(dur);
     } else {
-        // 8%: 피드 생성
-        const clubId = randomMainClub();
-        const res = http.post(`${BASE_URL}/api/v1/clubs/${clubId}/feeds`,
+        // 8%: 피드 생성 — 유저가 속한 클럽에 작성
+        const writeClub = getRandomUserClub(user.userId);
+        const res = http.post(`${BASE_URL}/api/v1/clubs/${writeClub}/feeds`,
             JSON.stringify({
                 feedUrls: ['https://example.com/img.jpg'],
                 content: `extreme ${Date.now()}`,
@@ -737,10 +742,11 @@ export function soakTest() {
         ok = res.status === 200;
         feedPopularDur.add(dur);
     } else {
-        // 7%: 댓글 작성
-        const hc = HIGH_COMMENT_FEEDS[Math.floor(Math.random() * HIGH_COMMENT_FEEDS.length)];
+        // 7%: 댓글 작성 — 유저가 속한 클럽의 피드에 작성
+        const commentClub = getRandomUserClub(user.userId);
+        const commentFeedId = getRandomFeedForClub(commentClub);
         const res = http.post(
-            `${BASE_URL}/api/v1/clubs/${hc.clubId}/feeds/${hc.feedId}/comments`,
+            `${BASE_URL}/api/v1/clubs/${commentClub}/feeds/${commentFeedId}/comments`,
             JSON.stringify({ content: `soak ${Date.now()}` }),
             { headers: hdrs, tags: { name: 'soak_write_comment' } }
         );
