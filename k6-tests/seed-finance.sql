@@ -41,8 +41,6 @@ SET FOREIGN_KEY_CHECKS = 1;
 -- ── 3) 테스트 전용 schedule 25,000개 (schedule_id 5000000~5024999) ──
 SELECT '--- 테스트 스케줄 생성 (5000000~5024999) ---' AS msg;
 
-SET @min_club = (SELECT MIN(club_id) FROM club);
-
 -- 기존 테스트 스케줄 정리
 DELETE FROM user_settlement WHERE settlement_id IN (
     SELECT settlement_id FROM settlement WHERE schedule_id BETWEEN 5000000 AND 5024999
@@ -50,7 +48,16 @@ DELETE FROM user_settlement WHERE settlement_id IN (
 DELETE FROM settlement WHERE schedule_id BETWEEN 5000000 AND 5024999;
 DELETE FROM schedule WHERE schedule_id BETWEEN 5000000 AND 5024999;
 
--- schedule 25,000개 삽입
+-- 실제 존재하는 club_id 25,000개를 임시 테이블로 준비
+DROP TABLE IF EXISTS _valid_clubs;
+CREATE TABLE _valid_clubs (
+    seq INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+    club_id BIGINT NOT NULL
+) ENGINE=InnoDB;
+INSERT INTO _valid_clubs (club_id)
+SELECT club_id FROM club ORDER BY club_id LIMIT 25000;
+
+-- schedule 25,000개 삽입 (실제 존재하는 club_id 사용)
 INSERT INTO schedule (schedule_id, created_at, modified_at, cost, location, name, status, schedule_time, user_limit, club_id)
 SELECT
     5000000 + (u.user_id - 1),
@@ -62,12 +69,15 @@ SELECT
     'ENDED',
     DATE_SUB(NOW(), INTERVAL 1 DAY),
     20,
-    @min_club + ((u.user_id - 1) % 50000)
+    vc.club_id
 FROM user u
+JOIN _valid_clubs vc ON vc.seq = u.user_id
 WHERE u.user_id BETWEEN 1 AND 25000
 ON DUPLICATE KEY UPDATE
     status = 'ENDED',
     modified_at = NOW();
+
+DROP TABLE IF EXISTS _valid_clubs;
 
 SELECT CONCAT('  스케줄 count: ', COUNT(*)) AS msg FROM schedule WHERE schedule_id BETWEEN 5000000 AND 5024999;
 
