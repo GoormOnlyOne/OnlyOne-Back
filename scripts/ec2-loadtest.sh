@@ -64,6 +64,9 @@ done
 BASE_URL="${BASE_URL:-http://localhost:8080}"
 APP_URL="${APP_URL:-$BASE_URL}"
 THREAD_DUMP_INTERVAL="${THREAD_DUMP_INTERVAL:-30}"
+GRAFANA_URL="${GRAFANA_URL:-http://${INFRA_HOST}:3000}"
+GRAFANA_USER="${GRAFANA_USER:-admin}"
+GRAFANA_PASS="${GRAFANA_PASS:-admin}"
 
 # ── Thread Dump 수집 (백그라운드) ──
 start_thread_dump_collector() {
@@ -93,6 +96,49 @@ stop_thread_dump_collector() {
         log_info "Thread dump 수집 종료 (PID=$THREAD_DUMP_PID)"
         unset THREAD_DUMP_PID
     fi
+}
+
+# ── Grafana 대시보드 스냅샷 캡처 ──
+capture_grafana_snapshots() {
+    local test_name="$1"
+    local from_epoch="$2"    # 테스트 시작 epoch (ms)
+    local to_epoch="$3"      # 테스트 종료 epoch (ms)
+    local snap_dir="$RESULTS_DIR/grafana"
+    mkdir -p "$snap_dir"
+
+    if ! curl -sf -m 3 "$GRAFANA_URL/api/health" &>/dev/null; then
+        log_warn "Grafana 연결 불가 — 스냅샷 스킵"
+        return
+    fi
+
+    local auth_header="Authorization: Basic $(echo -n "$GRAFANA_USER:$GRAFANA_PASS" | base64)"
+
+    # 사용 가능한 대시보드 목록 가져오기
+    local dashboards
+    dashboards=$(curl -sf -m 5 -H "$auth_header" "$GRAFANA_URL/api/search?type=dash-db" 2>/dev/null || echo "[]")
+
+    if [ "$dashboards" = "[]" ]; then
+        log_warn "Grafana 대시보드 없음"
+        return
+    fi
+
+    log_info "Grafana 스냅샷 캡처 중 ($test_name)..."
+
+    echo "$dashboards" | jq -r '.[] | "\(.uid)\t\(.title)"' 2>/dev/null | while IFS=$'\t' read -r uid title; do
+        local safe_title
+        safe_title=$(echo "$title" | tr ' /' '-_' | tr '[:upper:]' '[:lower:]')
+        local output="$snap_dir/${test_name}_${safe_title}.png"
+
+        curl -sf -m 30 -H "$auth_header" \
+            "$GRAFANA_URL/render/d/${uid}?orgId=1&from=${from_epoch}&to=${to_epoch}&width=1920&height=1080&theme=light" \
+            -o "$output" 2>/dev/null || true
+
+        if [ -f "$output" ] && [ "$(stat -c%s "$output" 2>/dev/null || echo 0)" -gt 1024 ]; then
+            log_ok "  $title → $(basename "$output")"
+        else
+            rm -f "$output"
+        fi
+    done
 }
 
 # ── 인프라 연결 확인 ──
@@ -152,6 +198,7 @@ run_k6() {
     log_info "=== $test_name 테스트 시작 ($(date '+%H:%M:%S')) ==="
 
     local test_start=$(date +%s)
+    local test_start_ms=$((test_start * 1000))
 
     # Thread dump 수집 시작
     start_thread_dump_collector "$test_name"
@@ -171,8 +218,13 @@ run_k6() {
     local test_end=$(date +%s)
     local elapsed=$(( (test_end - test_start) / 60 ))
 
+    local test_end_ms=$(($(date +%s) * 1000))
+
     # Thread dump 수집 종료
     stop_thread_dump_collector
+
+    # Grafana 대시보드 스냅샷 캡처 (테스트 시간 범위)
+    capture_grafana_snapshots "$test_name" "$test_start_ms" "$test_end_ms"
 
     if [ "$k6_exit" -eq 99 ]; then
         log_warn "$test_name 완료 — threshold 초과 있음 (${elapsed}분) → $result_json"
