@@ -69,9 +69,9 @@ GRAFANA_USER="${GRAFANA_USER:-admin}"
 GRAFANA_PASS="${GRAFANA_PASS:-admin}"
 PROMETHEUS_RW_URL="${PROMETHEUS_RW_URL:-http://${INFRA_HOST}:9090/api/v1/write}"
 FILE_SERVER_PORT="${FILE_SERVER_PORT:-9999}"
-S3_BUCKET="${S3_BUCKET:-buddkit-image}"
-S3_PREFIX="${S3_PREFIX:-loadtest-results}"
-CLOUDFRONT_DOMAIN="${CLOUDFRONT_DOMAIN:-d1c3fg3ti7m8cn.cloudfront.net}"
+S3_BUCKET="${S3_BUCKET:-onlyone-loadtest-results}"
+S3_PREFIX="${S3_PREFIX:-results}"
+S3_REGION="${S3_REGION:-ap-northeast-2}"
 
 # ── Thread Dump 수집 (백그라운드) ──
 start_thread_dump_collector() {
@@ -198,7 +198,8 @@ upload_to_s3() {
 
     if [ "$uploaded" -gt 0 ]; then
         log_ok "S3 업로드 완료 (${uploaded}개 파일)"
-        log_info "  HTML 리포트: https://${CLOUDFRONT_DOMAIN}/${run_dir}/${test_name}_${timestamp}_report.html"
+        log_info "  S3 경로: s3://${S3_BUCKET}/${run_dir}/"
+        log_info "  다운로드: aws s3 sync s3://${S3_BUCKET}/${run_dir}/ ./${test_name}/"
     fi
 }
 
