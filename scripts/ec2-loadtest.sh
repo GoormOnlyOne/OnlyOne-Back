@@ -157,6 +157,12 @@ upload_to_s3() {
         return
     fi
 
+    # 자격증명 확인 (IAM Role 또는 aws configure)
+    if ! aws sts get-caller-identity &>/dev/null; then
+        log_warn "AWS 자격증명 미설정 — S3 업로드 스킵 (aws configure 또는 IAM Role 필요)"
+        return
+    fi
+
     log_info "S3 업로드 중 (s3://${S3_BUCKET}/${run_dir}/) ..."
 
     local uploaded=0
