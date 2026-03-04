@@ -121,17 +121,24 @@ run_k6() {
 
     local test_start=$(date +%s)
 
+    local k6_exit=0
     k6 run \
         -e BASE_URL="$BASE_URL" \
         --out json="$result_json" \
         --summary-export="$result_summary" \
         $EXTRA_K6_ARGS \
-        "$K6_DIR/$test_file" 2>&1 | tee "$RESULTS_DIR/${test_name}_${timestamp}.log"
+        "$K6_DIR/$test_file" 2>&1 | tee "$RESULTS_DIR/${test_name}_${timestamp}.log" || k6_exit=$?
 
     local test_end=$(date +%s)
     local elapsed=$(( (test_end - test_start) / 60 ))
 
-    log_ok "$test_name 완료 (${elapsed}분) → $result_json"
+    if [ "$k6_exit" -eq 99 ]; then
+        log_warn "$test_name 완료 — threshold 초과 있음 (${elapsed}분) → $result_json"
+    elif [ "$k6_exit" -ne 0 ]; then
+        log_error "$test_name 실패 (exit=$k6_exit, ${elapsed}분)"
+    else
+        log_ok "$test_name 완료 (${elapsed}분) → $result_json"
+    fi
     echo ""
 }
 
