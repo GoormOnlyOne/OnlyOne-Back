@@ -67,6 +67,11 @@ THREAD_DUMP_INTERVAL="${THREAD_DUMP_INTERVAL:-30}"
 GRAFANA_URL="${GRAFANA_URL:-http://${INFRA_HOST}:3000}"
 GRAFANA_USER="${GRAFANA_USER:-admin}"
 GRAFANA_PASS="${GRAFANA_PASS:-admin}"
+PROMETHEUS_RW_URL="${PROMETHEUS_RW_URL:-http://${INFRA_HOST}:9090/api/v1/write}"
+FILE_SERVER_PORT="${FILE_SERVER_PORT:-9999}"
+S3_BUCKET="${S3_BUCKET:-buddkit-image}"
+S3_PREFIX="${S3_PREFIX:-loadtest-results}"
+CLOUDFRONT_DOMAIN="${CLOUDFRONT_DOMAIN:-d1c3fg3ti7m8cn.cloudfront.net}"
 
 # ── Thread Dump 수집 (백그라운드) ──
 start_thread_dump_collector() {
@@ -141,6 +146,82 @@ capture_grafana_snapshots() {
     done
 }
 
+# ── S3 업로드 (결과 파일 클라우드 저장) ──
+upload_to_s3() {
+    local test_name="$1"
+    local timestamp="$2"
+    local run_dir="${S3_PREFIX}/$(date +%Y%m%d)/${test_name}_${timestamp}"
+
+    if ! command -v aws &>/dev/null; then
+        log_warn "AWS CLI 미설치 — S3 업로드 스킵"
+        return
+    fi
+
+    log_info "S3 업로드 중 (s3://${S3_BUCKET}/${run_dir}/) ..."
+
+    local uploaded=0
+
+    # HTML 리포트
+    for f in "$RESULTS_DIR/${test_name}_${timestamp}"*_report.html; do
+        [ -f "$f" ] || continue
+        aws s3 cp "$f" "s3://${S3_BUCKET}/${run_dir}/$(basename "$f")" \
+            --content-type "text/html" --quiet 2>/dev/null && uploaded=$((uploaded+1)) || true
+    done
+
+    # 요약 + 로그
+    for f in "$RESULTS_DIR/${test_name}_${timestamp}"*_summary.txt "$RESULTS_DIR/${test_name}_${timestamp}"*.log; do
+        [ -f "$f" ] || continue
+        aws s3 cp "$f" "s3://${S3_BUCKET}/${run_dir}/$(basename "$f")" --quiet 2>/dev/null && uploaded=$((uploaded+1)) || true
+    done
+
+    # Grafana 스냅샷
+    for f in "$RESULTS_DIR/grafana/${test_name}_"*.png; do
+        [ -f "$f" ] || continue
+        aws s3 cp "$f" "s3://${S3_BUCKET}/${run_dir}/grafana/$(basename "$f")" \
+            --content-type "image/png" --quiet 2>/dev/null && uploaded=$((uploaded+1)) || true
+    done
+
+    # Thread dumps (최신 3개만 — 전체는 너무 큼)
+    local dump_dir
+    dump_dir=$(ls -td "$RESULTS_DIR/threaddumps/${test_name}_"* 2>/dev/null | head -1)
+    if [ -n "$dump_dir" ] && [ -d "$dump_dir" ]; then
+        ls -t "$dump_dir"/*.json 2>/dev/null | head -3 | while read -r f; do
+            aws s3 cp "$f" "s3://${S3_BUCKET}/${run_dir}/threaddumps/$(basename "$f")" --quiet 2>/dev/null && uploaded=$((uploaded+1)) || true
+        done
+    fi
+
+    if [ "$uploaded" -gt 0 ]; then
+        log_ok "S3 업로드 완료 (${uploaded}개 파일)"
+        log_info "  HTML 리포트: https://${CLOUDFRONT_DOMAIN}/${run_dir}/${test_name}_${timestamp}_report.html"
+    fi
+}
+
+# ── 결과 파일 HTTP 서버 (외부 접근용) ──
+start_file_server() {
+    # 이미 실행 중이면 스킵
+    if lsof -i :"$FILE_SERVER_PORT" &>/dev/null 2>&1; then
+        log_info "파일 서버 이미 실행 중 (port $FILE_SERVER_PORT)"
+        return
+    fi
+
+    cd "$RESULTS_DIR"
+    python3 -m http.server "$FILE_SERVER_PORT" --bind 0.0.0.0 &>/dev/null &
+    FILE_SERVER_PID=$!
+    cd "$PROJECT_DIR"
+
+    local public_ip
+    public_ip=$(curl -sf -m 3 http://169.254.169.254/latest/meta-data/public-ipv4 2>/dev/null || echo "<K6_PUBLIC_IP>")
+    log_ok "결과 파일 서버: http://${public_ip}:${FILE_SERVER_PORT}/"
+    log_info "  → HTML 리포트, Thread dump, Grafana 스냅샷 브라우저에서 직접 열람 가능"
+}
+
+stop_file_server() {
+    if [ -n "${FILE_SERVER_PID:-}" ] && kill -0 "$FILE_SERVER_PID" 2>/dev/null; then
+        kill "$FILE_SERVER_PID" 2>/dev/null || true
+        log_info "파일 서버 종료"
+    fi
+}
+
 # ── 인프라 연결 확인 ──
 check_infra() {
     log_info "인프라 연결 확인..."
@@ -208,8 +289,11 @@ run_k6() {
     local k6_exit=0
     K6_WEB_DASHBOARD=true \
     K6_WEB_DASHBOARD_EXPORT="$result_html" \
+    K6_PROMETHEUS_RW_SERVER_URL="$PROMETHEUS_RW_URL" \
+    K6_PROMETHEUS_RW_TREND_AS_NATIVE_HISTOGRAM=true \
     k6 run \
         -e BASE_URL="$BASE_URL" \
+        --out experimental-prometheus-rw \
         --out json="$result_json" \
         --summary-export="$result_summary" \
         $EXTRA_K6_ARGS \
@@ -225,6 +309,9 @@ run_k6() {
 
     # Grafana 대시보드 스냅샷 캡처 (테스트 시간 범위)
     capture_grafana_snapshots "$test_name" "$test_start_ms" "$test_end_ms"
+
+    # S3 클라우드 업로드
+    upload_to_s3 "$test_name" "$timestamp"
 
     if [ "$k6_exit" -eq 99 ]; then
         log_warn "$test_name 완료 — threshold 초과 있음 (${elapsed}분) → $result_json"
@@ -254,6 +341,10 @@ echo "============================================"
 echo ""
 
 check_infra
+
+# 결과 파일 서버 시작 (외부 브라우저 접근용)
+start_file_server
+trap stop_file_server EXIT
 
 # 시딩
 if [ "$RUN_SEED" = true ] || [ "$DOMAIN" = "seed" ]; then
@@ -335,5 +426,16 @@ for dir in "$RESULTS_DIR/threaddumps/"*/; do
     echo "    $(basename "$dir"): ${count}개"
 done
 echo ""
+echo "  k6 HTML 리포트:"
+ls -lh "$RESULTS_DIR/"*_report.html 2>/dev/null | awk '{print "    " $NF " (" $5 ")"}' || echo "    (없음)"
+echo ""
+
+PUBLIC_IP=$(curl -sf -m 3 http://169.254.169.254/latest/meta-data/public-ipv4 2>/dev/null || echo "<K6_PUBLIC_IP>")
+echo "  ★ 브라우저에서 결과 열람:"
+echo "    http://${PUBLIC_IP}:${FILE_SERVER_PORT}/"
+echo ""
 echo "  다음 단계: ./scripts/ec2-collect-results.sh"
 echo ""
+echo "  파일 서버가 계속 실행 중입니다. Ctrl+C로 종료하세요."
+# 파일 서버를 유지하기 위해 대기
+wait "${FILE_SERVER_PID:-}" 2>/dev/null || true
