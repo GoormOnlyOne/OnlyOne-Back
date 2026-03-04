@@ -62,6 +62,38 @@ while [[ $# -gt 0 ]]; do
 done
 
 BASE_URL="${BASE_URL:-http://localhost:8080}"
+APP_URL="${APP_URL:-$BASE_URL}"
+THREAD_DUMP_INTERVAL="${THREAD_DUMP_INTERVAL:-30}"
+
+# ── Thread Dump 수집 (백그라운드) ──
+start_thread_dump_collector() {
+    local test_name="$1"
+    local dump_dir="$RESULTS_DIR/threaddumps/${test_name}_$(date +%Y%m%d_%H%M%S)"
+    mkdir -p "$dump_dir"
+
+    (
+        local seq=0
+        while true; do
+            local ts=$(date +%H%M%S)
+            curl -sf -m 5 "$APP_URL/actuator/threaddump" \
+                -H "Accept: application/json" \
+                > "$dump_dir/dump_${seq}_${ts}.json" 2>/dev/null || true
+            seq=$((seq + 1))
+            sleep "$THREAD_DUMP_INTERVAL"
+        done
+    ) &
+    THREAD_DUMP_PID=$!
+    log_info "Thread dump 수집 시작 (PID=$THREAD_DUMP_PID, 간격=${THREAD_DUMP_INTERVAL}s) → $dump_dir"
+}
+
+stop_thread_dump_collector() {
+    if [ -n "${THREAD_DUMP_PID:-}" ] && kill -0 "$THREAD_DUMP_PID" 2>/dev/null; then
+        kill "$THREAD_DUMP_PID" 2>/dev/null || true
+        wait "$THREAD_DUMP_PID" 2>/dev/null || true
+        log_info "Thread dump 수집 종료 (PID=$THREAD_DUMP_PID)"
+        unset THREAD_DUMP_PID
+    fi
+}
 
 # ── 인프라 연결 확인 ──
 check_infra() {
@@ -121,7 +153,14 @@ run_k6() {
 
     local test_start=$(date +%s)
 
+    # Thread dump 수집 시작
+    start_thread_dump_collector "$test_name"
+
+    local result_html="$RESULTS_DIR/${test_name}_${timestamp}_report.html"
+
     local k6_exit=0
+    K6_WEB_DASHBOARD=true \
+    K6_WEB_DASHBOARD_EXPORT="$result_html" \
     k6 run \
         -e BASE_URL="$BASE_URL" \
         --out json="$result_json" \
@@ -131,6 +170,9 @@ run_k6() {
 
     local test_end=$(date +%s)
     local elapsed=$(( (test_end - test_start) / 60 ))
+
+    # Thread dump 수집 종료
+    stop_thread_dump_collector
 
     if [ "$k6_exit" -eq 99 ]; then
         log_warn "$test_name 완료 — threshold 초과 있음 (${elapsed}분) → $result_json"
@@ -233,6 +275,13 @@ echo "============================================"
 echo ""
 echo "  결과 파일 목록:"
 ls -lh "$RESULTS_DIR/"*.json 2>/dev/null || echo "  (결과 파일 없음)"
+echo ""
+echo "  Thread dump 수집:"
+for dir in "$RESULTS_DIR/threaddumps/"*/; do
+    [ -d "$dir" ] || continue
+    count=$(ls "$dir"*.json 2>/dev/null | wc -l)
+    echo "    $(basename "$dir"): ${count}개"
+done
 echo ""
 echo "  다음 단계: ./scripts/ec2-collect-results.sh"
 echo ""
