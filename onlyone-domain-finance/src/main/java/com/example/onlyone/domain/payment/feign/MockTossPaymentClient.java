@@ -11,7 +11,7 @@ import org.springframework.stereotype.Component;
 import java.time.Instant;
 
 @Slf4j
-@Profile({"local"})
+@Profile({"local", "ec2"})
 @Component
 public class MockTossPaymentClient implements TossPaymentClient {
 
