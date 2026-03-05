@@ -24,7 +24,7 @@ import java.util.Map;
  * 인증 없이 알림을 생성하여 delivery latency를 측정할 수 있다.
  * local/test 프로필에서만 활성화된다.
  */
-@Profile({"local", "test"})
+@Profile({"local", "test", "ec2"})
 @RestController
 @RequestMapping("/test/notifications")
 @RequiredArgsConstructor
