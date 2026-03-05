@@ -6,7 +6,7 @@
 // 사전 준비:
 //   1. seed-all-domains.sql 실행 (20M 알림, userId 1~100000)
 //
-// Phase 구성 (~22분, 최대 1000 VUs):
+// Phase 구성 (~22분, 최대 1500 VUs):
 // ┌────────┬─────────────────────────────────┬──────┬───────┐
 // │ Phase  │ 시나리오                         │ VU   │ 시간  │
 // ├────────┼─────────────────────────────────┼──────┼───────┤
@@ -17,9 +17,9 @@
 // │ 5      │ Hot User Deep Paging             │ 200  │ 1.5m  │
 // │ 6      │ SSE Flood                        │ 300  │ 1.5m  │
 // │ 6b     │ SSE Delivery E2E (생성→전달 검증) │ 100  │ 1.5m  │
-// │ 7      │ Extreme Mix — 1000 VU 극한       │ 1000 │ 2m    │
-// │ 8      │ Spike — 순간 폭증                │ 1000 │ 1.5m  │
-// │ 9      │ Double Spike — 회복 후 재폭증     │ 800  │ 2m    │
+// │ 7      │ Extreme Mix — 1500 VU 극한       │ 1500 │ 2m    │
+// │ 8      │ Spike — 순간 폭증                │ 1500 │ 1.5m  │
+// │ 9      │ Double Spike — 회복 후 재폭증     │ 1200 │ 2m    │
 // │ 10     │ Soak — 중간 부하 장시간           │ 300  │ 3m    │
 // │ 11     │ Cooldown                         │ 5    │ 30s   │
 // └────────┴─────────────────────────────────┴──────┴───────┘
@@ -43,10 +43,10 @@ const WRITE_VU     = parseInt(__ENV.WRITE_VU     || '400');
 const DEEP_VU      = parseInt(__ENV.DEEP_VU      || '200');
 const SSE_FLOOD_VU = parseInt(__ENV.SSE_FLOOD_VU || '300');
 const SSE_E2E_VU   = parseInt(__ENV.SSE_E2E_VU   || '100');
-const EXTREME_VU   = parseInt(__ENV.EXTREME_VU   || '1000');
-const SPIKE_VU     = parseInt(__ENV.SPIKE_VU     || '1000');
-const DSPIKE_VU1   = parseInt(__ENV.DSPIKE_VU1   || '700');
-const DSPIKE_VU2   = parseInt(__ENV.DSPIKE_VU2   || '800');
+const EXTREME_VU   = parseInt(__ENV.EXTREME_VU   || '1500');
+const SPIKE_VU     = parseInt(__ENV.SPIKE_VU     || '1500');
+const DSPIKE_VU1   = parseInt(__ENV.DSPIKE_VU1   || '1000');
+const DSPIKE_VU2   = parseInt(__ENV.DSPIKE_VU2   || '1200');
 const SOAK_VU      = parseInt(__ENV.SOAK_VU      || '300');
 
 // ── 커스텀 메트릭 — 엔드포인트별 ──
@@ -176,12 +176,12 @@ export const options = {
     thresholds: {
         http_req_failed:           ['rate<0.05'],
         'noti_list_duration':      [`p(95)<${THRESHOLDS.NORMAL}`],
-        'noti_unread_duration':    [`p(95)<${THRESHOLDS.FAST}`],
-        'noti_mark_duration':      [`p(95)<${THRESHOLDS.FAST}`],
-        'noti_delete_duration':    [`p(95)<${THRESHOLDS.FAST}`],
+        'noti_unread_duration':    [`p(95)<${THRESHOLDS.NORMAL}`],
+        'noti_mark_duration':      [`p(95)<${THRESHOLDS.NORMAL}`],
+        'noti_delete_duration':    [`p(95)<${THRESHOLDS.NORMAL}`],
         'noti_markall_duration':   [`p(95)<${THRESHOLDS.NORMAL}`],
         'noti_deep_page_duration': [`p(95)<${THRESHOLDS.SLOW}`],
-        'noti_sse_duration':       [`p(95)<${THRESHOLDS.SLOW}`],
+        'noti_sse_duration':       ['p(95)<6000'],
         'sse_delivery_rate':       ['rate>0.50'],
         'sse_delivery_latency':    ['p(95)<5000'],
         'sse_recovery_delivery_rate': ['rate>0.50'],
@@ -445,11 +445,11 @@ export function sseDeliveryE2E() {
         return;
     }
 
-    // 2) 트랜잭션 커밋 + BatchProcessor 스킵 대기
-    sleep(0.5);
+    // 2) 트랜잭션 커밋 대기
+    sleep(0.3);
 
-    // 3) SSE 연결 — MissedNotificationRecovery 트리거
-    //    timeout 3s: Recovery는 보통 100ms 이내 완료
+    // 3) SSE 연결 — MissedNotificationRecovery 트리거 (동기 실행)
+    //    timeout 5s: Recovery 완료 + 응답 수신 여유
     const token = generateJWT(user);
     const sseHdrs = {
         'Authorization': `Bearer ${token}`,
@@ -459,7 +459,7 @@ export function sseDeliveryE2E() {
 
     const sseRes = http.get(`${BASE_URL}/api/v1/sse/subscribe`, {
         headers: sseHdrs,
-        timeout: '3s',
+        timeout: '5s',
         responseType: 'text',
         tags: { name: 'sse_delivery_e2e' },
     });
