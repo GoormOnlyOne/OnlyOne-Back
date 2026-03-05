@@ -82,6 +82,7 @@ app:
     batch-size: ${NOTIFICATION_BATCH_SIZE:20}                    # 배치 처리 단위 크기
     max-queue-size-per-user: ${NOTIFICATION_MAX_QUEUE:100}       # 사용자별 최대 큐 크기
     batch-processing-interval: ${NOTIFICATION_BATCH_INTERVAL:100}  # 배치 처리 간격 (ms)
+    multi-instance: ${NOTIFICATION_MULTI_INSTANCE:false}             # 다중 인스턴스 SSE (Redis 분산 레지스트리)
     batch-timeout-seconds: ${NOTIFICATION_BATCH_TIMEOUT:5}       # 배치 타임아웃 (초)
     sse-executor-permits: ${SSE_EXECUTOR_PERMITS:200}            # SSE 이벤트 전송 동시실행 상한
     notification-executor-permits: ${NOTIFICATION_EXECUTOR_PERMITS:100}
@@ -451,3 +452,4 @@ app:
     sse-timeout-millis: 30000
     sse-executor-permits: 500
     max-connections: 10000
+    multi-instance: true

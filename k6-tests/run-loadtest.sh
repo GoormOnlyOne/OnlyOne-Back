@@ -214,8 +214,14 @@ run_k6() {
             $EXTRA_K6_ARGS \
             "/scripts/$test_file"
     else
+        # K6_INFLUXDB_URL이 설정되면 InfluxDB로 메트릭 전송 (Grafana 대시보드용)
+        local influxdb_out=""
+        if [ -n "${K6_INFLUXDB_URL:-}" ]; then
+            influxdb_out="--out influxdb=${K6_INFLUXDB_URL}"
+        fi
         k6 run \
             --out json="$result_file" \
+            $influxdb_out \
             $EXTRA_K6_ARGS \
             "$SCRIPT_DIR/$test_file"
     fi
