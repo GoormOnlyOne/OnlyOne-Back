@@ -81,39 +81,76 @@ public class FeedQueryService {
 
     // ── 전체 피드 ──
 
+    public List<FeedOverviewDto> getPersonalFeed(Pageable pageable, Long cursor) {
+        return loadPersonalFeed(pageable, cursor);
+    }
+
     public List<FeedOverviewDto> getPersonalFeed(Pageable pageable) {
-        return loadFeed(pageable, PERSONAL_FEED_KEY_PREFIX, true);
+        return loadPersonalFeed(pageable, null);
     }
 
     public List<FeedOverviewDto> getPopularFeed(Pageable pageable) {
-        return loadFeed(pageable, POPULAR_FEED_KEY_PREFIX, false);
+        return loadPopularFeed(pageable);
     }
 
     // ── private ──
 
-    private List<FeedOverviewDto> loadFeed(Pageable pageable, String prefix, boolean chronological) {
+    private List<FeedOverviewDto> loadPersonalFeed(Pageable pageable, Long cursor) {
+        Long userId = userService.getCurrentUserId();
+        // 커서 없는 첫 페이지만 캐싱 (커서 페이지는 인덱스 스캔으로 충분히 빠름)
+        boolean isFirstPage = cursor == null && pageable.getPageNumber() == 0;
+
+        if (isFirstPage) {
+            String resultKey = PERSONAL_FEED_KEY_PREFIX + userId + ":first:" + pageable.getPageSize();
+            List<FeedOverviewDto> cachedResult = cache.getResult(resultKey);
+            if (cachedResult != null) return cachedResult;
+
+            String pass1Key = PERSONAL_FEED_KEY_PREFIX + "p1:" + userId + ":" + pageable.getPageSize();
+            List<FeedIdWithCounts> pass1 = cache.getPass1(pass1Key);
+            if (pass1 == null) {
+                List<Long> clubIds = userClubRepository.findAccessibleClubIds(userId);
+                if (clubIds.isEmpty()) return Collections.emptyList();
+                pass1 = feedStoragePort.findPersonalFeedIdsCursor(clubIds, null, pageable.getPageSize());
+                cache.putPass1(pass1Key, pass1);
+            }
+
+            List<FeedOverviewDto> result = renderService.buildOverviewList(pass1, userId);
+            cache.putResult(resultKey, result);
+            return result;
+        }
+
+        // 커서 기반 페이지 — 캐시 없이 직접 조회 (인덱스 활용으로 빠름)
+        List<Long> clubIds = userClubRepository.findAccessibleClubIds(userId);
+        if (clubIds.isEmpty()) return Collections.emptyList();
+
+        List<FeedIdWithCounts> pass1 = (cursor != null)
+                ? feedStoragePort.findPersonalFeedIdsCursor(clubIds, cursor, pageable.getPageSize())
+                : feedStoragePort.findPersonalFeedIds(clubIds, pageable);
+
+        return renderService.buildOverviewList(pass1, userId);
+    }
+
+    private List<FeedOverviewDto> loadPopularFeed(Pageable pageable) {
         Long userId = userService.getCurrentUserId();
         boolean cacheable = pageable.getPageNumber() <= MAX_CACHEABLE_PAGE;
 
-        String resultKey = cacheable ? prefix + userId + ":" + pageable.getPageNumber() + ":" + pageable.getPageSize() : null;
+        String resultKey = cacheable ? POPULAR_FEED_KEY_PREFIX + userId + ":" + pageable.getPageNumber() + ":" + pageable.getPageSize() : null;
         List<FeedOverviewDto> cachedResult = cache.getResult(resultKey);
         if (cachedResult != null) return cachedResult;
 
         List<Long> clubIds = userClubRepository.findAccessibleClubIds(userId);
         if (clubIds.isEmpty()) return Collections.emptyList();
 
-        String pass1Key = cacheable ? prefix + userId + ":" + pageable.getPageNumber() + ":" + pageable.getPageSize() : null;
+        String pass1Key = cacheable ? POPULAR_FEED_KEY_PREFIX + "p1:" + userId + ":" + pageable.getPageNumber() + ":" + pageable.getPageSize() : null;
         List<FeedIdWithCounts> pass1 = cacheable ? cache.getPass1(pass1Key) : null;
 
         if (pass1 == null) {
-            pass1 = chronological
-                    ? feedStoragePort.findPersonalFeedIds(clubIds, pageable)
-                    : feedStoragePort.findPopularFeedIds(clubIds, pageable);
+            pass1 = feedStoragePort.findPopularFeedIds(clubIds, pageable);
             if (cacheable) cache.putPass1(pass1Key, pass1);
         }
 
         List<FeedOverviewDto> result = renderService.buildOverviewList(pass1, userId);
-        cache.putResult(resultKey, result);
+        if (cacheable) cache.putResult(resultKey, result);
         return result;
     }
 

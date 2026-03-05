@@ -18,9 +18,13 @@ import java.util.Set;
  */
 public interface FeedStoragePort {
 
-    // ── 개인 피드 (최신순) — 핵심 병목 ──
+    // ── 개인 피드 (최신순) — OFFSET 기반 (레거시) ──
 
     List<FeedRepositoryCustom.FeedIdWithCounts> findPersonalFeedIds(List<Long> clubIds, Pageable pageable);
+
+    // ── 개인 피드 (최신순) — cursor 기반 (최적화) ──
+
+    List<FeedRepositoryCustom.FeedIdWithCounts> findPersonalFeedIdsCursor(List<Long> clubIds, Long cursor, int limit);
 
     // ── 인기 피드 (스코어순) ──
 

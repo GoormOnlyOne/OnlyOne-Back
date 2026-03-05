@@ -118,15 +118,45 @@ public class FeedRepositoryCustomImpl implements FeedRepositoryCustom {
         return merged.subList(fromIndex, toIndex);
     }
 
-    // ── 인기 피드 pass1 (스코어 기반) ──
+    // ── 개인 피드 cursor 기반 (OFFSET 제거) ──
+
+    @Override
+    public List<FeedIdWithCounts> findFeedIdsByClubIdsCursor(
+            List<Long> clubIds, Long cursor, int limit) {
+        var query = queryFactory
+                .select(Projections.constructor(FeedIdWithCounts.class,
+                        feed.feedId,
+                        feed.likeCount,
+                        feed.commentCount))
+                .from(feed)
+                .where(
+                        feed.club.clubId.in(clubIds),
+                        cursor != null ? feed.feedId.lt(cursor) : null)
+                .orderBy(feed.feedId.desc())
+                .limit(limit);
+        return query.fetch();
+    }
+
+    @Override
+    public List<FeedIdWithCounts> findFeedIdsByClubIdsCursorChunked(
+            List<Long> clubIds, Long cursor, int limit, int chunkSize) {
+        List<FeedIdWithCounts> merged = new ArrayList<>();
+        for (int i = 0; i < clubIds.size(); i += chunkSize) {
+            List<Long> chunk = clubIds.subList(i, Math.min(i + chunkSize, clubIds.size()));
+            merged.addAll(findFeedIdsByClubIdsCursor(chunk, cursor, limit));
+        }
+        // feedId DESC 정렬 후 limit 적용
+        merged.sort(Comparator.comparing(FeedIdWithCounts::feedId).reversed());
+        return merged.size() > limit ? merged.subList(0, limit) : merged;
+    }
+
+    // ── 인기 피드 pass1 (스코어 기반 — 런타임 계산, fallback) ──
 
     @Override
     public List<FeedIdWithCounts> findPopularFeedIdsByClubIds(
             List<Long> clubIds, Pageable pageable) {
         LocalDateTime sevenDaysAgo = LocalDateTime.now().minusDays(7);
 
-        // score = LN(GREATEST(likeCount + commentCount*2 + refeedBonus, 1))
-        //       - (hoursSinceCreation / 12.0)
         NumberExpression<Integer> refeedBonus = new CaseBuilder()
                 .when(feed.parentFeedId.isNotNull()).then(2)
                 .otherwise(0);
@@ -139,7 +169,6 @@ public class FeedRepositoryCustomImpl implements FeedRepositoryCustom {
                 .when(rawScore.gt(1L)).then(rawScore)
                 .otherwise(1L);
 
-        // LN과 TIMESTAMPDIFF는 DB 함수 — numberTemplate으로 표현
         NumberExpression<Double> score = Expressions.numberTemplate(Double.class,
                 "LN({0}) - (TIMESTAMPDIFF(SECOND, {1}, NOW()) / 43200.0)",
                 clampedScore, feed.createdAt);
@@ -154,6 +183,28 @@ public class FeedRepositoryCustomImpl implements FeedRepositoryCustom {
                         feed.club.clubId.in(clubIds),
                         feed.createdAt.goe(sevenDaysAgo))
                 .orderBy(score.desc(), feed.createdAt.desc())
+                .offset(pageable.getOffset())
+                .limit(pageable.getPageSize())
+                .fetch();
+    }
+
+    // ── 인기 피드 pass1 (pre-computed score — 인덱스 활용) ──
+
+    @Override
+    public List<FeedIdWithCounts> findPopularFeedIdsByScore(
+            List<Long> clubIds, Pageable pageable) {
+        LocalDateTime sevenDaysAgo = LocalDateTime.now().minusDays(7);
+
+        return queryFactory
+                .select(Projections.constructor(FeedIdWithCounts.class,
+                        feed.feedId,
+                        feed.likeCount,
+                        feed.commentCount))
+                .from(feed)
+                .where(
+                        feed.club.clubId.in(clubIds),
+                        feed.createdAt.goe(sevenDaysAgo))
+                .orderBy(feed.popularityScore.desc(), feed.feedId.desc())
                 .offset(pageable.getOffset())
                 .limit(pageable.getPageSize())
                 .fetch();

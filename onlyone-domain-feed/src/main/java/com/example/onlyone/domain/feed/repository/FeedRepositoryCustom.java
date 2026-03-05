@@ -17,8 +17,17 @@ public interface FeedRepositoryCustom {
     /** 개인 피드 chunked — 대량 클럽 IN절 분할 조회 후 병합 */
     List<FeedIdWithCounts> findFeedIdsByClubIdsChunked(List<Long> clubIds, Pageable pageable, int chunkSize);
 
+    /** 개인 피드 cursor 기반 — feed_id < cursor, OFFSET 없이 빠른 페이징 */
+    List<FeedIdWithCounts> findFeedIdsByClubIdsCursor(List<Long> clubIds, Long cursor, int limit);
+
+    /** 개인 피드 cursor chunked — IN절 분할 + cursor 병합 */
+    List<FeedIdWithCounts> findFeedIdsByClubIdsCursorChunked(List<Long> clubIds, Long cursor, int limit, int chunkSize);
+
     /** 인기 피드 pass1 — 스코어 기반 정렬 */
     List<FeedIdWithCounts> findPopularFeedIdsByClubIds(List<Long> clubIds, Pageable pageable);
+
+    /** 인기 피드 pass1 — pre-computed popularity_score 기반 (인덱스 활용) */
+    List<FeedIdWithCounts> findPopularFeedIdsByScore(List<Long> clubIds, Pageable pageable);
 
     /** 리포스트 카운트 배치 조회 */
     List<ParentRepostCount> countDirectRepostsIn(List<Long> feedIds);

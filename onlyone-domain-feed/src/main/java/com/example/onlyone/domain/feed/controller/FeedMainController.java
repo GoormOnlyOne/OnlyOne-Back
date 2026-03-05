@@ -30,13 +30,14 @@ public class FeedMainController {
     private final FeedCommandService feedCommandService;
     private final FeedCommentService feedCommentService;
 
-    @Operation(summary = "최신순 피드 목록 조회", description = "유저와 관련된 모든 피드들을 조회합니다.")
+    @Operation(summary = "최신순 피드 목록 조회", description = "유저와 관련된 모든 피드들을 조회합니다. cursor 파라미터로 커서 기반 페이징 지원.")
     @GetMapping
     public ResponseEntity<CommonResponse<List<FeedOverviewDto>>> getAllFeeds(
             @RequestParam(name = "page", defaultValue = "0") int page,
-            @RequestParam(name = "limit", defaultValue = "20") int limit) {
+            @RequestParam(name = "limit", defaultValue = "20") int limit,
+            @RequestParam(name = "cursor", required = false) Long cursor) {
         Pageable pageable = PageRequest.of(page, limit);
-        return ResponseEntity.ok(CommonResponse.success(feedQueryService.getPersonalFeed(pageable)));
+        return ResponseEntity.ok(CommonResponse.success(feedQueryService.getPersonalFeed(pageable, cursor)));
     }
 
     @Operation(summary = "인기순 피드 목록 조회", description = "전체 피드 목록 조회 기반으로 인기순 페이징 조회")

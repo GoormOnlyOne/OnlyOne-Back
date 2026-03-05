@@ -20,7 +20,9 @@ import java.util.List;
         indexes = {
                 @Index(name = "uq_refeed_once_alive", columnList = "user_id, club_id, active_parent", unique = true),
                 @Index(name = "idx_feed_club_deleted_created", columnList = "club_id, deleted, created_at"),
-                @Index(name = "idx_feed_parent_deleted", columnList = "parent_feed_id, deleted")
+                @Index(name = "idx_feed_parent_deleted", columnList = "parent_feed_id, deleted"),
+                @Index(name = "idx_feed_club_feedid", columnList = "club_id, feed_id"),
+                @Index(name = "idx_feed_club_popularity", columnList = "club_id, popularity_score")
         }
 )
 @Getter
@@ -68,6 +70,10 @@ public class Feed extends BaseTimeEntity {
     @Column(name = "comment_count", nullable = false)
     @Builder.Default
     private Long commentCount = 0L;
+
+    @Column(name = "popularity_score")
+    @Builder.Default
+    private Double popularityScore = 0.0;
 
     @Builder.Default
     @OneToMany(mappedBy = "feed", cascade = CascadeType.ALL, orphanRemoval = true)

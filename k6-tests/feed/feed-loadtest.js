@@ -318,7 +318,7 @@ export function setup() {
         if (res.status === 200) {
             try {
                 const body = JSON.parse(res.body);
-                const feedList = (body.data && body.data.feeds) || body.data || [];
+                const feedList = (body.data && body.data.content) || (body.data && body.data.feeds) || body.data || [];
                 const ids = Array.isArray(feedList) ? feedList.map(f => f.feedId || f.feed_id || f.id).filter(Boolean) : [];
                 feedMap[clubId] = ids;
 

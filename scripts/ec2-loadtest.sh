@@ -366,46 +366,46 @@ TOTAL_START=$(date +%s)
 # 테스트 실행
 case "$DOMAIN" in
     all)
-        run_k6 "all-domains-bottleneck-test.js" "all-domains"
+        run_k6 "common/all-domains-bottleneck-test.js" "all-domains"
         ;;
     feed)
-        run_k6 "feed-loadtest.js" "feed"
+        run_k6 "feed/feed-loadtest.js" "feed"
         ;;
     notification|notif)
-        run_k6 "notification-loadtest.js" "notification"
+        run_k6 "notification/notification-loadtest.js" "notification"
         ;;
     chat)
-        run_k6 "chat-loadtest.js" "chat"
+        run_k6 "chat/chat-loadtest.js" "chat"
         ;;
     finance)
-        run_k6 "finance-loadtest.js" "finance"
+        run_k6 "finance/finance-loadtest.js" "finance"
         ;;
     search)
-        run_k6 "search-loadtest.js" "search"
+        run_k6 "search/search-loadtest.js" "search"
         ;;
     club|schedule)
-        run_k6 "club-schedule-loadtest.js" "club-schedule"
+        run_k6 "club-schedule/club-schedule-loadtest.js" "club-schedule"
         ;;
     each)
         log_info "전 도메인 순차 테스트 (쿨다운: ${COOLDOWN}초)"
         echo ""
 
-        run_k6 "notification-loadtest.js" "notification"
+        run_k6 "notification/notification-loadtest.js" "notification"
         cooldown
 
-        run_k6 "feed-loadtest.js" "feed"
+        run_k6 "feed/feed-loadtest.js" "feed"
         cooldown
 
-        run_k6 "chat-loadtest.js" "chat"
+        run_k6 "chat/chat-loadtest.js" "chat"
         cooldown
 
-        run_k6 "search-loadtest.js" "search"
+        run_k6 "search/search-loadtest.js" "search"
         cooldown
 
-        run_k6 "finance-loadtest.js" "finance"
+        run_k6 "finance/finance-loadtest.js" "finance"
         cooldown
 
-        run_k6 "club-schedule-loadtest.js" "club-schedule"
+        run_k6 "club-schedule/club-schedule-loadtest.js" "club-schedule"
         ;;
     *)
         log_error "알 수 없는 도메인: $DOMAIN"

@@ -42,6 +42,25 @@ public class MongoFeedStorageAdapter implements FeedStoragePort {
                 .toList();
     }
 
+    // ── 개인 피드 cursor 기반 ──
+
+    @Override
+    public List<FeedIdWithCounts> findPersonalFeedIdsCursor(List<Long> clubIds, Long cursor, int limit) {
+        Criteria criteria = Criteria.where("deleted").is(false)
+                .and("clubId").in(clubIds);
+        if (cursor != null) {
+            criteria = criteria.and("feedId").lt(cursor);
+        }
+        Query query = new Query(criteria)
+                .with(Sort.by(Sort.Direction.DESC, "feedId"))
+                .limit(limit);
+        query.fields().include("feedId", "likeCount", "commentCount");
+
+        return mongoTemplate.find(query, FeedDocument.class).stream()
+                .map(d -> new FeedIdWithCounts(d.getFeedId(), d.getLikeCount(), d.getCommentCount()))
+                .toList();
+    }
+
     // ── 인기 피드 (스코어순) ──
 
     @Override
