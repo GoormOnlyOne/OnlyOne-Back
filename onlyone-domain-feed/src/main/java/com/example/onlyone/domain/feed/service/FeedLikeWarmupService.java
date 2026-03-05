@@ -3,6 +3,7 @@ package com.example.onlyone.domain.feed.service;
 import com.example.onlyone.domain.feed.repository.FeedLikeRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Component;
 

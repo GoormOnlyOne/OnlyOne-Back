@@ -28,10 +28,7 @@ import java.util.concurrent.TimeUnit;
 
 /**
  * 정산 이벤트 비즈니스 로직 프로세서.
- * MQ 벤더(Kafka/RabbitMQ/Redis Streams)에서 수신한 메시지의 비즈니스 로직을 처리한다.
- *
- * <p>기존 SettlementKafkaEventListener와 KafkaService(LedgerWriter)에 분산되어 있던
- * 비즈니스 로직을 추출하여 MQ 벤더 무관하게 재사용한다.</p>
+ * Kafka 리스너에서 수신한 메시지의 비즈니스 로직을 처리한다.
  */
 @Slf4j
 @Component
@@ -79,7 +76,6 @@ public class SettlementEventProcessor {
 
     /**
      * 정산 이벤트 payload 문자열 리스트를 처리한다.
-     * 모든 MQ 리스너에서 공용으로 호출.
      */
     public void processSettlementEvents(List<String> payloads) {
         for (String payload : payloads) {
@@ -89,19 +85,9 @@ public class SettlementEventProcessor {
     }
 
     /**
-     * 원장 기록 이벤트 (Kafka ConsumerRecord 버전).
+     * 원장 기록 이벤트 처리.
      */
     public void processLedgerEvents(List<ConsumerRecord<String, String>> records) {
-        ledgerWriter.writeBatch(records);
-    }
-
-    /**
-     * 원장 기록 이벤트 (MQ-agnostic 버전) — payload 문자열 리스트로 처리.
-     */
-    public void processLedgerPayloads(List<String> payloads) {
-        List<ConsumerRecord<String, String>> records = payloads.stream()
-                .map(p -> new ConsumerRecord<>("virtual", 0, 0L, "", p))
-                .toList();
         ledgerWriter.writeBatch(records);
     }
 

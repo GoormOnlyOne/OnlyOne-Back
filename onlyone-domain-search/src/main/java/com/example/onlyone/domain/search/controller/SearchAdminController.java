@@ -13,7 +13,7 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequiredArgsConstructor
 @RequestMapping("/api/v1/admin/search")
-@Profile({"loadtest", "local"})
+@Profile("local")
 @ConditionalOnProperty(name = "spring.elasticsearch.uris")
 public class SearchAdminController {
 

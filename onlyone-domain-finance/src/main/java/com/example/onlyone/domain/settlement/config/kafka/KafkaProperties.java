@@ -1,17 +1,17 @@
 package com.example.onlyone.domain.settlement.config.kafka;
 
 import lombok.Data;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
 
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 
 @Data
 @Component
 @ConfigurationProperties(prefix = "spring.kafka")
-@ConditionalOnProperty(name = "app.settlement.message-broker", havingValue = "kafka", matchIfMissing = true)
+@ConditionalOnProperty(name = "spring.kafka.enabled", havingValue = "true")
 public class KafkaProperties {
 
     private String defaultBootstrapServers;

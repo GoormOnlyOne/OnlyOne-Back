@@ -119,6 +119,14 @@ public class GlobalExceptionHandler {
                 "잘못된 입력값입니다: " + e.getMessage());
     }
 
+    @ExceptionHandler(org.springframework.dao.DataIntegrityViolationException.class)
+    public ResponseEntity<CommonResponse<ErrorResponse>> handleDataIntegrityViolationException(
+            org.springframework.dao.DataIntegrityViolationException e, HttpServletRequest request) {
+        logError(request, INVALID_INPUT_VALUE, e);
+        return errorResponse(409, "DATA_INTEGRITY_VIOLATION",
+                "데이터 무결성 제약 조건 위반입니다. 중복되거나 잘못된 참조가 있을 수 있습니다.");
+    }
+
     @ExceptionHandler({
         org.springframework.web.context.request.async.AsyncRequestNotUsableException.class,
         org.apache.catalina.connector.ClientAbortException.class,

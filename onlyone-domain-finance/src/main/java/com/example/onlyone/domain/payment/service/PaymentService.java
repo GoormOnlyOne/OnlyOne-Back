@@ -67,7 +67,8 @@ public class PaymentService {
      */
     public ConfirmTossPayResponse confirm(ConfirmTossPayRequest req) {
         log.info("결제 승인 시작: orderId={}, amount={}", req.orderId(), req.amount());
-        // Gate: Redis 멱등성 게이트 — DB 히트 전 중복 요청 즉시 차단
+
+        // Gate: 멱등성 게이트 — DB 히트 전 중복 요청 즉시 차단
         String gateKey = REDIS_PAYMENT_GATE_PREFIX + req.orderId();
         Boolean acquired = redisTemplate.opsForValue()
                 .setIfAbsent(gateKey, "1", PAYMENT_GATE_TTL_SECONDS, TimeUnit.SECONDS);

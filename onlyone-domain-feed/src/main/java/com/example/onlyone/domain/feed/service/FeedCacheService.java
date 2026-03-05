@@ -30,6 +30,7 @@ public class FeedCacheService {
     // ── Pass1 (Redis) ──
 
     public List<FeedIdWithCounts> getPass1(String key) {
+
         try {
             String raw = redis.opsForValue().get(key);
             if (raw == null || raw.isEmpty()) return null;
@@ -49,6 +50,7 @@ public class FeedCacheService {
     }
 
     public void putPass1(String key, List<FeedIdWithCounts> pass1) {
+
         try {
             if (pass1.isEmpty()) return;
             String value = pass1.stream()

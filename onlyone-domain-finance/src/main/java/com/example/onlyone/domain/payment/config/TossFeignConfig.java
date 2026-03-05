@@ -15,7 +15,7 @@ import java.util.Base64;
 
 @Slf4j
 @Configuration
-@Profile("!loadtest")
+@Profile({"ec2", "prod"})
 @EnableFeignClients(basePackages = "com.example.onlyone.domain.payment.feign")
 public class TossFeignConfig implements RequestInterceptor {
     private static final String AUTH_HEADER_PREFIX = "Basic ";

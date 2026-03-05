@@ -12,14 +12,14 @@ import org.apache.http.impl.nio.reactor.IOReactorConfig;
 import org.elasticsearch.client.RestClient;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.context.annotation.Profile;
 import org.springframework.data.elasticsearch.client.elc.ElasticsearchTemplate;
 import org.springframework.data.elasticsearch.core.ElasticsearchOperations;
 import org.springframework.data.elasticsearch.repository.config.EnableElasticsearchRepositories;
 
 @Configuration
-@Profile({"local", "prod", "ec2"})
+@ConditionalOnProperty(name = "app.search.engine", havingValue = "elasticsearch")
 @EnableElasticsearchRepositories(basePackages = "com.example.onlyone.domain.club.repository")
 public class ElasticsearchConfig {
 

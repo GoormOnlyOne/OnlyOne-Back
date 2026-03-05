@@ -14,7 +14,6 @@ import java.nio.charset.StandardCharsets;
 
 @Slf4j
 @Service("chatMessageSubscriber")
-@ConditionalOnProperty(name = "app.chat.websocket", havingValue = "stomp", matchIfMissing = true)
 @RequiredArgsConstructor
 public class ChatSubscriber implements MessageListener {
 

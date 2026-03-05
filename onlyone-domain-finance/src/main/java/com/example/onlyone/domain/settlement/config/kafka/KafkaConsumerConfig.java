@@ -15,14 +15,15 @@ import org.springframework.kafka.listener.ContainerProperties;
 import java.util.HashMap;
 import java.util.Map;
 
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+
 import static org.springframework.kafka.listener.ContainerProperties.AckMode.MANUAL_IMMEDIATE;
 
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 
 @RequiredArgsConstructor
 @Configuration
-@EnableKafka // @KafkaListener를 사용하기 위한 조건
-@ConditionalOnProperty(name = "app.settlement.message-broker", havingValue = "kafka", matchIfMissing = true)
+@EnableKafka
+@ConditionalOnProperty(name = "spring.kafka.enabled", havingValue = "true")
 public class KafkaConsumerConfig {
 
     private final KafkaProperties props;

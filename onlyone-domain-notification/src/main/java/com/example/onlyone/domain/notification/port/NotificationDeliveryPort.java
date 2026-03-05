@@ -4,7 +4,7 @@ import java.util.concurrent.CompletableFuture;
 
 /**
  * 알림 전송 추상화 포트.
- * SSE, FCM, WebFlux 등 구현체를 {@code app.notification.delivery} 프로퍼티로 교체할 수 있다.
+ * SSE 기반 구현체를 사용한다.
  */
 public interface NotificationDeliveryPort {
 

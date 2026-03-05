@@ -36,12 +36,12 @@ public final class NotificationFixtures {
 
     // ==================== Notification ====================
 
-    public static Notification notification(User user, NotificationType type, String... args) {
-        return Notification.create(user, type, args);
+    public static Notification notification(User user, NotificationType type, String name) {
+        return Notification.create(user, type, name);
     }
 
-    public static Notification notification(Long id, User user, NotificationType type, String... args) {
-        Notification notification = Notification.create(user, type, args);
+    public static Notification notification(Long id, User user, NotificationType type, String name) {
+        Notification notification = Notification.create(user, type, name);
         ReflectionTestUtils.setField(notification, "id", id);
         return notification;
     }

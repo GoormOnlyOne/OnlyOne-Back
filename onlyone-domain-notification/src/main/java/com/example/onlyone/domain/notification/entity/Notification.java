@@ -38,9 +38,6 @@ public class Notification extends BaseTimeEntity {
     @JoinColumn(name = "user_id", updatable = false, nullable = false)
     private User user;
 
-    @Column(name = "user_id", insertable = false, updatable = false)
-    private Long userId;
-
     @Column(name = "sse_sent", nullable = false)
     private boolean sseSent = false;
 
@@ -53,8 +50,8 @@ public class Notification extends BaseTimeEntity {
         this.content = content;
     }
 
-    public static Notification create(User user, NotificationType type, String... args) {
-        String renderedContent = type.render(args);
+    public static Notification create(User user, NotificationType type, String name) {
+        String renderedContent = type.render(name);
         return new Notification(user, type, renderedContent);
     }
 

@@ -96,6 +96,7 @@ public class PaymentTransactionService {
             walletTransaction.update(TransactionType.CHARGE, amount, wallet.getPostedBalance(), WalletTransactionStatus.COMPLETED, wallet, wallet);
         } else {
             walletTransaction = WalletTransaction.builder()
+                    .operationId("payment-" + orderId)
                     .type(TransactionType.CHARGE)
                     .amount(amount)
                     .balance(wallet.getPostedBalance())
@@ -157,6 +158,7 @@ public class PaymentTransactionService {
                 .orElseThrow(() -> new CustomException(FinanceErrorCode.WALLET_NOT_FOUND));
 
         WalletTransaction failTx = WalletTransaction.builder()
+                .operationId("payment-fail-" + req.orderId())
                 .type(TransactionType.CHARGE)
                 .amount(req.amount())
                 .balance(wallet.getPostedBalance())

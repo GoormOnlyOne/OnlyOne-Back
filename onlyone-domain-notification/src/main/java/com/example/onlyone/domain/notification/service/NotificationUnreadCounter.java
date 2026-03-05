@@ -9,8 +9,8 @@ import org.springframework.stereotype.Component;
 import java.time.Duration;
 
 /**
- * 읽지 않은 알림 개수 Redis 카운터.
- * Redis 장애 시 모든 연산은 로그만 남기고 정상 진행 (DB가 원본).
+ * 읽지 않은 알림 개수 카운터.
+ * Redis 캐시 우선 조회, 미스 시 DB fallback + 캐싱.
  */
 @Slf4j
 @Component
@@ -36,7 +36,7 @@ public class NotificationUnreadCounter {
         }
 
         Long count = storagePort.countUnreadByUserId(userId);
-        setQuietly(key, String.valueOf(count));
+        setQuietly(key(userId), String.valueOf(count));
         return count;
     }
 

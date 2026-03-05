@@ -3,7 +3,6 @@ package com.example.onlyone.global.sse;
 import com.example.onlyone.domain.notification.port.NotificationDeliveryPort;
 import com.example.onlyone.sse.service.SseEventSender;
 import lombok.RequiredArgsConstructor;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
 import java.util.concurrent.CompletableFuture;
@@ -14,7 +13,6 @@ import java.util.concurrent.CompletableFuture;
  */
 @Component
 @RequiredArgsConstructor
-@ConditionalOnProperty(name = "app.notification.delivery", havingValue = "sse", matchIfMissing = true)
 public class SseNotificationDeliveryAdapter implements NotificationDeliveryPort {
 
     private final SseEventSender sseEventSender;

@@ -12,6 +12,25 @@ import encoding from 'k6/encoding';
 export const BASE_URL = __ENV.BASE_URL || 'http://host.docker.internal:8080';
 export const JWT_SECRET = __ENV.JWT_SECRET || '7e9eeb12d176a2d72f554c6b096522b4e1a34d799727e45a96f192bbff2a2a851ede29ed24b10b6e6b1835ac94380e2469df99ff9713477bf4d43eeaa9cd16a3';
 export const SSE_CONNECT_TIMEOUT = '2s';
+export const SSE_SUBSCRIBE_URL = `${BASE_URL}${__ENV.SSE_PATH || '/api/v1/sse/subscribe'}`;
+
+// ============================================
+// 테스트 스케일링 — VU_SCALE=0.5 → VU 절반, DUR_SCALE=0.5 → 시간 절반
+// ============================================
+export const VU_SCALE  = parseFloat(__ENV.VU_SCALE  || '1');
+export const DUR_SCALE = parseFloat(__ENV.DUR_SCALE || '1');
+
+/** VU 수 스케일링 (최소 1) */
+export function vu(n) { return Math.max(1, Math.round(n * VU_SCALE)); }
+
+/** 초 단위 duration 스케일링 → '30s' 형태 문자열 */
+export function dur(s) { return `${Math.max(1, Math.round(s * DUR_SCALE))}s`; }
+
+/** startTime 계산: 이전 phase 초 합 + gap초 → '120s' 형태 */
+export function startAfter(prevDurations, gapSec) {
+    const total = prevDurations.reduce((a, b) => a + b, 0) * DUR_SCALE + (gapSec || 5);
+    return `${Math.round(total)}s`;
+}
 
 // ============================================
 // 시드 데이터 기준 상수 (환경변수 오버라이드 가능)
@@ -19,10 +38,16 @@ export const SSE_CONNECT_TIMEOUT = '2s';
 export const MIN_CLUB = parseInt(__ENV.MIN_CLUB || '1');
 export const MIN_CHATROOM = parseInt(__ENV.MIN_CHATROOM || '1');
 export const MIN_SCHEDULE = parseInt(__ENV.MIN_SCHEDULE || '1');
-export const TOTAL_CLUBS = parseInt(__ENV.TOTAL_CLUBS || '50000');
-export const TOTAL_CHATROOMS = parseInt(__ENV.TOTAL_CHATROOMS || '25000');
-export const TOTAL_SCHEDULES = parseInt(__ENV.TOTAL_SCHEDULES || '100000');
-export const TOTAL_USERS = parseInt(__ENV.TOTAL_USERS || '100000');
+// 기본값: 10x 로컬 스케일. AWS(100x) 시 환경변수로 오버라이드.
+// run-loadtest.sh가 DB에서 자동 탐지하여 환경변수를 설정함.
+// 수동 실행 시 아래 환경변수 필요:
+//   TOTAL_USERS=100000 TOTAL_CLUBS=50000 TOTAL_CHATROOMS=50000 TOTAL_SCHEDULES=2000000
+//   MIN_CLUB=<DB에서 조회> MIN_CHATROOM=<DB에서 조회> MIN_SCHEDULE=<DB에서 조회>
+//   USER_COUNT=100000 SETTLEMENT_COUNT=100000
+export const TOTAL_CLUBS = parseInt(__ENV.TOTAL_CLUBS || '5000');
+export const TOTAL_CHATROOMS = parseInt(__ENV.TOTAL_CHATROOMS || '2500');
+export const TOTAL_SCHEDULES = parseInt(__ENV.TOTAL_SCHEDULES || '10000');
+export const TOTAL_USERS = parseInt(__ENV.TOTAL_USERS || '10000');
 
 // ============================================
 // 유저 객체 생성 (JWT용)
@@ -36,17 +61,31 @@ export function makeUser(userId) {
     };
 }
 
+/** 랜덤 유저 (1~TOTAL_USERS) */
+export function randomUser() {
+    return makeUser(Math.floor(Math.random() * TOTAL_USERS) + 1);
+}
+
+/** VU ID 기반 결정적 유저 */
+export function vuUser(vuId) {
+    return makeUser(((vuId - 1) % TOTAL_USERS) + 1);
+}
+
 // ============================================
-// 유저-클럽 매핑 (seed-all-domains.sql 공식 기반)
+// 유저-클럽 매핑 (seed-all-domains SQL 공식 기반)
+// 오프셋: TOTAL_CLUBS/3, TOTAL_CLUBS*2/3 (10x → 1666,3333 / 100x → 16666,33333)
 // ============================================
+const CLUB_OFFSET_1 = Math.floor(TOTAL_CLUBS / 3);
+const CLUB_OFFSET_2 = Math.floor(TOTAL_CLUBS * 2 / 3);
+
 export function getUserClubs(userId) {
     const clubs = [
         MIN_CLUB + (userId % TOTAL_CLUBS),
-        MIN_CLUB + ((userId + 16666) % TOTAL_CLUBS),
-        MIN_CLUB + ((userId + 33333) % TOTAL_CLUBS),
+        MIN_CLUB + ((userId + CLUB_OFFSET_1) % TOTAL_CLUBS),
+        MIN_CLUB + ((userId + CLUB_OFFSET_2) % TOTAL_CLUBS),
     ];
-    if (userId <= 50000) clubs.push(MIN_CLUB + ((userId * 7) % TOTAL_CLUBS));
-    if (userId <= 20000) clubs.push(MIN_CLUB + ((userId * 13) % TOTAL_CLUBS));
+    if (userId <= Math.floor(TOTAL_USERS / 2)) clubs.push(MIN_CLUB + ((userId * 7) % TOTAL_CLUBS));
+    if (userId <= Math.floor(TOTAL_USERS / 5)) clubs.push(MIN_CLUB + ((userId * 13) % TOTAL_CLUBS));
     return clubs;
 }
 
@@ -112,10 +151,26 @@ export function getUserSchedules(userId) {
     return schedules;
 }
 
-// 스케줄이 속한 클럽 ID (seed 공식: schedule n → club @min_club + (n % 50000))
+// 스케줄이 속한 클럽 ID (seed 공식: schedule n → club @min_club + (n % TOTAL_CLUBS))
 export function getScheduleClub(scheduleId) {
     const n = scheduleId - MIN_SCHEDULE;
     return MIN_CLUB + (n % TOTAL_CLUBS);
+}
+
+// 클럽에 속한 스케줄 목록 (seed 공식 역산: club c → schedule base+k*TOTAL_CLUBS)
+export function getClubSchedules(clubId) {
+    const base = clubId - MIN_CLUB;
+    const schedules = [];
+    for (let k = 0; base + k * TOTAL_CLUBS < TOTAL_SCHEDULES; k++) {
+        schedules.push(MIN_SCHEDULE + base + k * TOTAL_CLUBS);
+    }
+    return schedules;
+}
+
+export function getRandomClubSchedule(clubId) {
+    const schedules = getClubSchedules(clubId);
+    if (schedules.length === 0) return MIN_SCHEDULE;
+    return schedules[Math.floor(Math.random() * schedules.length)];
 }
 
 // ============================================

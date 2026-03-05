@@ -37,7 +37,8 @@ public class Settlement extends BaseTimeEntity {
     private TotalStatus totalStatus;
 
     @Version
-    private Long version;
+    @Builder.Default
+    private Long version = 0L;
 
     @Column(name = "completed_time")
     private LocalDateTime completedTime;

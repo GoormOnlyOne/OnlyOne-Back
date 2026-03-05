@@ -1,6 +1,7 @@
 package com.example.onlyone.global.sse;
 
 import com.example.onlyone.domain.notification.dto.response.NotificationItemDto;
+import com.example.onlyone.domain.notification.dto.response.NotificationSseDto;
 import com.example.onlyone.domain.notification.port.NotificationDeliveryPort;
 import com.example.onlyone.domain.notification.port.NotificationStoragePort;
 import lombok.RequiredArgsConstructor;
@@ -48,7 +49,7 @@ public class SseMissedNotificationRecovery {
 
     private List<Long> sendAllInParallel(Long userId, List<NotificationItemDto> missed) {
         List<CompletableFuture<Long>> futures = missed.stream()
-                .map(item -> deliveryPort.deliver(userId, "notification", item)
+                .map(item -> deliveryPort.deliver(userId, "notification", NotificationSseDto.from(item))
                         .orTimeout(SEND_TIMEOUT_SECONDS, TimeUnit.SECONDS)
                         .thenApply(success -> success ? item.notificationId() : null)
                         .exceptionally(ex -> null))

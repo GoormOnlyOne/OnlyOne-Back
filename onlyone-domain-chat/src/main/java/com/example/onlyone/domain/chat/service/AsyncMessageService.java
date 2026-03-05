@@ -16,8 +16,8 @@ import java.time.LocalDateTime;
 import java.util.Map;
 
 @Service
-@RequiredArgsConstructor
 @Slf4j
+@RequiredArgsConstructor
 public class AsyncMessageService {
 
     private final MessageCommandService messageCommandService;

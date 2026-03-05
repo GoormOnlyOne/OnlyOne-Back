@@ -7,13 +7,13 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.kafka.listener.DeadLetterPublishingRecoverer;
 import org.springframework.kafka.listener.DefaultErrorHandler;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.util.backoff.FixedBackOff;
 
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 
 @Configuration
 @RequiredArgsConstructor
-@ConditionalOnProperty(name = "app.settlement.message-broker", havingValue = "kafka", matchIfMissing = true)
+@ConditionalOnProperty(name = "spring.kafka.enabled", havingValue = "true")
 public class KafkaErrorConfig {
     private final KafkaTemplate<String, String> kafkaTemplate;
 

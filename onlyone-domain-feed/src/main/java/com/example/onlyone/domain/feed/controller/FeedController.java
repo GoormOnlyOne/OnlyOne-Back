@@ -6,7 +6,7 @@ import com.example.onlyone.domain.feed.dto.response.FeedDetailResponseDto;
 import com.example.onlyone.domain.feed.dto.response.FeedSummaryResponseDto;
 import com.example.onlyone.domain.feed.service.FeedCommandService;
 import com.example.onlyone.domain.feed.service.FeedCommentService;
-import com.example.onlyone.domain.feed.service.FeedLikeService;
+import com.example.onlyone.domain.feed.service.FeedLikeToggleService;
 import com.example.onlyone.domain.feed.service.FeedQueryService;
 import com.example.onlyone.global.common.CommonResponse;
 import io.swagger.v3.oas.annotations.Operation;
@@ -30,7 +30,7 @@ public class FeedController {
 
     private final FeedCommandService feedCommandService;
     private final FeedQueryService feedQueryService;
-    private final FeedLikeService feedLikeService;
+    private final FeedLikeToggleService feedLikeService;
     private final FeedCommentService feedCommentService;
 
     @Operation(summary = "피드 생성", description = "피드를 생성합니다.")

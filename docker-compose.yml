@@ -16,26 +16,10 @@ services:
     command:
       - --character-set-server=utf8mb4
       - --collation-server=utf8mb4_unicode_ci
-      - --max_connections=800
-      - --innodb_buffer_pool_size=6G
-      - --innodb_buffer_pool_instances=8
+      - --max_connections=200
+      - --innodb_buffer_pool_size=512M
       - --innodb_flush_log_at_trx_commit=2
       - --innodb_lock_wait_timeout=5
-      - --innodb_thread_concurrency=0
-      - --innodb_io_capacity=4000
-      - --innodb_io_capacity_max=20000
-      - --innodb_read_io_threads=16
-      - --innodb_write_io_threads=16
-      - --innodb_redo_log_capacity=1G
-      - --innodb_log_buffer_size=128M
-      - --sync_binlog=0
-      - --thread_cache_size=400
-      - --sort_buffer_size=4M
-      - --join_buffer_size=4M
-      - --tmp_table_size=128M
-      - --max_heap_table_size=128M
-      - --table_open_cache=4000
-      - --innodb_adaptive_hash_index=ON
     networks:
       - onlyone-network
     healthcheck:
@@ -46,13 +30,13 @@ services:
     deploy:
       resources:
         limits:
-          cpus: '6'
-          memory: 8G
+          cpus: '4'
+          memory: 2G
         reservations:
-          cpus: '2'
-          memory: 4G
+          cpus: '1'
+          memory: 512M
 
-  # Redis Cache & Session
+  # Redis Cache & Pub/Sub
   redis:
     image: redis:7-alpine
     container_name: onlyone-redis
@@ -79,7 +63,7 @@ services:
           cpus: '0.5'
           memory: 512M
 
-  # Elasticsearch
+  # Elasticsearch (--profile elasticsearch)
   elasticsearch:
     image: docker.elastic.co/elasticsearch/elasticsearch:8.18.1
     container_name: onlyone-elasticsearch
@@ -104,6 +88,8 @@ services:
       interval: 30s
       timeout: 10s
       retries: 5
+    profiles:
+      - elasticsearch
     deploy:
       resources:
         limits:
@@ -234,36 +220,23 @@ services:
           cpus: '1'
           memory: 1G
 
-  # RabbitMQ (알림 이벤트 버스 비교용 — app.notification.event-bus=rabbitmq)
-  rabbitmq:
-    image: rabbitmq:3.13-management-alpine
-    container_name: onlyone-rabbitmq
-    restart: unless-stopped
-    environment:
-      RABBITMQ_DEFAULT_USER: guest
-      RABBITMQ_DEFAULT_PASS: guest
-    ports:
-      - "127.0.0.1:5672:5672"
-      - "127.0.0.1:15672:15672"
+  # k6 부하 테스트 runner (--profile k6)
+  k6:
+    image: grafana/k6:latest
+    container_name: onlyone-k6
+    network_mode: host
     volumes:
-      - rabbitmq_data:/var/lib/rabbitmq
-    networks:
-      - onlyone-network
-    healthcheck:
-      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
+      - ./k6-tests:/scripts:ro
+    environment:
+      - BASE_URL=http://localhost:8080
+      - K6_OUT=json=/scripts/results/output.json
     profiles:
-      - rabbitmq
+      - k6
     deploy:
       resources:
         limits:
-          cpus: '1'
-          memory: 512M
-        reservations:
-          cpus: '0.25'
-          memory: 256M
+          cpus: '2'
+          memory: 1G
 
   # ========== Monitoring (--profile monitoring) ==========
 
@@ -415,7 +388,6 @@ volumes:
   redis_data:
   elasticsearch_data:
   mongodb_data:
-  rabbitmq_data:
   postgres_data:
   kafka_data:
   prometheus_data:

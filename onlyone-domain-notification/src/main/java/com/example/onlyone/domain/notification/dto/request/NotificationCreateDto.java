@@ -6,6 +6,6 @@ import com.example.onlyone.domain.user.entity.User;
 public record NotificationCreateDto(
         User user,
         NotificationType type,
-        String[] args
+        String name
 ) {
 }

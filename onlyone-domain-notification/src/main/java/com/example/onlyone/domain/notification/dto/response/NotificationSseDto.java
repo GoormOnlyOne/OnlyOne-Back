@@ -35,4 +35,15 @@ public record NotificationSseDto(
             System.currentTimeMillis()
         );
     }
+
+    public static NotificationSseDto from(NotificationItemDto item) {
+        return new NotificationSseDto(
+            item.notificationId(),
+            item.content(),
+            item.type(),
+            item.isRead(),
+            item.createdAt(),
+            System.currentTimeMillis()
+        );
+    }
 }

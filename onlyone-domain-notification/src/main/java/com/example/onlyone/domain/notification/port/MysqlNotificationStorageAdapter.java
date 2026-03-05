@@ -1,6 +1,7 @@
 package com.example.onlyone.domain.notification.port;
 
 import com.example.onlyone.domain.notification.dto.response.NotificationItemDto;
+import com.example.onlyone.domain.notification.dto.response.NotificationItemProjection;
 import com.example.onlyone.domain.notification.entity.Notification;
 import com.example.onlyone.domain.notification.entity.NotificationType;
 import com.example.onlyone.domain.notification.repository.NotificationRepository;
@@ -12,10 +13,6 @@ import org.springframework.stereotype.Component;
 
 import java.util.List;
 
-/**
- * MySQL(JPA) 기반 알림 저장소 어댑터.
- * 기존 {@link NotificationRepository}에 위임한다.
- */
 @Component
 @RequiredArgsConstructor
 @ConditionalOnProperty(name = "app.notification.storage", havingValue = "mysql", matchIfMissing = true)
@@ -34,7 +31,10 @@ public class MysqlNotificationStorageAdapter implements NotificationStoragePort 
 
     @Override
     public List<NotificationItemDto> findByUserId(Long userId, Long cursor, int size) {
-        return notificationRepository.findNotificationsByUserId(userId, cursor, size);
+        List<NotificationItemProjection> projections = (cursor != null)
+                ? notificationRepository.findNotificationsByUserIdWithCursor(userId, cursor, size)
+                : notificationRepository.findNotificationsByUserId(userId, size);
+        return projections.stream().map(this::toDto).toList();
     }
 
     @Override
@@ -64,6 +64,17 @@ public class MysqlNotificationStorageAdapter implements NotificationStoragePort 
 
     @Override
     public List<NotificationItemDto> findUndeliveredByUserId(Long userId, int limit) {
-        return notificationRepository.findUndeliveredByUserId(userId, limit);
+        return notificationRepository.findUndeliveredByUserId(userId, limit)
+                .stream().map(this::toDto).toList();
+    }
+
+    private NotificationItemDto toDto(NotificationItemProjection p) {
+        return new NotificationItemDto(
+                p.getNotificationId(),
+                p.getContent(),
+                NotificationType.valueOf(p.getType()),
+                p.getIsRead() != null && p.getIsRead() != 0,
+                p.getCreatedAt()
+        );
     }
 }

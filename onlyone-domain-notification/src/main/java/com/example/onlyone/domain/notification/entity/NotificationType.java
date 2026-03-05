@@ -13,7 +13,7 @@ public enum NotificationType {
     CHAT("CHAT", "%s님이 메시지를 보냈습니다"),
     SETTLEMENT("SETTLEMENT", "%s 정산이 완료되었습니다"),
     LIKE("POST", "%s님이 회원님의 게시글을 좋아합니다"),
-    COMMENT("POST", "%s님이 댓글을 남겼습니다: %s"),
+    COMMENT("POST", "%s님이 댓글을 남겼습니다"),
     REFEED("FEED", "%s님이 회원님의 피드를 리피드했습니다");
 
     private final String targetType;
@@ -27,10 +27,10 @@ public enum NotificationType {
     /**
      * 템플릿에 인자를 적용하여 최종 메시지 생성
      */
-    public String render(String... args) {
-        if (args == null || args.length == 0) {
-            return template;
+    public String render(String name) {
+        if (name == null || name.isEmpty()) {
+            return template.replace("%s", "");
         }
-        return String.format(template, (Object[]) args);
+        return String.format(template, name);
     }
 }

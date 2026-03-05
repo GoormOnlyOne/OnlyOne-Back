@@ -5,10 +5,14 @@ import com.example.onlyone.domain.search.service.SearchService;
 import com.example.onlyone.global.common.CommonResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
+import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
+@Validated
 @RestController
 @Tag(name = "Search")
 @RequiredArgsConstructor
@@ -18,15 +22,15 @@ public class SearchController {
 
     @Operation(summary = "사용자 맞춤 추천", description = "사용자의 관심사 및 지역 기반으로 모임을 추천합니다.")
     @GetMapping("/recommendations")
-    public ResponseEntity<?> recommendedClubs(@RequestParam(defaultValue = "0") int page,
-                                              @RequestParam(defaultValue = "20") int size) {
+    public ResponseEntity<?> recommendedClubs(@RequestParam(defaultValue = "0") @Min(0) int page,
+                                              @RequestParam(defaultValue = "20") @Min(1) @Max(100) int size) {
         return ResponseEntity.ok(CommonResponse.success(searchService.recommendedClubs(page, size)));
     }
 
     @Operation(summary = "모임 검색 (관심사)", description = "관심사 기반으로 모임을 검색합니다.")
     @GetMapping("/interests")
     public ResponseEntity<?> searchClubByInterest(@RequestParam Long interestId,
-                                                  @RequestParam(defaultValue = "0") int page) {
+                                                  @RequestParam(defaultValue = "0") @Min(0) int page) {
         return ResponseEntity.ok(CommonResponse.success(searchService.searchClubByInterest(interestId, page)));
     }
 
@@ -34,7 +38,7 @@ public class SearchController {
     @GetMapping("/locations")
     public ResponseEntity<?> searchClubByLocation(@RequestParam String city,
                                                   @RequestParam String district,
-                                                  @RequestParam(defaultValue = "0") int page) {
+                                                  @RequestParam(defaultValue = "0") @Min(0) int page) {
         return ResponseEntity.ok(CommonResponse.success(searchService.searchClubByLocation(city, district, page)));
     }
 
@@ -52,7 +56,7 @@ public class SearchController {
             @RequestParam(required = false) String district,
             @RequestParam(required = false) Long interestId,
             @RequestParam(defaultValue = "MEMBER_COUNT") SearchFilterDto.SortType sortBy,
-            @RequestParam(defaultValue = "0") int page) {
+            @RequestParam(defaultValue = "0") @Min(0) int page) {
         
         SearchFilterDto filter = new SearchFilterDto(keyword, city, district, interestId, sortBy, page);
         return ResponseEntity.ok(CommonResponse.success(searchService.searchClubs(filter)));
@@ -60,8 +64,8 @@ public class SearchController {
 
     @Operation(summary = "함께하는 멤버들의 다른 모임", description = "내가 속한 모임의 다른 멤버들이 가입한 다른 모임을 조회합니다.")
     @GetMapping("/teammates-clubs")
-    public ResponseEntity<?> getClubsByTeammates(@RequestParam(defaultValue = "0") int page,
-                                                 @RequestParam(defaultValue = "20") int size) {
+    public ResponseEntity<?> getClubsByTeammates(@RequestParam(defaultValue = "0") @Min(0) int page,
+                                                 @RequestParam(defaultValue = "20") @Min(1) @Max(100) int size) {
         return ResponseEntity.ok(CommonResponse.success(searchService.getClubsByTeammates(page, size)));
     }
 
