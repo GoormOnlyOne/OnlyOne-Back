@@ -47,6 +47,16 @@ public class SseEventSender {
                 .orElse(CompletableFuture.completedFuture(false));
     }
 
+    /**
+     * executor를 거치지 않고 현재 스레드에서 직접 전송.
+     * Recovery처럼 이미 동기 컨텍스트에서 호출할 때 executor 경합을 피한다.
+     */
+    public boolean sendEventDirect(Long userId, String eventName, Object data) {
+        SseConnection connection = connectionManager.getConnection(userId);
+        if (connection == null) return false;
+        return sendEventInternal(connection, userId, eventName, data);
+    }
+
     private boolean sendEventInternal(SseConnection connection, Long userId, String eventName, Object data) {
         try {
             if (isDataTooLarge(data)) {
