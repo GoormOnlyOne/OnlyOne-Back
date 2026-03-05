@@ -277,7 +277,7 @@ spring.kafka:
 ---
 # =============================================================
 # EC2 부하 테스트 환경 (profile: ec2)
-# loadtest와 함께 사용: SPRING_PROFILES_ACTIVE=ec2,loadtest
+# 사용: SPRING_PROFILES_ACTIVE=ec2
 #
 # 앱 서버(c5.xlarge: 4 vCPU, 8GB)에서 실행
 # 인프라 서버(c5.2xlarge)에 INFRA_HOST 환경변수로 연결
@@ -286,6 +286,14 @@ spring:
   config:
     activate:
       on-profile: ec2
+
+  # MongoDB/RabbitMQ 미사용
+  autoconfigure:
+    exclude:
+      - org.springframework.boot.autoconfigure.data.mongo.MongoDataAutoConfiguration
+      - org.springframework.boot.autoconfigure.data.mongo.MongoRepositoriesAutoConfiguration
+      - org.springframework.boot.autoconfigure.mongo.MongoAutoConfiguration
+      - org.springframework.boot.autoconfigure.amqp.RabbitAutoConfiguration
 
   # --- 데이터소스 (EC2 원격 인프라) ---
   datasource:
@@ -364,17 +372,6 @@ spring:
     security:
       enabled: false
 
-  # RabbitMQ (원격 인프라)
-  rabbitmq:
-    host: ${INFRA_HOST}
-    port: 5672
-    username: guest
-    password: guest
-
-  # MongoDB (원격 인프라)
-  data.mongodb:
-    uri: mongodb://root:root@${INFRA_HOST}:27017/onlyone?authSource=admin
-
   # Elasticsearch (원격 인프라)
   elasticsearch:
     uris: http://${INFRA_HOST}:9200
@@ -428,7 +425,7 @@ jwt:
   access-expiration: 3600000
   refresh-expiration: 604800000
 
-# --- 토스 결제 (loadtest 프로필에서 MockClient 사용) ---
+# --- 토스 결제 ---
 payment:
   toss:
     client_key: ${TOSS_CLIENT_KEY:test_ck_yL0qZ4G1VOlG77j1njbProWb2MQY}
