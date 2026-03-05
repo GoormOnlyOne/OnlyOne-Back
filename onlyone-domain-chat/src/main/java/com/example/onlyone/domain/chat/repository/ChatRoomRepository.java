@@ -26,6 +26,14 @@ public interface ChatRoomRepository extends JpaRepository<ChatRoom,Long> {
     """)
     List<ChatRoom> findChatRoomsByUserIdAndClubId(@Param("userId") Long userId, @Param("clubId") Long clubId);
 
+    @Query("""
+        SELECT cr FROM ChatRoom cr
+        JOIN FETCH cr.club
+        LEFT JOIN FETCH cr.schedule
+        WHERE cr.chatRoomId = :chatRoomId
+    """)
+    Optional<ChatRoom> findByIdWithClub(@Param("chatRoomId") Long chatRoomId);
+
     // 정기모임(SCHEDULE) 방 단건 조회
     Optional<ChatRoom> findByTypeAndScheduleId(ChatRoomType type, Long scheduleId);
 

@@ -55,10 +55,9 @@ public interface MessageRepository extends JpaRepository<Message,Long> {
     """)
     List<LastMessageProjection> findLastMessagesByChatRoomIdsNative(@Param("chatRoomIds") List<Long> chatRoomIds);
 
-    // 최신 N건 (초기 로드) — JOIN FETCH로 N+1 제거
+    // 최신 N건 (초기 로드) — JOIN FETCH user (chatRoom은 proxy ID만 사용)
     @Query("""
        select m from Message m
-       join fetch m.chatRoom
        join fetch m.user
        where m.chatRoom.chatRoomId = :roomId
          and m.deleted = false
@@ -66,10 +65,9 @@ public interface MessageRepository extends JpaRepository<Message,Long> {
     """)
     List<Message> findLatest(@Param("roomId") Long roomId, Pageable pageable);
 
-    // 커서 기준 더 '이전'(과거) N건 — JOIN FETCH로 N+1 제거
+    // 커서 기준 더 '이전'(과거) N건 — JOIN FETCH user (chatRoom은 proxy ID만 사용)
     @Query("""
        select m from Message m
-       join fetch m.chatRoom
        join fetch m.user
        where m.chatRoom.chatRoomId = :roomId
          and m.deleted = false

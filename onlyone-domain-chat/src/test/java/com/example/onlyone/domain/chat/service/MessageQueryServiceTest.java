@@ -56,7 +56,7 @@ class MessageQueryServiceTest {
             // findLatest returns DESC order
             List<ChatMessageItemDto> descItems = new ArrayList<>(List.of(item3, item2, item1));
 
-            given(chatRoomRepository.findById(1L)).willReturn(Optional.of(chatRoom));
+            given(chatRoomRepository.findByIdWithClub(1L)).willReturn(Optional.of(chatRoom));
             given(chatMessageStoragePort.findLatest(eq(1L), anyInt())).willReturn(descItems);
 
             ChatRoomMessageResponse response = messageQueryService.getChatRoomMessages(1L, 50, null, null);
@@ -83,7 +83,7 @@ class MessageQueryServiceTest {
 
             LocalDateTime cursorAt = LocalDateTime.of(2025, 7, 29, 12, 0, 0);
 
-            given(chatRoomRepository.findById(2L)).willReturn(Optional.of(chatRoom));
+            given(chatRoomRepository.findByIdWithClub(2L)).willReturn(Optional.of(chatRoom));
             given(chatMessageStoragePort.findOlderThan(eq(2L), eq(cursorAt), eq(5L), anyInt()))
                     .willReturn(descItems);
 
@@ -110,7 +110,7 @@ class MessageQueryServiceTest {
             // pageSize+1 = 3 items returned → hasMore = true
             List<ChatMessageItemDto> descItems = new ArrayList<>(List.of(item3, item2, item1));
 
-            given(chatRoomRepository.findById(1L)).willReturn(Optional.of(chatRoom));
+            given(chatRoomRepository.findByIdWithClub(1L)).willReturn(Optional.of(chatRoom));
             given(chatMessageStoragePort.findLatest(eq(1L), anyInt())).willReturn(descItems);
 
             ChatRoomMessageResponse response = messageQueryService.getChatRoomMessages(1L, size, null, null);

@@ -30,7 +30,7 @@ public class MessageQueryService {
     public ChatRoomMessageResponse getChatRoomMessages(
             Long chatRoomId, Integer size, Long cursorId, LocalDateTime cursorAt) {
 
-        ChatRoom chatRoom = chatRoomRepository.findById(chatRoomId)
+        ChatRoom chatRoom = chatRoomRepository.findByIdWithClub(chatRoomId)
                 .orElseThrow(() -> new CustomException(ChatErrorCode.CHAT_ROOM_NOT_FOUND));
 
         int pageSize = clampPageSize(size);

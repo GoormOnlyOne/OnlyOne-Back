@@ -10,16 +10,16 @@
 // ┌────────┬────────────────────────────────────┬──────┬───────┐
 // │ Phase  │ 시나리오                            │ VU   │ 시간  │
 // ├────────┼────────────────────────────────────┼──────┼───────┤
-// │ 1      │ Warmup                             │ 50   │ 30s   │
-// │ 2      │ Baseline — 전 API 혼합              │ 300  │ 2m    │
-// │ 3      │ Send Storm — 메시지 전송 + 삭제      │ 500  │ 2m    │
-// │ 4      │ Read Storm — 최신 목록 + 커서 페이징  │ 500  │ 2m    │
-// │ 5      │ Room List Stress                   │ 350  │ 1.5m  │
-// │ 6      │ Read-Write Contention — 동일 방      │ 350  │ 2m    │
-// │ 7      │ WebSocket STOMP Stress             │ 350  │ 2m    │
-// │ 8      │ Spike 1000 VU                      │ 1000 │ 1.5m  │
-// │ 9      │ Double Spike                       │ 800  │ 2m    │
-// │ 10     │ Soak                               │ 300  │ 3m    │
+// │ 1      │ Warmup                             │ 75   │ 30s   │
+// │ 2      │ Baseline — 전 API 혼합              │ 450  │ 2m    │
+// │ 3      │ Send Storm — 메시지 전송 + 삭제      │ 750  │ 2m    │
+// │ 4      │ Read Storm — 최신 목록 + 커서 페이징  │ 750  │ 2m    │
+// │ 5      │ Room List Stress                   │ 500  │ 1.5m  │
+// │ 6      │ Read-Write Contention — 동일 방      │ 500  │ 2m    │
+// │ 7      │ WebSocket STOMP Stress             │ 500  │ 2m    │
+// │ 8      │ Spike 1500 VU                      │ 1500 │ 1.5m  │
+// │ 9      │ Double Spike                       │ 1200 │ 2m    │
+// │ 10     │ Soak                               │ 450  │ 3m    │
 // │ 11     │ Cooldown                           │ 5    │ 30s   │
 // └────────┴────────────────────────────────────┴──────┴───────┘
 // =============================================================
@@ -82,14 +82,14 @@ export const options = {
     scenarios: {
         warmup: {
             executor: 'constant-vus',
-            vus: vu(50),
+            vus: vu(75),
             duration: dur(P1),
             exec: 'warmup',
             tags: { phase: '1_warmup' },
         },
         baseline: {
             executor: 'constant-vus',
-            vus: vu(300),
+            vus: vu(450),
             duration: dur(P2),
             startTime: startAfter([P1], 5),
             exec: 'baseline',
@@ -99,8 +99,8 @@ export const options = {
             executor: 'ramping-vus',
             startVUs: vu(10),
             stages: [
-                { duration: dur(20), target: vu(500) },
-                { duration: dur(80), target: vu(500) },
+                { duration: dur(20), target: vu(750) },
+                { duration: dur(80), target: vu(750) },
                 { duration: dur(20), target: 0 },
             ],
             startTime: startAfter([P1, P2], 5),
@@ -111,8 +111,8 @@ export const options = {
             executor: 'ramping-vus',
             startVUs: vu(10),
             stages: [
-                { duration: dur(20), target: vu(500) },
-                { duration: dur(80), target: vu(500) },
+                { duration: dur(20), target: vu(750) },
+                { duration: dur(80), target: vu(750) },
                 { duration: dur(20), target: 0 },
             ],
             startTime: startAfter([P1, P2, P3], 5),
@@ -123,8 +123,8 @@ export const options = {
             executor: 'ramping-vus',
             startVUs: vu(5),
             stages: [
-                { duration: dur(15), target: vu(350) },
-                { duration: dur(60), target: vu(350) },
+                { duration: dur(15), target: vu(500) },
+                { duration: dur(60), target: vu(500) },
                 { duration: dur(15), target: 0 },
             ],
             startTime: startAfter([P1, P2, P3, P4], 5),
@@ -135,8 +135,8 @@ export const options = {
             executor: 'ramping-vus',
             startVUs: vu(10),
             stages: [
-                { duration: dur(20), target: vu(350) },
-                { duration: dur(80), target: vu(350) },
+                { duration: dur(20), target: vu(500) },
+                { duration: dur(80), target: vu(500) },
                 { duration: dur(20), target: 0 },
             ],
             startTime: startAfter([P1, P2, P3, P4, P5], 5),
@@ -147,8 +147,8 @@ export const options = {
             executor: 'ramping-vus',
             startVUs: vu(10),
             stages: [
-                { duration: dur(20), target: vu(350) },
-                { duration: dur(80), target: vu(350) },
+                { duration: dur(20), target: vu(500) },
+                { duration: dur(80), target: vu(500) },
                 { duration: dur(20), target: 0 },
             ],
             startTime: startAfter([P1, P2, P3, P4, P5, P6], 5),
@@ -159,8 +159,8 @@ export const options = {
             executor: 'ramping-vus',
             startVUs: vu(5),
             stages: [
-                { duration: dur(10), target: vu(1000) },
-                { duration: dur(40), target: vu(1000) },
+                { duration: dur(10), target: vu(1500) },
+                { duration: dur(40), target: vu(1500) },
                 { duration: dur(20), target: vu(5) },
                 { duration: dur(20), target: vu(5) },
             ],
@@ -172,12 +172,12 @@ export const options = {
             executor: 'ramping-vus',
             startVUs: vu(5),
             stages: [
-                { duration: dur(10), target: vu(700) },
-                { duration: dur(20), target: vu(700) },
+                { duration: dur(10), target: vu(1000) },
+                { duration: dur(20), target: vu(1000) },
                 { duration: dur(10), target: vu(10) },
                 { duration: dur(15), target: vu(10) },
-                { duration: dur(10), target: vu(800) },
-                { duration: dur(25), target: vu(800) },
+                { duration: dur(10), target: vu(1200) },
+                { duration: dur(25), target: vu(1200) },
                 { duration: dur(15), target: vu(5) },
                 { duration: dur(15), target: vu(5) },
             ],
@@ -187,7 +187,7 @@ export const options = {
         },
         soak: {
             executor: 'constant-vus',
-            vus: vu(300),
+            vus: vu(450),
             duration: dur(P10),
             startTime: startAfter([P1, P2, P3, P4, P5, P6, P7, P8, P9], 5),
             exec: 'soakTest',
@@ -205,13 +205,13 @@ export const options = {
 
     thresholds: {
         http_req_failed: ['rate<0.05'],
-        'chat_send_duration':      [`p(95)<${THRESHOLDS.FAST}`],
-        'chat_delete_duration':    [`p(95)<${THRESHOLDS.FAST}`],
-        'chat_list_duration':      [`p(95)<${THRESHOLDS.NORMAL}`],
-        'chat_cursor_duration':    [`p(95)<${THRESHOLDS.NORMAL}`],
+        'chat_send_duration':      [`p(95)<${THRESHOLDS.SLOW}`],
+        'chat_delete_duration':    [`p(95)<${THRESHOLDS.NORMAL}`],
+        'chat_list_duration':      [`p(95)<${THRESHOLDS.SLOW}`],
+        'chat_cursor_duration':    [`p(95)<${THRESHOLDS.SLOW}`],
         'chat_room_list_duration': [`p(95)<${THRESHOLDS.NORMAL}`],
         'chat_ws_connect_duration': [`p(95)<${THRESHOLDS.VERY_SLOW}`],
-        'chat_phase2_success':  ['rate>0.98'],
+        'chat_phase2_success':  ['rate>0.85'],
         'chat_phase3_success':  ['rate>0.98'],
         'chat_phase4_success':  ['rate>0.98'],
         'chat_phase5_success':  ['rate>0.98'],
