@@ -59,11 +59,12 @@ public interface FeedRepository extends JpaRepository<Feed, Long>, FeedRepositor
     @Query("UPDATE Feed f SET f.deleted = TRUE, f.deletedAt = CURRENT_TIMESTAMP WHERE f.feedId = :feedId AND f.deleted = FALSE")
     int softDeleteById(@Param("feedId") Long feedId);
 
-    // 인기도 스코어 일괄 갱신 (7일 이내 피드)
+    // 인기도 스코어 배치 갱신 (7일 이내 피드, LIMIT으로 청크 단위)
     @Modifying(clearAutomatically = true)
     @Query(value = "UPDATE feed SET popularity_score = " +
             "LN(GREATEST(like_count + comment_count * 2, 1)) - (TIMESTAMPDIFF(SECOND, created_at, NOW()) / 43200.0) " +
-            "WHERE deleted = false AND created_at >= NOW() - INTERVAL 7 DAY",
+            "WHERE deleted = false AND created_at >= NOW() - INTERVAL 7 DAY " +
+            "LIMIT :batchSize",
             nativeQuery = true)
-    int updatePopularityScores();
+    int updatePopularityScoresBatch(@Param("batchSize") int batchSize);
 }
