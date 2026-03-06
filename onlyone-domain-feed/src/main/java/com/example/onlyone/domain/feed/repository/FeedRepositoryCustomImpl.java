@@ -215,40 +215,47 @@ public class FeedRepositoryCustomImpl implements FeedRepositoryCustom {
 
     // ── 개인 피드 UNION ALL (IN절 제거 — 클럽별 개별 인덱스 활용) ──
 
+    private static final String PERSONAL_SQL_TEMPLATE =
+            "SELECT feed_id, like_count, comment_count FROM feed " +
+            "WHERE club_id = ? AND deleted = false ORDER BY feed_id DESC LIMIT ?";
+
+    private static final String PERSONAL_CURSOR_SQL_TEMPLATE =
+            "SELECT feed_id, like_count, comment_count FROM feed " +
+            "WHERE club_id = ? AND feed_id < ? AND deleted = false ORDER BY feed_id DESC LIMIT ?";
+
     @Override
     public List<FeedIdWithCounts> findFeedIdsByClubIdsUnionAll(
             List<Long> clubIds, Long cursor, int limit) {
         if (clubIds.isEmpty()) return List.of();
 
-        StringBuilder sql = new StringBuilder("SELECT feed_id, like_count, comment_count FROM (\n");
-        for (int i = 0; i < clubIds.size(); i++) {
-            if (i > 0) sql.append(" UNION ALL\n");
-            sql.append("(SELECT feed_id, like_count, comment_count FROM feed WHERE club_id = :club")
-               .append(i);
+        // 클럽별 개별 쿼리 실행 후 Java에서 병합 (prepared statement 캐싱 활용)
+        List<FeedIdWithCounts> merged = new ArrayList<>();
+        String sql = cursor != null ? PERSONAL_CURSOR_SQL_TEMPLATE : PERSONAL_SQL_TEMPLATE;
+
+        for (Long clubId : clubIds) {
+            Query query = entityManager.createNativeQuery(sql);
             if (cursor != null) {
-                sql.append(" AND feed_id < :cursor");
+                query.setParameter(1, clubId);
+                query.setParameter(2, cursor);
+                query.setParameter(3, limit);
+            } else {
+                query.setParameter(1, clubId);
+                query.setParameter(2, limit);
             }
-            sql.append(" AND deleted = false ORDER BY feed_id DESC LIMIT :lim)");
-        }
-        sql.append("\n) t ORDER BY feed_id DESC LIMIT :lim");
 
-        Query query = entityManager.createNativeQuery(sql.toString());
-        for (int i = 0; i < clubIds.size(); i++) {
-            query.setParameter("club" + i, clubIds.get(i));
-        }
-        if (cursor != null) {
-            query.setParameter("cursor", cursor);
-        }
-        query.setParameter("lim", limit);
-
-        @SuppressWarnings("unchecked")
-        List<Object[]> rows = query.getResultList();
-        return rows.stream()
-                .map(r -> new FeedIdWithCounts(
+            @SuppressWarnings("unchecked")
+            List<Object[]> rows = query.getResultList();
+            for (Object[] r : rows) {
+                merged.add(new FeedIdWithCounts(
                         ((Number) r[0]).longValue(),
                         ((Number) r[1]).longValue(),
-                        ((Number) r[2]).longValue()))
-                .toList();
+                        ((Number) r[2]).longValue()));
+            }
+        }
+
+        // feedId DESC 정렬 후 limit 적용
+        merged.sort(Comparator.comparing(FeedIdWithCounts::feedId).reversed());
+        return merged.size() > limit ? merged.subList(0, limit) : merged;
     }
 
     // ── 인기 피드 UNION ALL (IN절 제거 — 클럽별 score 인덱스 활용) ──
