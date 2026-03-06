@@ -29,6 +29,12 @@ public interface FeedRepositoryCustom {
     /** 인기 피드 pass1 — pre-computed popularity_score 기반 (인덱스 활용) */
     List<FeedIdWithCounts> findPopularFeedIdsByScore(List<Long> clubIds, Pageable pageable);
 
+    /** 개인 피드 UNION ALL — 클럽별 개별 쿼리 + 병합 (IN절 제거) */
+    List<FeedIdWithCounts> findFeedIdsByClubIdsUnionAll(List<Long> clubIds, Long cursor, int limit);
+
+    /** 인기 피드 UNION ALL — 클럽별 개별 score 쿼리 + 병합 (IN절 제거) */
+    List<FeedIdWithCounts> findPopularFeedIdsByScoreUnionAll(List<Long> clubIds, int limit);
+
     /** 리포스트 카운트 배치 조회 */
     List<ParentRepostCount> countDirectRepostsIn(List<Long> feedIds);
 

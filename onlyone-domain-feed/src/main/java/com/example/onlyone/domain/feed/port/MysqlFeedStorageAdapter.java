@@ -31,21 +31,17 @@ public class MysqlFeedStorageAdapter implements FeedStoragePort {
 
     @Override
     public List<FeedIdWithCounts> findPersonalFeedIds(List<Long> clubIds, Pageable pageable) {
-        return (clubIds.size() <= CLUB_CHUNK_SIZE)
-                ? feedRepository.findFeedIdsByClubIds(clubIds, pageable)
-                : feedRepository.findFeedIdsByClubIdsChunked(clubIds, pageable, CLUB_CHUNK_SIZE);
+        return feedRepository.findFeedIdsByClubIdsUnionAll(clubIds, null, pageable.getPageSize());
     }
 
     @Override
     public List<FeedIdWithCounts> findPersonalFeedIdsCursor(List<Long> clubIds, Long cursor, int limit) {
-        return (clubIds.size() <= CLUB_CHUNK_SIZE)
-                ? feedRepository.findFeedIdsByClubIdsCursor(clubIds, cursor, limit)
-                : feedRepository.findFeedIdsByClubIdsCursorChunked(clubIds, cursor, limit, CLUB_CHUNK_SIZE);
+        return feedRepository.findFeedIdsByClubIdsUnionAll(clubIds, cursor, limit);
     }
 
     @Override
     public List<FeedIdWithCounts> findPopularFeedIds(List<Long> clubIds, Pageable pageable) {
-        return feedRepository.findPopularFeedIdsByScore(clubIds, pageable);
+        return feedRepository.findPopularFeedIdsByScoreUnionAll(clubIds, pageable.getPageSize());
     }
 
     @Override

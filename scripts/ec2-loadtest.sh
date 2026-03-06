@@ -371,6 +371,9 @@ case "$DOMAIN" in
     feed)
         run_k6 "feed/feed-loadtest.js" "feed"
         ;;
+    feed-focus)
+        run_k6 "feed/feed-personal-focus-test.js" "feed-focus"
+        ;;
     notification|notif)
         run_k6 "notification/notification-loadtest.js" "notification"
         ;;

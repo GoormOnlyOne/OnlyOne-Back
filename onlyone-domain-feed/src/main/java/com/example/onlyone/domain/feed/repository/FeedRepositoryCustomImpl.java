@@ -9,6 +9,8 @@ import com.querydsl.core.types.dsl.Expressions;
 import com.querydsl.core.types.dsl.NumberExpression;
 import com.querydsl.jpa.JPAExpressions;
 import com.querydsl.jpa.impl.JPAQueryFactory;
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.Query;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
@@ -25,6 +27,7 @@ import java.util.List;
 public class FeedRepositoryCustomImpl implements FeedRepositoryCustom {
 
     private final JPAQueryFactory queryFactory;
+    private final EntityManager entityManager;
 
     private static final QFeed feed = QFeed.feed;
     private static final QFeedImage feedImage = QFeedImage.feedImage1;
@@ -208,6 +211,77 @@ public class FeedRepositoryCustomImpl implements FeedRepositoryCustom {
                 .offset(pageable.getOffset())
                 .limit(pageable.getPageSize())
                 .fetch();
+    }
+
+    // ── 개인 피드 UNION ALL (IN절 제거 — 클럽별 개별 인덱스 활용) ──
+
+    @Override
+    public List<FeedIdWithCounts> findFeedIdsByClubIdsUnionAll(
+            List<Long> clubIds, Long cursor, int limit) {
+        if (clubIds.isEmpty()) return List.of();
+
+        StringBuilder sql = new StringBuilder("SELECT feed_id, like_count, comment_count FROM (\n");
+        for (int i = 0; i < clubIds.size(); i++) {
+            if (i > 0) sql.append(" UNION ALL\n");
+            sql.append("(SELECT feed_id, like_count, comment_count FROM feed WHERE club_id = :club")
+               .append(i);
+            if (cursor != null) {
+                sql.append(" AND feed_id < :cursor");
+            }
+            sql.append(" AND deleted = false ORDER BY feed_id DESC LIMIT :lim)");
+        }
+        sql.append("\n) t ORDER BY feed_id DESC LIMIT :lim");
+
+        Query query = entityManager.createNativeQuery(sql.toString());
+        for (int i = 0; i < clubIds.size(); i++) {
+            query.setParameter("club" + i, clubIds.get(i));
+        }
+        if (cursor != null) {
+            query.setParameter("cursor", cursor);
+        }
+        query.setParameter("lim", limit);
+
+        @SuppressWarnings("unchecked")
+        List<Object[]> rows = query.getResultList();
+        return rows.stream()
+                .map(r -> new FeedIdWithCounts(
+                        ((Number) r[0]).longValue(),
+                        ((Number) r[1]).longValue(),
+                        ((Number) r[2]).longValue()))
+                .toList();
+    }
+
+    // ── 인기 피드 UNION ALL (IN절 제거 — 클럽별 score 인덱스 활용) ──
+
+    @Override
+    public List<FeedIdWithCounts> findPopularFeedIdsByScoreUnionAll(
+            List<Long> clubIds, int limit) {
+        if (clubIds.isEmpty()) return List.of();
+
+        StringBuilder sql = new StringBuilder("SELECT feed_id, like_count, comment_count FROM (\n");
+        for (int i = 0; i < clubIds.size(); i++) {
+            if (i > 0) sql.append(" UNION ALL\n");
+            sql.append("(SELECT feed_id, like_count, comment_count FROM feed WHERE club_id = :club")
+               .append(i)
+               .append(" AND deleted = false AND created_at >= NOW() - INTERVAL 7 DAY")
+               .append(" ORDER BY popularity_score DESC LIMIT :lim)");
+        }
+        sql.append("\n) t ORDER BY feed_id DESC LIMIT :lim");
+
+        Query query = entityManager.createNativeQuery(sql.toString());
+        for (int i = 0; i < clubIds.size(); i++) {
+            query.setParameter("club" + i, clubIds.get(i));
+        }
+        query.setParameter("lim", limit);
+
+        @SuppressWarnings("unchecked")
+        List<Object[]> rows = query.getResultList();
+        return rows.stream()
+                .map(r -> new FeedIdWithCounts(
+                        ((Number) r[0]).longValue(),
+                        ((Number) r[1]).longValue(),
+                        ((Number) r[2]).longValue()))
+                .toList();
     }
 
     // ── 리포스트 카운트 배치 ──
