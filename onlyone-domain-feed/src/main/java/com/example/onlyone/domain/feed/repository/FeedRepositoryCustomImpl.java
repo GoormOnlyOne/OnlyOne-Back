@@ -232,7 +232,8 @@ public class FeedRepositoryCustomImpl implements FeedRepositoryCustom {
         List<FeedIdWithCounts> merged = new ArrayList<>();
         String sql = cursor != null ? PERSONAL_CURSOR_SQL_TEMPLATE : PERSONAL_SQL_TEMPLATE;
 
-        for (Long clubId : clubIds) {
+        for (Number clubIdRaw : clubIds) {
+            long clubId = clubIdRaw.longValue();
             Query query = entityManager.createNativeQuery(sql);
             if (cursor != null) {
                 query.setParameter(1, clubId);
@@ -277,7 +278,7 @@ public class FeedRepositoryCustomImpl implements FeedRepositoryCustom {
 
         Query query = entityManager.createNativeQuery(sql.toString());
         for (int i = 0; i < clubIds.size(); i++) {
-            query.setParameter("club" + i, clubIds.get(i));
+            query.setParameter("club" + i, ((Number) clubIds.get(i)).longValue());
         }
         query.setParameter("lim", limit);
 
