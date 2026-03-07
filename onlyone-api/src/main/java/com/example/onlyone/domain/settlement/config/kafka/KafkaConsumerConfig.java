@@ -12,17 +12,16 @@ import org.springframework.kafka.core.DefaultKafkaConsumerFactory;
 import org.springframework.kafka.listener.CommonLoggingErrorHandler;
 import org.springframework.kafka.listener.ContainerProperties;
 
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+
 import java.util.HashMap;
 import java.util.Map;
 
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
-
 import static org.springframework.kafka.listener.ContainerProperties.AckMode.MANUAL_IMMEDIATE;
 
-
-@RequiredArgsConstructor
 @Configuration
 @EnableKafka
+@RequiredArgsConstructor
 @ConditionalOnProperty(name = "spring.kafka.enabled", havingValue = "true")
 public class KafkaConsumerConfig {
 
@@ -44,8 +43,8 @@ public class KafkaConsumerConfig {
         config.put(ConsumerConfig.FETCH_MAX_WAIT_MS_CONFIG, c.getFetchMaxWaitMs());
         config.put(ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class);
         config.put(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class);
-        config.put(org.apache.kafka.clients.consumer.ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG, false);
-        config.put(org.apache.kafka.clients.consumer.ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest");
+        config.put(ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG, false);
+        config.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest");
 
         // 보안 설정
         if (s != null && s.isEnabled()) {
@@ -65,15 +64,12 @@ public class KafkaConsumerConfig {
 
     @Bean
     public ConcurrentKafkaListenerContainerFactory<String, String> userSettlementLedgerKafkaListenerContainerFactory() {
-        ConcurrentKafkaListenerContainerFactory<String, String> f = new ConcurrentKafkaListenerContainerFactory<>();
-        // Consumer가 어떤 설정으로 동작할지 지정
-        f.setConsumerFactory(userSettlementLedgerConsumerFactory());
-        // Batch Mode로 받고 싶은 경우
-        f.setBatchListener(true);
-        f.getContainerProperties().setAckMode(MANUAL_IMMEDIATE);
-        // Prometheus/Grafana를 위한 메트릭 노출
-        f.getContainerProperties().setObservationEnabled(true);
-        return f;
+        ConcurrentKafkaListenerContainerFactory<String, String> factory = new ConcurrentKafkaListenerContainerFactory<>();
+        factory.setConsumerFactory(userSettlementLedgerConsumerFactory());
+        factory.setBatchListener(true);
+        factory.getContainerProperties().setAckMode(MANUAL_IMMEDIATE);
+        factory.getContainerProperties().setObservationEnabled(true);
+        return factory;
     }
 
     @Bean
@@ -83,15 +79,13 @@ public class KafkaConsumerConfig {
 
     @Bean
     public ConcurrentKafkaListenerContainerFactory<String, String> settlementProcessKafkaListenerContainerFactory() {
-        ConcurrentKafkaListenerContainerFactory<String, String> f = new ConcurrentKafkaListenerContainerFactory<>();
-        f.setConsumerFactory(settlementProcessConsumerFactory());
-        f.setBatchListener(true);
-        f.getContainerProperties().setAckMode(ContainerProperties.AckMode.MANUAL);
-        f.getContainerProperties().setObservationEnabled(true);
-        // 리스너에서 개별 레코드 예외를 처리하므로 로깅만 수행
-        f.setCommonErrorHandler(new CommonLoggingErrorHandler());
-        return f;
+        ConcurrentKafkaListenerContainerFactory<String, String> factory = new ConcurrentKafkaListenerContainerFactory<>();
+        factory.setConsumerFactory(settlementProcessConsumerFactory());
+        factory.setBatchListener(true);
+        factory.getContainerProperties().setAckMode(ContainerProperties.AckMode.MANUAL);
+        factory.getContainerProperties().setObservationEnabled(true);
+        factory.setCommonErrorHandler(new CommonLoggingErrorHandler());
+        return factory;
     }
-
 }
 

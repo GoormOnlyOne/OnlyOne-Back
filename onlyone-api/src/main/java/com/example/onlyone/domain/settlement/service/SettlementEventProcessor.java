@@ -4,8 +4,8 @@ import com.example.onlyone.common.event.SettlementCompletedEvent;
 import com.example.onlyone.domain.settlement.event.SettlementProcessEvent;
 import com.example.onlyone.domain.settlement.repository.SettlementRepository;
 import com.example.onlyone.domain.settlement.repository.UserSettlementRepository;
-import com.example.onlyone.domain.wallet.repository.WalletRepository;
 import com.example.onlyone.domain.finance.exception.FinanceErrorCode;
+import com.example.onlyone.domain.wallet.repository.WalletRepository;
 import com.example.onlyone.global.exception.CustomException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -14,12 +14,14 @@ import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.PlatformTransactionManager;
-import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.TransactionDefinition;
 import org.springframework.transaction.support.TransactionTemplate;
 
+import java.time.Instant;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -64,8 +66,7 @@ public class SettlementEventProcessor {
         this.ledgerWriter = ledgerWriter;
 
         this.txTemplate = new TransactionTemplate(transactionManager);
-        this.txTemplate.setPropagationBehavior(
-                org.springframework.transaction.TransactionDefinition.PROPAGATION_REQUIRES_NEW);
+        this.txTemplate.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
     }
 
     // ========== 정산 처리 (settlement.process.v1) ==========
@@ -113,12 +114,12 @@ public class SettlementEventProcessor {
                 userSettlementRepository.batchMarkCompleted(
                         settlementId, sortedUserIds, LocalDateTime.now());
 
-                // 3. 배치 조회 — walletId, userSettlementId 를 IN절로 한번에
-                Map<Long, Long> walletIdMap = new java.util.HashMap<>();
+                // 3. 배치 조회 — walletId, userSettlementId를 IN절로 한번에
+                Map<Long, Long> walletIdMap = new HashMap<>();
                 for (Object[] row : walletRepository.findWalletIdsByUserIds(sortedUserIds)) {
                     walletIdMap.put(((Number) row[0]).longValue(), ((Number) row[1]).longValue());
                 }
-                Map<Long, Long> usIdMap = new java.util.HashMap<>();
+                Map<Long, Long> usIdMap = new HashMap<>();
                 for (Object[] row : userSettlementRepository
                         .findUserSettlementIdsBySettlementIdAndUserIds(settlementId, sortedUserIds)) {
                     usIdMap.put(((Number) row[0]).longValue(), ((Number) row[1]).longValue());
@@ -150,7 +151,7 @@ public class SettlementEventProcessor {
                 Map.of(
                         "type", "SUCCESS",
                         "operationId", operationId,
-                        "occurredAt", java.time.Instant.now().toString(),
+                        "occurredAt", Instant.now().toString(),
                         "settlementId", settlementId,
                         "userSettlementId", userSettlementId,
                         "participantId", participantId,

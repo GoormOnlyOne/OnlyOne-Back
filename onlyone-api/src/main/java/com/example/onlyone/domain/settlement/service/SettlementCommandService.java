@@ -7,11 +7,11 @@ import com.example.onlyone.domain.settlement.entity.SettlementStatus;
 import com.example.onlyone.domain.settlement.entity.TotalStatus;
 import com.example.onlyone.domain.settlement.repository.SettlementRepository;
 import com.example.onlyone.domain.settlement.repository.UserSettlementRepository;
+import com.example.onlyone.domain.club.exception.ClubErrorCode;
+import com.example.onlyone.domain.finance.exception.FinanceErrorCode;
 import com.example.onlyone.domain.user.entity.User;
 import com.example.onlyone.domain.user.service.UserService;
 import com.example.onlyone.domain.wallet.repository.WalletRepository;
-import com.example.onlyone.domain.club.exception.ClubErrorCode;
-import com.example.onlyone.domain.finance.exception.FinanceErrorCode;
 import com.example.onlyone.global.exception.CustomException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -19,9 +19,11 @@ import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Instant;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 
 /**
  * 정산(Settlement) 커맨드 서비스 — 정산 요청
@@ -102,8 +104,8 @@ public class SettlementCommandService {
                 "SettlementProcessEvent",
                 String.valueOf(settlement.getSettlementId()),
                 Map.of(
-                        "eventId", java.util.UUID.randomUUID().toString(),
-                        "occurredAt", java.time.Instant.now().toString(),
+                        "eventId", UUID.randomUUID().toString(),
+                        "occurredAt", Instant.now().toString(),
                         "settlementId", settlement.getSettlementId(),
                         "scheduleId", scheduleId,
                         "clubId", clubId,

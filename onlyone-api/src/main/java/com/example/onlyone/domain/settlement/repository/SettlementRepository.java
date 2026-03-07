@@ -11,7 +11,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
-public interface SettlementRepository extends JpaRepository<Settlement,Long> {
+public interface SettlementRepository extends JpaRepository<Settlement, Long> {
     List<Settlement> findAllByTotalStatus(TotalStatus totalStatus);
 
     Optional<Settlement> findByScheduleId(Long scheduleId);

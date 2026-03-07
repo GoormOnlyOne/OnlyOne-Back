@@ -3,7 +3,6 @@ package com.example.onlyone.domain.wallet.repository;
 import com.example.onlyone.domain.user.entity.User;
 import com.example.onlyone.domain.wallet.entity.Wallet;
 import jakarta.persistence.LockModeType;
-import jakarta.validation.constraints.NotNull;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Modifying;
@@ -13,7 +12,7 @@ import org.springframework.data.repository.query.Param;
 import java.util.List;
 import java.util.Optional;
 
-public interface WalletRepository extends JpaRepository<Wallet,Long> {
+public interface WalletRepository extends JpaRepository<Wallet, Long> {
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     Optional<Wallet> findByUser(User user);
 
@@ -57,8 +56,8 @@ public interface WalletRepository extends JpaRepository<Wallet,Long> {
     """, nativeQuery = true)
     int creditByUserId(@Param("userId") Long userId, @Param("amount") long amount);
 
-    @Query(value="select pending_out from wallet where user_id = :userId", nativeQuery=true)
-    long getPendingOutByUserId(Long userId);
+    @Query(value = "SELECT pending_out FROM wallet WHERE user_id = :userId", nativeQuery = true)
+    long getPendingOutByUserId(@Param("userId") Long userId);
 
     @Query(value = "select wallet_id from wallet where user_id = :userId", nativeQuery = true)
     Long findWalletIdByUserId(@Param("userId") Long userId);

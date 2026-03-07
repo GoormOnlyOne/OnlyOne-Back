@@ -22,7 +22,7 @@ public interface UserSettlementRepository extends JpaRepository<UserSettlement, 
     long countBySettlement(Settlement settlement);
 
     long countBySettlementAndSettlementStatus(Settlement settlement, SettlementStatus settlementStatus);
-    
+
     @Query(
             value = """
         select new com.example.onlyone.domain.settlement.dto.response.UserSettlementDto(
@@ -64,7 +64,6 @@ public interface UserSettlementRepository extends JpaRepository<UserSettlement, 
             @Param("settlementId") Long settlementId,
             @Param("settlementStatus") SettlementStatus settlementStatus);
 
-
     @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Query("delete from UserSettlement us where us.settlement.settlementId = :settlementId")
     void deleteAllBySettlementId(@Param("settlementId") Long settlementId);
@@ -84,7 +83,7 @@ public interface UserSettlementRepository extends JpaRepository<UserSettlement, 
                            @Param("userIds") List<Long> userIds,
                            @Param("now") java.time.LocalDateTime now);
 
-   Optional<UserSettlement> findBySettlement_SettlementIdAndUser_UserId(Long settlementId, Long participantId);
+    Optional<UserSettlement> findBySettlement_SettlementIdAndUser_UserId(Long settlementId, Long participantId);
 
     @Query(value = "SELECT user_settlement_id FROM user_settlement WHERE settlement_id = :settlementId AND user_id = :userId", nativeQuery = true)
     Long findUserSettlementId(@Param("settlementId") Long settlementId, @Param("userId") Long userId);
