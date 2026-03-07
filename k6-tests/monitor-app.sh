@@ -1,5 +1,6 @@
 #!/bin/bash
 # App server monitor — JVM/HikariCP via actuator
+command -v python3 >/dev/null 2>&1 || { echo "[ERROR] python3 required"; exit 1; }
 DURATION="${1:-1200}"
 INTERVAL=10
 OUT="/tmp/monitor-app-$(date +%Y%m%d_%H%M%S)"

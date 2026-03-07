@@ -6,22 +6,12 @@
 #   ./k6-tests/run-loadtest.sh [도메인] [옵션]
 #
 # 도메인:
-#   all                전체 도메인 통합 병목 테스트 (500VU)
 #   feed               피드 종합 부하 테스트
-#   feed-cache         피드 캐시 무효화 + 동시 수정 테스트
 #   notification|notif 알림 종합 부하 테스트
-#   notif-sse-e2e      알림 SSE E2E 전달 검증
-#   notif-sse-reconnect SSE 재연결 복구 테스트
-#   notif-sse-capacity  SSE 연결 용량 + CRUD 성능 저하
-#   notif-markall      전체읽음 row lock 경합 테스트
 #   chat               채팅 종합 부하 테스트
-#   chat-ws            채팅 WebSocket 메시지 검증 + soak
 #   finance            결제/정산 종합 부하 테스트
-#   finance-integrity  지갑 잔액 정합성 + CAS 충돌 추적
 #   search             검색 종합 부하 테스트
-#   search-sync        검색 결과 정확도 + 일관성 검증
 #   club|schedule      클럽/스케줄 종합 부하 테스트
-#   club-concurrent    클럽 동시 가입 + 인원제한 검증
 #   each               모든 도메인 순차 실행
 #   seed               시드 데이터만 투입 (100x, AWS용)
 #   seed-10x           시드 데이터 10x 투입 (로컬용)
@@ -50,7 +40,7 @@ BLUE='\033[0;34m'
 NC='\033[0m'
 
 # 기본값
-DOMAIN="${1:-all}"
+DOMAIN="${1:-feed}"
 USE_DOCKER=false
 SEED_ONLY=false
 EXTRA_K6_ARGS=""
@@ -106,7 +96,7 @@ check_infra() {
         log_ok "앱 서버 OK (port 8080)"
     else
         log_error "앱 서버 미실행 (localhost:8080)"
-        log_info "실행: SPRING_PROFILES_ACTIVE=local,loadtest ./gradlew :onlyone-api:bootRun"
+        log_info "실행: SPRING_PROFILES_ACTIVE=local ./gradlew :onlyone-api:bootRun"
         exit 1
     fi
 
@@ -260,26 +250,11 @@ fi
 
 # 테스트 실행
 case "$DOMAIN" in
-    all)
-        run_k6 "common/all-domains-bottleneck-test.js" "all-domains"
-        ;;
     feed)
         run_k6 "feed/feed-loadtest.js" "feed"
         ;;
     notification|notif)
         run_k6 "notification/notification-loadtest.js" "notification"
-        ;;
-    notif-sse-e2e)
-        run_k6 "notification/notification-sse-e2e-test.js" "notification-sse-e2e" "$K6_SSE_IMAGE"
-        ;;
-    notif-sse-reconnect)
-        run_k6 "notification/notification-sse-reconnect-test.js" "notification-sse-reconnect" "$K6_SSE_IMAGE"
-        ;;
-    notif-sse-capacity)
-        run_k6 "notification/notification-sse-capacity-test.js" "notification-sse-capacity" "$K6_SSE_IMAGE"
-        ;;
-    notif-markall)
-        run_k6 "notification/notification-markall-contention-test.js" "notification-markall"
         ;;
     chat)
         run_k6 "chat/chat-loadtest.js" "chat"
@@ -290,29 +265,14 @@ case "$DOMAIN" in
     search)
         run_k6 "search/search-loadtest.js" "search"
         ;;
-    feed-cache)
-        run_k6 "feed/feed-cache-concurrency-test.js" "feed-cache"
-        ;;
-    chat-ws)
-        run_k6 "chat/chat-ws-verification-test.js" "chat-ws-verify"
-        ;;
-    finance-integrity)
-        run_k6 "finance/finance-integrity-test.js" "finance-integrity"
-        ;;
     club|schedule)
         run_k6 "club-schedule/club-schedule-loadtest.js" "club-schedule"
-        ;;
-    club-concurrent)
-        run_k6 "club-schedule/club-concurrent-join-test.js" "club-concurrent"
-        ;;
-    search-sync)
-        run_k6 "search/search-index-sync-test.js" "search-sync"
         ;;
     each)
         # 모든 도메인 순차 실행
         log_info "모든 도메인 순차 테스트 실행..."
-        run_k6 "notification/notification-loadtest.js" "notification"
         run_k6 "feed/feed-loadtest.js" "feed"
+        run_k6 "notification/notification-loadtest.js" "notification"
         run_k6 "chat/chat-loadtest.js" "chat"
         run_k6 "search/search-loadtest.js" "search"
         run_k6 "finance/finance-loadtest.js" "finance"
@@ -321,7 +281,7 @@ case "$DOMAIN" in
         ;;
     *)
         log_error "알 수 없는 도메인: $DOMAIN"
-        echo "사용법: $0 [all|feed|feed-cache|notification|notif-sse-e2e|notif-sse-reconnect|notif-sse-capacity|notif-markall|chat|chat-ws|finance|finance-integrity|search|search-sync|club|club-concurrent|each|seed]"
+        echo "사용법: $0 [feed|notification|chat|finance|search|club|each|seed|seed-10x]"
         exit 1
         ;;
 esac

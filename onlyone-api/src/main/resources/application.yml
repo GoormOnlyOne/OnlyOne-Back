@@ -67,6 +67,8 @@ app:
   # 피드 저장소 설정
   feed:
     storage: ${FEED_STORAGE:mysql}                               # mysql | mongodb
+    cache:
+      enabled: ${FEED_CACHE_ENABLED:false}                       # 피드 캐시 on/off
 
   # 채팅 메시지 저장소 설정
   chat:
@@ -183,6 +185,9 @@ logging:
   level:
     root: warn
     com.example.onlyone: info
+    org.springframework.web: warn
+    org.hibernate.SQL: warn
+    com.zaxxer.hikari: info
 
 # --- 서버 (Virtual Threads 활성화) ---
 server:
@@ -231,6 +236,8 @@ app:
     auth-requests-per-30s: ${RATE_LIMIT_AUTH:10}
   feed:
     storage: ${FEED_STORAGE:mysql}
+    cache:
+      enabled: ${FEED_CACHE_ENABLED:false}
   feed-like-stream:
     enabled: ${FEED_LIKE_STREAM_ENABLED:false}
   chat:
@@ -248,7 +255,7 @@ app:
 
 # --- Kafka (로컬, docker compose --profile kafka 필요) ---
 spring.kafka:
-  enabled: ${KAFKA_ENABLED:true}
+  enabled: ${KAFKA_ENABLED:false}
   default-bootstrap-servers: ${KAFKA_BOOTSTRAP:localhost:29092}
   producer:
     common-config:
@@ -391,14 +398,14 @@ spring:
     redis:
       time-to-live: 600000
 
-# --- 로깅: 최소화 ---
+# --- 로깅 ---
 logging:
   level:
-    root: error
-    com.example.onlyone: warn
-    com.zaxxer.hikari: warn
-    org.hibernate.SQL: error
-    org.springframework: error
+    root: warn
+    com.example.onlyone: info
+    com.zaxxer.hikari: info
+    org.hibernate.SQL: warn
+    org.springframework: warn
     org.apache.kafka: warn
 
 # --- Tomcat (c5.xlarge 튜닝) ---
@@ -419,31 +426,13 @@ aws:
   cloudfront:
     domain: ${AWS_CLOUDFRONT_DOMAIN:d1c3fg3ti7m8cn.cloudfront.net}
 
-# --- 카카오 OAuth ---
-Kakao:
-  client:
-    id: ${KAKAO_CLIENT_ID:cb62270f81c3942b697f94401978d95b}
-  redirect:
-    uri: ${KAKAO_REDIRECT_URI:http://localhost:5173/kakao-callback}
-
-# --- JWT ---
-jwt:
-  secret: ${JWT_SECRET:7e9eeb12d176a2d72f554c6b096522b4e1a34d799727e45a96f192bbff2a2a851ede29ed24b10b6e6b1835ac94380e2469df99ff9713477bf4d43eeaa9cd16a3}
-  access-expiration: 3600000
-  refresh-expiration: 604800000
-
-# --- 토스 결제 ---
-payment:
-  toss:
-    client_key: ${TOSS_CLIENT_KEY:test_ck_yL0qZ4G1VOlG77j1njbProWb2MQY}
-    test_secret_api_key: ${TOSS_SECRET_API_KEY:test_sk_kYG57Eba3GbjeWJXBvjk8pWDOxmA}
-    security_key: ${TOSS_SECURITY_KEY:705394c7b81f84e2777acd2935f376d566fdf68ec38392bbab607771a5147bb0}
-
 # --- 앱 커스텀 설정 ---
 app:
   datasource:
     routing:
       enabled: true
+  feed-like-stream:
+    enabled: ${FEED_LIKE_STREAM_ENABLED:true}
   kafka:
     topic:
       replicas: 1
@@ -454,6 +443,8 @@ app:
     enabled: false
   feed:
     storage: mysql
+    cache:
+      enabled: ${FEED_CACHE_ENABLED:false}
   chat:
     storage: mysql
   notification:

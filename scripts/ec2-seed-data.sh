@@ -10,7 +10,6 @@
 # phase:
 #   all       전체 시딩 (기본)
 #   mysql     MySQL만
-#   mongodb   MongoDB만
 #   es        Elasticsearch만
 #   verify    검증만
 # =============================================================
@@ -34,7 +33,6 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 K6_DIR="$(dirname "$SCRIPT_DIR")/k6-tests"
 
 MYSQL_CMD="mysql -h $INFRA_HOST -P 3306 -uroot -proot onlyone"
-MONGO_URI="mongodb://root:root@$INFRA_HOST:27017/onlyone?authSource=admin"
 ES_URL="http://$INFRA_HOST:9200"
 ES_AUTH="elastic:changeme"
 BASE_URL="${BASE_URL:-http://localhost:8080}"
@@ -68,43 +66,9 @@ seed_mysql() {
     echo ""
 }
 
-# ── Phase 2: MongoDB (병렬) ──
-seed_mongodb() {
-    log_info "=== Phase 2: MongoDB 시딩 (3개 병렬) ==="
-
-    local phase_start=$(date +%s)
-
-    log_info "[1/3] seed-mongo-feed.js (55M docs)..."
-    mongosh "$MONGO_URI" "$K6_DIR/seed-mongo-feed.js" &
-    PID_FEED=$!
-
-    log_info "[2/3] seed-mongo-notifications.js (50M docs)..."
-    mongosh "$MONGO_URI" "$K6_DIR/seed-mongo-notifications.js" &
-    PID_NOTIF=$!
-
-    log_info "[3/3] seed-mongo-chat.js (7M docs)..."
-    mongosh "$MONGO_URI" "$K6_DIR/seed-mongo-chat.js" &
-    PID_CHAT=$!
-
-    log_info "3개 MongoDB 시딩 병렬 실행 중... (PID: $PID_FEED, $PID_NOTIF, $PID_CHAT)"
-
-    local FAILED=0
-    wait $PID_FEED  && log_ok "MongoDB 피드 시드 완료"        || { log_error "MongoDB 피드 시드 실패"; FAILED=$((FAILED+1)); }
-    wait $PID_NOTIF && log_ok "MongoDB 알림 시드 완료"        || { log_error "MongoDB 알림 시드 실패"; FAILED=$((FAILED+1)); }
-    wait $PID_CHAT  && log_ok "MongoDB 채팅 시드 완료"        || { log_error "MongoDB 채팅 시드 실패"; FAILED=$((FAILED+1)); }
-
-    local phase_end=$(date +%s)
-    if [ $FAILED -gt 0 ]; then
-        log_error "MongoDB 시딩 $FAILED 건 실패 ($(( (phase_end - phase_start) / 60 ))분)"
-    else
-        log_ok "MongoDB 시딩 전체 완료 ($(( (phase_end - phase_start) / 60 ))분)"
-    fi
-    echo ""
-}
-
-# ── Phase 3: Elasticsearch ──
+# ── Phase 2: Elasticsearch ──
 seed_es() {
-    log_info "=== Phase 3: Elasticsearch 시딩 ==="
+    log_info "=== Phase 2: Elasticsearch 시딩 ==="
 
     # nori 플러그인 확인
     PLUGINS=$(curl -sf -u "$ES_AUTH" "$ES_URL/_cat/plugins?format=json" 2>/dev/null || echo "[]")
@@ -137,9 +101,9 @@ seed_es() {
     echo ""
 }
 
-# ── Phase 4: 검증 ──
+# ── Phase 3: 검증 ──
 verify_data() {
-    log_info "=== Phase 4: 데이터 검증 ==="
+    log_info "=== Phase 3: 데이터 검증 ==="
 
     echo ""
     log_info "--- MySQL 테이블 행 수 ---"
@@ -152,16 +116,6 @@ verify_data() {
     " 2>/dev/null || log_warn "MySQL 조회 실패"
 
     echo ""
-    log_info "--- MongoDB 컬렉션 문서 수 ---"
-    mongosh "$MONGO_URI" --quiet --eval "
-        const cols = db.getCollectionNames();
-        cols.forEach(c => {
-            const count = db.getCollection(c).estimatedDocumentCount();
-            print(c + ': ' + count.toLocaleString());
-        });
-    " 2>/dev/null || log_warn "MongoDB 조회 실패"
-
-    echo ""
     log_info "--- Elasticsearch 인덱스 ---"
     curl -sf -u "$ES_AUTH" "$ES_URL/_cat/indices?v&index=club*" 2>/dev/null || log_warn "ES 조회 실패"
 
@@ -172,15 +126,11 @@ verify_data() {
 case "$PHASE" in
     all)
         seed_mysql
-        seed_mongodb
         seed_es
         verify_data
         ;;
     mysql)
         seed_mysql
-        ;;
-    mongodb)
-        seed_mongodb
         ;;
     es)
         seed_es
@@ -190,7 +140,7 @@ case "$PHASE" in
         ;;
     *)
         log_error "알 수 없는 phase: $PHASE"
-        echo "사용법: $0 [all|mysql|mongodb|es|verify]"
+        echo "사용법: $0 [all|mysql|es|verify]"
         exit 1
         ;;
 esac

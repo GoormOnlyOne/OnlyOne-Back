@@ -73,7 +73,7 @@ spring:
       user-settlement-ledger-consumer-config:
         topic: user-settlement.result.v1
     security:
-      enabled: ${KAFKA_SECURITY_ENABLED:false}
+      enabled: ${KAFKA_SECURITY_ENABLED:true}
 
   # MongoDB
   data.mongodb:
@@ -121,7 +121,7 @@ Kakao:
   redirect:
     uri: ${KAKAO_REDIRECT_URI}
 
-# --- Rate Limit 활성화 ---
+# --- 앱 커스텀 설정 ---
 app:
   search:
     engine: ${SEARCH_ENGINE:elasticsearch}   # elasticsearch | mysql
@@ -129,3 +129,24 @@ app:
     enabled: ${RATE_LIMIT_ENABLED:true}
     requests-per-minute: ${RATE_LIMIT_RPM:60}
     auth-requests-per-30s: ${RATE_LIMIT_AUTH:10}
+  feed:
+    storage: ${FEED_STORAGE:mysql}
+    cache:
+      enabled: ${FEED_CACHE_ENABLED:true}
+  feed-like-stream:
+    enabled: ${FEED_LIKE_STREAM_ENABLED:true}
+  chat:
+    storage: ${CHAT_STORAGE:mysql}
+    websocket: ${CHAT_WEBSOCKET:stomp}
+  notification:
+    storage: ${NOTIFICATION_STORAGE:mysql}
+    sse-timeout-millis: ${NOTIFICATION_SSE_TIMEOUT:60000}
+    max-connections: ${NOTIFICATION_MAX_CONNECTIONS:7000}
+    cleanup-interval-minutes: ${NOTIFICATION_CLEANUP_INTERVAL:2}
+    batch-size: ${NOTIFICATION_BATCH_SIZE:20}
+    max-queue-size-per-user: ${NOTIFICATION_MAX_QUEUE:100}
+    batch-processing-interval: ${NOTIFICATION_BATCH_INTERVAL:100}
+    multi-instance: ${NOTIFICATION_MULTI_INSTANCE:true}
+    batch-timeout-seconds: ${NOTIFICATION_BATCH_TIMEOUT:5}
+    sse-executor-permits: ${SSE_EXECUTOR_PERMITS:200}
+    notification-executor-permits: ${NOTIFICATION_EXECUTOR_PERMITS:100}

@@ -132,10 +132,9 @@ check_connection() {
 }
 
 check_connection "앱 서버"       "$APP_HOST"   8080 || log_warn "앱 서버 아직 미실행 — 나중에 시작하세요"
-check_connection "MySQL"         "$INFRA_HOST" 3306  || true
-check_connection "Redis"         "$INFRA_HOST" 6379  || true
-check_connection "MongoDB"       "$INFRA_HOST" 27017 || true
-check_connection "Elasticsearch" "$INFRA_HOST" 9200  || true
+check_connection "MySQL"         "$INFRA_HOST" 3306  || log_warn "MySQL 연결 실패 — 인프라 서버 확인 필요"
+check_connection "Redis"         "$INFRA_HOST" 6379  || log_warn "Redis 연결 실패 — 인프라 서버 확인 필요"
+check_connection "Elasticsearch" "$INFRA_HOST" 9200  || log_warn "Elasticsearch 연결 실패 — 선택적 서비스"
 
 echo ""
 echo "============================================"

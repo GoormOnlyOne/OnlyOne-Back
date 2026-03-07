@@ -426,8 +426,8 @@ FROM `user` u WHERE u.user_id BETWEEN 1 AND 2500
 ON DUPLICATE KEY UPDATE status = 'ENDED', modified_at = NOW();
 COMMIT;
 
-INSERT INTO settlement (created_at, modified_at, completed_time, schedule_id, sum, total_status, user_id)
-SELECT NOW(), NOW(), NULL, 5000000 + (u.user_id - 1), 0, 'HOLDING', 1
+INSERT INTO settlement (created_at, modified_at, completed_time, schedule_id, sum, total_status, user_id, version)
+SELECT NOW(), NOW(), NULL, 5000000 + (u.user_id - 1), 0, 'HOLDING', 1, 0
 FROM `user` u WHERE u.user_id BETWEEN 1 AND 2500;
 COMMIT;
 

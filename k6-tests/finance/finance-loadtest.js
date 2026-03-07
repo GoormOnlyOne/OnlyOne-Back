@@ -35,7 +35,7 @@ import { generateJWT, headers, makeUser, BASE_URL, MIN_CLUB } from '../lib/commo
 // 기본: 10x 로컬. AWS(100x): USER_COUNT=100000 SETTLEMENT_COUNT=100000
 const VALID_USER_COUNT = parseInt(__ENV.USER_COUNT || '10000');
 const SETTLEMENT_COUNT = parseInt(__ENV.SETTLEMENT_COUNT || '2500');
-const SCHEDULE_ID_BASE = 5000000;
+const SCHEDULE_ID_BASE = parseInt(__ENV.SCHEDULE_ID_BASE || '5000000');
 
 // ── 커스텀 메트릭 ──
 // Phase 2: 결제 폭풍

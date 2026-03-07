@@ -48,8 +48,13 @@ import { THRESHOLDS } from '../lib/bottleneck.js';
 // 테스트 데이터
 // ============================================
 const VALID_USER_COUNT = parseInt(__ENV.USER_COUNT || '100000');
-const MAIN_CLUB_IDS = [64, 159, 381, 501, 747];
-const SUB_CLUB_IDS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
+
+// 클럽 ID는 환경변수 또는 common.js의 MIN_CLUB 기반으로 동적 생성
+// MAIN_CLUB_IDS: 환경변수로 오버라이드 가능 (콤마 구분)
+const MAIN_CLUB_IDS = __ENV.MAIN_CLUB_IDS
+    ? __ENV.MAIN_CLUB_IDS.split(',').map(Number)
+    : [MIN_CLUB, MIN_CLUB + 1, MIN_CLUB + 2, MIN_CLUB + 3, MIN_CLUB + 4];
+const SUB_CLUB_IDS = Array.from({ length: 10 }, (_, i) => MIN_CLUB + 5 + i);
 const ALL_CLUB_IDS = [...MAIN_CLUB_IDS, ...SUB_CLUB_IDS];
 
 // ── 피드 ID는 setup()에서 API로 실제 ID를 수집 (아래 참조) ──
@@ -73,8 +78,13 @@ function getRandomFeedForClub(clubId) {
     if (feeds && feeds.length > 0) {
         return feeds[Math.floor(Math.random() * feeds.length)];
     }
-    // fallback
-    return clubId;
+    // 해당 클럽에 피드가 없으면 다른 클럽에서 가져옴 (setup 실패 대비)
+    for (const key of Object.keys(_feedMap)) {
+        if (_feedMap[key] && _feedMap[key].length > 0) {
+            return _feedMap[key][Math.floor(Math.random() * _feedMap[key].length)];
+        }
+    }
+    return null;
 }
 
 // ============================================
@@ -326,10 +336,12 @@ export function setup() {
                 ids.slice(0, 3).forEach(fid => commentFeeds.push({ feedId: fid, clubId, comments: 3 }));
                 ids.slice(0, 2).forEach(fid => hotFeeds.push({ feedId: fid, clubId }));
             } catch (e) {
-                feedMap[clubId] = [clubId];
+                console.warn(`setup: clubId=${clubId} 피드 파싱 실패`);
+                feedMap[clubId] = [];
             }
         } else {
-            feedMap[clubId] = [clubId];
+            console.warn(`setup: clubId=${clubId} 피드 목록 조회 실패 (status=${res.status})`);
+            feedMap[clubId] = [];
         }
     }
 
@@ -374,11 +386,14 @@ export function baseline(data) {
     // 피드 상세 조회
     const detailClub = randomMainClub();
     const feedId = getRandomFeedForClub(detailClub);
-    const detailRes = http.get(`${BASE_URL}/api/v1/clubs/${detailClub}/feeds/${feedId}`, {
-        headers: hdrs, tags: { name: 'bl_detail' },
-    });
-    feedDetailDur.add(detailRes.timings.duration);
-    phase2Success.add(detailRes.status === 200 || detailRes.status === 404);
+    if (feedId) {
+        const detailRes = http.get(`${BASE_URL}/api/v1/clubs/${detailClub}/feeds/${feedId}`, {
+            headers: hdrs, tags: { name: 'bl_detail' },
+        });
+        feedDetailDur.add(detailRes.timings.duration);
+        phase2Success.add(detailRes.status === 200);
+        if (detailRes.status !== 200) totalErrors.add(1);
+    }
     sleep(0.2);
 
     // 개인 피드
@@ -401,11 +416,13 @@ export function baseline(data) {
     if (Math.random() < 0.5) {
         const likeClubId = randomMainClub();
         const likeFeedId = getRandomFeedForClub(likeClubId);
-        const likeRes = http.put(`${BASE_URL}/api/v1/clubs/${likeClubId}/feeds/${likeFeedId}/likes`, null, {
-            headers: hdrs, tags: { name: 'bl_like' },
-        });
-        feedLikeDur.add(likeRes.timings.duration);
-        phase2Success.add(likeRes.status === 200 || likeRes.status === 404);
+        if (likeFeedId) {
+            const likeRes = http.put(`${BASE_URL}/api/v1/clubs/${likeClubId}/feeds/${likeFeedId}/likes`, null, {
+                headers: hdrs, tags: { name: 'bl_like' },
+            });
+            feedLikeDur.add(likeRes.timings.duration);
+            phase2Success.add(likeRes.status === 200);
+        }
     }
     sleep(0.2);
 
@@ -472,12 +489,14 @@ export function feedDetail(data) {
         feedId = getRandomFeedForClub(clubId);
     }
 
+    if (!feedId) { sleep(0.1); return; }
+
     const res = http.get(`${BASE_URL}/api/v1/clubs/${clubId}/feeds/${feedId}`, {
         headers: hdrs, tags: { name: 'fd_detail' },
     });
     feedDetailDur.add(res.timings.duration);
-    phase4Success.add(res.status === 200 || res.status === 404);
-    if (res.status >= 500) totalErrors.add(1);
+    phase4Success.add(res.status === 200);
+    if (res.status !== 200) totalErrors.add(1);
 
     sleep(0.05 + Math.random() * 0.1);
 }
@@ -554,12 +573,14 @@ export function likeToggle(data) {
         feedId = getRandomFeedForClub(clubId);
     }
 
+    if (!feedId) { sleep(0.02); return; }
+
     const res = http.put(`${BASE_URL}/api/v1/clubs/${clubId}/feeds/${feedId}/likes`, null, {
         headers: hdrs, tags: { name: 'lt_like_toggle' },
     });
     feedLikeDur.add(res.timings.duration);
-    phase7Success.add(res.status === 200 || res.status === 404);
-    if (res.status >= 500) totalErrors.add(1);
+    phase7Success.add(res.status === 200);
+    if (res.status !== 200) totalErrors.add(1);
 
     sleep(0.02 + Math.random() * 0.05);
 }
@@ -587,19 +608,20 @@ export function writeMix(data) {
             { headers: hdrs, tags: { name: 'wm_create_feed' } }
         );
         dur = res.timings.duration;
-        ok = res.status >= 200 && res.status < 500;
+        ok = res.status === 201;
         feedCreateDur.add(dur);
     } else if (roll < 0.80) {
         // 40%: 댓글 생성 — 유저가 속한 클럽의 피드에 작성
         const clubId = getRandomUserClub(user.userId);
         const commentFeedId = getRandomFeedForClub(clubId);
+        if (!commentFeedId) { sleep(0.2); return; }
         const res = http.post(
             `${BASE_URL}/api/v1/clubs/${clubId}/feeds/${commentFeedId}/comments`,
             JSON.stringify({ content: `k6 comment ${Date.now()}` }),
             { headers: hdrs, tags: { name: 'wm_create_comment' } }
         );
         dur = res.timings.duration;
-        ok = res.status >= 200 && res.status < 500;
+        ok = res.status === 201;
         feedCommentCreateDur.add(dur);
     } else {
         // 20%: 리피드 — 유저가 속한 클럽으로 리피드
@@ -611,7 +633,7 @@ export function writeMix(data) {
             { headers: hdrs, tags: { name: 'wm_refeed' } }
         );
         dur = res.timings.duration;
-        ok = res.status >= 200 && res.status < 500;
+        ok = res.status === 201;
         feedRefeedDur.add(dur);
     }
 
@@ -651,11 +673,12 @@ export function extremeMix(data) {
     } else if (roll < 0.50) {
         // 15%: 피드 상세
         const hc = HIGH_COMMENT_FEEDS[Math.floor(Math.random() * HIGH_COMMENT_FEEDS.length)];
+        if (!hc) { sleep(0.02); return; }
         const res = http.get(`${BASE_URL}/api/v1/clubs/${hc.clubId}/feeds/${hc.feedId}`, {
             headers: hdrs, tags: { name: 'ex_detail' },
         });
         dur = res.timings.duration;
-        ok = res.status === 200 || res.status === 404;
+        ok = res.status === 200;
         feedDetailDur.add(dur);
     } else if (roll < 0.60) {
         // 10%: 클럽 피드 목록
@@ -679,23 +702,25 @@ export function extremeMix(data) {
         // 12%: 좋아요 토글
         const clubId = randomMainClub();
         const feedId = getRandomFeedForClub(clubId);
+        if (!feedId) { sleep(0.02); return; }
         const res = http.put(`${BASE_URL}/api/v1/clubs/${clubId}/feeds/${feedId}/likes`, null, {
             headers: hdrs, tags: { name: 'ex_like' },
         });
         dur = res.timings.duration;
-        ok = res.status === 200 || res.status === 404;
+        ok = res.status === 200;
         feedLikeDur.add(dur);
     } else if (roll < 0.92) {
         // 10%: 댓글 작성 — 유저가 속한 클럽의 피드에 작성
         const commentClub = getRandomUserClub(user.userId);
         const commentFeedId = getRandomFeedForClub(commentClub);
+        if (!commentFeedId) { sleep(0.02); return; }
         const res = http.post(
             `${BASE_URL}/api/v1/clubs/${commentClub}/feeds/${commentFeedId}/comments`,
             JSON.stringify({ content: `extreme ${Date.now()}` }),
             { headers: hdrs, tags: { name: 'ex_write_comment' } }
         );
         dur = res.timings.duration;
-        ok = res.status >= 200 && res.status < 500;
+        ok = res.status === 201;
         feedCommentCreateDur.add(dur);
     } else {
         // 8%: 피드 생성 — 유저가 속한 클럽에 작성
@@ -708,7 +733,7 @@ export function extremeMix(data) {
             { headers: hdrs, tags: { name: 'ex_write_feed' } }
         );
         dur = res.timings.duration;
-        ok = res.status >= 200 && res.status < 500;
+        ok = res.status === 201;
         feedCreateDur.add(dur);
     }
 
@@ -749,21 +774,23 @@ export function soakTest(data) {
     } else if (roll < 0.60) {
         // 15%: 피드 상세
         const hc = HIGH_COMMENT_FEEDS[Math.floor(Math.random() * HIGH_COMMENT_FEEDS.length)];
+        if (!hc) { sleep(0.05); return; }
         const res = http.get(`${BASE_URL}/api/v1/clubs/${hc.clubId}/feeds/${hc.feedId}`, {
             headers: hdrs, tags: { name: 'soak_detail' },
         });
         dur = res.timings.duration;
-        ok = res.status === 200 || res.status === 404;
+        ok = res.status === 200;
         feedDetailDur.add(dur);
     } else if (roll < 0.75) {
         // 15%: 좋아요 토글
         const clubId = randomMainClub();
         const feedId = getRandomFeedForClub(clubId);
+        if (!feedId) { sleep(0.05); return; }
         const res = http.put(`${BASE_URL}/api/v1/clubs/${clubId}/feeds/${feedId}/likes`, null, {
             headers: hdrs, tags: { name: 'soak_like' },
         });
         dur = res.timings.duration;
-        ok = res.status === 200 || res.status === 404;
+        ok = res.status === 200;
         feedLikeDur.add(dur);
     } else if (roll < 0.85) {
         // 10%: 댓글 목록
@@ -786,13 +813,14 @@ export function soakTest(data) {
         // 7%: 댓글 작성 — 유저가 속한 클럽의 피드에 작성
         const commentClub = getRandomUserClub(user.userId);
         const commentFeedId = getRandomFeedForClub(commentClub);
+        if (!commentFeedId) { sleep(0.05); return; }
         const res = http.post(
             `${BASE_URL}/api/v1/clubs/${commentClub}/feeds/${commentFeedId}/comments`,
             JSON.stringify({ content: `soak ${Date.now()}` }),
             { headers: hdrs, tags: { name: 'soak_write_comment' } }
         );
         dur = res.timings.duration;
-        ok = res.status >= 200 && res.status < 500;
+        ok = res.status === 201;
         feedCommentCreateDur.add(dur);
     }
 

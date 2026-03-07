@@ -555,8 +555,8 @@ COMMIT;
 
 SELECT CONCAT('  정산용 스케줄: ', COUNT(*)) AS msg FROM schedule WHERE schedule_id BETWEEN 5000000 AND 5099999;
 
-INSERT INTO settlement (created_at, modified_at, completed_time, schedule_id, sum, total_status, user_id)
-SELECT NOW(), NOW(), NULL, 5000000 + s.n, 0, 'HOLDING', (s.n % 100000) + 1
+INSERT INTO settlement (created_at, modified_at, completed_time, schedule_id, sum, total_status, user_id, version)
+SELECT NOW(), NOW(), NULL, 5000000 + s.n, 0, 'HOLDING', (s.n % 100000) + 1, 0
 FROM _seq100k s;
 COMMIT;
 
