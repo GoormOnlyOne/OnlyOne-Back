@@ -30,14 +30,17 @@ public class NotificationRepositoryImpl implements NotificationRepositoryCustom 
     @Override
     @Transactional
     public boolean deleteByIdAndUserId(Long notificationId, Long userId) {
-        int deletedUnread = entityManager
-                .createQuery("DELETE FROM Notification n " +
-                        "WHERE n.id = :id AND n.user.userId = :userId AND n.isRead = false")
+        // 삭제 전 읽음 상태 확인 (단일 쿼리로 조회 + 삭제 통합 불가하므로 SELECT 1회 + DELETE 1회)
+        List<?> result = entityManager
+                .createQuery("SELECT n.isRead FROM Notification n " +
+                        "WHERE n.id = :id AND n.user.userId = :userId")
                 .setParameter("id", notificationId)
                 .setParameter("userId", userId)
-                .executeUpdate();
+                .getResultList();
 
-        if (deletedUnread > 0) return true;
+        if (result.isEmpty()) return false;
+
+        boolean wasUnread = Boolean.FALSE.equals(result.get(0));
 
         entityManager
                 .createQuery("DELETE FROM Notification n " +
@@ -46,7 +49,7 @@ public class NotificationRepositoryImpl implements NotificationRepositoryCustom 
                 .setParameter("userId", userId)
                 .executeUpdate();
 
-        return false;
+        return wasUnread;
     }
 
     /**

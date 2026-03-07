@@ -451,7 +451,7 @@ app:
     storage: mysql
   notification:
     storage: mysql
-    sse-timeout-millis: 30000
+    sse-timeout-millis: 300000
     sse-executor-permits: 500
     max-connections: 10000
     multi-instance: true

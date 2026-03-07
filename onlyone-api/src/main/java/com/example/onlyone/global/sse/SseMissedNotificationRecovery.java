@@ -3,6 +3,7 @@ package com.example.onlyone.global.sse;
 import com.example.onlyone.domain.notification.dto.response.NotificationItemDto;
 import com.example.onlyone.domain.notification.dto.response.NotificationSseDto;
 import com.example.onlyone.domain.notification.port.NotificationStoragePort;
+import com.example.onlyone.sse.service.SseConnectionManager;
 import com.example.onlyone.sse.service.SseEventSender;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -25,9 +26,14 @@ public class SseMissedNotificationRecovery {
 
     private final NotificationStoragePort storagePort;
     private final SseEventSender sseEventSender;
+    private final SseConnectionManager connectionManager;
 
     @Transactional
     public void recover(Long userId) {
+        if (!connectionManager.isUserConnected(userId)) {
+            log.debug("SSE 미연결 상태 — 복구 스킵: userId={}", userId);
+            return;
+        }
         try {
             List<NotificationItemDto> missed = storagePort
                     .findUndeliveredByUserId(userId, MAX_RECOVERY_SIZE);
