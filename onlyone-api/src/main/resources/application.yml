@@ -318,8 +318,8 @@ spring:
     username: ${DB_USERNAME:root}
     password: ${DB_PASSWORD:root}
     hikari:
-      maximum-pool-size: 300
-      minimum-idle: 50
+      maximum-pool-size: 400
+      minimum-idle: 80
       connection-timeout: 15000
       idle-timeout: 300000
       max-lifetime: 600000

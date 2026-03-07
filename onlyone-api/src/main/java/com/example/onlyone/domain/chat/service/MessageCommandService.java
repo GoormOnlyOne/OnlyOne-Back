@@ -4,11 +4,8 @@ import com.example.onlyone.domain.chat.dto.ChatMessageItemDto;
 import com.example.onlyone.domain.chat.dto.ChatMessageResponse;
 import com.example.onlyone.domain.chat.port.ChatMessageStoragePort;
 import com.example.onlyone.domain.chat.repository.UserChatRoomRepository;
-import com.example.onlyone.domain.user.entity.User;
-import com.example.onlyone.domain.user.repository.UserRepository;
 import com.example.onlyone.domain.chat.util.MessageUtils;
 import com.example.onlyone.domain.chat.exception.ChatErrorCode;
-import com.example.onlyone.domain.user.exception.UserErrorCode;
 import com.example.onlyone.global.exception.CustomException;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -26,7 +23,6 @@ import java.time.LocalDateTime;
 public class MessageCommandService {
 
     private final ChatMessageStoragePort chatMessageStoragePort;
-    private final UserRepository userRepository;
     private final UserChatRoomRepository userChatRoomRepository;
     private final ChatPublisher chatPublisher;
     private final ObjectMapper objectMapper;
@@ -59,17 +55,18 @@ public class MessageCommandService {
     @Transactional
     public ChatMessageResponse saveMessage(Long chatRoomId, Long userId, String text) {
         if (text == null || text.isBlank()) throw new CustomException(ChatErrorCode.MESSAGE_BAD_REQUEST);
-        if (!userChatRoomRepository.existsByUserUserIdAndChatRoomChatRoomId(userId, chatRoomId)) {
-            throw new CustomException(ChatErrorCode.FORBIDDEN_CHAT_ROOM);
-        }
 
-        User user = userRepository.findById(userId)
-                .orElseThrow(() -> new CustomException(UserErrorCode.USER_NOT_FOUND));
+        // existsBy 별도 조회 제거 → 단일 쿼리로 user + 채팅방 참여 동시 검증
+        UserChatRoomRepository.UserInfoProjection userInfo = userChatRoomRepository
+                .findUserInfoIfMember(userId, chatRoomId)
+                .orElseThrow(() -> new CustomException(ChatErrorCode.FORBIDDEN_CHAT_ROOM));
+        String nickname = userInfo.getNickname();
+        String profileImage = userInfo.getProfileImage();
 
         String storedText = resolveStoredText(text);
 
         ChatMessageItemDto item = chatMessageStoragePort.save(
-                chatRoomId, userId, user.getNickname(), user.getProfileImage(),
+                chatRoomId, userId, nickname, profileImage,
                 storedText, LocalDateTime.now());
 
         return ChatMessageResponse.from(item);

@@ -34,6 +34,16 @@ public interface ChatRoomRepository extends JpaRepository<ChatRoom,Long> {
     """)
     Optional<ChatRoom> findByIdWithClub(@Param("chatRoomId") Long chatRoomId);
 
+    // 채팅방 이름만 경량 조회 (JOIN FETCH 제거)
+    @Query(nativeQuery = true, value = """
+        SELECT CASE WHEN cr.type = 'SCHEDULE' AND s.name IS NOT NULL THEN s.name ELSE c.name END
+        FROM chat_room cr
+        JOIN club c ON c.club_id = cr.club_id
+        LEFT JOIN schedule s ON s.schedule_id = cr.schedule_id
+        WHERE cr.chat_room_id = :chatRoomId
+    """)
+    Optional<String> findChatRoomName(@Param("chatRoomId") Long chatRoomId);
+
     // 정기모임(SCHEDULE) 방 단건 조회
     Optional<ChatRoom> findByTypeAndScheduleId(ChatRoomType type, Long scheduleId);
 

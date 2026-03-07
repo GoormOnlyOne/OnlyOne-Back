@@ -2,7 +2,6 @@ package com.example.onlyone.domain.chat.service;
 
 import com.example.onlyone.domain.chat.dto.ChatMessageItemDto;
 import com.example.onlyone.domain.chat.dto.ChatRoomMessageResponse;
-import com.example.onlyone.domain.chat.entity.ChatRoom;
 import com.example.onlyone.domain.chat.port.ChatMessageStoragePort;
 import com.example.onlyone.domain.chat.repository.ChatRoomRepository;
 import com.example.onlyone.domain.chat.exception.ChatErrorCode;
@@ -30,7 +29,7 @@ public class MessageQueryService {
     public ChatRoomMessageResponse getChatRoomMessages(
             Long chatRoomId, Integer size, Long cursorId, LocalDateTime cursorAt) {
 
-        ChatRoom chatRoom = chatRoomRepository.findByIdWithClub(chatRoomId)
+        String chatRoomName = chatRoomRepository.findChatRoomName(chatRoomId)
                 .orElseThrow(() -> new CustomException(ChatErrorCode.CHAT_ROOM_NOT_FOUND));
 
         int pageSize = clampPageSize(size);
@@ -39,7 +38,7 @@ public class MessageQueryService {
         if (hasMore) slice = new ArrayList<>(slice.subList(0, pageSize));
         Collections.reverse(slice);
 
-        return ChatRoomMessageResponse.ofItems(chatRoomId, chatRoom.resolveName(), slice, hasMore);
+        return ChatRoomMessageResponse.ofItems(chatRoomId, chatRoomName, slice, hasMore);
     }
 
     private List<ChatMessageItemDto> fetchSlice(Long chatRoomId, int pageSize,

@@ -5,7 +5,6 @@ import com.example.onlyone.domain.chat.dto.ChatRoomResponse;
 import com.example.onlyone.domain.chat.entity.ChatRoom;
 import com.example.onlyone.domain.chat.port.ChatMessageStoragePort;
 import com.example.onlyone.domain.chat.repository.ChatRoomRepository;
-import com.example.onlyone.domain.club.repository.ClubRepository;
 import com.example.onlyone.domain.club.repository.UserClubRepository;
 import com.example.onlyone.domain.user.service.UserService;
 import com.example.onlyone.domain.club.exception.ClubErrorCode;
@@ -27,17 +26,15 @@ public class ChatRoomQueryService {
 
     private final ChatRoomRepository chatRoomRepository;
     private final ChatMessageStoragePort chatMessageStoragePort;
-    private final ClubRepository clubRepository;
     private final UserClubRepository userClubRepository;
     private final UserService userService;
 
     public List<ChatRoomResponse> getChatRoomsUserJoinedInClub(Long clubId) {
         Long userId = userService.getCurrentUserId();
 
-        if (!clubRepository.existsById(clubId)) {
-            throw new CustomException(ClubErrorCode.CLUB_NOT_FOUND);
-        }
+        // existsById + existsBy 2쿼리 → userClub 단일 조회로 통합
         if (!userClubRepository.existsByUser_UserIdAndClub_ClubId(userId, clubId)) {
+            // club 미존재 or 미가입 모두 동일 에러 (별도 existsById 쿼리 제거)
             throw new CustomException(ClubErrorCode.CLUB_NOT_JOIN);
         }
 
