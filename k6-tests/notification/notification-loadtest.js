@@ -28,9 +28,10 @@
 import http from 'k6/http';
 import { check, sleep, group } from 'k6';
 import { Counter, Rate, Trend } from 'k6/metrics';
-import { generateJWT, headers, sseHeaders, BASE_URL, fetchNotificationIds, connectSSE, parseSSEEvents, vu, dur, startAfter } from '../lib/common.js';
+import { generateJWT, headers, sseHeaders, BASE_URL, fetchNotificationIds, parseSSEEvents, vu, dur, startAfter } from '../lib/common.js';
 import { THRESHOLDS } from '../lib/bottleneck.js';
 import { randomUser, vuUser, hotUser, createNotification, pad, num, pct } from './helpers.js';
+import { sseSubscribe } from './sse-helpers.js';
 
 // ── Phase 시간 (초) ──
 const P1 = 30, P2 = 120, P3 = 120, P4 = 120, P5 = 90, P6 = 90;
@@ -57,6 +58,7 @@ const notiDeleteDur   = new Trend('noti_delete_duration', true);
 const notiMarkAllDur  = new Trend('noti_markall_duration', true);
 const notiDeepPageDur = new Trend('noti_deep_page_duration', true);
 const notiSseDur      = new Trend('noti_sse_duration', true);
+const notiSseConnDur  = new Trend('noti_sse_connect_duration', true);
 
 // ── SSE Delivery E2E 메트릭 ──
 const sseDeliveryRate       = new Rate('sse_delivery_rate');
@@ -273,9 +275,11 @@ export function baseline() {
     sleep(0.2);
 
     if (Math.random() < 0.2) {
-        const sseResult = connectSSE(user, '2s');
+        const token2 = generateJWT(user);
+        const sseResult = sseSubscribe(token2, 2, 1, 'bl_sse');
         notiSseDur.add(sseResult.duration);
-        phase2Success.add(sseResult.success);
+        notiSseConnDur.add(sseResult.connectDuration);
+        phase2Success.add(sseResult.connected);
     }
 
     sleep(0.3);
@@ -402,10 +406,11 @@ export function sseFlood() {
     const user = vuUser(__VU);
     const token = generateJWT(user);
 
-    const sseResult = connectSSE(user, '5s');
+    const sseResult = sseSubscribe(token, 3, 5, 'sse_flood');
     notiSseDur.add(sseResult.duration);
-    phase6Success.add(sseResult.success);
-    if (!sseResult.success) totalErrors.add(1);
+    notiSseConnDur.add(sseResult.connectDuration);
+    phase6Success.add(sseResult.connected);
+    if (!sseResult.connected) totalErrors.add(1);
 
     const listRes = http.get(`${BASE_URL}/api/v1/notifications?size=10`, {
         headers: headers(token), tags: { name: 'sse_list' },
@@ -449,62 +454,34 @@ export function sseDeliveryE2E() {
     sleep(0.3);
 
     // 3) SSE 연결 — MissedNotificationRecovery 트리거 (동기 실행)
-    //    timeout 5s: Recovery 완료 + 응답 수신 여유
+    //    xk6-sse: event 수신 시 즉시 close → timeout 대기 없음
     const token = generateJWT(user);
-    const sseHdrs = {
-        'Authorization': `Bearer ${token}`,
-        'Accept': 'text/event-stream',
-        'Cache-Control': 'no-cache',
-    };
+    const sseResult = sseSubscribe(token, 5, 10, 'sse_delivery_e2e');
 
-    const sseRes = http.get(`${BASE_URL}/api/v1/sse/subscribe`, {
-        headers: sseHdrs,
-        timeout: '5s',
-        responseType: 'text',
-        tags: { name: 'sse_delivery_e2e' },
-    });
-
-    const sseConnected = sseRes.status === 200 || sseRes.status === 0;
-    if (!sseConnected) {
+    if (!sseResult.connected) {
         sseDeliveryRate.add(false);
         sseRecoveryRate.add(false);
         sleep(0.5);
         return;
     }
 
-    // 4) 응답 body에서 SSE 이벤트 파싱
-    const events = parseSSEEvents(sseRes.body);
-    const notifEvents = [];
+    notiSseConnDur.add(sseResult.connectDuration);
+    sseDeliveryEventCount.add(sseResult.notifEvents.length);
 
-    for (const evt of events) {
-        if (evt.name === 'notification' && evt.data) {
-            try {
-                const data = JSON.parse(evt.data);
-                notifEvents.push({
-                    notificationId: data.notificationId,
-                    sentAtEpochMs: data.sentAtEpochMs || 0,
-                });
-            } catch (_) {}
-        }
-    }
-
-    sseDeliveryEventCount.add(notifEvents.length);
-
-    // 5) 생성한 notificationId가 수신 이벤트에 포함되는지 검증
-    const delivered = notifEvents.some(e => e.notificationId === created.notificationId);
+    // 4) 생성한 notificationId가 수신 이벤트에 포함되는지 검증
+    const delivered = sseResult.notifEvents.some(e => e.notificationId === created.notificationId);
     sseDeliveryRate.add(delivered);
     sseRecoveryRate.add(delivered);
 
-    // 6) 전달 지연 측정
+    // 5) 전달 지연 측정
     if (delivered) {
-        const matchedEvent = notifEvents.find(e => e.notificationId === created.notificationId);
+        const matchedEvent = sseResult.notifEvents.find(e => e.notificationId === created.notificationId);
         if (matchedEvent && matchedEvent.sentAtEpochMs > 0) {
             const latency = matchedEvent.sentAtEpochMs - createStart;
             if (latency > 0 && latency < 30000) {
                 sseDeliveryLatency.add(latency);
             }
         } else {
-            // sentAtEpochMs 없으면 SSE 응답 시점 기준으로 측정
             sseDeliveryLatency.add(Date.now() - createStart);
         }
     }
@@ -709,6 +686,7 @@ export function handleSummary(data) {
         endpointRow('mark-all',  'noti_markall_duration'),
         endpointRow('deep-page', 'noti_deep_page_duration'),
         endpointRow('sse',       'noti_sse_duration'),
+        endpointRow('sse-conn',  'noti_sse_connect_duration'),
         '└──────────────┴──────────┴──────────┴──────────┘',
         '',
         '┌──────────────────────────────────────────────────────┐',
