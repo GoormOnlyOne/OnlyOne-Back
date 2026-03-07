@@ -288,18 +288,24 @@ spring:
     activate:
       on-profile: ec2
 
-  # MongoDB/RabbitMQ 미사용
+  # MongoDB/RabbitMQ/ES 미사용
   autoconfigure:
     exclude:
       - org.springframework.boot.autoconfigure.data.mongo.MongoDataAutoConfiguration
       - org.springframework.boot.autoconfigure.data.mongo.MongoRepositoriesAutoConfiguration
       - org.springframework.boot.autoconfigure.mongo.MongoAutoConfiguration
       - org.springframework.boot.autoconfigure.amqp.RabbitAutoConfiguration
+      - org.springframework.boot.autoconfigure.elasticsearch.ElasticsearchClientAutoConfiguration
+      - org.springframework.boot.autoconfigure.elasticsearch.ElasticsearchRestClientAutoConfiguration
+      - org.springframework.boot.autoconfigure.data.elasticsearch.ElasticsearchDataAutoConfiguration
+      - org.springframework.boot.autoconfigure.data.elasticsearch.ElasticsearchRepositoriesAutoConfiguration
+      - org.springframework.boot.actuate.autoconfigure.elasticsearch.ElasticSearchReactiveHealthContributorAutoConfiguration
+      - org.springframework.boot.actuate.autoconfigure.elasticsearch.ElasticsearchRestHealthContributorAutoConfiguration
 
   # --- 데이터소스 (EC2 원격 인프라) ---
   datasource:
     driver-class-name: com.mysql.cj.jdbc.Driver
-    url: jdbc:mysql://${INFRA_HOST}:3306/onlyone?useSSL=false&serverTimezone=Asia/Seoul&characterEncoding=UTF-8&allowPublicKeyRetrieval=true&cachePrepStmts=true&prepStmtCacheSize=250&prepStmtCacheSqlLimit=2048&useServerPrepStmts=true&rewriteBatchedStatements=true
+    url: jdbc:mysql://${INFRA_HOST}:3306/onlyone?useSSL=false&serverTimezone=Asia/Seoul&characterEncoding=UTF-8&allowPublicKeyRetrieval=true&cachePrepStmts=true&prepStmtCacheSize=250&prepStmtCacheSqlLimit=2048&useServerPrepStmts=false&rewriteBatchedStatements=true
     username: ${DB_USERNAME:root}
     password: ${DB_PASSWORD:root}
     hikari:
@@ -319,7 +325,7 @@ spring:
       hibernate:
         format_sql: false
         use_sql_comments: false
-        show_sql: false
+        show_sql: true
         jdbc:
           batch_size: 30
         order_inserts: true
@@ -373,11 +379,11 @@ spring:
     security:
       enabled: false
 
-  # Elasticsearch (원격 인프라)
-  elasticsearch:
-    uris: http://${INFRA_HOST}:9200
-    username: ${ELASTICSEARCH_USERNAME:elastic}
-    password: ${ELASTICSEARCH_PASSWORD:changeme}
+#  # Elasticsearch (원격 인프라)
+#  elasticsearch:
+#    uris: http://${INFRA_HOST}:9200
+#    username: ${ELASTICSEARCH_USERNAME:elastic}
+#    password: ${ELASTICSEARCH_PASSWORD:changeme}
 
   # 캐시
   cache:
@@ -435,12 +441,15 @@ payment:
 
 # --- 앱 커스텀 설정 ---
 app:
+  datasource:
+    routing:
+      enabled: true
   kafka:
     topic:
       replicas: 1
       min-insync-replicas: 1
   search:
-    engine: elasticsearch
+    engine: mysql
   rate-limit:
     enabled: false
   feed:

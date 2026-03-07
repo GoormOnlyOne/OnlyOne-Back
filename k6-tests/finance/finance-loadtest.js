@@ -3,15 +3,15 @@
 // =============================================================
 //
 // Phase 1  Warmup           (50 VUs, 30s)  — 커넥션풀 예열
-// Phase 2  결제 폭풍         (1200 VUs peak, 2m)  — save→verify→confirm 대량 발사
-// Phase 3  멱등성 폭풍       (1500 VUs, 30s)  — 동일 orderId 1500명 동시 confirm
-// Phase 4  정산 대량 요청    (1500 VUs, 2m)   — settlement 25,000건 동시 Outbox→Kafka E2E
-// Phase 5  정산 조회 폭풍    (900 VUs peak, 1.5m) — 정산 상태/참여자 리스트 집중 조회
-// Phase 6  지갑 조회 집중    (900 VUs peak, 1.5m) — 거래내역 페이징 집중
-// Phase 7  복합 고부하       (1800 VUs peak, 3m) — 결제40%+정산조회20%+지갑조회20%+실패기록10%+정산요청10%
-// Phase 8  스파이크 3000     (3000 VUs peak, 1.5m) — 순간 폭증 내구성
-// Phase 9  이중 스파이크     (2400 VUs peak, 2m) — 회복 후 재폭증
-// Phase 10 지속 내구         (1200 VUs, 3m) — Soak: 누수/GC/커넥션풀 고갈 탐지
+// Phase 2  결제 폭풍         (600 VUs peak, 2m)   — save→verify→confirm 대량 발사
+// Phase 3  멱등성 폭풍       (750 VUs, 30s)  — 동일 orderId 750명 동시 confirm
+// Phase 4  정산 대량 요청    (750 VUs, 2m)   — settlement 동시 Outbox→Kafka E2E
+// Phase 5  정산 조회 폭풍    (450 VUs peak, 1.5m) — 정산 상태/참여자 리스트 집중 조회
+// Phase 6  지갑 조회 집중    (450 VUs peak, 1.5m) — 거래내역 페이징 집중
+// Phase 7  복합 고부하       (900 VUs peak, 3m)  — 결제40%+정산조회20%+지갑조회20%+실패기록10%+정산요청10%
+// Phase 8  스파이크 1500     (1500 VUs peak, 1.5m) — 순간 폭증 내구성
+// Phase 9  이중 스파이크     (1200 VUs peak, 2m) — 회복 후 재폭증
+// Phase 10 지속 내구         (600 VUs, 3m)  — Soak: 누수/GC/커넥션풀 고갈 탐지
 // Phase 11 최종 검증         (1 VU, 30s)  — 전 API 정상 확인
 //
 // 전제 조건:
@@ -91,111 +91,111 @@ export const options = {
         // Phase 1: Warmup
         warmup: {
             executor: 'constant-vus',
-            vus: 10,
-            duration: '20s',
+            vus: 50,
+            duration: '30s',
             exec: 'warmup',
             startTime: '0s',
         },
-        // Phase 2: 결제 폭풍 (40 VUs peak)
+        // Phase 2: 결제 폭풍 (600 VUs peak)
         payment_storm: {
             executor: 'ramping-vus',
             stages: [
-                { duration: '15s', target: 40 },
-                { duration: '60s', target: 40 },
-                { duration: '15s', target: 0 },
+                { duration: '20s', target: 600 },
+                { duration: '80s', target: 600 },
+                { duration: '20s', target: 0 },
             ],
             exec: 'paymentStorm',
-            startTime: '25s',
+            startTime: '35s',
         },
-        // Phase 3: 멱등성 폭풍 (30 VUs 동시 confirm)
+        // Phase 3: 멱등성 폭풍 (750 VUs 동시 confirm)
         payment_idempotency: {
             executor: 'per-vu-iterations',
-            vus: 30,
+            vus: 750,
             iterations: 1,
             exec: 'paymentIdempotency',
-            startTime: '25s',
+            startTime: '35s',
             maxDuration: '30s',
         },
-        // Phase 4: 정산 대량 요청 (30 VUs, 각 1회)
+        // Phase 4: 정산 대량 요청 (750 VUs, 각 1회)
         settlement_mass: {
             executor: 'per-vu-iterations',
-            vus: 30,
+            vus: 750,
             iterations: 1,
             exec: 'settlementMass',
-            startTime: '2m00s',
+            startTime: '2m40s',
             maxDuration: '2m',
         },
-        // Phase 5: 정산 조회 폭풍 (30 VUs peak)
+        // Phase 5: 정산 조회 폭풍 (450 VUs peak)
         settlement_query_storm: {
             executor: 'ramping-vus',
             stages: [
-                { duration: '10s', target: 30 },
-                { duration: '50s', target: 30 },
-                { duration: '10s', target: 0 },
+                { duration: '15s', target: 450 },
+                { duration: '60s', target: 450 },
+                { duration: '15s', target: 0 },
             ],
             exec: 'settlementQueryStorm',
-            startTime: '4m10s',
+            startTime: '4m50s',
         },
-        // Phase 6: 지갑 조회 집중 (30 VUs peak)
+        // Phase 6: 지갑 조회 집중 (450 VUs peak)
         wallet_query_storm: {
             executor: 'ramping-vus',
             stages: [
-                { duration: '10s', target: 30 },
-                { duration: '50s', target: 30 },
-                { duration: '10s', target: 0 },
+                { duration: '15s', target: 450 },
+                { duration: '60s', target: 450 },
+                { duration: '15s', target: 0 },
             ],
             exec: 'walletQueryStorm',
-            startTime: '4m10s',
+            startTime: '4m50s',
         },
-        // Phase 7: 복합 고부하 (50 VUs peak, 2m)
+        // Phase 7: 복합 고부하 (900 VUs peak, 3m)
         mixed_highload: {
             executor: 'ramping-vus',
             stages: [
-                { duration: '20s', target: 50 },
-                { duration: '80s', target: 50 },
-                { duration: '20s', target: 0 },
+                { duration: '30s', target: 900 },
+                { duration: '120s', target: 900 },
+                { duration: '30s', target: 0 },
             ],
             exec: 'mixedHighload',
-            startTime: '5m20s',
+            startTime: '6m30s',
         },
-        // Phase 8: 스파이크 80 VUs
+        // Phase 8: 스파이크 1500 VUs
         spike_1000: {
             executor: 'ramping-vus',
             stages: [
-                { duration: '10s', target: 80 },
-                { duration: '40s', target: 80 },
-                { duration: '10s', target: 5 },
-                { duration: '10s', target: 5 },
+                { duration: '10s', target: 1500 },
+                { duration: '50s', target: 1500 },
+                { duration: '10s', target: 10 },
+                { duration: '20s', target: 10 },
             ],
             exec: 'spike1000',
-            startTime: '7m30s',
+            startTime: '9m40s',
         },
-        // Phase 9: 이중 스파이크 (60 VUs peak)
+        // Phase 9: 이중 스파이크 (1200 VUs peak)
         double_spike: {
             executor: 'ramping-vus',
             stages: [
-                { duration: '10s', target: 60 },
-                { duration: '15s', target: 60 },
-                { duration: '10s', target: 5 },
-                { duration: '10s', target: 5 },
-                { duration: '10s', target: 60 },
-                { duration: '15s', target: 60 },
-                { duration: '10s', target: 5 },
-                { duration: '10s', target: 0 },
+                { duration: '10s', target: 1200 },
+                { duration: '20s', target: 1200 },
+                { duration: '10s', target: 10 },
+                { duration: '15s', target: 10 },
+                { duration: '10s', target: 1200 },
+                { duration: '20s', target: 1200 },
+                { duration: '10s', target: 10 },
+                { duration: '15s', target: 0 },
             ],
             exec: 'doubleSpike',
-            startTime: '8m50s',
+            startTime: '11m20s',
         },
-        // Phase 10: 지속 내구 Soak (40 VUs, 2m)
+        // Phase 10: 지속 내구 Soak (600 VUs, 3m)
         soak: {
             executor: 'ramping-vus',
             stages: [
-                { duration: '15s', target: 40 },
-                { duration: '90s', target: 40 },
-                { duration: '15s', target: 0 },
+                { duration: '20s', target: 600 },
+                { duration: '140s', target: 600 },
+                { duration: '20s', target: 0 },
             ],
             exec: 'soakTest',
-            startTime: '10m30s',
+            startTime: '14m00s',
         },
         // Phase 11: 최종 검증
         final_verify: {
@@ -203,7 +203,7 @@ export const options = {
             vus: 1,
             iterations: 1,
             exec: 'finalVerify',
-            startTime: '12m40s',
+            startTime: '17m10s',
             maxDuration: '30s',
         },
     },
@@ -261,6 +261,10 @@ function randomUserId() {
 
 function randomScheduleId() {
     return SCHEDULE_ID_BASE + Math.floor(Math.random() * SETTLEMENT_COUNT);
+}
+
+function clubForSchedule(scheduleId) {
+    return MIN_CLUB + (scheduleId - SCHEDULE_ID_BASE);
 }
 
 // ── Setup: 멱등성 테스트용 사전 save+verify ──
@@ -339,7 +343,7 @@ function doMixedOp(userId, ratios) {
     } else if (ops < sqThresh) {
         const scheduleId = randomScheduleId();
         res = http.get(
-            `${BASE_URL}/api/v1/clubs/${MIN_CLUB}/schedules/${scheduleId}/settlements?page=0&size=20`,
+            `${BASE_URL}/api/v1/clubs/${clubForSchedule(scheduleId)}/schedules/${scheduleId}/settlements?page=0&size=20`,
             { headers: hdrs, tags: { name: 'mx_settle_query' } }
         );
     } else if (ops < wqThresh) {
@@ -353,12 +357,13 @@ function doMixedOp(userId, ratios) {
             { headers: hdrs, tags: { name: 'mx_fail' } }
         );
     } else {
-        // 정산 요청 (소액) — receiver=userId1(리더)로 고정
-        const leaderToken = generateJWT(makeUser(1));
-        const leaderHdrs = headers(leaderToken);
+        // 정산 요청 — receiver = schedule별 user_id
         const scheduleId = randomScheduleId();
+        const receiverId = scheduleId - SCHEDULE_ID_BASE + 1;
+        const leaderToken = generateJWT(makeUser(receiverId));
+        const leaderHdrs = headers(leaderToken);
         res = http.post(
-            `${BASE_URL}/api/v1/clubs/${MIN_CLUB}/schedules/${scheduleId}/settlements?costPerUser=10`,
+            `${BASE_URL}/api/v1/clubs/${clubForSchedule(scheduleId)}/schedules/${scheduleId}/settlements?costPerUser=10`,
             null,
             { headers: leaderHdrs, tags: { name: 'mx_settle_req' } }
         );
@@ -440,13 +445,15 @@ export function settlementMass() {
     const scheduleId = SCHEDULE_ID_BASE + settlementIdx;
     const costPerUser = 100;
 
-    const user = makeUser(1); // receiver = userId 1
+    // receiver = seed에서 settlement.user_id = scheduleId - SCHEDULE_ID_BASE + 1
+    const receiverId = scheduleId - SCHEDULE_ID_BASE + 1;
+    const user = makeUser(receiverId);
     const token = generateJWT(user);
     const hdrs = headers(token);
 
     const start = Date.now();
     const res = http.post(
-        `${BASE_URL}/api/v1/clubs/${MIN_CLUB}/schedules/${scheduleId}/settlements?costPerUser=${costPerUser}`,
+        `${BASE_URL}/api/v1/clubs/${clubForSchedule(scheduleId)}/schedules/${scheduleId}/settlements?costPerUser=${costPerUser}`,
         null,
         { headers: hdrs, tags: { name: 'settle_request' } }
     );
@@ -466,7 +473,7 @@ export function settlementMass() {
         for (let i = 0; i < 15; i++) {
             sleep(2);
             const queryRes = http.get(
-                `${BASE_URL}/api/v1/clubs/${MIN_CLUB}/schedules/${scheduleId}/settlements?page=0&size=20`,
+                `${BASE_URL}/api/v1/clubs/${clubForSchedule(scheduleId)}/schedules/${scheduleId}/settlements?page=0&size=20`,
                 { headers: hdrs, tags: { name: 'settle_poll' } }
             );
             if (queryRes.status === 200) {
@@ -498,7 +505,7 @@ export function settlementQueryStorm() {
 
     const start = Date.now();
     const res = http.get(
-        `${BASE_URL}/api/v1/clubs/${MIN_CLUB}/schedules/${scheduleId}/settlements?page=${page}&size=20`,
+        `${BASE_URL}/api/v1/clubs/${clubForSchedule(scheduleId)}/schedules/${scheduleId}/settlements?page=${page}&size=20`,
         { headers: hdrs, tags: { name: 'settle_query_storm' } }
     );
     settleQueryDur.add(Date.now() - start);
@@ -602,7 +609,7 @@ export function finalVerify() {
 
     // 3. 정산 조회 정상
     const settleRes = http.get(
-        `${BASE_URL}/api/v1/clubs/${MIN_CLUB}/schedules/5000000/settlements?page=0&size=20`,
+        `${BASE_URL}/api/v1/clubs/${clubForSchedule(5000000)}/schedules/5000000/settlements?page=0&size=20`,
         { headers: hdrs, tags: { name: 'verify_settle' } }
     );
     ok = check(settleRes, { 'verify: settlement 200': (r) => r.status === 200 });
