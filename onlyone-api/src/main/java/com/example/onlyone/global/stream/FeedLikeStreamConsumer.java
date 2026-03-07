@@ -1,7 +1,7 @@
 package com.example.onlyone.global.stream;
 
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.SmartLifecycle;
 import org.springframework.dao.DataAccessException;
@@ -29,12 +29,19 @@ import java.util.*;
 @Slf4j
 @Component
 @ConditionalOnProperty(name = "app.feed-like-stream.enabled", havingValue = "true", matchIfMissing = true)
-@RequiredArgsConstructor
 public class FeedLikeStreamConsumer implements SmartLifecycle {
 
     private final StringRedisTemplate redis;
     private final JdbcTemplate jdbc;
     private final TransactionTemplate tx;
+
+    public FeedLikeStreamConsumer(StringRedisTemplate redis,
+                                  JdbcTemplate jdbc,
+                                  @Qualifier("transactionTemplate") TransactionTemplate tx) {
+        this.redis = redis;
+        this.jdbc = jdbc;
+        this.tx = tx;
+    }
 
     public static final String STREAM = "like:events";
     public static final String GROUP  = "likes-v1";
