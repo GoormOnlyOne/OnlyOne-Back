@@ -46,6 +46,12 @@ export function sseSubscribe(token, timeoutSec, maxEvents, tagName) {
         });
 
         client.on('event', function (event) {
+            // 첫 이벤트 수신 시 connected 판정 (open 콜백 미호출 대비)
+            if (!connected) {
+                connected = true;
+                connectDuration = Date.now() - startTime;
+            }
+
             if (event.name === 'notification' && event.data) {
                 try {
                     const data = JSON.parse(event.data);
@@ -66,8 +72,14 @@ export function sseSubscribe(token, timeoutSec, maxEvents, tagName) {
         client.on('error', function (_) {});
     });
 
+    // response status 또는 이벤트 수신으로 connected 판정
+    const isConnected = connected || (response && response.status === 200);
+    if (isConnected && connectDuration === 0) {
+        connectDuration = Date.now() - startTime;
+    }
+
     return {
-        connected: connected || (response && response.status === 200),
+        connected: isConnected,
         notifEvents: notifEvents,
         connectDuration: connectDuration,
         duration: Date.now() - startTime,
