@@ -5,6 +5,7 @@ import com.example.onlyone.domain.notification.dto.response.NotificationItemProj
 import com.example.onlyone.domain.notification.entity.Notification;
 import com.example.onlyone.domain.notification.entity.NotificationType;
 import com.example.onlyone.domain.notification.repository.NotificationRepository;
+import com.example.onlyone.domain.notification.repository.UserNotificationStateRepository;
 import com.example.onlyone.domain.user.entity.User;
 import com.example.onlyone.domain.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
@@ -19,6 +20,7 @@ import java.util.List;
 public class MysqlNotificationStorageAdapter implements NotificationStoragePort {
 
     private final NotificationRepository notificationRepository;
+    private final UserNotificationStateRepository stateRepository;
     private final UserRepository userRepository;
 
     @Override
@@ -31,15 +33,21 @@ public class MysqlNotificationStorageAdapter implements NotificationStoragePort 
 
     @Override
     public List<NotificationItemDto> findByUserId(Long userId, Long cursor, int size) {
+        long watermark = getWatermark(userId);
         List<NotificationItemProjection> projections = (cursor != null)
-                ? notificationRepository.findNotificationsByUserIdWithCursor(userId, cursor, size)
-                : notificationRepository.findNotificationsByUserId(userId, size);
+                ? notificationRepository.findNotificationsByUserIdWithCursor(userId, cursor, watermark, size)
+                : notificationRepository.findNotificationsByUserId(userId, watermark, size);
         return projections.stream().map(this::toDto).toList();
     }
 
     @Override
     public Long countUnreadByUserId(Long userId) {
-        return notificationRepository.countUnreadByUserId(userId);
+        long watermark = getWatermark(userId);
+        return notificationRepository.countUnreadByUserId(userId, watermark);
+    }
+
+    private long getWatermark(Long userId) {
+        return stateRepository.findReadAllUptoIdByUserId(userId).orElse(0L);
     }
 
     @Override

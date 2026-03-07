@@ -54,35 +54,23 @@ public class NotificationRepositoryImpl implements NotificationRepositoryCustom 
 
     /**
      * 워터마크 방식 mark-all: notification 테이블 대량 UPDATE 없음.
-     * user_notification_state에 현재 최대 notification_id를 upsert.
-     * GREATEST로 동시 호출 시에도 단조 증가 보장.
-     * NOTE: ON DUPLICATE KEY UPDATE는 MySQL 전용 구문이나, 워터마크 upsert 패턴에 필수.
+     * 단일 INSERT ... SELECT 문으로 MAX 조회 + upsert를 원자적으로 수행하여
+     * 별도 SELECT의 shared lock 유지 시간을 제거.
      */
     @Override
     @Transactional
     public long markAllAsReadByUserId(Long userId) {
-        Object maxIdResult = entityManager
-                .createNativeQuery(
-                        "SELECT COALESCE(MAX(notification_id), 0) " +
-                        "FROM notification WHERE user_id = :userId")
-                .setParameter("userId", userId)
-                .getSingleResult();
-
-        long maxId = ((Number) maxIdResult).longValue();
-        if (maxId == 0) return 0;
-
-        entityManager
+        return entityManager
                 .createNativeQuery(
                         "INSERT INTO user_notification_state(user_id, read_all_upto_id, updated_at) " +
-                        "VALUES (:userId, :maxId, NOW(6)) " +
+                        "SELECT :userId, COALESCE(MAX(notification_id), 0), NOW(6) " +
+                        "FROM notification WHERE user_id = :userId " +
+                        "HAVING COALESCE(MAX(notification_id), 0) > 0 " +
                         "ON DUPLICATE KEY UPDATE " +
                         "read_all_upto_id = GREATEST(read_all_upto_id, VALUES(read_all_upto_id)), " +
                         "updated_at = NOW(6)")
                 .setParameter("userId", userId)
-                .setParameter("maxId", maxId)
                 .executeUpdate();
-
-        return 1;
     }
 
     @Override
