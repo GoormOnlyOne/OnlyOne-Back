@@ -28,6 +28,7 @@ export function sseSubscribe(token, timeoutSec, maxEvents, tagName) {
     let connected = false;
     let connectDuration = 0;
     const startTime = Date.now();
+    const timeoutMs = (timeoutSec || 3) * 1000;
 
     const params = {
         method: 'GET',
@@ -37,6 +38,7 @@ export function sseSubscribe(token, timeoutSec, maxEvents, tagName) {
             'Cache-Control': 'no-cache',
         },
         tags: { name: tagName || 'sse_subscribe' },
+        timeout: `${timeoutMs}ms`,
     };
 
     const response = sse.open(SSE_SUBSCRIBE_URL, params, function (client) {
@@ -46,7 +48,6 @@ export function sseSubscribe(token, timeoutSec, maxEvents, tagName) {
         });
 
         client.on('event', function (event) {
-            // 첫 이벤트 수신 시 connected 판정 (open 콜백 미호출 대비)
             if (!connected) {
                 connected = true;
                 connectDuration = Date.now() - startTime;
@@ -56,7 +57,7 @@ export function sseSubscribe(token, timeoutSec, maxEvents, tagName) {
                 try {
                     const data = JSON.parse(event.data);
                     notifEvents.push({
-                        notificationId: data.notificationId, // Long
+                        notificationId: data.notificationId,
                         sentAtEpochMs: data.sentAtEpochMs || 0,
                         type: data.type,
                         content: data.content,
@@ -69,10 +70,12 @@ export function sseSubscribe(token, timeoutSec, maxEvents, tagName) {
             }
         });
 
-        client.on('error', function (_) {});
+        client.on('error', function (_) {
+            // timeout 또는 에러 발생 시 연결 종료 → sse.open() 반환 보장
+            client.close();
+        });
     });
 
-    // response status 또는 이벤트 수신으로 connected 판정
     const isConnected = connected || (response && response.status === 200);
     if (isConnected && connectDuration === 0) {
         connectDuration = Date.now() - startTime;
