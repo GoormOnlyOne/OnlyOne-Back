@@ -46,20 +46,6 @@ else
     log_ok "k6 이미 설치됨: $(k6 version)"
 fi
 
-# mongosh (시딩용)
-if ! command -v mongosh &>/dev/null; then
-    log_info "mongosh 설치..."
-    curl -fsSL https://www.mongodb.org/static/pgp/server-7.0.asc | \
-        sudo gpg --dearmor -o /usr/share/keyrings/mongodb-server-7.0.gpg
-    echo "deb [ signed-by=/usr/share/keyrings/mongodb-server-7.0.gpg ] https://repo.mongodb.org/apt/ubuntu jammy/mongodb-org/7.0 multiverse" | \
-        sudo tee /etc/apt/sources.list.d/mongodb-org-7.0.list
-    sudo apt-get update -y
-    sudo apt-get install -y mongodb-mongosh
-    log_ok "mongosh 설치 완료"
-else
-    log_ok "mongosh 이미 설치됨"
-fi
-
 # Swap (2GB)
 if [ ! -f /swapfile ]; then
     log_info "2GB Swap 생성..."
@@ -99,7 +85,7 @@ log_ok "ulimit 설정 완료"
 # ── 2. 프로젝트 클론 (k6 스크립트 + 시드 데이터용) ──
 log_info "=== 2. 프로젝트 클론 ==="
 
-REPO_URL="${REPO_URL:-https://github.com/JoHB94/OnlyOne-Back.git}"
+REPO_URL="${REPO_URL:-https://github.com/choigpt/OnlyOne-Back.git}"
 BRANCH="${BRANCH:-feat/notification/haechang}"
 
 if [ -d ~/OnlyOne-Back ]; then

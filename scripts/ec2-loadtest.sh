@@ -249,13 +249,6 @@ check_infra() {
         exit 1
     fi
 
-    # MongoDB
-    if timeout 5 bash -c "echo >/dev/tcp/$INFRA_HOST/27017" 2>/dev/null; then
-        log_ok "MongoDB ($INFRA_HOST:27017)"
-    else
-        log_warn "MongoDB 연결 실패 — MongoDB 의존 테스트 실패 가능"
-    fi
-
     # Elasticsearch
     if curl -sf -u elastic:changeme "http://$INFRA_HOST:9200/_cluster/health" &>/dev/null; then
         log_ok "Elasticsearch ($INFRA_HOST:9200)"
@@ -365,14 +358,8 @@ TOTAL_START=$(date +%s)
 
 # 테스트 실행
 case "$DOMAIN" in
-    all)
-        run_k6 "common/all-domains-bottleneck-test.js" "all-domains"
-        ;;
     feed)
         run_k6 "feed/feed-loadtest.js" "feed"
-        ;;
-    feed-focus)
-        run_k6 "feed/feed-personal-focus-test.js" "feed-focus"
         ;;
     notification|notif)
         run_k6 "notification/notification-loadtest.js" "notification"

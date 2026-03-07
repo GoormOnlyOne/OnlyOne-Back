@@ -81,7 +81,7 @@ log_ok "ulimit 설정 완료"
 # ── 2. 프로젝트 클론 + 빌드 ──
 log_info "=== 2. 프로젝트 클론 + 빌드 ==="
 
-REPO_URL="${REPO_URL:-https://github.com/JoHB94/OnlyOne-Back.git}"
+REPO_URL="${REPO_URL:-https://github.com/choigpt/OnlyOne-Back.git}"
 BRANCH="${BRANCH:-feat/notification/haechang}"
 
 if [ -d ~/OnlyOne-Back ]; then
@@ -123,7 +123,6 @@ check_connection() {
 INFRA_OK=true
 check_connection "MySQL"         "$INFRA_HOST" 3306  || INFRA_OK=false
 check_connection "Redis"         "$INFRA_HOST" 6379  || INFRA_OK=false
-check_connection "MongoDB"       "$INFRA_HOST" 27017 || INFRA_OK=false
 check_connection "Elasticsearch" "$INFRA_HOST" 9200  || INFRA_OK=false
 check_connection "Kafka"         "$INFRA_HOST" 29092 || INFRA_OK=false
 
