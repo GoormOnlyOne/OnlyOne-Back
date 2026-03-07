@@ -11,10 +11,9 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Component;
-import org.springframework.transaction.PlatformTransactionManager;
-import org.springframework.transaction.TransactionDefinition;
 import org.springframework.transaction.support.TransactionTemplate;
 
 import java.time.Instant;
@@ -52,7 +51,7 @@ public class SettlementEventProcessor {
             SettlementRepository settlementRepository,
             WalletRepository walletRepository,
             ApplicationEventPublisher eventPublisher,
-            PlatformTransactionManager transactionManager,
+            @Qualifier("requiresNewTransactionTemplate") TransactionTemplate requiresNewTransactionTemplate,
             OutboxAppender outboxAppender,
             LedgerWriter ledgerWriter
     ) {
@@ -62,11 +61,9 @@ public class SettlementEventProcessor {
         this.settlementRepository = settlementRepository;
         this.walletRepository = walletRepository;
         this.eventPublisher = eventPublisher;
+        this.txTemplate = requiresNewTransactionTemplate;
         this.outboxAppender = outboxAppender;
         this.ledgerWriter = ledgerWriter;
-
-        this.txTemplate = new TransactionTemplate(transactionManager);
-        this.txTemplate.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
     }
 
     // ========== 정산 처리 (settlement.process.v1) ==========

@@ -4,8 +4,8 @@ import com.example.onlyone.domain.feed.dto.response.FeedCommentResponseDto;
 import com.example.onlyone.domain.feed.dto.response.FeedOverviewDto;
 import com.example.onlyone.domain.feed.port.FeedStoragePort.FeedDetailItem;
 import com.example.onlyone.domain.feed.repository.FeedRepositoryCustom.FeedIdWithCounts;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Component;
 
@@ -18,12 +18,11 @@ import java.util.stream.Collectors;
 
 @Slf4j
 @Component
-@RequiredArgsConstructor
 public class FeedCacheService {
 
     private final StringRedisTemplate redis;
+    private final boolean enabled;
 
-    // Key prefixes (FeedQueryService에서도 참조)
     static final String PERSONAL_FEED_KEY_PREFIX = "pf:";
     static final String POPULAR_FEED_KEY_PREFIX = "ppf:";
     private static final int MAX_CACHEABLE_PAGE = 5;
@@ -34,9 +33,19 @@ public class FeedCacheService {
     private static final long DETAIL_CACHE_TTL_MS = 30_000;
     private static final int MAX_CACHE_SIZE = 2000;
 
+    public FeedCacheService(StringRedisTemplate redis,
+                            @Value("${app.feed.cache.enabled:false}") boolean enabled) {
+        this.redis = redis;
+        this.enabled = enabled;
+        if (!enabled) {
+            log.info("피드 캐시 비활성화 (app.feed.cache.enabled=false)");
+        }
+    }
+
     // ── Pass1 (Redis) ──
 
     public List<FeedIdWithCounts> getPass1(String key) {
+        if (!enabled) return null;
         try {
             String raw = redis.opsForValue().get(key);
             if (raw == null || raw.isEmpty()) return null;
@@ -56,8 +65,8 @@ public class FeedCacheService {
     }
 
     public void putPass1(String key, List<FeedIdWithCounts> pass1) {
+        if (!enabled || pass1.isEmpty()) return;
         try {
-            if (pass1.isEmpty()) return;
             String value = pass1.stream()
                     .map(r -> r.feedId() + ":" + r.likeCount() + ":" + r.commentCount())
                     .collect(Collectors.joining(","));
@@ -75,14 +84,14 @@ public class FeedCacheService {
     private static final ConcurrentHashMap<String, CachedResult> resultCache = new ConcurrentHashMap<>();
 
     public List<FeedOverviewDto> getResult(String key) {
-        if (key == null) return null;
+        if (!enabled || key == null) return null;
         CachedResult cr = resultCache.get(key);
         if (cr == null || cr.isExpired()) return null;
         return cr.data();
     }
 
     public void putResult(String key, List<FeedOverviewDto> result) {
-        if (key == null) return;
+        if (!enabled || key == null) return;
         evictIfFull(resultCache);
         resultCache.put(key, new CachedResult(result, System.currentTimeMillis() + RESULT_CACHE_TTL_MS));
     }
@@ -99,12 +108,14 @@ public class FeedCacheService {
     private static final ConcurrentHashMap<Long, DetailCacheEntry> detailCache = new ConcurrentHashMap<>();
 
     public DetailCacheEntry getDetail(Long feedId) {
+        if (!enabled) return null;
         DetailCacheEntry entry = detailCache.get(feedId);
         return (entry != null && !entry.isExpired()) ? entry : null;
     }
 
     public void putDetail(Long feedId, FeedDetailItem detail, List<String> imageUrls,
                           List<FeedCommentResponseDto> comments, long repostCount) {
+        if (!enabled) return;
         evictIfFull(detailCache);
         detailCache.put(feedId, new DetailCacheEntry(detail, imageUrls, comments, repostCount,
                 System.currentTimeMillis() + DETAIL_CACHE_TTL_MS));
@@ -113,18 +124,22 @@ public class FeedCacheService {
     // ── Invalidation ──
 
     public void invalidateDetail(Long feedId) {
+        if (!enabled) return;
         detailCache.remove(feedId);
     }
 
     public void invalidatePersonalFeedForUser(Long userId) {
+        if (!enabled) return;
         invalidateListCaches(PERSONAL_FEED_KEY_PREFIX, userId);
     }
 
     public void invalidatePopularFeedForUser(Long userId) {
+        if (!enabled) return;
         invalidateListCaches(POPULAR_FEED_KEY_PREFIX, userId);
     }
 
     public void invalidateAllFeedCachesForUser(Long userId) {
+        if (!enabled) return;
         invalidatePersonalFeedForUser(userId);
         invalidatePopularFeedForUser(userId);
     }
