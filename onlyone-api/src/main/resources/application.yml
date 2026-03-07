@@ -39,6 +39,8 @@ aws:
 Kakao:
   client:
     id: ${KAKAO_CLIENT_ID}
+  redirect:
+    uri: ${KAKAO_REDIRECT_URI}
 
 # --- JWT 인증 토큰 ---
 jwt:
