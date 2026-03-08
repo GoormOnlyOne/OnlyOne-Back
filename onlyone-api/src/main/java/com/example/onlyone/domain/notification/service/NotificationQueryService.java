@@ -7,6 +7,7 @@ import com.example.onlyone.domain.notification.port.NotificationStoragePort;
 import com.example.onlyone.domain.user.service.AuthService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -24,6 +25,8 @@ public class NotificationQueryService {
     private final AuthService authService;
     private final NotificationUnreadCounter unreadCounter;
 
+    @Cacheable(value = "notificationList",
+            key = "T(org.springframework.security.core.context.SecurityContextHolder).context.authentication.principal.userId + '_' + #dto.cursor() + '_' + #dto.size()")
     public NotificationListResponseDto getNotifications(NotificationQueryDto dto) {
         Long userId = authService.getCurrentUserId();
         int size = Math.min(dto.size(), MAX_PAGE_SIZE);
@@ -35,6 +38,8 @@ public class NotificationQueryService {
         return buildPagedResponse(notifications, size);
     }
 
+    @Cacheable(value = "unreadCount",
+            key = "T(org.springframework.security.core.context.SecurityContextHolder).context.authentication.principal.userId")
     public Long getUnreadCount() {
         Long userId = authService.getCurrentUserId();
         return unreadCounter.getCount(userId);
