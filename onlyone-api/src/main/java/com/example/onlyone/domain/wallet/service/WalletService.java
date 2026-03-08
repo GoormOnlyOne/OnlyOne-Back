@@ -43,9 +43,9 @@ public class WalletService {
         Wallet wallet = walletRepository.findByUserWithoutLock(user)
                 .orElseThrow(() -> new CustomException(FinanceErrorCode.WALLET_NOT_FOUND));
         Page<WalletTransaction> transactionPageList = switch (filter) {
-            case ALL -> walletTransactionRepository.findByWalletAndWalletTransactionStatus(wallet, WalletTransactionStatus.COMPLETED, pageable);
-            case CHARGE -> walletTransactionRepository.findByWalletAndTypeAndWalletTransactionStatus(wallet, TransactionType.CHARGE, WalletTransactionStatus.COMPLETED, pageable);
-            case TRANSACTION -> walletTransactionRepository.findByWalletAndTypeNotAndWalletTransactionStatus(wallet, TransactionType.CHARGE, WalletTransactionStatus.COMPLETED, pageable);
+            case ALL -> walletTransactionRepository.findByWalletAndStatusFetch(wallet, WalletTransactionStatus.COMPLETED, pageable);
+            case CHARGE -> walletTransactionRepository.findByWalletAndTypeAndStatusFetch(wallet, TransactionType.CHARGE, WalletTransactionStatus.COMPLETED, pageable);
+            case TRANSACTION -> walletTransactionRepository.findByWalletAndTypeNotAndStatusFetch(wallet, TransactionType.CHARGE, WalletTransactionStatus.COMPLETED, pageable);
             default -> throw new CustomException(FinanceErrorCode.INVALID_FILTER);
         };
         List<UserWalletTransactionDto> dtoList = transactionPageList.getContent().stream()

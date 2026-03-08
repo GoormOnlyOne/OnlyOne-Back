@@ -10,7 +10,10 @@ import lombok.*;
 import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "wallet_transaction")
+@Table(name = "wallet_transaction", indexes = {
+        @Index(name = "idx_wallet_tx_wallet_status_created", columnList = "wallet_id, status, created_at DESC"),
+        @Index(name = "idx_wallet_tx_wallet_type_status", columnList = "wallet_id, type, status")
+})
 @Getter
 @Builder
 @NoArgsConstructor(access = AccessLevel.PROTECTED)

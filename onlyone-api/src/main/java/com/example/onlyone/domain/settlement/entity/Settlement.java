@@ -11,7 +11,9 @@ import java.util.ArrayList;
 import java.util.List;
 
 @Entity
-@Table(name = "settlement")
+@Table(name = "settlement", indexes = {
+        @Index(name = "idx_settlement_schedule_id", columnList = "schedule_id")
+})
 @Getter
 @Builder
 @NoArgsConstructor(access = AccessLevel.PROTECTED)

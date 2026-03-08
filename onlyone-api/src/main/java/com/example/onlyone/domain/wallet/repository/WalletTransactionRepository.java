@@ -16,21 +16,38 @@ import java.util.Set;
 
 public interface WalletTransactionRepository extends JpaRepository<WalletTransaction, Long> {
 
-    Page<WalletTransaction> findByWalletAndTypeAndWalletTransactionStatus(
-            Wallet wallet,
-            TransactionType type,
-            WalletTransactionStatus walletTransactionStatus,
+    /** 전체 거래: Payment LEFT JOIN FETCH로 N+1 제거 */
+    @Query(value = "SELECT wt FROM WalletTransaction wt LEFT JOIN FETCH wt.payment " +
+           "WHERE wt.wallet = :wallet AND wt.walletTransactionStatus = :status",
+           countQuery = "SELECT COUNT(wt) FROM WalletTransaction wt " +
+           "WHERE wt.wallet = :wallet AND wt.walletTransactionStatus = :status")
+    Page<WalletTransaction> findByWalletAndStatusFetch(
+            @Param("wallet") Wallet wallet,
+            @Param("status") WalletTransactionStatus status,
             Pageable pageable
     );
-    Page<WalletTransaction> findByWalletAndTypeNotAndWalletTransactionStatus(
-            Wallet wallet,
-            TransactionType type,
-            WalletTransactionStatus walletTransactionStatus,
+
+    /** 타입 필터 거래: Payment LEFT JOIN FETCH로 N+1 제거 */
+    @Query(value = "SELECT wt FROM WalletTransaction wt LEFT JOIN FETCH wt.payment " +
+           "WHERE wt.wallet = :wallet AND wt.type = :type AND wt.walletTransactionStatus = :status",
+           countQuery = "SELECT COUNT(wt) FROM WalletTransaction wt " +
+           "WHERE wt.wallet = :wallet AND wt.type = :type AND wt.walletTransactionStatus = :status")
+    Page<WalletTransaction> findByWalletAndTypeAndStatusFetch(
+            @Param("wallet") Wallet wallet,
+            @Param("type") TransactionType type,
+            @Param("status") WalletTransactionStatus status,
             Pageable pageable
     );
-    Page<WalletTransaction> findByWalletAndWalletTransactionStatus(
-            Wallet wallet,
-            WalletTransactionStatus walletTransactionStatus,
+
+    /** 타입 제외 거래: Payment LEFT JOIN FETCH로 N+1 제거 */
+    @Query(value = "SELECT wt FROM WalletTransaction wt LEFT JOIN FETCH wt.payment " +
+           "WHERE wt.wallet = :wallet AND wt.type <> :type AND wt.walletTransactionStatus = :status",
+           countQuery = "SELECT COUNT(wt) FROM WalletTransaction wt " +
+           "WHERE wt.wallet = :wallet AND wt.type <> :type AND wt.walletTransactionStatus = :status")
+    Page<WalletTransaction> findByWalletAndTypeNotAndStatusFetch(
+            @Param("wallet") Wallet wallet,
+            @Param("type") TransactionType type,
+            @Param("status") WalletTransactionStatus status,
             Pageable pageable
     );
 
