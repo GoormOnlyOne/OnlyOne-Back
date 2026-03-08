@@ -156,10 +156,33 @@ public class RedisConfig {
                 .serializeValuesWith(RedisSerializationContext.SerializationPair.fromSerializer(serializer));
 
         var cacheConfigurations = new HashMap<String, RedisCacheConfiguration>();
+        // 알림
         cacheConfigurations.put("notificationList", defaultConfig.entryTtl(Duration.ofSeconds(30)));
         cacheConfigurations.put("unreadCount", defaultConfig.entryTtl(Duration.ofSeconds(60)));
+        // 검색 — 클럽 데이터는 변경 빈도 낮음
         cacheConfigurations.put("teammatesClubs", defaultConfig.entryTtl(Duration.ofSeconds(120)));
         cacheConfigurations.put("recommendations", defaultConfig.entryTtl(Duration.ofSeconds(120)));
+        cacheConfigurations.put("searchInterest", defaultConfig.entryTtl(Duration.ofMinutes(5)));
+        cacheConfigurations.put("searchLocation", defaultConfig.entryTtl(Duration.ofMinutes(5)));
+        cacheConfigurations.put("myClubs", defaultConfig.entryTtl(Duration.ofSeconds(60)));
+        // 클럽 — 거의 안 변함
+        cacheConfigurations.put("clubDetail", defaultConfig.entryTtl(Duration.ofMinutes(5)));
+        // 일정
+        cacheConfigurations.put("scheduleList", defaultConfig.entryTtl(Duration.ofMinutes(2)));
+        cacheConfigurations.put("scheduleDetail", defaultConfig.entryTtl(Duration.ofMinutes(5)));
+        cacheConfigurations.put("scheduleUsers", defaultConfig.entryTtl(Duration.ofSeconds(60)));
+        // 정산
+        cacheConfigurations.put("settlementList", defaultConfig.entryTtl(Duration.ofSeconds(60)));
+        // 지갑
+        cacheConfigurations.put("walletTxList", defaultConfig.entryTtl(Duration.ofSeconds(30)));
+        // 피드
+        cacheConfigurations.put("feedList", defaultConfig.entryTtl(Duration.ofSeconds(30)));
+        cacheConfigurations.put("feedComments", defaultConfig.entryTtl(Duration.ofSeconds(60)));
+        // 사용자 — CacheEvict 있어서 TTL은 백업용
+        cacheConfigurations.put("userMyPage", defaultConfig.entryTtl(Duration.ofMinutes(2)));
+        cacheConfigurations.put("userProfile", defaultConfig.entryTtl(Duration.ofMinutes(2)));
+        // 채팅
+        cacheConfigurations.put("chatRooms", defaultConfig.entryTtl(Duration.ofSeconds(60)));
 
         return RedisCacheManager.builder(connectionFactory)
                 .cacheDefaults(defaultConfig)

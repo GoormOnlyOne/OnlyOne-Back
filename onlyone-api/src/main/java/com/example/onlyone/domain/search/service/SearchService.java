@@ -97,6 +97,7 @@ public class SearchService {
 
     // 모임 검색 (관심사)
     @Transactional(readOnly = true)
+    @Cacheable(value = "searchInterest", key = "#interestId + '_' + #page")
     public List<ClubResponseDto> searchClubByInterest(Long interestId, int page) {
         if (interestId == null) {
             throw new CustomException(SearchErrorCode.INVALID_INTEREST_ID);
@@ -111,6 +112,7 @@ public class SearchService {
 
     // 모임 검색 (지역)
     @Transactional(readOnly = true)
+    @Cacheable(value = "searchLocation", key = "#city + '_' + #district + '_' + #page")
     public List<ClubResponseDto> searchClubByLocation(String city, String district, int page) {
         if (city == null || district == null || city.trim().isEmpty() || district.trim().isEmpty()) {
             throw new CustomException(SearchErrorCode.INVALID_LOCATION);
@@ -183,6 +185,8 @@ public class SearchService {
 
     // 내 모임 목록 조회
     @Transactional(readOnly = true)
+    @Cacheable(value = "myClubs",
+            key = "T(org.springframework.security.core.context.SecurityContextHolder).context.authentication.principal.userId")
     public MyMeetingListResponseDto getMyClubs() {
         User user = userService.getCurrentUser();
         List<ClubResponseDto> clubResponseDtoList = userClubRepository.findMyClubsWithInterest(user.getUserId())

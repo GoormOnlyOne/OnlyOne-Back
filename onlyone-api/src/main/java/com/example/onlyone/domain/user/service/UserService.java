@@ -18,6 +18,9 @@ import com.example.onlyone.domain.user.exception.UserErrorCode;
 import com.example.onlyone.global.exception.CustomException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Cacheable;
+import org.springframework.cache.annotation.Caching;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -106,6 +109,8 @@ public class UserService {
      * 마이페이지 정보 조회
      */
     @Transactional(readOnly = true)
+    @Cacheable(value = "userMyPage",
+            key = "T(org.springframework.security.core.context.SecurityContextHolder).context.authentication.principal.userId")
     public MyPageResponse getMyPage() {
         User user = authService.getCurrentUser();
         List<String> interestsList = resolveUserInterestNames(user.getUserId());
@@ -128,6 +133,8 @@ public class UserService {
      * 사용자 프로필 정보 조회
      */
     @Transactional(readOnly = true)
+    @Cacheable(value = "userProfile",
+            key = "T(org.springframework.security.core.context.SecurityContextHolder).context.authentication.principal.userId")
     public ProfileResponseDto getUserProfile() {
         User user = authService.getCurrentUser();
         List<String> interestsList = resolveUserInterestNames(user.getUserId());
@@ -148,6 +155,10 @@ public class UserService {
      * 사용자 프로필 정보 업데이트
      */
     @Transactional
+    @Caching(evict = {
+            @CacheEvict(value = "userMyPage", allEntries = true),
+            @CacheEvict(value = "userProfile", allEntries = true)
+    })
     public void updateUserProfile(ProfileUpdateRequestDto request) {
         User user = authService.getCurrentUser();
 

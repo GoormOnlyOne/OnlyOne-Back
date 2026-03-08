@@ -16,6 +16,7 @@ import com.example.onlyone.domain.schedule.exception.ScheduleErrorCode;
 import com.example.onlyone.global.exception.CustomException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -36,6 +37,8 @@ public class ScheduleQueryService {
     private final UserService userService;
 
     /** 모임 스케줄 목록 조회 */
+    @Cacheable(value = "scheduleList",
+            key = "T(org.springframework.security.core.context.SecurityContextHolder).context.authentication.principal.userId + '_' + #clubId")
     public List<ScheduleResponseDto> getScheduleList(Long clubId) {
         Club club = findClubOrThrow(clubId);
         User currentUser = userService.getCurrentUser();
@@ -47,6 +50,7 @@ public class ScheduleQueryService {
     }
 
     /** 모임 스케줄 참여자 목록 조회 */
+    @Cacheable(value = "scheduleUsers", key = "#clubId + '_' + #scheduleId")
     public List<ScheduleUserResponseDto> getScheduleUserList(Long clubId, Long scheduleId) {
         List<User> users = userScheduleRepository.findUsersByScheduleIdAndClubId(scheduleId, clubId);
         return users.stream()
@@ -55,6 +59,7 @@ public class ScheduleQueryService {
     }
 
     /** 스케줄 정보 상세 조회 */
+    @Cacheable(value = "scheduleDetail", key = "#clubId + '_' + #scheduleId")
     public ScheduleDetailResponseDto getScheduleDetails(Long clubId, Long scheduleId) {
         Schedule schedule = scheduleRepository.findByIdAndClubId(scheduleId, clubId)
                 .orElseThrow(() -> new CustomException(ScheduleErrorCode.SCHEDULE_NOT_FOUND));

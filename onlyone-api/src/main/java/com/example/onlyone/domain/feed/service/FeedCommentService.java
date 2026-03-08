@@ -15,6 +15,8 @@ import com.example.onlyone.domain.user.service.UserService;
 import com.example.onlyone.global.exception.CustomException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -36,6 +38,7 @@ public class FeedCommentService {
     private final ApplicationEventPublisher eventPublisher;
 
     @Transactional
+    @CacheEvict(value = "feedComments", allEntries = true)
     public void createComment(Long clubId, Long feedId, FeedCommentRequestDto requestDto) {
         Feed feed = findFeedInClub(feedId, clubId);
         User currentUser = userService.getCurrentUser();
@@ -50,6 +53,7 @@ public class FeedCommentService {
     }
 
     @Transactional
+    @CacheEvict(value = "feedComments", allEntries = true)
     public void deleteComment(Long clubId, Long feedId, Long commentId) {
         Feed feed = findFeedInClub(feedId, clubId);
         FeedComment feedComment = feedCommentRepository.findById(commentId)
@@ -70,6 +74,7 @@ public class FeedCommentService {
     }
 
     @Transactional(readOnly = true)
+    @Cacheable(value = "feedComments", key = "#feedId + '_' + #pageable.pageNumber")
     public List<FeedCommentResponseDto> getCommentList(Long feedId, Pageable pageable) {
         Long userId = userService.getCurrentUserId();
         return feedStoragePort.findCommentsByFeedId(feedId, pageable).stream()

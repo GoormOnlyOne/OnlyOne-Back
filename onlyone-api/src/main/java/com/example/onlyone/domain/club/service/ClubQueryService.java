@@ -10,6 +10,7 @@ import com.example.onlyone.domain.user.entity.User;
 import com.example.onlyone.domain.user.service.UserService;
 import com.example.onlyone.domain.club.exception.ClubErrorCode;
 import com.example.onlyone.global.exception.CustomException;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.transaction.annotation.Transactional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -26,6 +27,8 @@ public class ClubQueryService {
     private final UserClubRepository userClubRepository;
     private final UserService userService;
 
+    @Cacheable(value = "clubDetail",
+            key = "T(org.springframework.security.core.context.SecurityContextHolder).context.authentication.principal.userId + '_' + #clubId")
     public ClubDetailResponseDto getClubDetail(Long clubId) {
         Club club = clubRepository.findById(clubId)
                 .orElseThrow(() -> new CustomException(ClubErrorCode.CLUB_NOT_FOUND));
