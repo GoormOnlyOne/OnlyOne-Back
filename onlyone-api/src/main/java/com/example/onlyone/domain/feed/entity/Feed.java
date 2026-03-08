@@ -22,7 +22,9 @@ import java.util.List;
                 @Index(name = "idx_feed_club_deleted_created", columnList = "club_id, deleted, created_at"),
                 @Index(name = "idx_feed_parent_deleted", columnList = "parent_feed_id, deleted"),
                 @Index(name = "idx_feed_club_feedid", columnList = "club_id, feed_id"),
-                @Index(name = "idx_feed_club_popularity", columnList = "club_id, popularity_score")
+                @Index(name = "idx_feed_club_popularity", columnList = "club_id, popularity_score"),
+                @Index(name = "idx_feed_club_del_popularity", columnList = "club_id, deleted, popularity_score"),
+                @Index(name = "idx_feed_club_del_feedid_covering", columnList = "club_id, deleted, feed_id DESC, like_count, comment_count")
         }
 )
 @Getter

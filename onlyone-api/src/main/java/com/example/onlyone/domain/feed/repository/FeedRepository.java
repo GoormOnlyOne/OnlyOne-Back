@@ -26,11 +26,10 @@ public interface FeedRepository extends JpaRepository<Feed, Long>, FeedRepositor
            "WHERE f.feedId = :feedId AND f.club.clubId = :clubId")
     Optional<Feed> findByIdAndClubIdWithRelations(@Param("feedId") Long feedId, @Param("clubId") Long clubId);
 
-    /** Pass 2: ID 목록으로 Feed + User + Club + FeedImages 한번에 로딩 (N+1 제거) */
-    @Query("SELECT DISTINCT f FROM Feed f " +
+    /** Pass 2: ID 목록으로 Feed + User + Club 한번에 로딩 (feedImages는 @BatchSize(100)으로 별도 로딩) */
+    @Query("SELECT f FROM Feed f " +
            "LEFT JOIN FETCH f.user " +
            "LEFT JOIN FETCH f.club " +
-           "LEFT JOIN FETCH f.feedImages " +
            "WHERE f.feedId IN :ids")
     List<Feed> findByIdsWithRelations(@Param("ids") List<Long> ids);
 

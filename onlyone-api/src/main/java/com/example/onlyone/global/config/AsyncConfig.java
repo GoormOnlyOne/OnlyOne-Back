@@ -74,6 +74,24 @@ public class AsyncConfig implements AsyncConfigurer {
     }
 
     /**
+     * 댓글 카운트 비동기 갱신 전용 — 소규모 풀로 커넥션 소비 제한
+     * CallerRunsPolicy: 큐 포화 시 호출 스레드가 실행 → 자연 백프레셔
+     */
+    @Bean(name = "commentCountExecutor")
+    public Executor commentCountExecutor() {
+        ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
+        executor.setCorePoolSize(5);
+        executor.setMaxPoolSize(10);
+        executor.setQueueCapacity(2000);
+        executor.setThreadNamePrefix("comment-cnt-");
+        executor.setRejectedExecutionHandler(new ThreadPoolExecutor.CallerRunsPolicy());
+        executor.setWaitForTasksToCompleteOnShutdown(true);
+        executor.setAwaitTerminationSeconds(10);
+        executor.initialize();
+        return executor;
+    }
+
+    /**
      * SSE 이벤트 전송용 Virtual Thread Executor
      * JDBC 호출 없이 응답 스트림에 쓰기만 하므로 pinning 문제 없음.
      * 동시 전송 수는 실제 SSE 연결 수로 자연 제한됨.

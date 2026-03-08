@@ -15,10 +15,10 @@ import com.example.onlyone.domain.user.service.UserService;
 import com.example.onlyone.global.exception.CustomException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.transaction.support.TransactionTemplate;
 
 import java.util.List;
 
@@ -32,22 +32,24 @@ public class FeedCommentService {
     private final FeedStoragePort feedStoragePort;
     private final UserClubRepository userClubRepository;
     private final UserService userService;
-    private final TransactionTemplate transactionTemplate;
     private final FeedCacheService cache;
+    private final ApplicationEventPublisher eventPublisher;
 
+    @Transactional
     public void createComment(Long clubId, Long feedId, FeedCommentRequestDto requestDto) {
         Feed feed = findFeedInClub(feedId, clubId);
         User currentUser = userService.getCurrentUser();
         validateMembership(currentUser.getUserId(), clubId);
 
         FeedComment feedComment = requestDto.toEntity(feed, currentUser);
-        runInTx(() -> feedCommentRepository.save(feedComment));
-        updateCountSafely(() -> feedRepository.incrementCommentCount(feedId),
-                "댓글 카운트 증가 실패 (댓글은 정상 저장됨)", feedId);
+        feedCommentRepository.save(feedComment);
+        // comment_count 갱신을 TX 커밋 후 비동기로 처리 (feed row X-lock 제거)
+        eventPublisher.publishEvent(new CommentCountEvent(feedId, 1));
         cache.invalidateDetail(feedId);
         log.info("댓글 생성: feedId={}, userId={}", feedId, currentUser.getUserId());
     }
 
+    @Transactional
     public void deleteComment(Long clubId, Long feedId, Long commentId) {
         Feed feed = findFeedInClub(feedId, clubId);
         FeedComment feedComment = feedCommentRepository.findById(commentId)
@@ -61,9 +63,8 @@ public class FeedCommentService {
             throw new CustomException(FeedErrorCode.UNAUTHORIZED_COMMENT_ACCESS);
         }
 
-        runInTx(() -> feedCommentRepository.delete(feedComment));
-        updateCountSafely(() -> feedRepository.decrementCommentCount(feedId),
-                "댓글 카운트 감소 실패 (댓글은 정상 삭제됨)", feedId);
+        feedCommentRepository.delete(feedComment);
+        eventPublisher.publishEvent(new CommentCountEvent(feedId, -1));
         cache.invalidateDetail(feedId);
         log.info("댓글 삭제: commentId={}, feedId={}, userId={}", commentId, feedId, userId);
     }
@@ -75,6 +76,10 @@ public class FeedCommentService {
                 .map(c -> c.toDto(userId))
                 .toList();
     }
+
+    // ── event record ──
+
+    public record CommentCountEvent(Long feedId, int delta) {}
 
     // ── private helpers ──
 
@@ -90,15 +95,4 @@ public class FeedCommentService {
         }
     }
 
-    private void runInTx(Runnable action) {
-        transactionTemplate.executeWithoutResult(status -> action.run());
-    }
-
-    private void updateCountSafely(Runnable action, String failMsg, Long feedId) {
-        try {
-            runInTx(action);
-        } catch (Exception e) {
-            log.warn("{}: feedId={}", failMsg, feedId, e);
-        }
-    }
 }

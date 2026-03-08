@@ -81,7 +81,7 @@ public class FeedRepositoryCustomImpl implements FeedRepositoryCustom {
                         feed.commentCount))
                 .from(feed)
                 .where(feed.club.clubId.in(clubIds))
-                .orderBy(feed.createdAt.desc())
+                .orderBy(feed.feedId.desc())
                 .offset(pageable.getOffset())
                 .limit(pageable.getPageSize())
                 .fetch();
@@ -105,7 +105,7 @@ public class FeedRepositoryCustomImpl implements FeedRepositoryCustom {
                             feed.commentCount))
                     .from(feed)
                     .where(feed.club.clubId.in(chunk))
-                    .orderBy(feed.createdAt.desc())
+                    .orderBy(feed.feedId.desc())
                     .limit(limit)
                     .fetch();
 
@@ -196,8 +196,6 @@ public class FeedRepositoryCustomImpl implements FeedRepositoryCustom {
     @Override
     public List<FeedIdWithCounts> findPopularFeedIdsByScore(
             List<Long> clubIds, Pageable pageable) {
-        LocalDateTime sevenDaysAgo = LocalDateTime.now().minusDays(7);
-
         return queryFactory
                 .select(Projections.constructor(FeedIdWithCounts.class,
                         feed.feedId,
@@ -206,7 +204,7 @@ public class FeedRepositoryCustomImpl implements FeedRepositoryCustom {
                 .from(feed)
                 .where(
                         feed.club.clubId.in(clubIds),
-                        feed.createdAt.goe(sevenDaysAgo))
+                        feed.popularityScore.gt(0.0))
                 .orderBy(feed.popularityScore.desc(), feed.feedId.desc())
                 .offset(pageable.getOffset())
                 .limit(pageable.getPageSize())
@@ -271,7 +269,7 @@ public class FeedRepositoryCustomImpl implements FeedRepositoryCustom {
             if (i > 0) sql.append(" UNION ALL\n");
             sql.append("(SELECT feed_id, like_count, comment_count FROM feed WHERE club_id = :club")
                .append(i)
-               .append(" AND deleted = false AND created_at >= NOW() - INTERVAL 7 DAY")
+               .append(" AND deleted = false AND popularity_score > 0")
                .append(" ORDER BY popularity_score DESC LIMIT :lim)");
         }
         sql.append("\n) t ORDER BY feed_id DESC LIMIT :lim");

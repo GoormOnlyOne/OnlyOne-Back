@@ -633,7 +633,8 @@ export function writeMix(data) {
             { headers: hdrs, tags: { name: 'wm_refeed' } }
         );
         dur = res.timings.duration;
-        ok = res.status === 201;
+        // 409 = 이미 리피드됨 (unique 제약) → 정상 동작으로 간주
+        ok = res.status === 201 || res.status === 409;
         feedRefeedDur.add(dur);
     }
 
@@ -720,7 +721,7 @@ export function extremeMix(data) {
             { headers: hdrs, tags: { name: 'ex_write_comment' } }
         );
         dur = res.timings.duration;
-        ok = res.status === 201;
+        ok = res.status === 201 || res.status === 409;
         feedCommentCreateDur.add(dur);
     } else {
         // 8%: 피드 생성 — 유저가 속한 클럽에 작성
@@ -733,7 +734,7 @@ export function extremeMix(data) {
             { headers: hdrs, tags: { name: 'ex_write_feed' } }
         );
         dur = res.timings.duration;
-        ok = res.status === 201;
+        ok = res.status === 201 || res.status === 409;
         feedCreateDur.add(dur);
     }
 
@@ -820,7 +821,7 @@ export function soakTest(data) {
             { headers: hdrs, tags: { name: 'soak_write_comment' } }
         );
         dur = res.timings.duration;
-        ok = res.status === 201;
+        ok = res.status === 201 || res.status === 409;
         feedCommentCreateDur.add(dur);
     }
 
