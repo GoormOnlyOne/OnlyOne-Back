@@ -87,22 +87,25 @@ public class PaymentTransactionService {
         Payment payment = paymentRepository.findByTossOrderIdWithoutLock(orderId)
                 .orElseThrow(() -> new CustomException(GlobalErrorCode.INTERNAL_SERVER_ERROR));
 
-        Wallet wallet = walletRepository.findByUserWithoutLock(user)
-                .orElseThrow(() -> new CustomException(FinanceErrorCode.WALLET_NOT_FOUND));
+        // wallet 엔티티 전체 로딩 대신 walletId + balance만 프로젝션으로 조회 (SELECT 1건 절약)
+        WalletRepository.WalletIdAndBalance walletProj = walletRepository.findWalletIdAndBalanceByUserId(user.getUserId());
+        if (walletProj == null) throw new CustomException(FinanceErrorCode.WALLET_NOT_FOUND);
+        Long postedBalance = walletProj.getPostedBalance();
+        Wallet walletRef = walletRepository.getReferenceById(walletProj.getWalletId());
 
         WalletTransaction walletTransaction = payment.getWalletTransaction();
 
         if (walletTransaction != null) {
-            walletTransaction.update(TransactionType.CHARGE, amount, wallet.getPostedBalance(), WalletTransactionStatus.COMPLETED, wallet, wallet);
+            walletTransaction.update(TransactionType.CHARGE, amount, postedBalance, WalletTransactionStatus.COMPLETED, walletRef, walletRef);
         } else {
             walletTransaction = WalletTransaction.builder()
                     .operationId("payment-" + orderId)
                     .type(TransactionType.CHARGE)
                     .amount(amount)
-                    .balance(wallet.getPostedBalance())
+                    .balance(postedBalance)
                     .walletTransactionStatus(WalletTransactionStatus.COMPLETED)
-                    .wallet(wallet)
-                    .targetWallet(wallet)
+                    .wallet(walletRef)
+                    .targetWallet(walletRef)
                     .build();
         }
         walletTransactionRepository.save(walletTransaction);

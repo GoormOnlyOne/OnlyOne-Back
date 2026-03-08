@@ -52,6 +52,15 @@ public interface WalletRepository extends JpaRepository<Wallet, Long> {
     """, nativeQuery = true)
     int creditByUserId(@Param("userId") Long userId, @Param("amount") long amount);
 
+    /** credit 후 갱신된 잔액 + walletId를 한 번에 조회 (엔티티 로딩 없이) */
+    interface WalletIdAndBalance {
+        Long getWalletId();
+        Long getPostedBalance();
+    }
+
+    @Query(value = "SELECT wallet_id AS walletId, posted_balance AS postedBalance FROM wallet WHERE user_id = :userId", nativeQuery = true)
+    WalletIdAndBalance findWalletIdAndBalanceByUserId(@Param("userId") Long userId);
+
     @Query(value = "SELECT pending_out FROM wallet WHERE user_id = :userId", nativeQuery = true)
     long getPendingOutByUserId(@Param("userId") Long userId);
 
