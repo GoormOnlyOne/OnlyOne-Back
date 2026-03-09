@@ -265,7 +265,7 @@ function randomScheduleId() {
 }
 
 function clubForSchedule(scheduleId) {
-    return MIN_CLUB + (scheduleId - SCHEDULE_ID_BASE);
+    return MIN_CLUB + ((scheduleId - SCHEDULE_ID_BASE) % parseInt(__ENV.TOTAL_CLUBS || '5000'));
 }
 
 // ── Setup: 멱등성 테스트용 사전 save+verify ──
