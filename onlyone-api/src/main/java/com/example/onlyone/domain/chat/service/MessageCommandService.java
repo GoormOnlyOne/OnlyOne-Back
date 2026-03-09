@@ -19,7 +19,6 @@ import java.time.LocalDateTime;
 @Slf4j
 @Service
 @RequiredArgsConstructor
-@Transactional(readOnly = true)
 public class MessageCommandService {
 
     private final ChatMessageStoragePort chatMessageStoragePort;
@@ -31,8 +30,8 @@ public class MessageCommandService {
 
     /**
      * REST 경로: 메시지 저장 + Redis Pub/Sub 발행
+     * Redis publish는 TX 밖에서 수행 — DB 커넥션 장기 점유 방지
      */
-    @Transactional
     public ChatMessageResponse sendAndPublish(Long chatRoomId, Long userId, String text) {
         ChatMessageResponse response = saveMessage(chatRoomId, userId, text);
         publish(chatRoomId, response);

@@ -41,20 +41,21 @@
 import http from 'k6/http';
 import { check, sleep } from 'k6';
 import { Counter, Rate, Trend } from 'k6/metrics';
-import { generateJWT, headers, BASE_URL, makeUser, getUserClubs, getRandomUserClub, MIN_CLUB } from '../lib/common.js';
+import { generateJWT, headers, BASE_URL, makeUser, getUserClubs, getRandomUserClub, MIN_CLUB, vu, dur, startAfter, TOTAL_USERS } from '../lib/common.js';
 import { THRESHOLDS } from '../lib/bottleneck.js';
 
 // ============================================
 // 테스트 데이터
 // ============================================
-const VALID_USER_COUNT = parseInt(__ENV.USER_COUNT || '100000');
+const VALID_USER_COUNT = parseInt(__ENV.USER_COUNT || '') || TOTAL_USERS;
 
 // 클럽 ID는 환경변수 또는 common.js의 MIN_CLUB 기반으로 동적 생성
-// MAIN_CLUB_IDS: 환경변수로 오버라이드 가능 (콤마 구분)
+// MAIN_CLUB_IDS: 핫스팟 클럽 (좋아요/댓글 경합 집중)
+// ALL_CLUB_IDS: setup()에서 feedId를 수집할 클럽 범위 (50개 — 넓은 커버리지)
 const MAIN_CLUB_IDS = __ENV.MAIN_CLUB_IDS
     ? __ENV.MAIN_CLUB_IDS.split(',').map(Number)
     : [MIN_CLUB, MIN_CLUB + 1, MIN_CLUB + 2, MIN_CLUB + 3, MIN_CLUB + 4];
-const SUB_CLUB_IDS = Array.from({ length: 10 }, (_, i) => MIN_CLUB + 5 + i);
+const SUB_CLUB_IDS = Array.from({ length: 45 }, (_, i) => MIN_CLUB + 5 + i * 1111);
 const ALL_CLUB_IDS = [...MAIN_CLUB_IDS, ...SUB_CLUB_IDS];
 
 // ── 피드 ID는 setup()에서 API로 실제 ID를 수집 (아래 참조) ──
@@ -116,6 +117,12 @@ const phase10Success = new Rate('feed_phase10_success');
 const totalErrors = new Counter('feed_total_errors');
 
 // ============================================
+// Phase 타이밍 (초 단위, dur()/startAfter()로 스케일링)
+// ============================================
+const P1 = 30, P2 = 120, P3 = 120, P4 = 120, P5 = 120, P6 = 90;
+const P7 = 90, P8 = 120, P9 = 120, P10 = 180, P11 = 30;
+
+// ============================================
 // 시나리오 설정
 // ============================================
 export const options = {
@@ -123,8 +130,8 @@ export const options = {
         // Phase 1: Warmup
         warmup: {
             executor: 'constant-vus',
-            vus: 50,
-            duration: '30s',
+            vus: vu(50),
+            duration: dur(P1),
             exec: 'warmup',
             tags: { phase: '1_warmup' },
         },
@@ -132,9 +139,9 @@ export const options = {
         // Phase 2: Baseline — 전 API 혼합 (bottleneck 임계값 포함)
         baseline: {
             executor: 'constant-vus',
-            vus: 300,
-            duration: '120s',
-            startTime: '35s',
+            vus: vu(300),
+            duration: dur(P2),
+            startTime: startAfter([P1]),
             exec: 'baseline',
             tags: { phase: '2_baseline' },
         },
@@ -142,13 +149,13 @@ export const options = {
         // Phase 3: 클럽 피드 목록 조회 — 350 VUs
         club_list: {
             executor: 'ramping-vus',
-            startVUs: 10,
+            startVUs: vu(10),
             stages: [
-                { duration: '20s', target: 350 },
-                { duration: '80s', target: 350 },
-                { duration: '20s', target: 0 },
+                { duration: dur(20), target: vu(350) },
+                { duration: dur(80), target: vu(350) },
+                { duration: dur(20), target: 0 },
             ],
-            startTime: '160s',
+            startTime: startAfter([P1, P2]),
             exec: 'clubFeedList',
             tags: { phase: '3_club_list' },
         },
@@ -156,13 +163,13 @@ export const options = {
         // Phase 4: 피드 상세 조회 — 고댓글 피드 집중 500 VUs
         feed_detail: {
             executor: 'ramping-vus',
-            startVUs: 10,
+            startVUs: vu(10),
             stages: [
-                { duration: '20s', target: 500 },
-                { duration: '80s', target: 500 },
-                { duration: '20s', target: 0 },
+                { duration: dur(20), target: vu(500) },
+                { duration: dur(80), target: vu(500) },
+                { duration: dur(20), target: 0 },
             ],
-            startTime: '285s',
+            startTime: startAfter([P1, P2, P3]),
             exec: 'feedDetail',
             tags: { phase: '4_feed_detail' },
         },
@@ -170,13 +177,13 @@ export const options = {
         // Phase 5: 개인 피드 IN절 병목 — 500 VUs
         personal_feed: {
             executor: 'ramping-vus',
-            startVUs: 10,
+            startVUs: vu(10),
             stages: [
-                { duration: '20s', target: 500 },
-                { duration: '80s', target: 500 },
-                { duration: '20s', target: 0 },
+                { duration: dur(20), target: vu(500) },
+                { duration: dur(80), target: vu(500) },
+                { duration: dur(20), target: 0 },
             ],
-            startTime: '410s',
+            startTime: startAfter([P1, P2, P3, P4]),
             exec: 'personalFeed',
             tags: { phase: '5_personal_feed' },
         },
@@ -184,13 +191,13 @@ export const options = {
         // Phase 6: 댓글 목록 조회 — 350 VUs
         comment_list: {
             executor: 'ramping-vus',
-            startVUs: 10,
+            startVUs: vu(10),
             stages: [
-                { duration: '15s', target: 350 },
-                { duration: '60s', target: 350 },
-                { duration: '15s', target: 0 },
+                { duration: dur(15), target: vu(350) },
+                { duration: dur(60), target: vu(350) },
+                { duration: dur(15), target: 0 },
             ],
-            startTime: '535s',
+            startTime: startAfter([P1, P2, P3, P4, P5]),
             exec: 'commentList',
             tags: { phase: '6_comment_list' },
         },
@@ -198,13 +205,13 @@ export const options = {
         // Phase 7: 좋아요 토글 경합 집중 — 700 VUs
         like_toggle: {
             executor: 'ramping-vus',
-            startVUs: 10,
+            startVUs: vu(10),
             stages: [
-                { duration: '15s', target: 700 },
-                { duration: '60s', target: 700 },
-                { duration: '15s', target: 0 },
+                { duration: dur(15), target: vu(700) },
+                { duration: dur(60), target: vu(700) },
+                { duration: dur(15), target: 0 },
             ],
-            startTime: '630s',
+            startTime: startAfter([P1, P2, P3, P4, P5, P6]),
             exec: 'likeToggle',
             tags: { phase: '7_like_toggle' },
         },
@@ -212,13 +219,13 @@ export const options = {
         // Phase 8: 쓰기 혼합 — 피드생성+댓글생성+리피드 350 VUs
         write_mix: {
             executor: 'ramping-vus',
-            startVUs: 10,
+            startVUs: vu(10),
             stages: [
-                { duration: '20s', target: 350 },
-                { duration: '80s', target: 350 },
-                { duration: '20s', target: 0 },
+                { duration: dur(20), target: vu(350) },
+                { duration: dur(80), target: vu(350) },
+                { duration: dur(20), target: 0 },
             ],
-            startTime: '725s',
+            startTime: startAfter([P1, P2, P3, P4, P5, P6, P7]),
             exec: 'writeMix',
             tags: { phase: '8_write_mix' },
         },
@@ -226,13 +233,13 @@ export const options = {
         // Phase 9: 극한 혼합 — 읽기70%+쓰기30% 1000 VUs
         extreme_mix: {
             executor: 'ramping-vus',
-            startVUs: 20,
+            startVUs: vu(20),
             stages: [
-                { duration: '20s', target: 1000 },
-                { duration: '80s', target: 1000 },
-                { duration: '20s', target: 0 },
+                { duration: dur(20), target: vu(1000) },
+                { duration: dur(80), target: vu(1000) },
+                { duration: dur(20), target: 0 },
             ],
-            startTime: '850s',
+            startTime: startAfter([P1, P2, P3, P4, P5, P6, P7, P8]),
             exec: 'extremeMix',
             tags: { phase: '9_extreme' },
         },
@@ -240,9 +247,9 @@ export const options = {
         // Phase 10: Soak — 중간 부하 장시간
         soak: {
             executor: 'constant-vus',
-            vus: 300,
-            duration: '180s',
-            startTime: '975s',
+            vus: vu(300),
+            duration: dur(P10),
+            startTime: startAfter([P1, P2, P3, P4, P5, P6, P7, P8, P9]),
             exec: 'soakTest',
             tags: { phase: '10_soak' },
         },
@@ -250,9 +257,9 @@ export const options = {
         // Phase 11: Cooldown
         cooldown: {
             executor: 'constant-vus',
-            vus: 5,
-            duration: '30s',
-            startTime: '1160s',
+            vus: vu(5),
+            duration: dur(P11),
+            startTime: startAfter([P1, P2, P3, P4, P5, P6, P7, P8, P9, P10]),
             exec: 'warmup',
             tags: { phase: '11_cooldown' },
         },
@@ -427,7 +434,7 @@ export function baseline(data) {
     sleep(0.2);
 
     // 댓글 목록 (30%)
-    if (Math.random() < 0.3) {
+    if (Math.random() < 0.3 && HIGH_COMMENT_FEEDS.length > 0) {
         const hc = HIGH_COMMENT_FEEDS[Math.floor(Math.random() * HIGH_COMMENT_FEEDS.length)];
         const commentRes = http.get(`${BASE_URL}/api/v1/feeds/${hc.feedId}/comments?page=0&limit=20`, {
             headers: hdrs, tags: { name: 'bl_comments' },
@@ -480,7 +487,7 @@ export function feedDetail(data) {
 
     // 70% 고댓글 피드, 30% 일반 피드
     let clubId, feedId;
-    if (Math.random() < 0.7) {
+    if (Math.random() < 0.7 && HIGH_COMMENT_FEEDS.length > 0) {
         const hc = HIGH_COMMENT_FEEDS[Math.floor(Math.random() * HIGH_COMMENT_FEEDS.length)];
         clubId = hc.clubId;
         feedId = hc.feedId;
@@ -540,6 +547,7 @@ export function commentList(data) {
     const hdrs = headers(token);
 
     // 고댓글 피드 위주 — 깊은 페이지도 테스트
+    if (HIGH_COMMENT_FEEDS.length === 0) { sleep(0.1); return; }
     const hc = HIGH_COMMENT_FEEDS[Math.floor(Math.random() * HIGH_COMMENT_FEEDS.length)];
     const page = Math.floor(Math.random() * 10);
 
@@ -564,7 +572,7 @@ export function likeToggle(data) {
 
     // 80% 핫피드 집중, 20% 일반 분산
     let clubId, feedId;
-    if (Math.random() < 0.8) {
+    if (Math.random() < 0.8 && HOT_FEEDS.length > 0) {
         const hot = HOT_FEEDS[Math.floor(Math.random() * HOT_FEEDS.length)];
         clubId = hot.clubId;
         feedId = hot.feedId;
@@ -625,6 +633,7 @@ export function writeMix(data) {
         feedCommentCreateDur.add(dur);
     } else {
         // 20%: 리피드 — 유저가 속한 클럽으로 리피드
+        if (HIGH_COMMENT_FEEDS.length === 0) { sleep(0.2); return; }
         const hc = HIGH_COMMENT_FEEDS[Math.floor(Math.random() * HIGH_COMMENT_FEEDS.length)];
         const targetClub = getRandomUserClub(user.userId);
         const res = http.post(
@@ -673,8 +682,8 @@ export function extremeMix(data) {
         feedPopularDur.add(dur);
     } else if (roll < 0.50) {
         // 15%: 피드 상세
+        if (HIGH_COMMENT_FEEDS.length === 0) { sleep(0.02); return; }
         const hc = HIGH_COMMENT_FEEDS[Math.floor(Math.random() * HIGH_COMMENT_FEEDS.length)];
-        if (!hc) { sleep(0.02); return; }
         const res = http.get(`${BASE_URL}/api/v1/clubs/${hc.clubId}/feeds/${hc.feedId}`, {
             headers: hdrs, tags: { name: 'ex_detail' },
         });
@@ -692,6 +701,7 @@ export function extremeMix(data) {
         feedClubListDur.add(dur);
     } else if (roll < 0.70) {
         // 10%: 댓글 목록
+        if (HIGH_COMMENT_FEEDS.length === 0) { sleep(0.02); return; }
         const hc = HIGH_COMMENT_FEEDS[Math.floor(Math.random() * HIGH_COMMENT_FEEDS.length)];
         const res = http.get(`${BASE_URL}/api/v1/feeds/${hc.feedId}/comments?page=0&limit=20`, {
             headers: hdrs, tags: { name: 'ex_comments' },
@@ -774,8 +784,8 @@ export function soakTest(data) {
         feedPersonalDur.add(dur);
     } else if (roll < 0.60) {
         // 15%: 피드 상세
+        if (HIGH_COMMENT_FEEDS.length === 0) { sleep(0.05); return; }
         const hc = HIGH_COMMENT_FEEDS[Math.floor(Math.random() * HIGH_COMMENT_FEEDS.length)];
-        if (!hc) { sleep(0.05); return; }
         const res = http.get(`${BASE_URL}/api/v1/clubs/${hc.clubId}/feeds/${hc.feedId}`, {
             headers: hdrs, tags: { name: 'soak_detail' },
         });
@@ -795,6 +805,7 @@ export function soakTest(data) {
         feedLikeDur.add(dur);
     } else if (roll < 0.85) {
         // 10%: 댓글 목록
+        if (HIGH_COMMENT_FEEDS.length === 0) { sleep(0.05); return; }
         const hc = HIGH_COMMENT_FEEDS[Math.floor(Math.random() * HIGH_COMMENT_FEEDS.length)];
         const res = http.get(`${BASE_URL}/api/v1/feeds/${hc.feedId}/comments?page=0&limit=20`, {
             headers: hdrs, tags: { name: 'soak_comments' },

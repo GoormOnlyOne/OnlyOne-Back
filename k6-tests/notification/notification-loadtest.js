@@ -717,6 +717,7 @@ export function handleSummary(data) {
         '',
     ];
 
-    console.log(lines.join('\n'));
-    return {};
+    const summary = lines.join('\n');
+    console.log(summary);
+    return { 'stdout': summary };
 }

@@ -28,11 +28,17 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
     @Value("${app.chat.stomp-inbound-max-pool:128}")
     private int inboundMaxPool;
 
+    @Value("${app.chat.stomp-inbound-queue:5000}")
+    private int inboundQueueCapacity;
+
     @Value("${app.chat.stomp-outbound-core-pool:64}")
     private int outboundCorePool;
 
     @Value("${app.chat.stomp-outbound-max-pool:128}")
     private int outboundMaxPool;
+
+    @Value("${app.chat.stomp-outbound-queue:2000}")
+    private int outboundQueueCapacity;
 
     @Autowired(required = false)
     @Qualifier("stompAuthInterceptor")
@@ -59,7 +65,7 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
         ThreadPoolTaskExecutor exec = new ThreadPoolTaskExecutor();
         exec.setCorePoolSize(inboundCorePool);
         exec.setMaxPoolSize(inboundMaxPool);
-        exec.setQueueCapacity(5000);
+        exec.setQueueCapacity(inboundQueueCapacity);
         exec.setThreadNamePrefix("stomp-in-");
         exec.initialize();
         return exec;
@@ -70,7 +76,7 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
         ThreadPoolTaskExecutor exec = new ThreadPoolTaskExecutor();
         exec.setCorePoolSize(outboundCorePool);
         exec.setMaxPoolSize(outboundMaxPool);
-        exec.setQueueCapacity(2000);
+        exec.setQueueCapacity(outboundQueueCapacity);
         exec.setThreadNamePrefix("stomp-out-");
         exec.initialize();
         return exec;

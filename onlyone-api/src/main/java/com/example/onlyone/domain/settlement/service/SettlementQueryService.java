@@ -9,7 +9,6 @@ import com.example.onlyone.domain.finance.exception.FinanceErrorCode;
 import com.example.onlyone.global.exception.CustomException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.cache.annotation.Cacheable;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -27,8 +26,7 @@ public class SettlementQueryService {
     private final SettlementRepository settlementRepository;
     private final UserSettlementRepository userSettlementRepository;
 
-    /** 스케줄 참여자 정산 목록 조회 */
-    @Cacheable(value = "settlementList", key = "#scheduleId + '_' + #pageable.pageNumber")
+    /** 스케줄 참여자 정산 목록 조회 — @Cacheable 제거 (Page/DTO 역직렬화 불가) */
     public SettlementResponseDto getSettlementList(Long scheduleId, Pageable pageable) {
         Settlement settlement = settlementRepository.findByScheduleId(scheduleId)
                 .orElseThrow(() -> new CustomException(FinanceErrorCode.SETTLEMENT_NOT_FOUND));

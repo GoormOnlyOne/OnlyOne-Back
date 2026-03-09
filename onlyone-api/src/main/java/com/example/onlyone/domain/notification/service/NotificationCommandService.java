@@ -8,8 +8,6 @@ import com.example.onlyone.domain.notification.port.NotificationStoragePort;
 import com.example.onlyone.domain.user.service.AuthService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.cache.annotation.CacheEvict;
-import org.springframework.cache.annotation.Caching;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -26,10 +24,6 @@ public class NotificationCommandService {
     private final NotificationUnreadCounter unreadCounter;
 
     @Transactional
-    @Caching(evict = {
-            @CacheEvict(value = "notificationList", allEntries = true),
-            @CacheEvict(value = "unreadCount", allEntries = true)
-    })
     public void markAsRead(Long notificationId) {
         Long userId = authService.getCurrentUserId();
         int updated = storagePort.markAsReadByIdAndUserId(notificationId, userId);
@@ -40,10 +34,6 @@ public class NotificationCommandService {
     }
 
     @Transactional
-    @Caching(evict = {
-            @CacheEvict(value = "notificationList", allEntries = true),
-            @CacheEvict(value = "unreadCount", allEntries = true)
-    })
     public void deleteNotification(Long notificationId) {
         Long userId = authService.getCurrentUserId();
         boolean wasUnread = storagePort.deleteByIdAndUserId(notificationId, userId);
@@ -54,10 +44,6 @@ public class NotificationCommandService {
     }
 
     @Transactional
-    @Caching(evict = {
-            @CacheEvict(value = "notificationList", allEntries = true),
-            @CacheEvict(value = "unreadCount", allEntries = true)
-    })
     public void markAllAsRead() {
         Long userId = authService.getCurrentUserId();
         long changed = storagePort.markAllAsReadByUserId(userId);
@@ -66,10 +52,6 @@ public class NotificationCommandService {
     }
 
     @Transactional
-    @Caching(evict = {
-            @CacheEvict(value = "notificationList", allEntries = true),
-            @CacheEvict(value = "unreadCount", allEntries = true)
-    })
     public void createNotification(NotificationCreateDto dto) {
         Notification notification = Notification.create(dto.user(), dto.type(), dto.name());
         String content = notification.getContent();

@@ -30,7 +30,7 @@ log_info "인프라 서버: $INFRA_HOST"
 log_info "=== 1. 시스템 설정 ==="
 
 sudo apt-get update -y
-sudo apt-get install -y ca-certificates curl gnupg lsb-release jq
+sudo apt-get install -y ca-certificates curl gnupg lsb-release jq tcpdump
 
 # JDK 21
 if ! java -version 2>&1 | grep -q "21"; then
@@ -54,7 +54,7 @@ else
     log_ok "Swap 이미 존재"
 fi
 
-# sysctl
+# sysctl (네트워크 버퍼 + TCP 튜닝 포함)
 log_info "sysctl 튜닝..."
 sudo tee /etc/sysctl.d/99-loadtest.conf > /dev/null <<'EOF'
 vm.swappiness=10
@@ -63,6 +63,16 @@ net.ipv4.tcp_max_syn_backlog=65535
 net.ipv4.ip_local_port_range=1024 65535
 net.core.netdev_max_backlog=65535
 fs.file-max=2097152
+# 네트워크 버퍼 (기본 212KB → 16MB)
+net.core.rmem_max=16777216
+net.core.wmem_max=16777216
+net.ipv4.tcp_rmem=4096 87380 16777216
+net.ipv4.tcp_wmem=4096 65536 16777216
+# TCP 튜닝
+net.ipv4.tcp_keepalive_time=60
+net.ipv4.tcp_slow_start_after_idle=0
+net.ipv4.tcp_fin_timeout=15
+net.ipv4.tcp_tw_reuse=1
 EOF
 sudo sysctl --system > /dev/null 2>&1
 log_ok "sysctl 적용 완료"
@@ -142,20 +152,22 @@ echo ""
 echo "  인프라 서버: $INFRA_HOST"
 echo "  JAR: $JAR_PATH"
 echo ""
-echo "  === 앱 시작 명령어 ==="
+echo "  === 앱 시작 (권장) ==="
 echo ""
-echo "  export INFRA_HOST=$INFRA_HOST"
-echo "  cd ~/OnlyOne-Back"
-echo "  nohup java --enable-preview \\"
-echo "    -Xms512m -Xmx2g -XX:+UseZGC \\"
-echo "    -Dspring.profiles.active=ec2,loadtest \\"
-echo "    -jar $JAR_PATH \\"
-echo "    > app.log 2>&1 &"
+echo "  cd ~/OnlyOne-Back && ./scripts/run-app.sh"
 echo ""
 echo "  === 앱 상태 확인 ==="
 echo ""
-echo "  tail -f app.log"
+echo "  tail -f ~/app.log"
 echo "  curl http://localhost:8080/actuator/health"
+echo ""
+echo "  === 진단 도구 ==="
+echo ""
+echo "  스레드 덤프:  jstack \$(cat ~/app.pid)"
+echo "  힙 덤프:     jmap -dump:format=b,file=~/diagnostics/heapdumps/heap.hprof \$(cat ~/app.pid)"
+echo "  JFR 덤프:    jcmd \$(cat ~/app.pid) JFR.dump name=continuous filename=~/diagnostics/jfr/dump.jfr"
+echo "  GC 로그:     ls ~/diagnostics/gclog/"
+echo "  tcpdump:     sudo tcpdump -i eth0 -w ~/diagnostics/tcpdump/capture.pcap -c 50000 port 8080"
 echo ""
 echo "  === 시딩 & 테스트는 k6 서버에서 실행 ==="
 echo "  ec2-setup-k6.sh 참고"

@@ -59,13 +59,13 @@
 import http from 'k6/http';
 import { check, sleep } from 'k6';
 import { Counter, Rate, Trend } from 'k6/metrics';
-import { generateJWT, headers, BASE_URL, makeUser } from '../lib/common.js';
+import { generateJWT, headers, BASE_URL, makeUser, vu, dur, startAfter, TOTAL_USERS } from '../lib/common.js';
 
 // ============================================
 // 환경 설정
 // ============================================
 const SEARCH_ENGINE = __ENV.SEARCH_ENGINE || 'unknown';
-const VALID_USER_COUNT = 100000;
+const VALID_USER_COUNT = parseInt(__ENV.USER_COUNT || '') || TOTAL_USERS;
 
 // ============================================
 // 테스트 데이터
@@ -96,18 +96,15 @@ const KEYWORDS_NO_MATCH = [
     '마인크래프트', '로블록스', '포켓몬', '스타크래프트', '리그오브레전드',
 ];
 
-// 도시/구 (10개) — DB의 실제 city/district 값과 일치시킴
+// 도시/구 — seed-all-domains.sql ELT 공식 기반 (5가지 조합만 존재)
+// ELT city:  서울, 서울, 부산, 대구, 인천  (n%5 → 0,1,2,3,4)
+// ELT dist:  강남구, 마포구, 해운대구, 서구, 서구
 const LOCATIONS = [
     { city: '서울', district: '강남구' },
-    { city: '서울', district: '서구' },
-    { city: '서울', district: '남구' },
-    { city: '서울', district: '중구' },
+    { city: '서울', district: '마포구' },
     { city: '부산', district: '해운대구' },
-    { city: '부산', district: '사하구' },
-    { city: '부산', district: '북구' },
     { city: '대구', district: '서구' },
     { city: '인천', district: '서구' },
-    { city: '광주', district: '남구' },
 ];
 
 // 관심사 ID (1~8, Category enum 순서)
@@ -211,13 +208,19 @@ function recordGlobal(res) {
 }
 
 // ============================================
+// Phase 타이밍 (초 단위, dur()/startAfter()로 스케일링)
+// ============================================
+const SP1 = 30, SP2 = 120, SP3 = 90, SP4 = 120, SP5 = 90, SP6 = 120;
+const SP7 = 90, SP8 = 90, SP9 = 90, SP10 = 90, SP11 = 90, SP12 = 60, SP13 = 30;
+
+// ============================================
 // k6 옵션
 // ============================================
 export const options = {
     scenarios: {
         // Phase 1: Warmup
         warmup: {
-            executor: 'constant-vus', vus: 50, duration: '30s',
+            executor: 'constant-vus', vus: vu(50), duration: dur(SP1),
             exec: 'warmup', startTime: '0s',
             tags: { phase: '01_warmup' },
         },
@@ -225,127 +228,127 @@ export const options = {
         kw_single: {
             executor: 'ramping-vus',
             stages: [
-                { duration: '15s', target: 600 },
-                { duration: '1m30s', target: 600 },
-                { duration: '15s', target: 0 },
+                { duration: dur(15), target: vu(600) },
+                { duration: dur(90), target: vu(600) },
+                { duration: dur(15), target: 0 },
             ],
-            exec: 'keywordSingle', startTime: '30s',
+            exec: 'keywordSingle', startTime: startAfter([SP1], 0),
             tags: { phase: '02_kw_single' },
         },
         // Phase 3: 복합 키워드 검색
         kw_compound: {
             executor: 'ramping-vus',
             stages: [
-                { duration: '15s', target: 600 },
-                { duration: '1m', target: 600 },
-                { duration: '15s', target: 0 },
+                { duration: dur(15), target: vu(600) },
+                { duration: dur(60), target: vu(600) },
+                { duration: dur(15), target: 0 },
             ],
-            exec: 'keywordCompound', startTime: '2m30s',
+            exec: 'keywordCompound', startTime: startAfter([SP1, SP2], 0),
             tags: { phase: '03_kw_compound' },
         },
         // Phase 4: 키워드 + 지역 필터
         kw_location: {
             executor: 'ramping-vus',
             stages: [
-                { duration: '15s', target: 750 },
-                { duration: '1m30s', target: 750 },
-                { duration: '15s', target: 0 },
+                { duration: dur(15), target: vu(750) },
+                { duration: dur(90), target: vu(750) },
+                { duration: dur(15), target: 0 },
             ],
-            exec: 'keywordWithLocation', startTime: '4m',
+            exec: 'keywordWithLocation', startTime: startAfter([SP1, SP2, SP3], 0),
             tags: { phase: '04_kw_location' },
         },
         // Phase 5: 키워드 + 관심사 필터
         kw_interest: {
             executor: 'ramping-vus',
             stages: [
-                { duration: '15s', target: 750 },
-                { duration: '1m', target: 750 },
-                { duration: '15s', target: 0 },
+                { duration: dur(15), target: vu(750) },
+                { duration: dur(60), target: vu(750) },
+                { duration: dur(15), target: 0 },
             ],
-            exec: 'keywordWithInterest', startTime: '6m',
+            exec: 'keywordWithInterest', startTime: startAfter([SP1, SP2, SP3, SP4], 0),
             tags: { phase: '05_kw_interest' },
         },
         // Phase 6: 풀 필터 (키워드 + 지역 + 관심사)
         kw_full_filter: {
             executor: 'ramping-vus',
             stages: [
-                { duration: '15s', target: 1000 },
-                { duration: '1m30s', target: 1000 },
-                { duration: '15s', target: 0 },
+                { duration: dur(15), target: vu(1000) },
+                { duration: dur(90), target: vu(1000) },
+                { duration: dur(15), target: 0 },
             ],
-            exec: 'keywordFullFilter', startTime: '7m30s',
+            exec: 'keywordFullFilter', startTime: startAfter([SP1, SP2, SP3, SP4, SP5], 0),
             tags: { phase: '06_kw_full_filter' },
         },
         // Phase 7: 필터 전용 (키워드 없음 → MySQL)
         filter_only: {
             executor: 'ramping-vus',
             stages: [
-                { duration: '15s', target: 600 },
-                { duration: '1m', target: 600 },
-                { duration: '15s', target: 0 },
+                { duration: dur(15), target: vu(600) },
+                { duration: dur(60), target: vu(600) },
+                { duration: dur(15), target: 0 },
             ],
-            exec: 'filterOnly', startTime: '9m30s',
+            exec: 'filterOnly', startTime: startAfter([SP1, SP2, SP3, SP4, SP5, SP6], 0),
             tags: { phase: '07_filter_only' },
         },
         // Phase 8: 추천 모임
         recommend: {
             executor: 'ramping-vus',
             stages: [
-                { duration: '15s', target: 600 },
-                { duration: '1m', target: 600 },
-                { duration: '15s', target: 0 },
+                { duration: dur(15), target: vu(600) },
+                { duration: dur(60), target: vu(600) },
+                { duration: dur(15), target: 0 },
             ],
-            exec: 'recommendClubs', startTime: '11m',
+            exec: 'recommendClubs', startTime: startAfter([SP1, SP2, SP3, SP4, SP5, SP6, SP7], 0),
             tags: { phase: '08_recommend' },
         },
         // Phase 9: 팀메이트 모임
         teammate: {
             executor: 'ramping-vus',
             stages: [
-                { duration: '15s', target: 600 },
-                { duration: '1m', target: 600 },
-                { duration: '15s', target: 0 },
+                { duration: dur(15), target: vu(600) },
+                { duration: dur(60), target: vu(600) },
+                { duration: dur(15), target: 0 },
             ],
-            exec: 'teammateClubs', startTime: '12m30s',
+            exec: 'teammateClubs', startTime: startAfter([SP1, SP2, SP3, SP4, SP5, SP6, SP7, SP8], 0),
             tags: { phase: '09_teammate' },
         },
         // Phase 10: 정렬 비교
         sort_compare: {
             executor: 'ramping-vus',
             stages: [
-                { duration: '15s', target: 600 },
-                { duration: '1m', target: 600 },
-                { duration: '15s', target: 0 },
+                { duration: dur(15), target: vu(600) },
+                { duration: dur(60), target: vu(600) },
+                { duration: dur(15), target: 0 },
             ],
-            exec: 'sortCompare', startTime: '14m',
+            exec: 'sortCompare', startTime: startAfter([SP1, SP2, SP3, SP4, SP5, SP6, SP7, SP8, SP9], 0),
             tags: { phase: '10_sort' },
         },
         // Phase 11: 페이징 심층
         paging_deep: {
             executor: 'ramping-vus',
             stages: [
-                { duration: '15s', target: 500 },
-                { duration: '1m', target: 500 },
-                { duration: '15s', target: 0 },
+                { duration: dur(15), target: vu(500) },
+                { duration: dur(60), target: vu(500) },
+                { duration: dur(15), target: 0 },
             ],
-            exec: 'pagingDeep', startTime: '15m30s',
+            exec: 'pagingDeep', startTime: startAfter([SP1, SP2, SP3, SP4, SP5, SP6, SP7, SP8, SP9, SP10], 0),
             tags: { phase: '11_paging' },
         },
         // Phase 12: 스파이크
         spike: {
             executor: 'ramping-vus',
             stages: [
-                { duration: '10s', target: 2000 },
-                { duration: '40s', target: 2000 },
-                { duration: '10s', target: 0 },
+                { duration: dur(10), target: vu(2000) },
+                { duration: dur(40), target: vu(2000) },
+                { duration: dur(10), target: 0 },
             ],
-            exec: 'spikeTest', startTime: '17m',
+            exec: 'spikeTest', startTime: startAfter([SP1, SP2, SP3, SP4, SP5, SP6, SP7, SP8, SP9, SP10, SP11], 0),
             tags: { phase: '12_spike' },
         },
         // Phase 13: Cooldown + 최종 검증
         cooldown: {
-            executor: 'constant-vus', vus: 5, duration: '30s',
-            exec: 'finalCheck', startTime: '18m',
+            executor: 'constant-vus', vus: vu(5), duration: dur(SP13),
+            exec: 'finalCheck', startTime: startAfter([SP1, SP2, SP3, SP4, SP5, SP6, SP7, SP8, SP9, SP10, SP11, SP12], 0),
             tags: { phase: '13_cooldown' },
         },
     },
@@ -918,7 +921,7 @@ export function handleSummary(data) {
         ['정렬:LATEST',        'search_sort_latest_duration'],
         ['정렬:MEMBER_COUNT',  'search_sort_member_count_duration'],
         ['페이징 심층',        'search_paging_duration'],
-        ['스파이크(600VU)',    'search_spike_duration'],
+        ['스파이크(2000VU)',   'search_spike_duration'],
     ];
 
     summary += `\n${line}\n`;

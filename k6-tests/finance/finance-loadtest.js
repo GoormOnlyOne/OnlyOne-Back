@@ -2,17 +2,17 @@
 // Finance 모듈 고부하 테스트 — 결제·정산·지갑 트랜잭션 정합성
 // =============================================================
 //
-// Phase 1  Warmup           (50 VUs, 30s)  — 커넥션풀 예열
-// Phase 2  결제 폭풍         (600 VUs peak, 2m)   — save→verify→confirm 대량 발사
-// Phase 3  멱등성 폭풍       (750 VUs, 30s)  — 동일 orderId 750명 동시 confirm
-// Phase 4  정산 대량 요청    (750 VUs, 2m)   — settlement 동시 Outbox→Kafka E2E
+// Phase 1  Warmup           (50 VUs, 30s)       — 커넥션풀 예열
+// Phase 2  결제 폭풍         (600 VUs peak, 2m)  — save→verify→confirm 대량 발사
+// Phase 3  멱등성 폭풍       (750 VUs, 30s)      — 동일 orderId 750명 동시 confirm
+// Phase 4  정산 대량 요청    (750 VUs, 2m)       — settlement 동시 Outbox→Kafka E2E
 // Phase 5  정산 조회 폭풍    (450 VUs peak, 1.5m) — 정산 상태/참여자 리스트 집중 조회
 // Phase 6  지갑 조회 집중    (450 VUs peak, 1.5m) — 거래내역 페이징 집중
 // Phase 7  복합 고부하       (900 VUs peak, 3m)  — 결제40%+정산조회20%+지갑조회20%+실패기록10%+정산요청10%
-// Phase 8  스파이크 1500     (1500 VUs peak, 1.5m) — 순간 폭증 내구성
+// Phase 8  스파이크          (1500 VUs peak, 1.5m) — 순간 폭증 내구성
 // Phase 9  이중 스파이크     (1200 VUs peak, 2m) — 회복 후 재폭증
-// Phase 10 지속 내구         (600 VUs, 3m)  — Soak: 누수/GC/커넥션풀 고갈 탐지
-// Phase 11 최종 검증         (1 VU, 30s)  — 전 API 정상 확인
+// Phase 10 지속 내구         (600 VUs peak, 3m)  — Soak: 누수/GC/커넥션풀 고갈 탐지
+// Phase 11 최종 검증         (1 VU, 30s)         — 전 API 정상 확인
 //
 // 전제 조건:
 //   - 서버: SPRING_PROFILES_ACTIVE=local (loadtest 필수)
@@ -29,11 +29,11 @@
 import http from 'k6/http';
 import { check, sleep } from 'k6';
 import { Counter, Rate, Trend } from 'k6/metrics';
-import { generateJWT, headers, makeUser, BASE_URL, MIN_CLUB } from '../lib/common.js';
+import { generateJWT, headers, makeUser, BASE_URL, MIN_CLUB, vu, dur, startAfter, TOTAL_USERS } from '../lib/common.js';
 
 // ── 상수 ──
 // 기본: 10x 로컬. AWS(100x): USER_COUNT=100000 SETTLEMENT_COUNT=100000
-const VALID_USER_COUNT = parseInt(__ENV.USER_COUNT || '10000');
+const VALID_USER_COUNT = parseInt(__ENV.USER_COUNT || '') || TOTAL_USERS;
 const SETTLEMENT_COUNT = parseInt(__ENV.SETTLEMENT_COUNT || '2500');
 const SCHEDULE_ID_BASE = parseInt(__ENV.SCHEDULE_ID_BASE || '5000000');
 
@@ -72,27 +72,28 @@ const soakDur       = new Trend('soak_duration', true);
 // Phase 11: 검증
 const verifyOk      = new Rate('verify_pass');
 
-// ── 시나리오 타임라인 ──
-// Phase 1:  0s ~ 30s          (30s)
-// Phase 2:  35s ~ 2m35s       (2m)
-// Phase 3:  35s ~ 1m05s       (30s, Phase2와 겹침)
-// Phase 4:  2m40s ~ 4m40s     (2m)
-// Phase 5:  4m50s ~ 6m20s     (1.5m)
-// Phase 6:  4m50s ~ 6m20s     (1.5m, Phase5와 겹침)
-// Phase 7:  6m30s ~ 9m30s     (3m)
-// Phase 8:  9m40s ~ 11m10s    (1.5m)
-// Phase 9:  11m40s ~ 13m40s   (2m)  — 30s 쿨다운 후 시작
-// Phase 10: 14m00s ~ 17m00s   (3m)
-// Phase 11: 17m10s ~ 17m40s   (30s)
-// 총: ~17분 40초
+// ── Phase 타이밍 (초 단위, dur()/startAfter()로 스케일링) ──
+// Phase 1:  Warmup     (30s)
+// Phase 2:  결제 폭풍   (2m)     — Phase 3 겹침
+// Phase 3:  멱등성      (30s)    — Phase 2 시작과 동시
+// Phase 4:  정산 요청   (2m)
+// Phase 5:  정산 조회   (1.5m)   — Phase 6 겹침
+// Phase 6:  지갑 조회   (1.5m)   — Phase 5 시작과 동시
+// Phase 7:  복합 고부하  (3m)
+// Phase 8:  스파이크     (1.5m)
+// Phase 9:  이중 스파이크 (2m)   — 30s 쿨다운 후 시작
+// Phase 10: 내구        (3m)
+// Phase 11: 최종 검증   (30s)
+const FP1 = 30, FP2 = 120, FP3 = 30, FP4 = 120, FP5 = 90, FP6 = 90;
+const FP7 = 180, FP8 = 90, FP9 = 120, FP10 = 180, FP11 = 30;
 
 export const options = {
     scenarios: {
         // Phase 1: Warmup
         warmup: {
             executor: 'constant-vus',
-            vus: 50,
-            duration: '30s',
+            vus: vu(50),
+            duration: dur(FP1),
             exec: 'warmup',
             startTime: '0s',
         },
@@ -100,102 +101,102 @@ export const options = {
         payment_storm: {
             executor: 'ramping-vus',
             stages: [
-                { duration: '20s', target: 600 },
-                { duration: '80s', target: 600 },
-                { duration: '20s', target: 0 },
+                { duration: dur(20), target: vu(600) },
+                { duration: dur(80), target: vu(600) },
+                { duration: dur(20), target: 0 },
             ],
             exec: 'paymentStorm',
-            startTime: '35s',
+            startTime: startAfter([FP1]),
         },
-        // Phase 3: 멱등성 폭풍 (750 VUs 동시 confirm)
+        // Phase 3: 멱등성 폭풍 (750 VUs 동시 confirm) — Phase 2와 동시 시작
         payment_idempotency: {
             executor: 'per-vu-iterations',
-            vus: 750,
+            vus: vu(750),
             iterations: 1,
             exec: 'paymentIdempotency',
-            startTime: '35s',
-            maxDuration: '30s',
+            startTime: startAfter([FP1]),
+            maxDuration: dur(FP3),
         },
         // Phase 4: 정산 대량 요청 (750 VUs, 각 1회)
         settlement_mass: {
             executor: 'per-vu-iterations',
-            vus: 750,
+            vus: vu(750),
             iterations: 1,
             exec: 'settlementMass',
-            startTime: '2m40s',
-            maxDuration: '2m',
+            startTime: startAfter([FP1, FP2]),
+            maxDuration: dur(FP4),
         },
         // Phase 5: 정산 조회 폭풍 (450 VUs peak)
         settlement_query_storm: {
             executor: 'ramping-vus',
             stages: [
-                { duration: '15s', target: 450 },
-                { duration: '60s', target: 450 },
-                { duration: '15s', target: 0 },
+                { duration: dur(15), target: vu(450) },
+                { duration: dur(60), target: vu(450) },
+                { duration: dur(15), target: 0 },
             ],
             exec: 'settlementQueryStorm',
-            startTime: '4m50s',
+            startTime: startAfter([FP1, FP2, FP4], 10),
         },
-        // Phase 6: 지갑 조회 집중 (450 VUs peak)
+        // Phase 6: 지갑 조회 집중 (450 VUs peak) — Phase 5와 동시 시작
         wallet_query_storm: {
             executor: 'ramping-vus',
             stages: [
-                { duration: '15s', target: 450 },
-                { duration: '60s', target: 450 },
-                { duration: '15s', target: 0 },
+                { duration: dur(15), target: vu(450) },
+                { duration: dur(60), target: vu(450) },
+                { duration: dur(15), target: 0 },
             ],
             exec: 'walletQueryStorm',
-            startTime: '4m50s',
+            startTime: startAfter([FP1, FP2, FP4], 10),
         },
         // Phase 7: 복합 고부하 (900 VUs peak, 3m)
         mixed_highload: {
             executor: 'ramping-vus',
             stages: [
-                { duration: '30s', target: 900 },
-                { duration: '120s', target: 900 },
-                { duration: '30s', target: 0 },
+                { duration: dur(30), target: vu(900) },
+                { duration: dur(120), target: vu(900) },
+                { duration: dur(30), target: 0 },
             ],
             exec: 'mixedHighload',
-            startTime: '6m30s',
+            startTime: startAfter([FP1, FP2, FP4, FP5], 10),
         },
         // Phase 8: 스파이크 1500 VUs
         spike_1000: {
             executor: 'ramping-vus',
             stages: [
-                { duration: '10s', target: 1500 },
-                { duration: '50s', target: 1500 },
-                { duration: '10s', target: 10 },
-                { duration: '20s', target: 10 },
+                { duration: dur(10), target: vu(1500) },
+                { duration: dur(50), target: vu(1500) },
+                { duration: dur(10), target: vu(10) },
+                { duration: dur(20), target: vu(10) },
             ],
             exec: 'spike1000',
-            startTime: '9m40s',
+            startTime: startAfter([FP1, FP2, FP4, FP5, FP7], 10),
         },
         // Phase 9: 이중 스파이크 (1200 VUs peak)
         double_spike: {
             executor: 'ramping-vus',
             stages: [
-                { duration: '10s', target: 1200 },
-                { duration: '20s', target: 1200 },
-                { duration: '10s', target: 10 },
-                { duration: '15s', target: 10 },
-                { duration: '10s', target: 1200 },
-                { duration: '20s', target: 1200 },
-                { duration: '10s', target: 10 },
-                { duration: '15s', target: 0 },
+                { duration: dur(10), target: vu(1200) },
+                { duration: dur(20), target: vu(1200) },
+                { duration: dur(10), target: vu(10) },
+                { duration: dur(15), target: vu(10) },
+                { duration: dur(10), target: vu(1200) },
+                { duration: dur(20), target: vu(1200) },
+                { duration: dur(10), target: vu(10) },
+                { duration: dur(15), target: 0 },
             ],
             exec: 'doubleSpike',
-            startTime: '11m20s',
+            startTime: startAfter([FP1, FP2, FP4, FP5, FP7, FP8], 30),
         },
         // Phase 10: 지속 내구 Soak (600 VUs, 3m)
         soak: {
             executor: 'ramping-vus',
             stages: [
-                { duration: '20s', target: 600 },
-                { duration: '140s', target: 600 },
-                { duration: '20s', target: 0 },
+                { duration: dur(20), target: vu(600) },
+                { duration: dur(140), target: vu(600) },
+                { duration: dur(20), target: 0 },
             ],
             exec: 'soakTest',
-            startTime: '14m00s',
+            startTime: startAfter([FP1, FP2, FP4, FP5, FP7, FP8, FP9], 20),
         },
         // Phase 11: 최종 검증
         final_verify: {
@@ -203,8 +204,8 @@ export const options = {
             vus: 1,
             iterations: 1,
             exec: 'finalVerify',
-            startTime: '17m10s',
-            maxDuration: '30s',
+            startTime: startAfter([FP1, FP2, FP4, FP5, FP7, FP8, FP9, FP10], 10),
+            maxDuration: dur(FP11),
         },
     },
     thresholds: {
@@ -391,7 +392,7 @@ export function warmup() {
 }
 
 // ============================================================
-// Phase 2: 결제 폭풍 (1200 VUs peak, 2분)
+// Phase 2: 결제 폭풍 (600 VUs peak, 2분)
 // save→verify→confirm 대량 발사, Redis gate + CAS + wallet credit
 // ============================================================
 export function paymentStorm() {
@@ -408,7 +409,7 @@ export function paymentStorm() {
 }
 
 // ============================================================
-// Phase 3: 멱등성 폭풍 (1500 VUs 동시 confirm)
+// Phase 3: 멱등성 폭풍 (750 VUs 동시 confirm)
 // Redis gate(SET NX) + INSERT IGNORE + CAS 이중 차단 검증
 // ============================================================
 export function paymentIdempotency(data) {
@@ -436,7 +437,7 @@ export function paymentIdempotency(data) {
 }
 
 // ============================================================
-// Phase 4: 정산 대량 요청 (1500 VUs, 각 1회 → 1500건 동시 정산)
+// Phase 4: 정산 대량 요청 (750 VUs, 각 1회 → 750건 동시 정산)
 // Outbox → Kafka → StructuredTaskScope(captureHold) → LedgerWriter
 // ============================================================
 export function settlementMass() {
@@ -491,7 +492,7 @@ export function settlementMass() {
 }
 
 // ============================================================
-// Phase 5: 정산 조회 폭풍 (900 VUs peak)
+// Phase 5: 정산 조회 폭풍 (450 VUs peak)
 // 정산 목록 + 참여자 상태 조회, user_settlement JOIN 부하
 // ============================================================
 export function settlementQueryStorm() {
@@ -515,7 +516,7 @@ export function settlementQueryStorm() {
 }
 
 // ============================================================
-// Phase 6: 지갑 조회 집중 (900 VUs peak)
+// Phase 6: 지갑 조회 집중 (450 VUs peak)
 // 거래 내역 페이징, WalletTransaction JOIN 부하
 // ============================================================
 export function walletQueryStorm() {
@@ -537,7 +538,7 @@ export function walletQueryStorm() {
 }
 
 // ============================================================
-// Phase 7: 복합 고부하 (1800 VUs peak, 3m)
+// Phase 7: 복합 고부하 (900 VUs peak, 3m)
 // 결제40% + 정산조회20% + 지갑조회20% + 실패기록10% + 정산요청10%
 // ============================================================
 export function mixedHighload() {
@@ -550,7 +551,7 @@ export function mixedHighload() {
 }
 
 // ============================================================
-// Phase 8: 스파이크 3000 VUs — 순간 폭증 내구성
+// Phase 8: 스파이크 1500 VUs — 순간 폭증 내구성
 // ============================================================
 export function spike1000() {
     const userId = randomUserId();
@@ -573,7 +574,7 @@ export function doubleSpike() {
 }
 
 // ============================================================
-// Phase 10: 지속 내구 Soak (1200 VUs, 3m)
+// Phase 10: 지속 내구 Soak (600 VUs peak, 3m)
 // 메모리 누수, GC 압력, 커넥션풀 고갈, Kafka lag 누적 탐지
 // ============================================================
 export function soakTest() {

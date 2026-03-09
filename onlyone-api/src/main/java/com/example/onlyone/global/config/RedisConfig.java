@@ -1,9 +1,11 @@
 package com.example.onlyone.global.config;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.annotation.JsonTypeInfo;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
+import com.fasterxml.jackson.databind.jsontype.BasicPolymorphicTypeValidator;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import io.lettuce.core.ClientOptions;
 import io.lettuce.core.api.StatefulConnection;
@@ -27,6 +29,7 @@ import org.springframework.data.redis.connection.lettuce.LettuceConnectionFactor
 import org.springframework.data.redis.connection.lettuce.LettucePoolingClientConfiguration;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.data.redis.serializer.GenericJackson2JsonRedisSerializer;
 import org.springframework.data.redis.serializer.Jackson2JsonRedisSerializer;
 import org.springframework.data.redis.serializer.RedisSerializationContext;
 import org.springframework.data.redis.serializer.StringRedisSerializer;
@@ -145,20 +148,28 @@ public class RedisConfig {
      * - 읽지 않은 개수: 10초 TTL
      */
     @Bean
-    public CacheManager cacheManager(RedisConnectionFactory connectionFactory, ObjectMapper redisObjectMapper) {
-        // Jackson2JsonRedisSerializer with custom ObjectMapper
-        Jackson2JsonRedisSerializer<Object> serializer =
-                new Jackson2JsonRedisSerializer<>(redisObjectMapper, Object.class);
+    public CacheManager cacheManager(RedisConnectionFactory connectionFactory) {
+        // 캐시 전용 ObjectMapper — @class 타입 정보 포함하여 Page 등 복잡 타입 역직렬화 지원
+        ObjectMapper cacheMapper = new ObjectMapper();
+        cacheMapper.registerModule(new JavaTimeModule());
+        cacheMapper.disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
+        cacheMapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+        cacheMapper.setSerializationInclusion(JsonInclude.Include.NON_NULL);
+        cacheMapper.activateDefaultTyping(
+                BasicPolymorphicTypeValidator.builder()
+                        .allowIfBaseType(Object.class)
+                        .build(),
+                ObjectMapper.DefaultTyping.NON_FINAL,
+                JsonTypeInfo.As.PROPERTY);
+
+        GenericJackson2JsonRedisSerializer cacheSerializer = new GenericJackson2JsonRedisSerializer(cacheMapper);
 
         RedisCacheConfiguration defaultConfig = RedisCacheConfiguration.defaultCacheConfig()
                 .entryTtl(Duration.ofSeconds(10))
                 .serializeKeysWith(RedisSerializationContext.SerializationPair.fromSerializer(new StringRedisSerializer()))
-                .serializeValuesWith(RedisSerializationContext.SerializationPair.fromSerializer(serializer));
+                .serializeValuesWith(RedisSerializationContext.SerializationPair.fromSerializer(cacheSerializer));
 
         var cacheConfigurations = new HashMap<String, RedisCacheConfiguration>();
-        // 알림
-        cacheConfigurations.put("notificationList", defaultConfig.entryTtl(Duration.ofSeconds(30)));
-        cacheConfigurations.put("unreadCount", defaultConfig.entryTtl(Duration.ofSeconds(60)));
         // 검색 — 클럽 데이터는 변경 빈도 낮음
         cacheConfigurations.put("teammatesClubs", defaultConfig.entryTtl(Duration.ofSeconds(120)));
         cacheConfigurations.put("recommendations", defaultConfig.entryTtl(Duration.ofSeconds(120)));
@@ -171,13 +182,10 @@ public class RedisConfig {
         cacheConfigurations.put("scheduleList", defaultConfig.entryTtl(Duration.ofMinutes(2)));
         cacheConfigurations.put("scheduleDetail", defaultConfig.entryTtl(Duration.ofMinutes(5)));
         cacheConfigurations.put("scheduleUsers", defaultConfig.entryTtl(Duration.ofSeconds(60)));
-        // 정산
-        cacheConfigurations.put("settlementList", defaultConfig.entryTtl(Duration.ofSeconds(60)));
+        // 정산 — settlementList: @Cacheable 제거 (Page/DTO 역직렬화 문제)
         // 지갑
         cacheConfigurations.put("walletTxList", defaultConfig.entryTtl(Duration.ofSeconds(30)));
-        // 피드
-        cacheConfigurations.put("feedList", defaultConfig.entryTtl(Duration.ofSeconds(30)));
-        cacheConfigurations.put("feedComments", defaultConfig.entryTtl(Duration.ofSeconds(60)));
+        // 피드 — feedList, feedComments: @Cacheable 제거 (Page/List<DTO> 역직렬화 문제)
         // 사용자 — CacheEvict 있어서 TTL은 백업용
         cacheConfigurations.put("userMyPage", defaultConfig.entryTtl(Duration.ofMinutes(2)));
         cacheConfigurations.put("userProfile", defaultConfig.entryTtl(Duration.ofMinutes(2)));

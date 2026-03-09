@@ -15,7 +15,6 @@ import com.example.onlyone.domain.feed.exception.FeedErrorCode;
 import com.example.onlyone.domain.user.service.UserService;
 import com.example.onlyone.global.exception.CustomException;
 import lombok.RequiredArgsConstructor;
-import org.springframework.cache.annotation.Cacheable;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -45,7 +44,6 @@ public class FeedQueryService {
 
     // ── 모임 피드 ──
 
-    @Cacheable(value = "feedList", key = "#clubId + '_' + #pageable.pageNumber")
     public Page<FeedSummaryResponseDto> getFeedList(Long clubId, Pageable pageable) {
         if (!clubRepository.existsById(clubId)) {
             throw new CustomException(ClubErrorCode.CLUB_NOT_FOUND);

@@ -38,6 +38,7 @@ public class NotificationBatchProcessor {
     private final NotificationStoragePort storagePort;
     private final NotificationDeliveryPort deliveryPort;
     private final TransactionTemplate transactionTemplate;
+    private final NotificationUndeliveredCache undeliveredCache;
 
     @Value("${app.notification.batch-size:10}")
     private int batchSize;
@@ -61,7 +62,8 @@ public class NotificationBatchProcessor {
         Long userId = event.userId();
 
         if (!deliveryPort.isUserReachable(userId)) {
-            log.debug("오프라인 사용자 스킵: userId={}", userId);
+            undeliveredCache.add(event);
+            log.debug("오프라인 사용자 → 캐시 적재: userId={}", userId);
             return;
         }
 

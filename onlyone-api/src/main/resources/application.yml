@@ -297,12 +297,9 @@ spring:
     activate:
       on-profile: ec2
 
-  # MongoDB/RabbitMQ/ES 미사용
+  # RabbitMQ/ES 미사용
   autoconfigure:
     exclude:
-      - org.springframework.boot.autoconfigure.data.mongo.MongoDataAutoConfiguration
-      - org.springframework.boot.autoconfigure.data.mongo.MongoRepositoriesAutoConfiguration
-      - org.springframework.boot.autoconfigure.mongo.MongoAutoConfiguration
       - org.springframework.boot.autoconfigure.amqp.RabbitAutoConfiguration
       - org.springframework.boot.autoconfigure.elasticsearch.ElasticsearchClientAutoConfiguration
       - org.springframework.boot.autoconfigure.elasticsearch.ElasticsearchRestClientAutoConfiguration
@@ -318,9 +315,9 @@ spring:
     username: ${DB_USERNAME:root}
     password: ${DB_PASSWORD:root}
     hikari:
-      maximum-pool-size: 350
-      minimum-idle: 60
-      connection-timeout: 15000
+      maximum-pool-size: 300
+      minimum-idle: 50
+      connection-timeout: 10000
       idle-timeout: 300000
       max-lifetime: 600000
       validation-timeout: 3000
@@ -334,18 +331,20 @@ spring:
       hibernate:
         format_sql: false
         use_sql_comments: false
-        show_sql: true
+        show_sql: false
         jdbc:
           batch_size: 30
         order_inserts: true
         order_updates: true
         connection:
           provider_disables_autocommit: true
-        generate_statistics: true
+        generate_statistics: false
       jakarta.persistence.query.timeout: 30000
 
-  # Redis (원격 인프라)
+  # Redis + MongoDB (원격 인프라)
   data:
+    mongodb:
+      uri: mongodb://root:root@${INFRA_HOST}:27017/onlyone?authSource=admin
     redis:
       host: ${INFRA_HOST}
       port: 6379
@@ -410,15 +409,15 @@ logging:
     org.springframework: warn
     org.apache.kafka: warn
 
-# --- Tomcat (c5.xlarge 튜닝) ---
+# --- Tomcat (c5.xlarge 고부하 튜닝) ---
 server:
   port: 8080
   tomcat:
     threads:
       max: 400
       min-spare: 25
-    max-connections: 10000
-    accept-count: 500
+    max-connections: 20000
+    accept-count: 1000
 
 # --- AWS ---
 aws:
@@ -449,8 +448,14 @@ app:
       enabled: ${FEED_CACHE_ENABLED:false}
   chat:
     storage: mysql
+    stomp-inbound-core-pool: 128
+    stomp-inbound-max-pool: 256
+    stomp-inbound-queue: 10000
+    stomp-outbound-core-pool: 128
+    stomp-outbound-max-pool: 256
+    stomp-outbound-queue: 8000
   notification:
-    storage: mysql
+    storage: mongodb
     sse-timeout-millis: 300000
     sse-executor-permits: 500
     max-connections: 10000

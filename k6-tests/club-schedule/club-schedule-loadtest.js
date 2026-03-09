@@ -35,7 +35,7 @@ import {
     generateJWT, headers, BASE_URL, makeUser,
     getUserClubs, getRandomUserClub,
     getScheduleClub, getRandomClubSchedule,
-    vu, TOTAL_USERS,
+    vu, dur, startAfter, TOTAL_USERS,
     MIN_CLUB, MIN_SCHEDULE, TOTAL_CLUBS, TOTAL_SCHEDULES,
 } from '../lib/common.js';
 import { THRESHOLDS } from '../lib/bottleneck.js';
@@ -73,6 +73,12 @@ const phase10Success = new Rate('cs_phase10_success');
 const totalErrors = new Counter('cs_total_errors');
 
 // ============================================
+// Phase 타이밍 (초 단위, dur()/startAfter()로 스케일링)
+// ============================================
+const CP1 = 30, CP2 = 120, CP3 = 120, CP4 = 120, CP5 = 120, CP6 = 90;
+const CP7 = 90, CP8 = 90, CP9 = 120, CP10 = 180, CP11 = 30;
+
+// ============================================
 // 시나리오 설정
 // ============================================
 export const options = {
@@ -81,7 +87,7 @@ export const options = {
         warmup: {
             executor: 'constant-vus',
             vus: vu(10),
-            duration: '30s',
+            duration: dur(CP1),
             exec: 'warmup',
             tags: { phase: '1_warmup' },
         },
@@ -90,8 +96,8 @@ export const options = {
         baseline: {
             executor: 'constant-vus',
             vus: vu(50),
-            duration: '120s',
-            startTime: '35s',
+            duration: dur(CP2),
+            startTime: startAfter([CP1]),
             exec: 'baseline',
             tags: { phase: '2_baseline' },
         },
@@ -101,11 +107,11 @@ export const options = {
             executor: 'ramping-vus',
             startVUs: vu(3),
             stages: [
-                { duration: '20s', target: vu(80) },
-                { duration: '80s', target: vu(80) },
-                { duration: '20s', target: 0 },
+                { duration: dur(20), target: vu(80) },
+                { duration: dur(80), target: vu(80) },
+                { duration: dur(20), target: 0 },
             ],
-            startTime: '160s',
+            startTime: startAfter([CP1, CP2]),
             exec: 'scheduleConcurrency',
             tags: { phase: '3_schedule_concurrency' },
         },
@@ -115,11 +121,11 @@ export const options = {
             executor: 'ramping-vus',
             startVUs: vu(3),
             stages: [
-                { duration: '20s', target: vu(60) },
-                { duration: '80s', target: vu(60) },
-                { duration: '20s', target: 0 },
+                { duration: dur(20), target: vu(60) },
+                { duration: dur(80), target: vu(60) },
+                { duration: dur(20), target: 0 },
             ],
-            startTime: '285s',
+            startTime: startAfter([CP1, CP2, CP3]),
             exec: 'clubJoinLeave',
             tags: { phase: '4_club_join_leave' },
         },
@@ -129,11 +135,11 @@ export const options = {
             executor: 'ramping-vus',
             startVUs: vu(3),
             stages: [
-                { duration: '20s', target: vu(80) },
-                { duration: '80s', target: vu(80) },
-                { duration: '20s', target: 0 },
+                { duration: dur(20), target: vu(80) },
+                { duration: dur(80), target: vu(80) },
+                { duration: dur(20), target: 0 },
             ],
-            startTime: '410s',
+            startTime: startAfter([CP1, CP2, CP3, CP4]),
             exec: 'scheduleRead',
             tags: { phase: '5_schedule_read' },
         },
@@ -143,11 +149,11 @@ export const options = {
             executor: 'ramping-vus',
             startVUs: vu(3),
             stages: [
-                { duration: '15s', target: vu(60) },
-                { duration: '60s', target: vu(60) },
-                { duration: '15s', target: 0 },
+                { duration: dur(15), target: vu(60) },
+                { duration: dur(60), target: vu(60) },
+                { duration: dur(15), target: 0 },
             ],
-            startTime: '535s',
+            startTime: startAfter([CP1, CP2, CP3, CP4, CP5]),
             exec: 'scheduleRejoin',
             tags: { phase: '6_schedule_rejoin' },
         },
@@ -157,11 +163,11 @@ export const options = {
             executor: 'ramping-vus',
             startVUs: vu(3),
             stages: [
-                { duration: '15s', target: vu(60) },
-                { duration: '60s', target: vu(60) },
-                { duration: '15s', target: 0 },
+                { duration: dur(15), target: vu(60) },
+                { duration: dur(60), target: vu(60) },
+                { duration: dur(15), target: 0 },
             ],
-            startTime: '630s',
+            startTime: startAfter([CP1, CP2, CP3, CP4, CP5, CP6]),
             exec: 'clubRead',
             tags: { phase: '7_club_read' },
         },
@@ -171,12 +177,12 @@ export const options = {
             executor: 'ramping-vus',
             startVUs: vu(3),
             stages: [
-                { duration: '10s', target: vu(150) },
-                { duration: '50s', target: vu(150) },
-                { duration: '20s', target: vu(3) },
-                { duration: '10s', target: vu(3) },
+                { duration: dur(10), target: vu(150) },
+                { duration: dur(50), target: vu(150) },
+                { duration: dur(20), target: vu(3) },
+                { duration: dur(10), target: vu(3) },
             ],
-            startTime: '725s',
+            startTime: startAfter([CP1, CP2, CP3, CP4, CP5, CP6, CP7]),
             exec: 'spikeTest',
             tags: { phase: '8_spike' },
         },
@@ -186,16 +192,16 @@ export const options = {
             executor: 'ramping-vus',
             startVUs: vu(3),
             stages: [
-                { duration: '10s', target: vu(100) },
-                { duration: '20s', target: vu(100) },
-                { duration: '10s', target: vu(3) },
-                { duration: '15s', target: vu(3) },
-                { duration: '10s', target: vu(120) },
-                { duration: '25s', target: vu(120) },
-                { duration: '15s', target: vu(3) },
-                { duration: '15s', target: vu(3) },
+                { duration: dur(10), target: vu(100) },
+                { duration: dur(20), target: vu(100) },
+                { duration: dur(10), target: vu(3) },
+                { duration: dur(15), target: vu(3) },
+                { duration: dur(10), target: vu(120) },
+                { duration: dur(25), target: vu(120) },
+                { duration: dur(15), target: vu(3) },
+                { duration: dur(15), target: vu(3) },
             ],
-            startTime: '820s',
+            startTime: startAfter([CP1, CP2, CP3, CP4, CP5, CP6, CP7, CP8]),
             exec: 'doubleSpikeTest',
             tags: { phase: '9_double_spike' },
         },
@@ -204,8 +210,8 @@ export const options = {
         soak: {
             executor: 'constant-vus',
             vus: vu(50),
-            duration: '180s',
-            startTime: '945s',
+            duration: dur(CP10),
+            startTime: startAfter([CP1, CP2, CP3, CP4, CP5, CP6, CP7, CP8, CP9]),
             exec: 'soakTest',
             tags: { phase: '10_soak' },
         },
@@ -214,8 +220,8 @@ export const options = {
         cooldown: {
             executor: 'constant-vus',
             vus: vu(5),
-            duration: '30s',
-            startTime: '1130s',
+            duration: dur(CP11),
+            startTime: startAfter([CP1, CP2, CP3, CP4, CP5, CP6, CP7, CP8, CP9, CP10]),
             exec: 'warmup',
             tags: { phase: '11_cooldown' },
         },

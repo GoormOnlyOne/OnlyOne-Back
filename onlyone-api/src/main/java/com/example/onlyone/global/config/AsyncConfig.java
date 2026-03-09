@@ -9,9 +9,6 @@ import org.springframework.scheduling.annotation.EnableScheduling;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 
 import java.util.concurrent.Executor;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.ThreadPoolExecutor;
 
 /**
@@ -92,14 +89,22 @@ public class AsyncConfig implements AsyncConfigurer {
     }
 
     /**
-     * SSE 이벤트 전송용 Virtual Thread Executor
-     * JDBC 호출 없이 응답 스트림에 쓰기만 하므로 pinning 문제 없음.
-     * 동시 전송 수는 실제 SSE 연결 수로 자연 제한됨.
+     * SSE 이벤트 전송용 Platform Thread Pool.
+     * SseEmitter.send() 내부 synchronized(sendMutex) + blocking I/O로
+     * Virtual Thread에서 carrier thread pinning이 발생하므로 platform thread 사용.
      */
-    @Bean(name = "sseEventExecutor", destroyMethod = "close")
-    public ExecutorService sseEventExecutor() {
-        ThreadFactory tf = Thread.ofVirtual().name("sse-event-", 0).factory();
-        log.info("SSE Virtual Thread Executor initialized");
-        return Executors.newThreadPerTaskExecutor(tf);
+    @Bean(name = "sseEventExecutor")
+    public Executor sseEventExecutor() {
+        ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
+        executor.setCorePoolSize(64);
+        executor.setMaxPoolSize(256);
+        executor.setQueueCapacity(5000);
+        executor.setThreadNamePrefix("sse-event-");
+        executor.setRejectedExecutionHandler(new ThreadPoolExecutor.CallerRunsPolicy());
+        executor.setWaitForTasksToCompleteOnShutdown(true);
+        executor.setAwaitTerminationSeconds(10);
+        executor.initialize();
+        log.info("SSE Platform Thread Executor initialized: core=64, max=256, queue=5000");
+        return executor;
     }
 }

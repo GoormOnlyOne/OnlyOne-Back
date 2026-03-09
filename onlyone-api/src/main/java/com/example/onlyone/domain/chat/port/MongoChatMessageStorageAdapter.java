@@ -19,6 +19,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.locks.ReentrantLock;
 
 /**
  * MongoDB 기반 채팅 메시지 저장소 어댑터.
@@ -35,6 +36,7 @@ public class MongoChatMessageStorageAdapter implements ChatMessageStoragePort {
     private final MongoTemplate mongoTemplate;
     private final AtomicLong currentId = new AtomicLong(0);
     private final AtomicLong maxId = new AtomicLong(0);
+    private final ReentrantLock seqLock = new ReentrantLock();
 
     public MongoChatMessageStorageAdapter(MongoTemplate mongoTemplate) {
         this.mongoTemplate = mongoTemplate;
@@ -146,7 +148,8 @@ public class MongoChatMessageStorageAdapter implements ChatMessageStoragePort {
         if (id <= maxId.get()) {
             return id;
         }
-        synchronized (this) {
+        seqLock.lock();
+        try {
             if (currentId.get() <= maxId.get()) {
                 return currentId.incrementAndGet();
             }
@@ -155,6 +158,8 @@ public class MongoChatMessageStorageAdapter implements ChatMessageStoragePort {
             currentId.set(newStart);
             maxId.set(newMax);
             return currentId.incrementAndGet();
+        } finally {
+            seqLock.unlock();
         }
     }
 

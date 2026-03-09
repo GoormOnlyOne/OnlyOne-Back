@@ -64,6 +64,12 @@ done
 BASE_URL="${BASE_URL:-http://localhost:8080}"
 APP_URL="${APP_URL:-$BASE_URL}"
 THREAD_DUMP_INTERVAL="${THREAD_DUMP_INTERVAL:-30}"
+APP_SSH_KEY="${APP_SSH_KEY:-$HOME/.ssh/onlyone-loadtest.pem}"
+APP_SSH_USER="${APP_SSH_USER:-ubuntu}"
+APP_HOST="${APP_HOST:-$(echo "$BASE_URL" | sed 's|http://||;s|:.*||')}"
+ENABLE_TCPDUMP="${ENABLE_TCPDUMP:-true}"
+ENABLE_JFR="${ENABLE_JFR:-true}"
+TCPDUMP_PACKET_LIMIT="${TCPDUMP_PACKET_LIMIT:-100000}"
 GRAFANA_URL="${GRAFANA_URL:-http://${INFRA_HOST}:3000}"
 GRAFANA_USER="${GRAFANA_USER:-admin}"
 GRAFANA_PASS="${GRAFANA_PASS:-admin}"
@@ -72,6 +78,16 @@ FILE_SERVER_PORT="${FILE_SERVER_PORT:-9999}"
 S3_BUCKET="${S3_BUCKET:-onlyone-loadtest-results}"
 S3_PREFIX="${S3_PREFIX:-results}"
 S3_REGION="${S3_REGION:-ap-northeast-2}"
+
+# ── SSH 헬퍼 (앱 서버 원격 명령) ──
+app_ssh() {
+    ssh -i "$APP_SSH_KEY" -o StrictHostKeyChecking=no -o ConnectTimeout=5 \
+        "${APP_SSH_USER}@${APP_HOST}" "$@" 2>/dev/null
+}
+
+app_ssh_available() {
+    app_ssh "echo ok" &>/dev/null
+}
 
 # ── Thread Dump 수집 (백그라운드) ──
 start_thread_dump_collector() {
@@ -83,9 +99,17 @@ start_thread_dump_collector() {
         local seq=0
         while true; do
             local ts=$(date +%H%M%S)
+            # Actuator 엔드포인트로 수집 (HTTP)
             curl -sf -m 5 "$APP_URL/actuator/threaddump" \
                 -H "Accept: application/json" \
                 > "$dump_dir/dump_${seq}_${ts}.json" 2>/dev/null || true
+
+            # jstack으로도 수집 (더 상세한 native 스레드 정보)
+            if app_ssh_available; then
+                app_ssh "jstack \$(cat ~/app.pid 2>/dev/null)" \
+                    > "$dump_dir/jstack_${seq}_${ts}.txt" 2>/dev/null || true
+            fi
+
             seq=$((seq + 1))
             sleep "$THREAD_DUMP_INTERVAL"
         done
@@ -101,6 +125,84 @@ stop_thread_dump_collector() {
         log_info "Thread dump 수집 종료 (PID=$THREAD_DUMP_PID)"
         unset THREAD_DUMP_PID
     fi
+}
+
+# ── tcpdump 캡처 (앱 서버에서 실행) ──
+start_tcpdump() {
+    local test_name="$1"
+    TCPDUMP_REMOTE_PID=""
+
+    if [ "$ENABLE_TCPDUMP" != "true" ]; then return; fi
+    if ! app_ssh_available; then
+        log_warn "tcpdump: 앱 서버 SSH 불가 — 스킵"
+        return
+    fi
+
+    local remote_file="/home/${APP_SSH_USER}/diagnostics/tcpdump/${test_name}_$(date +%Y%m%d_%H%M%S).pcap"
+    app_ssh "mkdir -p ~/diagnostics/tcpdump"
+    app_ssh "sudo tcpdump -i eth0 -w $remote_file -c $TCPDUMP_PACKET_LIMIT port 8080 or port 3306 or port 6379 &>/dev/null & echo \$!" > /tmp/_tcpdump_pid 2>/dev/null || true
+    TCPDUMP_REMOTE_PID=$(cat /tmp/_tcpdump_pid 2>/dev/null | tr -d '[:space:]')
+    TCPDUMP_REMOTE_FILE="$remote_file"
+
+    if [ -n "$TCPDUMP_REMOTE_PID" ]; then
+        log_info "tcpdump 시작 (원격 PID=$TCPDUMP_REMOTE_PID, max=${TCPDUMP_PACKET_LIMIT}pkts) → $remote_file"
+    else
+        log_warn "tcpdump 시작 실패"
+    fi
+}
+
+stop_tcpdump() {
+    local test_name="$1"
+    if [ -z "${TCPDUMP_REMOTE_PID:-}" ]; then return; fi
+
+    app_ssh "sudo kill $TCPDUMP_REMOTE_PID 2>/dev/null; sleep 1" || true
+
+    # 로컬로 다운로드
+    local local_dir="$RESULTS_DIR/tcpdump"
+    mkdir -p "$local_dir"
+    scp -i "$APP_SSH_KEY" -o StrictHostKeyChecking=no \
+        "${APP_SSH_USER}@${APP_HOST}:${TCPDUMP_REMOTE_FILE}" \
+        "$local_dir/" 2>/dev/null && \
+        log_ok "tcpdump 다운로드 완료 → $local_dir/$(basename "$TCPDUMP_REMOTE_FILE")" || \
+        log_warn "tcpdump 다운로드 실패"
+
+    TCPDUMP_REMOTE_PID=""
+}
+
+# ── JFR 덤프 (테스트 종료 시 앱 서버에서 수집) ──
+dump_jfr() {
+    local test_name="$1"
+    if [ "$ENABLE_JFR" != "true" ]; then return; fi
+    if ! app_ssh_available; then
+        log_warn "JFR: 앱 서버 SSH 불가 — 스킵"
+        return
+    fi
+
+    local remote_file="/home/${APP_SSH_USER}/diagnostics/jfr/${test_name}_$(date +%Y%m%d_%H%M%S).jfr"
+    app_ssh "jcmd \$(cat ~/app.pid 2>/dev/null) JFR.dump name=continuous filename=$remote_file 2>/dev/null" || true
+
+    # 로컬로 다운로드
+    local local_dir="$RESULTS_DIR/jfr"
+    mkdir -p "$local_dir"
+    scp -i "$APP_SSH_KEY" -o StrictHostKeyChecking=no \
+        "${APP_SSH_USER}@${APP_HOST}:${remote_file}" \
+        "$local_dir/" 2>/dev/null && \
+        log_ok "JFR 다운로드 완료 → $local_dir/$(basename "$remote_file")" || \
+        log_warn "JFR 다운로드 실패 (JFR 미활성화?)"
+}
+
+# ── GC 로그 수집 (테스트 종료 시) ──
+collect_gc_logs() {
+    local test_name="$1"
+    if ! app_ssh_available; then return; fi
+
+    local local_dir="$RESULTS_DIR/gclog"
+    mkdir -p "$local_dir"
+    scp -i "$APP_SSH_KEY" -o StrictHostKeyChecking=no \
+        "${APP_SSH_USER}@${APP_HOST}:~/diagnostics/gclog/gc_*.log" \
+        "$local_dir/" 2>/dev/null && \
+        log_ok "GC 로그 수집 완료 → $local_dir/" || \
+        log_warn "GC 로그 수집 실패"
 }
 
 # ── Grafana 대시보드 스냅샷 캡처 ──
@@ -281,8 +383,9 @@ run_k6() {
     local test_start=$(date +%s)
     local test_start_ms=$((test_start * 1000))
 
-    # Thread dump 수집 시작
+    # 진단 수집 시작
     start_thread_dump_collector "$test_name"
+    start_tcpdump "$test_name"
 
     local result_html="$RESULTS_DIR/${test_name}_${timestamp}_report.html"
 
@@ -304,8 +407,11 @@ run_k6() {
 
     local test_end_ms=$(($(date +%s) * 1000))
 
-    # Thread dump 수집 종료
+    # 진단 수집 종료 + 다운로드
     stop_thread_dump_collector
+    stop_tcpdump "$test_name"
+    dump_jfr "$test_name"
+    collect_gc_logs "$test_name"
 
     # Grafana 대시보드 스냅샷 캡처 (테스트 시간 범위)
     capture_grafana_snapshots "$test_name" "$test_start_ms" "$test_end_ms"
@@ -419,17 +525,34 @@ echo ""
 echo "  Thread dump 수집:"
 for dir in "$RESULTS_DIR/threaddumps/"*/; do
     [ -d "$dir" ] || continue
-    count=$(ls "$dir"*.json 2>/dev/null | wc -l)
+    count=$(ls "$dir"*.json "$dir"*.txt 2>/dev/null | wc -l)
     echo "    $(basename "$dir"): ${count}개"
 done
 echo ""
 echo "  k6 HTML 리포트:"
 ls -lh "$RESULTS_DIR/"*_report.html 2>/dev/null | awk '{print "    " $NF " (" $5 ")"}' || echo "    (없음)"
 echo ""
+echo "  tcpdump 캡처:"
+ls -lh "$RESULTS_DIR/tcpdump/"*.pcap 2>/dev/null | awk '{print "    " $NF " (" $5 ")"}' || echo "    (없음)"
+echo ""
+echo "  JFR 레코딩:"
+ls -lh "$RESULTS_DIR/jfr/"*.jfr 2>/dev/null | awk '{print "    " $NF " (" $5 ")"}' || echo "    (없음)"
+echo ""
+echo "  GC 로그:"
+ls -lh "$RESULTS_DIR/gclog/"*.log 2>/dev/null | awk '{print "    " $NF " (" $5 ")"}' || echo "    (없음)"
+echo ""
 
 PUBLIC_IP=$(curl -sf -m 3 http://169.254.169.254/latest/meta-data/public-ipv4 2>/dev/null || echo "<K6_PUBLIC_IP>")
 echo "  ★ 브라우저에서 결과 열람:"
 echo "    http://${PUBLIC_IP}:${FILE_SERVER_PORT}/"
+echo ""
+echo "  ★ 로컬에서 분석:"
+echo "    # 전체 다운로드"
+echo "    scp -i scripts/onlyone-loadtest.pem -r ubuntu@${PUBLIC_IP}:~/OnlyOne-Back/results/ ./loadtest-results/"
+echo "    # Wireshark로 열기"
+echo "    wireshark ./loadtest-results/tcpdump/<파일>.pcap"
+echo "    # JDK Mission Control로 JFR 열기"
+echo "    jmc -open ./loadtest-results/jfr/<파일>.jfr"
 echo ""
 echo "  다음 단계: ./scripts/ec2-collect-results.sh"
 echo ""

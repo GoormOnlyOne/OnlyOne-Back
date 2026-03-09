@@ -3,10 +3,10 @@
 // =============================================================
 
 import http from 'k6/http';
-import { generateJWT, headers, BASE_URL, makeUser } from '../lib/common.js';
+import { generateJWT, headers, BASE_URL, makeUser, TOTAL_USERS } from '../lib/common.js';
 
 // ── 공용 상수 (환경변수 오버라이드 가능) ──
-export const USER_COUNT   = parseInt(__ENV.USER_COUNT   || '100000');
+export const USER_COUNT   = parseInt(__ENV.USER_COUNT || '') || TOTAL_USERS;
 export const HOT_USER_MAX = parseInt(__ENV.HOT_USER_MAX || '10');
 
 // ── 유저 팩토리 ──

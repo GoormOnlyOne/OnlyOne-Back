@@ -59,7 +59,7 @@ else
     log_ok "Swap 이미 존재"
 fi
 
-# sysctl
+# sysctl (k6 고부하 클라이언트 튜닝)
 log_info "sysctl 튜닝..."
 sudo tee /etc/sysctl.d/99-loadtest.conf > /dev/null <<'EOF'
 vm.swappiness=10
@@ -68,6 +68,14 @@ net.ipv4.tcp_max_syn_backlog=65535
 net.ipv4.ip_local_port_range=1024 65535
 net.core.netdev_max_backlog=65535
 fs.file-max=2097152
+# 네트워크 버퍼 (k6 대량 응답 수신)
+net.core.rmem_max=16777216
+net.core.wmem_max=16777216
+net.ipv4.tcp_rmem=4096 87380 16777216
+net.ipv4.tcp_wmem=4096 65536 16777216
+# TIME_WAIT 재활용 (포트 고갈 방지)
+net.ipv4.tcp_tw_reuse=1
+net.ipv4.tcp_fin_timeout=15
 EOF
 sudo sysctl --system > /dev/null 2>&1
 log_ok "sysctl 적용 완료"
