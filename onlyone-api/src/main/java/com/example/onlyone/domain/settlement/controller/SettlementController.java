@@ -1,0 +1,45 @@
+package com.example.onlyone.domain.settlement.controller;
+
+import com.example.onlyone.domain.settlement.service.SettlementCommandService;
+import com.example.onlyone.domain.settlement.service.SettlementQueryService;
+import com.example.onlyone.global.common.CommonResponse;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
+import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.web.PageableDefault;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
+
+@Tag(name = "Settlement")
+@RestController
+@RequiredArgsConstructor
+@RequestMapping("/api/v1/clubs/{clubId}/schedules/{scheduleId}/settlements")
+public class SettlementController {
+
+    private final SettlementCommandService settlementCommandService;
+    private final SettlementQueryService settlementQueryService;
+
+    @Operation(summary = "정산 요청 생성", description = "정기 모임의 정산 요청을 생성합니다.")
+    @PostMapping
+    public ResponseEntity<?> createSettlement(
+            @PathVariable("clubId") final Long clubId,
+            @PathVariable("scheduleId") final Long scheduleId,
+            @RequestParam Long costPerUser) {
+        settlementCommandService.automaticSettlement(clubId, scheduleId, costPerUser);
+        return ResponseEntity.status(HttpStatus.CREATED).body(CommonResponse.success(null));
+    }
+
+    @Operation(summary = "스케줄 참여자 정산 조회", description = "정기 모임 모든 참여자의 정산 상태를 조회합니다.")
+    @GetMapping
+    public ResponseEntity<?> getSettlementList(
+            @PathVariable("clubId") final Long clubId,
+            @PathVariable("scheduleId") final Long scheduleId,
+            @PageableDefault(size = 20, sort = "createdAt", direction = Sort.Direction.DESC)
+            Pageable pageable) {
+        return ResponseEntity.ok(CommonResponse.success(
+                settlementQueryService.getSettlementList(scheduleId, pageable)));
+    }
+}

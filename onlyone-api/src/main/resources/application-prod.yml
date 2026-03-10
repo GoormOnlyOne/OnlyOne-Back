@@ -1,0 +1,152 @@
+# =============================================================
+# 운영 환경 설정 (profile: prod)
+# 안정성 우선: 보수적인 풀 사이즈, DDL 비활성화, 최소 로깅
+# 모든 민감 값은 환경변수로 주입
+# =============================================================
+
+# --- 데이터소스 (보수적 커넥션 풀) ---
+spring:
+  datasource:
+    driver-class-name: ${DB_DRIVER:com.mysql.cj.jdbc.Driver}
+    url: ${DB_URL}
+    username: ${DB_USERNAME}
+    password: ${DB_PASSWORD}
+    hikari:
+      maximum-pool-size: ${HIKARI_MAX_POOL:50}
+      minimum-idle: ${HIKARI_MIN_IDLE:10}
+      connection-timeout: ${HIKARI_CONN_TIMEOUT:30000}
+      idle-timeout: ${HIKARI_IDLE_TIMEOUT:600000}
+      max-lifetime: ${HIKARI_MAX_LIFETIME:1800000}
+
+  # JPA: DDL 완전 비활성화, 배치 처리
+  jpa:
+    hibernate:
+      ddl-auto: none             # 운영 DB 스키마 변경 차단
+    properties:
+      hibernate:
+        format_sql: false
+        use_sql_comments: false
+        show_sql: false
+        jdbc:
+          batch_size: 30
+        order_inserts: true
+        order_updates: true
+
+  # Redis
+  data:
+    redis:
+      host: ${REDIS_HOST}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:}
+      timeout: ${REDIS_TIMEOUT:5000}
+      lettuce:
+        pool:
+          max-active: ${REDIS_POOL_MAX_ACTIVE:64}
+          max-idle: ${REDIS_POOL_MAX_IDLE:32}
+          min-idle: ${REDIS_POOL_MIN_IDLE:8}
+          max-wait: ${REDIS_POOL_MAX_WAIT:3000}
+        shutdown-timeout: 2000ms
+
+  # Kafka (정산 MQ)
+  kafka:
+    default-bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+    producer:
+      common-config:
+        client-id: onlyone-producer
+        bootstrap-servers:
+          - ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+        transactional-id-prefix: onlyone-tx-
+        acks: all
+        linger-ms: 5
+        batch-size: 16384
+      settlement-process-producer-config:
+        topic: settlement.process.v1
+    consumer:
+      common-config:
+        group-id: onlyone-settlement
+        client-id: onlyone-consumer
+        bootstrap-servers:
+          - ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+        timeout-ms: "30000"
+        fetch-min-bytes: 1
+        fetch-max-wait-ms: 500
+      user-settlement-ledger-consumer-config:
+        topic: user-settlement.result.v1
+    security:
+      enabled: ${KAFKA_SECURITY_ENABLED:true}
+
+  # MongoDB
+  data.mongodb:
+    uri: ${MONGO_URI:}
+
+  # Elasticsearch
+  elasticsearch:
+    uris: ${ELASTICSEARCH_URIS}
+    username: ${ELASTICSEARCH_USERNAME:elastic}
+    password: ${ELASTICSEARCH_PASSWORD}
+
+  # 캐시: Redis 기반, TTL 10분
+  cache:
+    type: redis
+    redis:
+      time-to-live: 600000
+
+# --- 로깅: WARN 수준 (노이즈 최소화) ---
+logging:
+  level:
+    root: WARN
+    com.example.onlyone: INFO
+    org.hibernate.SQL: WARN
+    org.springframework.web: WARN
+    org.springframework.security: WARN
+
+server:
+  port: ${SERVER_PORT:8080}
+  tomcat:
+    threads:
+      max: ${TOMCAT_MAX_THREADS:200}
+      min-spare: ${TOMCAT_MIN_SPARE:10}
+    max-connections: ${TOMCAT_MAX_CONNECTIONS:8192}
+    accept-count: ${TOMCAT_ACCEPT_COUNT:100}
+
+# --- AWS ---
+aws:
+  s3:
+    region: ${AWS_S3_REGION:ap-northeast-2}
+    bucket: ${AWS_S3_BUCKET}
+  cloudfront:
+    domain: ${AWS_CLOUDFRONT_DOMAIN}
+
+Kakao:
+  redirect:
+    uri: ${KAKAO_REDIRECT_URI}
+
+# --- 앱 커스텀 설정 ---
+app:
+  search:
+    engine: ${SEARCH_ENGINE:elasticsearch}   # elasticsearch | mysql
+  rate-limit:
+    enabled: ${RATE_LIMIT_ENABLED:true}
+    requests-per-minute: ${RATE_LIMIT_RPM:60}
+    auth-requests-per-30s: ${RATE_LIMIT_AUTH:10}
+  feed:
+    storage: ${FEED_STORAGE:mysql}
+    cache:
+      enabled: ${FEED_CACHE_ENABLED:true}
+  feed-like-stream:
+    enabled: ${FEED_LIKE_STREAM_ENABLED:true}
+  chat:
+    storage: ${CHAT_STORAGE:mysql}
+    websocket: ${CHAT_WEBSOCKET:stomp}
+  notification:
+    storage: ${NOTIFICATION_STORAGE:mysql}
+    sse-timeout-millis: ${NOTIFICATION_SSE_TIMEOUT:60000}
+    max-connections: ${NOTIFICATION_MAX_CONNECTIONS:7000}
+    cleanup-interval-minutes: ${NOTIFICATION_CLEANUP_INTERVAL:2}
+    batch-size: ${NOTIFICATION_BATCH_SIZE:20}
+    max-queue-size-per-user: ${NOTIFICATION_MAX_QUEUE:100}
+    batch-processing-interval: ${NOTIFICATION_BATCH_INTERVAL:100}
+    multi-instance: ${NOTIFICATION_MULTI_INSTANCE:true}
+    batch-timeout-seconds: ${NOTIFICATION_BATCH_TIMEOUT:5}
+    sse-executor-permits: ${SSE_EXECUTOR_PERMITS:200}
+    notification-executor-permits: ${NOTIFICATION_EXECUTOR_PERMITS:100}

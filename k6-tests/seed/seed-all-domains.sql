@@ -1,0 +1,762 @@
+-- =============================================================
+-- 전체 도메인 통합 시드 데이터 (MySQL) — 100x 스케일
+-- =============================================================
+-- 실행: docker exec -i onlyone-mysql mysql -uroot -proot onlyone < k6-tests/seed-all-domains.sql
+--
+-- 대상 테이블 (18개):
+--   user, interest, user_interest, club, user_club,
+--   feed, feed_comment, feed_like, feed_image,
+--   schedule, user_schedule,
+--   chat_room, user_chat_room, message,
+--   wallet, payment, settlement, user_settlement, outbox_event
+--   notification, fcm_token
+--
+-- 규모 (100x, 고부하):
+--   user:             100,000명
+--   interest:         8개
+--   club:             50,000개
+--   user_club:        ~420,000
+--   feed:             10,000,000  (피드 도메인 ≥10M)
+--   feed_comment:     30,000,000
+--   feed_like:        20,000,000
+--   feed_image:       20,000,000
+--   schedule:         2,000,000   (스케줄 도메인 ≥10M)
+--   user_schedule:    10,000,000
+--   chat_room:        50,000      (채팅 도메인 ≥10M)
+--   user_chat_room:   250,000
+--   message:          10,000,000
+--   wallet:           100,000
+--   settlement:       100,000     (정산 도메인 확장)
+--   user_settlement:  1,000,000
+--   notification:     20,000,000  (알림 도메인 ≥10M)
+--   fcm_token:        100,000
+--   총 SQL 행:        ~124,000,000
+-- =============================================================
+
+SET @START_TIME = NOW();
+
+-- ═══════════════════════════════════════════
+-- 동시 실행 방지 (advisory lock)
+-- 이미 다른 세션에서 시드 실행 중이면 즉시 중단
+-- ═══════════════════════════════════════════
+SELECT GET_LOCK('onlyone_seed_lock', 0) INTO @got_lock;
+SET @lock_msg = IF(@got_lock = 1,
+    '시드 락 획득 완료 — 진행합니다.',
+    'ERROR: 다른 세션에서 시드가 이미 실행 중입니다. 완료 후 재시도하세요.');
+SELECT @lock_msg AS '';
+-- 락 못 얻으면 여기서 에러 발생시켜 중단
+SELECT IF(@got_lock = 1, 'OK', 1/0) INTO @_guard;
+
+SELECT '========================================' AS '';
+SELECT '=== 전체 도메인 시드 데이터 생성 시작 (100x) ===' AS '';
+SELECT '========================================' AS '';
+
+SET FOREIGN_KEY_CHECKS = 0;
+SET UNIQUE_CHECKS = 0;
+SET autocommit = 0;
+SET SESSION cte_max_recursion_depth = 20000000;
+SET SESSION bulk_insert_buffer_size = 256 * 1024 * 1024;
+
+-- ═══════════════════════════════════════════
+-- 헬퍼 테이블: digits (0~9), seq100k (0~99999)
+-- ═══════════════════════════════════════════
+DROP TABLE IF EXISTS _digits;
+CREATE TABLE _digits (d INT NOT NULL) ENGINE=MEMORY;
+INSERT INTO _digits VALUES (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+
+DROP TABLE IF EXISTS _seq100k;
+CREATE TABLE _seq100k (n INT NOT NULL, PRIMARY KEY(n)) ENGINE=InnoDB;
+INSERT INTO _seq100k
+SELECT d5.d*10000 + d4.d*1000 + d3.d*100 + d2.d*10 + d1.d
+FROM _digits d1, _digits d2, _digits d3, _digits d4, _digits d5;
+
+SELECT CONCAT('  헬퍼 테이블 생성 완료: _seq100k = ', COUNT(*), ' rows') AS '' FROM _seq100k;
+
+-- ═══════════════════════════════════════════
+-- 1) 유저 100,000명
+-- ═══════════════════════════════════════════
+SELECT '--- [1/14] 유저 생성 (100,000명) ---' AS '';
+
+INSERT INTO `user` (kakao_id, nickname, birth, status, profile_image, gender, city, district, role, created_at, modified_at)
+SELECT
+    1000000 + s.n + 1,
+    CONCAT('테스트유저', s.n + 1),
+    DATE_SUB('2000-01-01', INTERVAL (s.n % 3650) DAY),
+    'ACTIVE',
+    NULL,
+    IF(s.n % 2 = 0, 'MALE', 'FEMALE'),
+    ELT((s.n % 5) + 1, '서울', '부산', '대구', '인천', '광주'),
+    ELT((s.n % 10) + 1, '강남구', '서초구', '마포구', '중구', '해운대구', '사하구', '북구', '서구', '남구', '동구'),
+    'ROLE_USER',
+    NOW() - INTERVAL (100000 - s.n) MINUTE,
+    NOW()
+FROM _seq100k s
+ON DUPLICATE KEY UPDATE nickname = VALUES(nickname), modified_at = NOW();
+COMMIT;
+
+SELECT CONCAT('  유저: ', COUNT(*)) AS msg FROM `user` WHERE kakao_id BETWEEN 1000001 AND 1100000;
+
+-- ═══════════════════════════════════════════
+-- 2) 관심사 8개
+-- ═══════════════════════════════════════════
+SELECT '--- [2/14] 관심사 생성 ---' AS '';
+
+INSERT IGNORE INTO interest (interest_id, category, created_at, modified_at)
+VALUES
+    (1, 'CULTURE', NOW(), NOW()),
+    (2, 'EXERCISE', NOW(), NOW()),
+    (3, 'TRAVEL', NOW(), NOW()),
+    (4, 'MUSIC', NOW(), NOW()),
+    (5, 'CRAFT', NOW(), NOW()),
+    (6, 'SOCIAL', NOW(), NOW()),
+    (7, 'LANGUAGE', NOW(), NOW()),
+    (8, 'FINANCE', NOW(), NOW());
+COMMIT;
+
+-- 유저 관심사 매핑 (유저당 2개)
+INSERT IGNORE INTO user_interest (user_id, interest_id, created_at, modified_at)
+SELECT user_id, ((user_id % 8) + 1), NOW(), NOW()
+FROM `user` WHERE user_id BETWEEN 1 AND 100000;
+
+INSERT IGNORE INTO user_interest (user_id, interest_id, created_at, modified_at)
+SELECT user_id, (((user_id + 3) % 8) + 1), NOW(), NOW()
+FROM `user` WHERE user_id BETWEEN 1 AND 100000;
+COMMIT;
+
+-- ═══════════════════════════════════════════
+-- 3) 클럽 50,000개
+-- ═══════════════════════════════════════════
+SELECT '--- [3/14] 클럽 생성 (50,000개) ---' AS '';
+
+DELIMITER //
+DROP PROCEDURE IF EXISTS seed_clubs_batch //
+CREATE PROCEDURE seed_clubs_batch()
+BEGIN
+    DECLARE batch INT DEFAULT 0;
+    WHILE batch < 5 DO
+        INSERT INTO club (name, user_limit, description, city, district, member_count, interest_id, created_at, modified_at)
+        SELECT
+            CONCAT(
+                ELT((s.n % 10) + 1, '독서모임', '축구동호회', '등산모임', '기타동아리', '뜨개질클럽',
+                     '보드게임', '영어회화', '주식스터디', '영화감상', '러닝크루'),
+                ' ', batch * 10000 + s.n
+            ),
+            50,
+            CONCAT('테스트 클럽 ', batch * 10000 + s.n, '의 설명입니다. 함께 활동하며 즐거운 시간을 보내세요.'),
+            ELT(((batch * 10000 + s.n) % 5) + 1, '서울', '서울', '부산', '대구', '인천'),
+            ELT(((batch * 10000 + s.n) % 5) + 1, '강남구', '마포구', '해운대구', '서구', '서구'),
+            FLOOR(RAND() * 45) + 5,
+            ((batch * 10000 + s.n) % 8) + 1,
+            NOW() - INTERVAL FLOOR(RAND() * 365) DAY,
+            NOW()
+        FROM (SELECT n FROM _seq100k WHERE n < 10000) s
+        ON DUPLICATE KEY UPDATE modified_at = NOW();
+
+        COMMIT;
+        SELECT CONCAT('    클럽 진행: ', (batch + 1) * 10000, ' / 50,000') AS '';
+        SET batch = batch + 1;
+    END WHILE;
+END //
+DELIMITER ;
+CALL seed_clubs_batch();
+DROP PROCEDURE IF EXISTS seed_clubs_batch;
+
+SELECT CONCAT('  클럽: ', COUNT(*)) AS msg FROM club;
+
+-- ═══════════════════════════════════════════
+-- 4) 유저-클럽 가입 (유저당 ~4개)
+-- ═══════════════════════════════════════════
+SELECT '--- [4/14] 클럽 가입 ---' AS '';
+
+SET @min_club = (SELECT MIN(club_id) FROM club);
+
+-- 가입 1 (전원)
+INSERT IGNORE INTO user_club (user_id, club_id, role, created_at, modified_at)
+SELECT u.user_id, @min_club + (u.user_id % 50000), 'MEMBER', NOW(), NOW()
+FROM `user` u WHERE u.user_id BETWEEN 1 AND 100000;
+COMMIT;
+
+-- 가입 2 (전원)
+INSERT IGNORE INTO user_club (user_id, club_id, role, created_at, modified_at)
+SELECT u.user_id, @min_club + ((u.user_id + 16666) % 50000), 'MEMBER', NOW(), NOW()
+FROM `user` u WHERE u.user_id BETWEEN 1 AND 100000;
+COMMIT;
+
+-- 가입 3 (전원)
+INSERT IGNORE INTO user_club (user_id, club_id, role, created_at, modified_at)
+SELECT u.user_id, @min_club + ((u.user_id + 33333) % 50000), 'MEMBER', NOW(), NOW()
+FROM `user` u WHERE u.user_id BETWEEN 1 AND 100000;
+COMMIT;
+
+-- 가입 4 (절반)
+INSERT IGNORE INTO user_club (user_id, club_id, role, created_at, modified_at)
+SELECT u.user_id, @min_club + ((u.user_id * 7) % 50000), 'MEMBER', NOW(), NOW()
+FROM `user` u WHERE u.user_id BETWEEN 1 AND 50000;
+COMMIT;
+
+-- 가입 5 (20000명)
+INSERT IGNORE INTO user_club (user_id, club_id, role, created_at, modified_at)
+SELECT u.user_id, @min_club + ((u.user_id * 13) % 50000), 'MEMBER', NOW(), NOW()
+FROM `user` u WHERE u.user_id BETWEEN 1 AND 20000;
+COMMIT;
+
+-- 각 클럽 첫 가입자 LEADER
+UPDATE user_club uc
+JOIN (SELECT MIN(user_club_id) AS first_id FROM user_club GROUP BY club_id) t
+ON uc.user_club_id = t.first_id
+SET uc.role = 'LEADER';
+COMMIT;
+
+SELECT CONCAT('  유저-클럽: ', COUNT(*)) AS msg FROM user_club;
+
+-- ═══════════════════════════════════════════
+-- 5) 피드 10,000,000개
+-- ═══════════════════════════════════════════
+SELECT '--- [5/14] 피드 생성 (10,000,000개) ---' AS '';
+
+DELIMITER //
+DROP PROCEDURE IF EXISTS seed_feeds_batch //
+CREATE PROCEDURE seed_feeds_batch()
+BEGIN
+    DECLARE batch INT DEFAULT 0;
+    WHILE batch < 100 DO
+        INSERT INTO feed (content, club_id, user_id, type, parent_feed_id, root_feed_id,
+                         like_count, comment_count, deleted, created_at, modified_at)
+        SELECT
+            CONCAT('테스트 피드 #', batch * 100000 + s.n),
+            @min_club + ((batch * 100000 + s.n) % 50000),
+            ((batch * 100000 + s.n) % 100000) + 1,
+            IF(batch < 80, 'ORIGINAL', 'REFEED'),
+            IF(batch < 80, NULL, @min_feed + ((batch * 100000 + s.n) % 8000000)),
+            IF(batch < 80, NULL, @min_feed + ((batch * 100000 + s.n) % 8000000)),
+            FLOOR(RAND() * 30),
+            FLOOR(RAND() * 15),
+            FALSE,
+            NOW() - INTERVAL (10000000 - (batch * 100000 + s.n)) SECOND,
+            NOW()
+        FROM _seq100k s;
+
+        COMMIT;
+        IF (batch + 1) % 10 = 0 THEN
+            SELECT CONCAT('    피드 진행: ', (batch + 1) * 100000, ' / 10,000,000') AS '';
+        END IF;
+        SET batch = batch + 1;
+    END WHILE;
+END //
+DELIMITER ;
+
+-- ORIGINAL 피드용 @min_feed 미리 세팅 (아직 없으므로 0)
+SET @min_feed = 0;
+CALL seed_feeds_batch();
+DROP PROCEDURE IF EXISTS seed_feeds_batch;
+
+-- 실제 min_feed 갱신
+SET @min_feed = (SELECT MIN(feed_id) FROM feed);
+
+-- REFEED parent_feed_id 보정 (ORIGINAL만 참조하도록)
+UPDATE feed SET
+    parent_feed_id = @min_feed + (feed_id % 8000000),
+    root_feed_id = @min_feed + (feed_id % 8000000)
+WHERE type = 'REFEED' AND parent_feed_id IS NOT NULL;
+COMMIT;
+
+SELECT CONCAT('  피드: ', COUNT(*)) AS msg FROM feed;
+
+-- ═══════════════════════════════════════════
+-- 6) 피드 댓글 30,000,000개 (피드당 평균 3개)
+-- ═══════════════════════════════════════════
+SELECT '--- [6/14] 피드 댓글 생성 (30,000,000개) ---' AS '';
+
+DELIMITER //
+DROP PROCEDURE IF EXISTS seed_comments_batch //
+CREATE PROCEDURE seed_comments_batch()
+BEGIN
+    DECLARE batch INT DEFAULT 0;
+    WHILE batch < 300 DO
+        INSERT INTO feed_comment (content, feed_id, user_id, created_at, modified_at)
+        SELECT
+            CONCAT('댓글 #', batch * 100000 + s.n, ' - 좋은 글이네요!'),
+            @min_feed + ((batch * 100000 + s.n) % 10000000),
+            ((batch * 100000 + s.n) % 100000) + 1,
+            NOW() - INTERVAL (30000000 - (batch * 100000 + s.n)) SECOND,
+            NOW()
+        FROM _seq100k s;
+
+        COMMIT;
+        IF (batch + 1) % 20 = 0 THEN
+            SELECT CONCAT('    댓글 진행: ', (batch + 1) * 100000, ' / 30,000,000') AS '';
+        END IF;
+        SET batch = batch + 1;
+    END WHILE;
+END //
+DELIMITER ;
+CALL seed_comments_batch();
+DROP PROCEDURE IF EXISTS seed_comments_batch;
+
+SELECT CONCAT('  댓글: ', COUNT(*)) AS msg FROM feed_comment;
+
+-- ═══════════════════════════════════════════
+-- 7) 피드 좋아요 20,000,000개
+-- ═══════════════════════════════════════════
+SELECT '--- [7/14] 피드 좋아요 생성 (20,000,000개) ---' AS '';
+
+DELIMITER //
+DROP PROCEDURE IF EXISTS seed_likes_batch //
+CREATE PROCEDURE seed_likes_batch()
+BEGIN
+    DECLARE batch INT DEFAULT 0;
+    WHILE batch < 200 DO
+        INSERT IGNORE INTO feed_like (feed_id, user_id, created_at, modified_at)
+        SELECT
+            @min_feed + ((batch * 100000 + s.n) % 10000000),
+            ((batch * 100000 + s.n) DIV 10000000 * 50000 + (batch * 100000 + s.n) % 50000) % 100000 + 1,
+            NOW() - INTERVAL (20000000 - (batch * 100000 + s.n)) SECOND,
+            NOW()
+        FROM _seq100k s;
+
+        COMMIT;
+        IF (batch + 1) % 20 = 0 THEN
+            SELECT CONCAT('    좋아요 진행: ', (batch + 1) * 100000, ' / 20,000,000') AS '';
+        END IF;
+        SET batch = batch + 1;
+    END WHILE;
+END //
+DELIMITER ;
+CALL seed_likes_batch();
+DROP PROCEDURE IF EXISTS seed_likes_batch;
+
+SELECT CONCAT('  좋아요: ', COUNT(*)) AS msg FROM feed_like;
+
+-- ═══════════════════════════════════════════
+-- 8) 피드 이미지 20,000,000개 (피드당 2개)
+-- ═══════════════════════════════════════════
+SELECT '--- [8/14] 피드 이미지 생성 (20,000,000개) ---' AS '';
+
+DELIMITER //
+DROP PROCEDURE IF EXISTS seed_images_batch //
+CREATE PROCEDURE seed_images_batch()
+BEGIN
+    DECLARE batch INT DEFAULT 0;
+    WHILE batch < 200 DO
+        INSERT INTO feed_image (feed_image, feed_id, created_at, modified_at)
+        SELECT
+            CONCAT('https://d1c3fg3ti7m8cn.cloudfront.net/feed/', @min_feed + ((batch * 100000 + s.n) DIV 2), '/img', ((batch * 100000 + s.n) % 2) + 1, '.jpg'),
+            @min_feed + ((batch * 100000 + s.n) DIV 2),
+            NOW(),
+            NOW()
+        FROM _seq100k s;
+
+        COMMIT;
+        IF (batch + 1) % 20 = 0 THEN
+            SELECT CONCAT('    이미지 진행: ', (batch + 1) * 100000, ' / 20,000,000') AS '';
+        END IF;
+        SET batch = batch + 1;
+    END WHILE;
+END //
+DELIMITER ;
+CALL seed_images_batch();
+DROP PROCEDURE IF EXISTS seed_images_batch;
+
+SELECT CONCAT('  이미지: ', COUNT(*)) AS msg FROM feed_image;
+
+-- ═══════════════════════════════════════════
+-- 9) 스케줄 2,000,000개 + 유저스케줄 10,000,000개
+-- ═══════════════════════════════════════════
+SELECT '--- [9/14] 스케줄 생성 (2,000,000개) ---' AS '';
+
+DELIMITER //
+DROP PROCEDURE IF EXISTS seed_schedules_batch //
+CREATE PROCEDURE seed_schedules_batch()
+BEGIN
+    DECLARE batch INT DEFAULT 0;
+    WHILE batch < 20 DO
+        INSERT INTO schedule (schedule_time, name, location, cost, user_limit, status, club_id, created_at, modified_at)
+        SELECT
+            NOW() + INTERVAL (batch * 100000 + s.n - 1000000) MINUTE,
+            CONCAT('모임일정 ', batch * 100000 + s.n),
+            CONCAT('장소 ', ((batch * 100000 + s.n) % 10) + 1),
+            (FLOOR(RAND() * 10) + 1) * 1000,
+            20,
+            ELT(((batch * 100000 + s.n) % 4) + 1, 'READY', 'ENDED', 'SETTLING', 'CLOSED'),
+            @min_club + ((batch * 100000 + s.n) % 50000),
+            NOW() - INTERVAL (2000000 - (batch * 100000 + s.n)) MINUTE,
+            NOW()
+        FROM _seq100k s;
+
+        COMMIT;
+        SELECT CONCAT('    스케줄 진행: ', (batch + 1) * 100000, ' / 2,000,000') AS '';
+        SET batch = batch + 1;
+    END WHILE;
+END //
+DELIMITER ;
+CALL seed_schedules_batch();
+DROP PROCEDURE IF EXISTS seed_schedules_batch;
+
+SELECT CONCAT('  스케줄: ', COUNT(*)) AS msg FROM schedule;
+
+-- 유저 스케줄 참여 (스케줄당 5명 = 10,000,000건)
+SELECT '--- 유저 스케줄 참여 (10,000,000건) ---' AS '';
+
+SET @min_schedule = (SELECT MIN(schedule_id) FROM schedule);
+SET @schedule_count = (SELECT COUNT(*) FROM schedule WHERE schedule_id < 5000000);
+
+DELIMITER //
+DROP PROCEDURE IF EXISTS seed_user_schedules //
+CREATE PROCEDURE seed_user_schedules()
+BEGIN
+    DECLARE p INT DEFAULT 0;
+    DECLARE batch INT;
+    WHILE p < 5 DO
+        SET batch = 0;
+        WHILE batch < 20 DO
+            INSERT IGNORE INTO user_schedule (user_id, schedule_id, role, created_at, modified_at)
+            SELECT
+                (((batch * 100000 + s.n) * 5 + p) % 100000) + 1,
+                @min_schedule + batch * 100000 + s.n,
+                IF(p = 0, 'LEADER', 'MEMBER'),
+                NOW(), NOW()
+            FROM _seq100k s;
+
+            COMMIT;
+            SET batch = batch + 1;
+        END WHILE;
+        SELECT CONCAT('    유저스케줄 round ', p + 1, ' / 5 완료 (', (p + 1) * 2000000, ' / 10,000,000)') AS '';
+        SET p = p + 1;
+    END WHILE;
+END //
+DELIMITER ;
+CALL seed_user_schedules();
+DROP PROCEDURE IF EXISTS seed_user_schedules;
+
+SELECT CONCAT('  유저스케줄: ', COUNT(*)) AS msg FROM user_schedule;
+
+-- ═══════════════════════════════════════════
+-- 10) 채팅방 50,000개 + 참여자 250,000 + 메시지 10,000,000
+-- ═══════════════════════════════════════════
+SELECT '--- [10/14] 채팅방 생성 (50,000개) ---' AS '';
+
+INSERT INTO chat_room (club_id, schedule_id, type, created_at, modified_at)
+SELECT
+    @min_club + (s.n % 50000),
+    IF(s.n % 3 = 0, @min_schedule + (s.n % 2000000), NULL),
+    IF(s.n % 3 = 0, 'SCHEDULE', 'CLUB'),
+    NOW() - INTERVAL (50000 - s.n) HOUR,
+    NOW()
+FROM (SELECT n FROM _seq100k WHERE n < 50000) s;
+COMMIT;
+
+-- 참여자 (방당 5명 = 250,000)
+SELECT '--- 채팅 참여자 (250,000건) ---' AS '';
+
+SET @min_chatroom = (SELECT MIN(chat_room_id) FROM chat_room);
+
+DELIMITER //
+DROP PROCEDURE IF EXISTS seed_user_chatrooms //
+CREATE PROCEDURE seed_user_chatrooms()
+BEGIN
+    DECLARE p INT DEFAULT 0;
+    WHILE p < 5 DO
+        INSERT IGNORE INTO user_chat_room (chat_room_id, user_id, role, created_at, modified_at)
+        SELECT
+            @min_chatroom + s.n,
+            ((s.n * 5 + p) % 100000) + 1,
+            IF(p = 0, 'LEADER', 'MEMBER'),
+            NOW(), NOW()
+        FROM (SELECT n FROM _seq100k WHERE n < 50000) s;
+
+        COMMIT;
+        SET p = p + 1;
+    END WHILE;
+END //
+DELIMITER ;
+CALL seed_user_chatrooms();
+DROP PROCEDURE IF EXISTS seed_user_chatrooms;
+
+-- 메시지 10,000,000개
+SELECT '--- 채팅 메시지 (10,000,000건) ---' AS '';
+
+DELIMITER //
+DROP PROCEDURE IF EXISTS seed_messages_batch //
+CREATE PROCEDURE seed_messages_batch()
+BEGIN
+    DECLARE batch INT DEFAULT 0;
+    WHILE batch < 100 DO
+        INSERT INTO message (chat_room_id, user_id, text, sent_at, deleted, created_at, modified_at)
+        SELECT
+            @min_chatroom + ((batch * 100000 + s.n) % 50000),
+            ((batch * 100000 + s.n) % 100000) + 1,
+            CONCAT('채팅 메시지 #', batch * 100000 + s.n, ' - 안녕하세요!'),
+            NOW() - INTERVAL (10000000 - (batch * 100000 + s.n)) SECOND,
+            FALSE,
+            NOW() - INTERVAL (10000000 - (batch * 100000 + s.n)) SECOND,
+            NOW()
+        FROM _seq100k s;
+
+        COMMIT;
+        IF (batch + 1) % 10 = 0 THEN
+            SELECT CONCAT('    메시지 진행: ', (batch + 1) * 100000, ' / 10,000,000') AS '';
+        END IF;
+        SET batch = batch + 1;
+    END WHILE;
+END //
+DELIMITER ;
+CALL seed_messages_batch();
+DROP PROCEDURE IF EXISTS seed_messages_batch;
+
+SELECT CONCAT('  채팅방: ', COUNT(*)) AS msg FROM chat_room;
+SELECT CONCAT('  참여자: ', COUNT(*)) AS msg FROM user_chat_room;
+SELECT CONCAT('  메시지: ', COUNT(*)) AS msg FROM message;
+
+-- ═══════════════════════════════════════════
+-- 11) 지갑 100,000개
+-- ═══════════════════════════════════════════
+SELECT '--- [11/14] 지갑 생성 (100,000개) ---' AS '';
+
+-- 일반 유저 (userId 1, 12~100000): 기본 잔액, 홀드 없음
+INSERT INTO wallet (user_id, posted_balance, pending_out, created_at, modified_at)
+SELECT u.user_id, 100000, 0, NOW(), NOW()
+FROM `user` u WHERE u.user_id BETWEEN 1 AND 100000
+  AND u.user_id NOT BETWEEN 2 AND 11
+AND NOT EXISTS (SELECT 1 FROM wallet w WHERE w.user_id = u.user_id)
+ON DUPLICATE KEY UPDATE posted_balance = 100000, pending_out = 0, modified_at = NOW();
+
+-- 정산 참여자 (userId 2~11): 100,000 정산 x costPerUser 100 = pending_out 10,000,000
+-- captureHold 조건: pending_out >= amount AND posted_balance >= amount
+-- holdBalanceIfEnough가 이미 실행된 상태를 시뮬레이션
+INSERT INTO wallet (user_id, posted_balance, pending_out, created_at, modified_at)
+SELECT u.user_id, 10000000, 10000000, NOW(), NOW()
+FROM `user` u WHERE u.user_id BETWEEN 2 AND 11
+ON DUPLICATE KEY UPDATE posted_balance = 10000000, pending_out = 10000000, modified_at = NOW();
+COMMIT;
+
+SELECT CONCAT('  지갑: ', COUNT(*)) AS msg FROM wallet WHERE user_id BETWEEN 1 AND 100000;
+
+-- ═══════════════════════════════════════════
+-- 12) 정산 100,000건 + 유저정산 1,000,000건
+-- ═══════════════════════════════════════════
+SELECT '--- [12/14] 정산 생성 (100,000건) ---' AS '';
+
+-- 테스트 전용 스케줄 (5000000~5099999)
+DELETE FROM user_settlement WHERE settlement_id IN (
+    SELECT settlement_id FROM settlement WHERE schedule_id BETWEEN 5000000 AND 5099999
+);
+DELETE FROM settlement WHERE schedule_id BETWEEN 5000000 AND 5099999;
+DELETE FROM schedule WHERE schedule_id BETWEEN 5000000 AND 5099999;
+COMMIT;
+
+INSERT INTO schedule (schedule_id, created_at, modified_at, cost, location, name, status, schedule_time, user_limit, club_id)
+SELECT
+    5000000 + s.n, NOW(), NOW(), 1000, 'LoadTest Location',
+    CONCAT('정산테스트 스케줄 ', s.n), 'ENDED',
+    DATE_SUB(NOW(), INTERVAL 1 DAY), 20, @min_club + (s.n % 50000)
+FROM _seq100k s
+ON DUPLICATE KEY UPDATE status = 'ENDED', modified_at = NOW();
+COMMIT;
+
+SELECT CONCAT('  정산용 스케줄: ', COUNT(*)) AS msg FROM schedule WHERE schedule_id BETWEEN 5000000 AND 5099999;
+
+INSERT INTO settlement (created_at, modified_at, completed_time, schedule_id, sum, total_status, user_id, version)
+SELECT NOW(), NOW(), NULL, 5000000 + s.n, 0, 'HOLDING', (s.n % 100000) + 1, 0
+FROM _seq100k s;
+COMMIT;
+
+-- 유저정산 (각 정산당 10명 = 1,000,000건)
+DELIMITER //
+DROP PROCEDURE IF EXISTS seed_user_settlements //
+CREATE PROCEDURE seed_user_settlements()
+BEGIN
+    DECLARE p INT DEFAULT 2;
+    WHILE p <= 11 DO
+        INSERT INTO user_settlement (created_at, modified_at, completed_time, status, settlement_id, user_id)
+        SELECT NOW(), NOW(), NULL, 'HOLD_ACTIVE', s.settlement_id, p
+        FROM settlement s
+        WHERE s.schedule_id BETWEEN 5000000 AND 5099999 AND s.total_status = 'HOLDING';
+        COMMIT;
+        SELECT CONCAT('    유저정산 userId=', p, ' 완료 (', (p - 1) * 100000, ' / 1,000,000)') AS '';
+        SET p = p + 1;
+    END WHILE;
+END //
+DELIMITER ;
+CALL seed_user_settlements();
+DROP PROCEDURE IF EXISTS seed_user_settlements;
+
+SELECT CONCAT('  정산: ', COUNT(*)) AS msg FROM settlement WHERE schedule_id BETWEEN 5000000 AND 5099999;
+SELECT CONCAT('  유저정산: ', COUNT(*)) AS msg FROM user_settlement us
+JOIN settlement s ON us.settlement_id = s.settlement_id WHERE s.schedule_id BETWEEN 5000000 AND 5099999;
+
+-- ═══════════════════════════════════════════
+-- 13) 알림 20,000,000건
+-- ═══════════════════════════════════════════
+SELECT '--- [13/14] 알림 생성 (20,000,000건) ---' AS '';
+
+DELIMITER //
+DROP PROCEDURE IF EXISTS seed_notifications_batch //
+CREATE PROCEDURE seed_notifications_batch()
+BEGIN
+    DECLARE batch INT DEFAULT 0;
+    WHILE batch < 200 DO
+        INSERT INTO notification (content, is_read, type, user_id, sse_sent, created_at, modified_at)
+        SELECT
+            CONCAT('알림 #', batch * 100000 + s.n, ' - ', ELT(((batch * 100000 + s.n) % 5) + 1, 'CHAT', 'COMMENT', 'LIKE', 'REFEED', 'SETTLEMENT'), ' 관련 알림입니다.'),
+            IF(RAND() < 0.3, TRUE, FALSE),
+            ELT(((batch * 100000 + s.n) % 5) + 1, 'CHAT', 'COMMENT', 'LIKE', 'REFEED', 'SETTLEMENT'),
+            ((batch * 100000 + s.n) % 100000) + 1,
+            IF(RAND() < 0.7, TRUE, FALSE),
+            NOW() - INTERVAL (20000000 - (batch * 100000 + s.n)) SECOND,
+            NOW()
+        FROM _seq100k s;
+
+        COMMIT;
+        IF (batch + 1) % 20 = 0 THEN
+            SELECT CONCAT('    알림 진행: ', (batch + 1) * 100000, ' / 20,000,000') AS '';
+        END IF;
+        SET batch = batch + 1;
+    END WHILE;
+END //
+DELIMITER ;
+CALL seed_notifications_batch();
+DROP PROCEDURE IF EXISTS seed_notifications_batch;
+
+SELECT CONCAT('  알림: ', COUNT(*)) AS msg FROM notification;
+
+-- ═══════════════════════════════════════════
+-- 14) FCM 토큰 100,000개
+-- ═══════════════════════════════════════════
+SELECT '--- [14/14] FCM 토큰 생성 (100,000개) ---' AS '';
+
+INSERT INTO fcm_token (user_id, token, device_type, created_at, modified_at)
+SELECT
+    u.user_id,
+    CONCAT('fcm-token-loadtest-', u.user_id, '-', UUID()),
+    IF(u.user_id % 2 = 0, 'ANDROID', 'IOS'),
+    NOW(), NOW()
+FROM `user` u WHERE u.user_id BETWEEN 1 AND 100000
+ON DUPLICATE KEY UPDATE token = VALUES(token), modified_at = NOW();
+COMMIT;
+
+SELECT CONCAT('  FCM 토큰: ', COUNT(*)) AS msg FROM fcm_token WHERE user_id BETWEEN 1 AND 100000;
+
+-- ═══════════════════════════════════════════
+-- 카운트 동기화 (50,000건 배치)
+-- ═══════════════════════════════════════════
+SELECT '--- 피드 카운트 동기화 ---' AS '';
+
+DELIMITER //
+DROP PROCEDURE IF EXISTS sync_feed_counts //
+CREATE PROCEDURE sync_feed_counts()
+BEGIN
+    DECLARE batch_start BIGINT;
+    DECLARE batch_end BIGINT;
+    SET batch_start = @min_feed;
+    SET batch_end = @min_feed + 9999999;
+
+    WHILE batch_start <= batch_end DO
+        UPDATE feed f SET
+            like_count = (SELECT COUNT(*) FROM feed_like fl WHERE fl.feed_id = f.feed_id),
+            comment_count = (SELECT COUNT(*) FROM feed_comment fc WHERE fc.feed_id = f.feed_id)
+        WHERE f.feed_id BETWEEN batch_start AND batch_start + 49999;
+        COMMIT;
+
+        IF (batch_start - @min_feed) % 1000000 = 0 THEN
+            SELECT CONCAT('    카운트 동기화: ', batch_start - @min_feed, ' / 10,000,000') AS '';
+        END IF;
+        SET batch_start = batch_start + 50000;
+    END WHILE;
+END //
+DELIMITER ;
+CALL sync_feed_counts();
+DROP PROCEDURE IF EXISTS sync_feed_counts;
+
+-- 클럽 멤버 카운트 동기화
+SELECT '--- 클럽 멤버 카운트 동기화 ---' AS '';
+UPDATE club c SET
+    member_count = (SELECT COUNT(*) FROM user_club uc WHERE uc.club_id = c.club_id);
+COMMIT;
+
+-- ═══════════════════════════════════════════
+-- 정리
+-- ═══════════════════════════════════════════
+DROP TABLE IF EXISTS _seq100k;
+DROP TABLE IF EXISTS _digits;
+
+SET FOREIGN_KEY_CHECKS = 1;
+SET UNIQUE_CHECKS = 1;
+SET autocommit = 1;
+
+-- ═══════════════════════════════════════════
+-- 최종 결과
+-- ═══════════════════════════════════════════
+SELECT '========================================' AS '';
+SELECT '=== 시드 데이터 최종 결과 ===' AS '';
+SELECT '========================================' AS '';
+SELECT CONCAT('user:            ', (SELECT COUNT(*) FROM `user`)) AS result;
+SELECT CONCAT('interest:        ', (SELECT COUNT(*) FROM interest)) AS result;
+SELECT CONCAT('user_interest:   ', (SELECT COUNT(*) FROM user_interest)) AS result;
+SELECT CONCAT('club:            ', (SELECT COUNT(*) FROM club)) AS result;
+SELECT CONCAT('user_club:       ', (SELECT COUNT(*) FROM user_club)) AS result;
+SELECT CONCAT('feed:            ', (SELECT COUNT(*) FROM feed)) AS result;
+SELECT CONCAT('feed_comment:    ', (SELECT COUNT(*) FROM feed_comment)) AS result;
+SELECT CONCAT('feed_like:       ', (SELECT COUNT(*) FROM feed_like)) AS result;
+SELECT CONCAT('feed_image:      ', (SELECT COUNT(*) FROM feed_image)) AS result;
+SELECT CONCAT('schedule:        ', (SELECT COUNT(*) FROM schedule)) AS result;
+SELECT CONCAT('user_schedule:   ', (SELECT COUNT(*) FROM user_schedule)) AS result;
+SELECT CONCAT('chat_room:       ', (SELECT COUNT(*) FROM chat_room)) AS result;
+SELECT CONCAT('user_chat_room:  ', (SELECT COUNT(*) FROM user_chat_room)) AS result;
+SELECT CONCAT('message:         ', (SELECT COUNT(*) FROM message)) AS result;
+SELECT CONCAT('wallet:          ', (SELECT COUNT(*) FROM wallet)) AS result;
+SELECT CONCAT('settlement:      ', (SELECT COUNT(*) FROM settlement)) AS result;
+SELECT CONCAT('user_settlement: ', (SELECT COUNT(*) FROM user_settlement)) AS result;
+SELECT CONCAT('notification:    ', (SELECT COUNT(*) FROM notification)) AS result;
+SELECT CONCAT('fcm_token:       ', (SELECT COUNT(*) FROM fcm_token)) AS result;
+SELECT CONCAT('소요시간: ', TIMEDIFF(NOW(), @START_TIME)) AS result;
+
+-- ═══════════════════════════════════════════
+-- k6 환경변수 가이드 (AUTO_INCREMENT drift 대응)
+-- ═══════════════════════════════════════════
+SELECT '========================================' AS '';
+SELECT '=== k6 환경변수 설정 가이드 (100x) ===' AS '';
+SELECT '========================================' AS '';
+SELECT CONCAT('MIN_CLUB=',      (SELECT MIN(club_id) FROM club))         AS env_var;
+SELECT CONCAT('MIN_CHATROOM=',  (SELECT MIN(chat_room_id) FROM chat_room)) AS env_var;
+SELECT CONCAT('MIN_SCHEDULE=',  (SELECT MIN(schedule_id) FROM schedule WHERE schedule_id < 5000000)) AS env_var;
+SELECT CONCAT('TOTAL_USERS=100000')   AS env_var;
+SELECT CONCAT('TOTAL_CLUBS=50000')    AS env_var;
+SELECT CONCAT('TOTAL_CHATROOMS=50000') AS env_var;
+SELECT CONCAT('TOTAL_SCHEDULES=2000000') AS env_var;
+SELECT CONCAT('USER_COUNT=100000')    AS env_var;
+SELECT CONCAT('SETTLEMENT_COUNT=100000') AS env_var;
+SELECT '' AS '';
+SELECT '위 값을 k6 실행 시 환경변수로 전달하세요.' AS '';
+SELECT '예: k6 run -e MIN_CLUB=1 -e TOTAL_CLUBS=50000 ...' AS '';
+
+-- ═══════════════════════════════════════════
+-- 데이터 정합성 검증
+-- ═══════════════════════════════════════════
+SELECT '========================================' AS '';
+SELECT '=== 데이터 정합성 검증 ===' AS '';
+SELECT '========================================' AS '';
+
+-- 1. 정산 참여자 지갑: pending_out > 0 확인
+SELECT CONCAT('정산참여자 지갑 OK: ',
+    IF((SELECT COUNT(*) FROM wallet WHERE user_id BETWEEN 2 AND 11 AND pending_out > 0) = 10,
+       'PASS (10/10)', 'FAIL')) AS verify;
+
+-- 2. 정산 settlement 수 확인
+SELECT CONCAT('정산 데이터 OK: ',
+    IF((SELECT COUNT(*) FROM settlement WHERE schedule_id BETWEEN 5000000 AND 5099999) = 100000,
+       'PASS (100,000건)', CONCAT('FAIL (', (SELECT COUNT(*) FROM settlement WHERE schedule_id BETWEEN 5000000 AND 5099999), '건)'))) AS verify;
+
+-- 3. user_settlement 수 확인
+SELECT CONCAT('유저정산 데이터 OK: ',
+    IF((SELECT COUNT(*) FROM user_settlement us JOIN settlement s ON us.settlement_id = s.settlement_id WHERE s.schedule_id BETWEEN 5000000 AND 5099999) = 1000000,
+       'PASS (1,000,000건)', 'FAIL')) AS verify;
+
+-- 4. 클럽-유저 매핑 확인
+SELECT CONCAT('클럽 가입 OK: ',
+    IF((SELECT COUNT(*) FROM user_club) >= 350000, 'PASS', 'FAIL'),
+    ' (', (SELECT COUNT(*) FROM user_club), '건)') AS verify;
+
+SELECT '=== 완료 ===' AS '';
+
+-- advisory lock 해제
+DO RELEASE_LOCK('onlyone_seed_lock');

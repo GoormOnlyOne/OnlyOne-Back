@@ -1,6 +1,13 @@
+.git
 .gradle
-target
-out
-node_modules
-*.iml
+**/build
+.idea
+.vscode
+.env
+.claude
+k6-tests
+k6-results
+monitoring
+*.md
 *.log
+*.backup

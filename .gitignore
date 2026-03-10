@@ -1,25 +1,13 @@
-HELP.md
+### Gradle ###
 .gradle
 build/
 build/generated/
 src/main/generated/
-**/Q*.java
-**/Q*.class
+**/generated/**/Q*.java
+**/generated/**/Q*.class
 !gradle/wrapper/gradle-wrapper.jar
 !**/src/main/**/build/
 !**/src/test/**/build/
-
-### STS ###
-.apt_generated
-.classpath
-.factorypath
-.project
-.settings
-.springBeans
-.sts4-cache
-bin/
-!**/src/main/**/bin/
-!**/src/test/**/bin/
 
 ### IntelliJ IDEA ###
 .idea
@@ -30,53 +18,47 @@ out/
 !**/src/main/**/out/
 !**/src/test/**/out/
 
-### NetBeans ###
-/nbproject/private/
-/nbbuild/
-/dist/
-/nbdist/
-/.nb-gradle/
-
 ### VS Code ###
 .vscode/
 
-src/main/resources/firebase/service-account.json
+### Environment & Secrets ###
+.env
+*.env.local
+*.env.production
+.my.cnf
 
-application.yml
+### Application configs (sensitive) ###
 src/main/resources/application.yml
 src/main/resources/application-prod.yml
 src/main/resources/application-test.yml
+src/main/resources/application-stage.yml
+src/main/resources/ValidationMessages.properties
 src/main/resources/firebase/
 
-.DS_Store
-CLAUDE.md
-.claude/
-spy.log
+### Test resources ###
 src/test/resources/application-test.yml
 src/test/resources/data.sql
-src/main/resources/ValidationMessages.properties
 
-### ngrinder ###
-ngrinder-controller
+### Claude ###
+CLAUDE.md
+.claude/
 
-### monitoring ###
-grafana-data
-prometheus-data
-docker-compose.yml
-prometheus.yml
-<<<<<<< HEAD
-datasource.yml
-k6/
+### Logs ###
+logs/
+*.log
+**/logs/
+**/*.log
+app-logs.txt
 
-smoke_dummy.js
+### k6 test results ###
+k6-results/
 
-=======
-influxdb-data
-k6-test
-redis-data/dump.rdb
-.my.cnf
-src/main/resources/application-stage.yml
-k6/k6_result.json
-k6/settlement_test.js
-ngrinder-controller
->>>>>>> 1191fa0d327320b6ba956954cf597dcb07feda36
+### OS ###
+.DS_Store
+nul
+
+### Generated/Backup ###
+*.backup
+src-backup/
+scripts/onlyone-loadtest.pem
+scripts/.ec2-provision-state

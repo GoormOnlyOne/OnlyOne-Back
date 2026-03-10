@@ -1,0 +1,16 @@
+package com.example.onlyone.domain.notification.port;
+
+import java.util.concurrent.CompletableFuture;
+
+/**
+ * 알림 전송 추상화 포트.
+ * SSE 기반 구현체를 사용한다.
+ */
+public interface NotificationDeliveryPort {
+
+    boolean isUserReachable(Long userId);
+
+    CompletableFuture<Boolean> deliver(Long userId, String eventName, Object data);
+
+    String channelName();
+}

@@ -1,0 +1,71 @@
+package com.example.onlyone.domain.chat.entity;
+
+import com.example.onlyone.domain.user.entity.User;
+import com.example.onlyone.common.BaseTimeEntity;
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.FetchType;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
+import jakarta.persistence.Id;
+import jakarta.persistence.Index;
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.ManyToOne;
+import jakarta.persistence.Table;
+import jakarta.validation.constraints.NotNull;
+import lombok.AccessLevel;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+
+import java.time.LocalDateTime;
+
+@Entity
+@Table(name = "message", indexes = {
+        @Index(name = "idx_msg_room_deleted_sent", columnList = "chat_room_id, deleted, sent_at DESC, message_id DESC")
+})
+@Getter
+@NoArgsConstructor(access = AccessLevel.PROTECTED)
+@AllArgsConstructor
+@Builder
+public class Message extends BaseTimeEntity {
+
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Column(name = "message_id", updatable = false, nullable = false)
+    private Long messageId;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "chat_room_id", updatable = false)
+    @NotNull
+    private ChatRoom chatRoom;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "user_id", updatable = false)
+    @NotNull
+    private User user;
+
+    @Column(name = "text")
+    @NotNull
+    private String text;
+
+    @Column(name = "sent_at")
+    @NotNull
+    private LocalDateTime sentAt;
+
+    @Column(name = "deleted")
+    @NotNull
+    private boolean deleted;
+
+    //소유자 확인 메서드
+    public boolean isOwnedBy(Long userId) {
+        return this.user != null && this.user.getUserId().equals(userId);
+    }
+
+    //삭제 처리 커맨드 메서드
+    public void markAsDeleted() {
+        this.deleted = true;
+        this.text = "삭제된 메시지입니다.";
+    }
+}

@@ -1,0 +1,73 @@
+package com.example.onlyone.domain.wallet.service;
+
+import com.example.onlyone.domain.payment.entity.Payment;
+import com.example.onlyone.domain.user.entity.User;
+import com.example.onlyone.domain.user.service.UserService;
+import com.example.onlyone.domain.wallet.dto.response.UserWalletTransactionDto;
+import com.example.onlyone.domain.wallet.dto.response.WalletTransactionResponseDto;
+import com.example.onlyone.domain.wallet.entity.Filter;
+import com.example.onlyone.domain.wallet.entity.TransactionType;
+import com.example.onlyone.domain.wallet.entity.Wallet;
+import com.example.onlyone.domain.wallet.entity.WalletTransaction;
+import com.example.onlyone.domain.wallet.entity.WalletTransactionStatus;
+import com.example.onlyone.domain.wallet.repository.WalletRepository;
+import com.example.onlyone.domain.wallet.repository.WalletTransactionRepository;
+import com.example.onlyone.domain.finance.exception.FinanceErrorCode;
+import com.example.onlyone.global.exception.CustomException;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.cache.annotation.Cacheable;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.Pageable;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.util.List;
+
+@Slf4j
+@Service
+@Transactional(readOnly = true)
+@RequiredArgsConstructor
+public class WalletService {
+
+    private final WalletRepository walletRepository;
+    private final WalletTransactionRepository walletTransactionRepository;
+    private final UserService userService;
+
+    /* 사용자 정산/거래 내역 목록 조회 (컨트롤러에서 호출) */
+    @Cacheable(value = "walletTxList",
+            key = "T(org.springframework.security.core.context.SecurityContextHolder).context.authentication.principal.userId + '_' + #filter + '_' + #pageable.pageNumber")
+    public WalletTransactionResponseDto getWalletTransactionList(Filter filter, Pageable pageable) {
+        if (filter == null) {
+            filter = Filter.ALL; // 기본값 처리
+        }
+        User user = userService.getCurrentUser();
+        Wallet wallet = walletRepository.findByUserWithoutLock(user)
+                .orElseThrow(() -> new CustomException(FinanceErrorCode.WALLET_NOT_FOUND));
+        Page<WalletTransaction> transactionPageList = switch (filter) {
+            case ALL -> walletTransactionRepository.findByWalletAndStatusFetch(wallet, WalletTransactionStatus.COMPLETED, pageable);
+            case CHARGE -> walletTransactionRepository.findByWalletAndTypeAndStatusFetch(wallet, TransactionType.CHARGE, WalletTransactionStatus.COMPLETED, pageable);
+            case TRANSACTION -> walletTransactionRepository.findByWalletAndTypeNotAndStatusFetch(wallet, TransactionType.CHARGE, WalletTransactionStatus.COMPLETED, pageable);
+            default -> throw new CustomException(FinanceErrorCode.INVALID_FILTER);
+        };
+        List<UserWalletTransactionDto> dtoList = transactionPageList.getContent().stream()
+                .map(tx -> convertToDto(tx, tx.getType()))
+                .toList();
+        Page<UserWalletTransactionDto> dtoPage = new PageImpl<>(dtoList, pageable, transactionPageList.getTotalElements());
+        return WalletTransactionResponseDto.from(dtoPage);
+    }
+
+    private UserWalletTransactionDto convertToDto(WalletTransaction walletTransaction, TransactionType type) {
+        if (type == TransactionType.CHARGE) {
+            Payment payment = walletTransaction.getPayment();
+            String title = (payment != null)
+                    ? payment.getTotalAmount() + "원"
+                    : walletTransaction.getAmount() + "원";
+            return UserWalletTransactionDto.from(walletTransaction, title, null);
+        } else {
+            return UserWalletTransactionDto.from(walletTransaction, "정산 거래", null);
+        }
+    }
+
+}

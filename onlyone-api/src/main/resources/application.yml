@@ -1,0 +1,462 @@
+# =============================================================
+# OnlyOne 공통 설정 (Base Document)
+# 프로필별 오버라이드: 아래 on-profile 섹션 또는 application-prod.yml
+# =============================================================
+
+# --- Spring 기본 설정 ---
+spring:
+  application:
+    name: onlyone
+
+  profiles:
+    active: ${SPRING_PROFILES_ACTIVE:local}
+
+  jpa:
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.MySQLDialect
+    open-in-view: false    # OSIV 비활성화 (지연 로딩은 서비스 계층에서 처리)
+
+  servlet:
+    multipart:
+      max-file-size: 10MB
+      max-request-size: 10MB
+
+# --- 서버 설정 ---
+server:
+  shutdown: graceful       # Graceful Shutdown (진행 중인 요청 완료 후 종료)
+
+# --- AWS S3 업로드 폴더 경로 ---
+aws:
+  s3:
+    folder:
+      chat: chat
+      club: club
+      feed: feed
+      user: user
+
+# --- 카카오 OAuth 로그인 ---
+Kakao:
+  client:
+    id: ${KAKAO_CLIENT_ID}
+  redirect:
+    uri: ${KAKAO_REDIRECT_URI}
+
+# --- JWT 인증 토큰 ---
+jwt:
+  secret: ${JWT_SECRET}
+  access-expiration: ${JWT_ACCESS_EXPIRATION:3600000}      # Access Token 만료: 1시간
+  refresh-expiration: ${JWT_REFRESH_EXPIRATION:604800000}  # Refresh Token 만료: 7일
+
+# --- 토스 결제 연동 ---
+payment:
+  toss:
+    client_key: ${TOSS_CLIENT_KEY}
+    test_secret_api_key: ${TOSS_SECRET_API_KEY}
+    security_key: ${TOSS_SECURITY_KEY}
+    base_url: ${TOSS_BASE_URL:https://api.tosspayments.com/v1/payments}
+
+# --- 애플리케이션 커스텀 설정 ---
+app:
+  base-url: ${APP_BASE_URL:http://localhost:8080}
+  cors:
+    allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:8080,http://localhost:5173,https://only-one-front-delta.vercel.app}
+
+  # 검색 엔진 설정
+  search:
+    engine: ${SEARCH_ENGINE:elasticsearch}                       # elasticsearch | mysql
+
+  # 피드 저장소 설정
+  feed:
+    storage: ${FEED_STORAGE:mysql}                               # mysql | mongodb
+    cache:
+      enabled: ${FEED_CACHE_ENABLED:false}                       # 피드 캐시 on/off
+
+  # 채팅 메시지 저장소 설정
+  chat:
+    storage: ${CHAT_STORAGE:mysql}                               # mysql | mongodb
+    websocket: ${CHAT_WEBSOCKET:stomp}                           # stomp | reactive
+
+  # 알림 시스템 설정
+  notification:
+    storage: ${NOTIFICATION_STORAGE:mysql}                       # mysql | mongodb
+    sse-timeout-millis: ${NOTIFICATION_SSE_TIMEOUT:60000}        # SSE 연결 타임아웃 (60초)
+    max-connections: ${NOTIFICATION_MAX_CONNECTIONS:7000}         # 최대 동시 SSE 연결 수
+    cleanup-interval-minutes: ${NOTIFICATION_CLEANUP_INTERVAL:2} # 만료 연결 정리 주기
+    batch-size: ${NOTIFICATION_BATCH_SIZE:20}                    # 배치 처리 단위 크기
+    max-queue-size-per-user: ${NOTIFICATION_MAX_QUEUE:100}       # 사용자별 최대 큐 크기
+    batch-processing-interval: ${NOTIFICATION_BATCH_INTERVAL:100}  # 배치 처리 간격 (ms)
+    multi-instance: ${NOTIFICATION_MULTI_INSTANCE:false}             # 다중 인스턴스 SSE (Redis 분산 레지스트리)
+    batch-timeout-seconds: ${NOTIFICATION_BATCH_TIMEOUT:5}       # 배치 타임아웃 (초)
+    sse-executor-permits: ${SSE_EXECUTOR_PERMITS:200}            # SSE 이벤트 전송 동시실행 상한
+    notification-executor-permits: ${NOTIFICATION_EXECUTOR_PERMITS:100}
+
+  # 피드 좋아요 스트림 (Redis Streams 기반)
+  feed-like-stream:
+    enabled: ${FEED_LIKE_STREAM_ENABLED:true}
+
+  # 정산 처리 설정
+  settlement:
+    concurrency: ${SETTLEMENT_CONCURRENCY:32}
+    shutdown:
+      await-seconds: ${SETTLEMENT_SHUTDOWN_AWAIT:60}
+
+# --- Actuator 모니터링 (Prometheus + Grafana) ---
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+  endpoint:
+    health:
+      show-details: always
+  prometheus:
+    metrics:
+      export:
+        enabled: true
+  metrics:
+    tags:
+      application: ${spring.application.name}
+
+---
+# =============================================================
+# 로컬 개발 환경 (profile: local) — MySQL-only 기본 모드
+# docker compose up → MySQL만 기동. Redis/ES 필요 시 --profile 추가.
+# =============================================================
+spring:
+  config:
+    activate:
+      on-profile: local
+
+  # Kafka/MongoDB 미사용 시 자동구성 비활성화 (Redis는 기본 인프라)
+  autoconfigure:
+    exclude:
+      - org.springframework.boot.autoconfigure.kafka.KafkaAutoConfiguration
+      - org.springframework.boot.autoconfigure.data.mongo.MongoDataAutoConfiguration
+      - org.springframework.boot.autoconfigure.data.mongo.MongoRepositoriesAutoConfiguration
+      - org.springframework.boot.autoconfigure.mongo.MongoAutoConfiguration
+      - org.springframework.boot.actuate.autoconfigure.elasticsearch.ElasticSearchReactiveHealthContributorAutoConfiguration
+      - org.springframework.boot.actuate.autoconfigure.elasticsearch.ElasticsearchRestHealthContributorAutoConfiguration
+
+  # Redis (localhost:6379)
+  data:
+    redis:
+      host: ${REDIS_HOST:127.0.0.1}
+      port: ${REDIS_PORT:6379}
+      timeout: 3000
+      lettuce:
+        pool:
+          max-active: 32
+          max-idle: 16
+          min-idle: 4
+          max-wait: 2000
+
+  # --- 데이터소스 (Spring Boot 기본 HikariCP) ---
+  datasource:
+    driver-class-name: ${DB_DRIVER:com.mysql.cj.jdbc.Driver}
+    url: jdbc:mysql://${DB_HOST:127.0.0.1}:${DB_PORT:3340}/${DB_NAME:onlyone}?useSSL=false&serverTimezone=Asia/Seoul&characterEncoding=UTF-8&allowPublicKeyRetrieval=true&cachePrepStmts=true&prepStmtCacheSize=250&prepStmtCacheSqlLimit=2048&useServerPrepStmts=true&rewriteBatchedStatements=true
+    username: ${DB_USERNAME:root}
+    password: ${DB_PASSWORD:root}
+    hikari:
+      maximum-pool-size: ${HIKARI_MAX_POOL:100}
+      minimum-idle: ${HIKARI_MIN_IDLE:20}
+      connection-timeout: ${HIKARI_CONN_TIMEOUT:30000}
+      idle-timeout: ${HIKARI_IDLE_TIMEOUT:600000}
+      max-lifetime: ${HIKARI_MAX_LIFETIME:1800000}
+      auto-commit: false
+
+  # JPA: 스키마 자동 업데이트, 배치 INSERT/UPDATE
+  jpa:
+    hibernate:
+      ddl-auto: ${JPA_DDL_AUTO:update}
+    properties:
+      hibernate:
+        format_sql: false
+        use_sql_comments: false
+        show_sql: false
+        jdbc:
+          batch_size: 30
+        order_inserts: true
+        order_updates: true
+        connection:
+          provider_disables_autocommit: true
+      jakarta.persistence.query.timeout: 30000
+
+# --- 로깅 ---
+logging:
+  level:
+    root: warn
+    com.example.onlyone: info
+    org.springframework.web: warn
+    org.hibernate.SQL: warn
+    com.zaxxer.hikari: info
+
+# --- 서버 (Virtual Threads 활성화) ---
+server:
+  port: ${SERVER_PORT:8080}
+  tomcat:
+    threads:
+      max: 200
+
+spring.threads.virtual.enabled: ${VIRTUAL_THREADS:true}
+
+# --- AWS ---
+aws:
+  s3:
+    region: ${AWS_S3_REGION:ap-northeast-2}
+    bucket: ${AWS_S3_BUCKET:buddkit-image}
+  cloudfront:
+    domain: ${AWS_CLOUDFRONT_DOMAIN:d1c3fg3ti7m8cn.cloudfront.net}
+
+# --- 카카오 OAuth ---
+Kakao:
+  client:
+    id: ${KAKAO_CLIENT_ID:cb62270f81c3942b697f94401978d95b}
+  redirect:
+    uri: ${KAKAO_REDIRECT_URI:http://localhost:5173/kakao-callback}
+
+# --- JWT ---
+jwt:
+  secret: ${JWT_SECRET:7e9eeb12d176a2d72f554c6b096522b4e1a34d799727e45a96f192bbff2a2a851ede29ed24b10b6e6b1835ac94380e2469df99ff9713477bf4d43eeaa9cd16a3}
+  access-expiration: ${JWT_ACCESS_EXPIRATION:3600000}
+  refresh-expiration: ${JWT_REFRESH_EXPIRATION:604800000}
+
+# --- 토스 결제 ---
+payment:
+  toss:
+    client_key: ${TOSS_CLIENT_KEY:test_ck_yL0qZ4G1VOlG77j1njbProWb2MQY}
+    test_secret_api_key: ${TOSS_SECRET_API_KEY:test_sk_kYG57Eba3GbjeWJXBvjk8pWDOxmA}
+    security_key: ${TOSS_SECURITY_KEY:705394c7b81f84e2777acd2935f376d566fdf68ec38392bbab607771a5147bb0}
+
+# --- 앱 커스텀 설정 ---
+app:
+  search:
+    engine: ${SEARCH_ENGINE:mysql}
+  rate-limit:
+    enabled: ${RATE_LIMIT_ENABLED:false}
+    requests-per-minute: ${RATE_LIMIT_RPM:60}
+    auth-requests-per-30s: ${RATE_LIMIT_AUTH:10}
+  feed:
+    storage: ${FEED_STORAGE:mysql}
+    cache:
+      enabled: ${FEED_CACHE_ENABLED:false}
+  feed-like-stream:
+    enabled: ${FEED_LIKE_STREAM_ENABLED:false}
+  chat:
+    storage: ${CHAT_STORAGE:mysql}
+    websocket: ${CHAT_WEBSOCKET:stomp}
+  notification:
+    storage: ${NOTIFICATION_STORAGE:mysql}
+    sse-timeout-millis: ${NOTIFICATION_SSE_TIMEOUT:30000}
+    sse-executor-permits: ${SSE_EXECUTOR_PERMITS:500}
+    max-connections: ${NOTIFICATION_MAX_CONNECTIONS:10000}
+  kafka:
+    topic:
+      replicas: 1
+      min-insync-replicas: 1
+
+# --- Kafka (로컬, docker compose --profile kafka 필요) ---
+spring.kafka:
+  enabled: ${KAFKA_ENABLED:false}
+  default-bootstrap-servers: ${KAFKA_BOOTSTRAP:localhost:29092}
+  producer:
+    common-config:
+      client-id: onlyone-producer
+      bootstrap-servers:
+        - ${KAFKA_BOOTSTRAP:localhost:29092}
+      transactional-id-prefix: onlyone-tx-
+      acks: all
+      linger-ms: 5
+      batch-size: 16384
+    settlement-process-producer-config:
+      topic: settlement.process.v1
+  consumer:
+    common-config:
+      group-id: onlyone-settlement
+      client-id: onlyone-consumer
+      bootstrap-servers:
+        - ${KAFKA_BOOTSTRAP:localhost:29092}
+      timeout-ms: "30000"
+      fetch-min-bytes: 1
+      fetch-max-wait-ms: 500
+    user-settlement-ledger-consumer-config:
+      topic: user-settlement.result.v1
+  security:
+    enabled: false
+
+---
+# =============================================================
+# EC2 부하 테스트 환경 (profile: ec2)
+# 사용: SPRING_PROFILES_ACTIVE=ec2
+#
+# 앱 서버(c5.xlarge: 4 vCPU, 8GB)에서 실행
+# 인프라 서버(c5.2xlarge)에 INFRA_HOST 환경변수로 연결
+# =============================================================
+spring:
+  config:
+    activate:
+      on-profile: ec2
+
+  # RabbitMQ/ES 미사용
+  autoconfigure:
+    exclude:
+      - org.springframework.boot.autoconfigure.amqp.RabbitAutoConfiguration
+      - org.springframework.boot.autoconfigure.elasticsearch.ElasticsearchClientAutoConfiguration
+      - org.springframework.boot.autoconfigure.elasticsearch.ElasticsearchRestClientAutoConfiguration
+      - org.springframework.boot.autoconfigure.data.elasticsearch.ElasticsearchDataAutoConfiguration
+      - org.springframework.boot.autoconfigure.data.elasticsearch.ElasticsearchRepositoriesAutoConfiguration
+      - org.springframework.boot.actuate.autoconfigure.elasticsearch.ElasticSearchReactiveHealthContributorAutoConfiguration
+      - org.springframework.boot.actuate.autoconfigure.elasticsearch.ElasticsearchRestHealthContributorAutoConfiguration
+
+  # --- 데이터소스 (EC2 원격 인프라) ---
+  datasource:
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    url: jdbc:mysql://${INFRA_HOST}:3306/onlyone?useSSL=false&serverTimezone=Asia/Seoul&characterEncoding=UTF-8&allowPublicKeyRetrieval=true&cachePrepStmts=true&prepStmtCacheSize=250&prepStmtCacheSqlLimit=2048&useServerPrepStmts=false&rewriteBatchedStatements=true
+    username: ${DB_USERNAME:root}
+    password: ${DB_PASSWORD:root}
+    hikari:
+      maximum-pool-size: 300
+      minimum-idle: 50
+      connection-timeout: 10000
+      idle-timeout: 300000
+      max-lifetime: 600000
+      validation-timeout: 3000
+      auto-commit: false
+
+  # JPA
+  jpa:
+    hibernate:
+      ddl-auto: update
+    properties:
+      hibernate:
+        format_sql: false
+        use_sql_comments: false
+        show_sql: false
+        jdbc:
+          batch_size: 30
+        order_inserts: true
+        order_updates: true
+        connection:
+          provider_disables_autocommit: true
+        generate_statistics: false
+      jakarta.persistence.query.timeout: 30000
+
+  # Redis + MongoDB (원격 인프라)
+  data:
+    mongodb:
+      uri: mongodb://root:root@${INFRA_HOST}:27017/onlyone?authSource=admin
+    redis:
+      host: ${INFRA_HOST}
+      port: 6379
+      password: ${REDIS_PASSWORD:}
+      timeout: 5000
+      lettuce:
+        pool:
+          max-active: 128
+          max-idle: 64
+          min-idle: 16
+          max-wait: 3000
+        shutdown-timeout: 2000ms
+
+  # Kafka (원격 인프라)
+  kafka:
+    enabled: true
+    default-bootstrap-servers: ${INFRA_HOST}:29092
+    producer:
+      common-config:
+        client-id: onlyone-producer
+        bootstrap-servers:
+          - ${INFRA_HOST}:29092
+        transactional-id-prefix: onlyone-tx-
+        acks: all
+        linger-ms: 5
+        batch-size: 16384
+      settlement-process-producer-config:
+        topic: settlement.process.v1
+    consumer:
+      common-config:
+        group-id: onlyone-settlement
+        client-id: onlyone-consumer
+        bootstrap-servers:
+          - ${INFRA_HOST}:29092
+        timeout-ms: "30000"
+        fetch-min-bytes: 1
+        fetch-max-wait-ms: 500
+      user-settlement-ledger-consumer-config:
+        topic: user-settlement.result.v1
+    security:
+      enabled: false
+
+#  # Elasticsearch (원격 인프라)
+#  elasticsearch:
+#    uris: http://${INFRA_HOST}:9200
+#    username: ${ELASTICSEARCH_USERNAME:elastic}
+#    password: ${ELASTICSEARCH_PASSWORD:changeme}
+
+  # 캐시
+  cache:
+    type: redis
+    redis:
+      time-to-live: 600000
+
+# --- 로깅 ---
+logging:
+  level:
+    root: warn
+    com.example.onlyone: info
+    com.zaxxer.hikari: info
+    org.hibernate.SQL: warn
+    org.springframework: warn
+    org.apache.kafka: warn
+
+# --- Tomcat (c5.xlarge 고부하 튜닝) ---
+server:
+  port: 8080
+  tomcat:
+    threads:
+      max: 400
+      min-spare: 25
+    max-connections: 20000
+    accept-count: 1000
+
+# --- AWS ---
+aws:
+  s3:
+    region: ap-northeast-2
+    bucket: ${AWS_S3_BUCKET:buddkit-image}
+  cloudfront:
+    domain: ${AWS_CLOUDFRONT_DOMAIN:d1c3fg3ti7m8cn.cloudfront.net}
+
+# --- 앱 커스텀 설정 ---
+app:
+  datasource:
+    routing:
+      enabled: true
+  feed-like-stream:
+    enabled: ${FEED_LIKE_STREAM_ENABLED:true}
+  kafka:
+    topic:
+      replicas: 1
+      min-insync-replicas: 1
+  search:
+    engine: mysql
+  rate-limit:
+    enabled: false
+  feed:
+    storage: mysql
+    cache:
+      enabled: ${FEED_CACHE_ENABLED:false}
+  chat:
+    storage: mysql
+    stomp-inbound-core-pool: 128
+    stomp-inbound-max-pool: 256
+    stomp-inbound-queue: 10000
+    stomp-outbound-core-pool: 128
+    stomp-outbound-max-pool: 256
+    stomp-outbound-queue: 8000
+  notification:
+    storage: mongodb
+    sse-timeout-millis: 300000
+    sse-executor-permits: 500
+    max-connections: 10000
+    multi-instance: true
